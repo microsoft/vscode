@@ -1504,11 +1504,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		if (await this.applyInteractiveBulkEdit(resourceFileEdits.filter(edit => edit.newResource), options) && mergeDirectories) {
-			// Since all children of the folder are moved individually, we have to delete the folder
-			// Once everything has been moved successfully, we can delete the folders
+			// Since all children of conflicting folders are moved individually, we have to delete the remaining empty folders (once everything has been moved)
 			try {
-				// BulkEdit does not allow deleting in order. Executing all folder-deletions at once would cause an error
-				// since deleting the parent-folder may fail with undeleted children-folder in there (because it is not empty).
+				// BulkEdit does not allow deleting in order. Executing all folder-deletions at once in arbitrary order would cause an error
+				// since deleting a parent-folder may fail with undeleted cild-folders in there (because the parent is not empty).
 				for (const edit of resourceFileEdits.filter(edit => !edit.newResource)) {
 					const resolved = await this.fileService.resolve(edit.oldResource!);
 					// since the user could decide to skip some files, we only delete empty folders
