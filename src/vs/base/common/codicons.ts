@@ -71,21 +71,25 @@ export interface CSSIcon {
 	readonly id: string;
 }
 
+
 export namespace CSSIcon {
-	export const iconIdRegex = /^(codicon\/)?([a-z\-]+)(?:~([a-z\-]+))?$/i;
+	export const iconNameExpression = '[A-Za-z0-9\\-]+';
+	export const iconModifierExpression = '~[A-Za-z]+';
+
+	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
 
 	export function asClassNameArray(icon: CSSIcon): string[] {
 		if (icon instanceof Codicon) {
 			return ['codicon', 'codicon-' + icon.id];
 		}
-		const match = iconIdRegex.exec(icon.id);
+		const match = cssIconIdRegex.exec(icon.id);
 		if (!match) {
 			return asClassNameArray(Codicon.error);
 		}
-		let [, , id, modifier] = match;
+		let [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier);
+			classNames.push('codicon-modifier-' + modifier.substr(1));
 		}
 		return classNames;
 	}
