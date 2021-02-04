@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { readFile, exists } from 'vs/base/node/pfs';
+import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { exists } from 'vs/base/node/pfs';
 import { isString } from 'vs/base/common/types';
 import { getCaseInsensitive } from 'vs/base/common/objects';
 
@@ -26,7 +27,7 @@ export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironme
 		let name: string = codeProcessName;
 		do {
 			pid = ppid;
-			const status = await readFile(`/proc/${pid}/status`, 'utf8');
+			const status = await fs.promises.readFile(`/proc/${pid}/status`, 'utf8');
 			const splitByLine = status.split('\n');
 			splitByLine.forEach(line => {
 				if (line.indexOf('Name:') === 0) {
@@ -37,7 +38,7 @@ export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironme
 				}
 			});
 		} while (name === codeProcessName);
-		const rawEnv = await readFile(`/proc/${pid}/environ`, 'utf8');
+		const rawEnv = await fs.promises.readFile(`/proc/${pid}/environ`, 'utf8');
 		const env: IProcessEnvironment = {};
 		rawEnv.split('\0').forEach(e => {
 			const i = e.indexOf('=');

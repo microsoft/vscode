@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, Promises } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
@@ -98,6 +98,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 
 	constructor(
 		private readonly extension: IExtension,
+		private readonly version: string,
 		private readonly installOperation: InstallOperation,
 		private readonly error: Error,
 		@IProductService private readonly productService: IProductService,
@@ -120,7 +121,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
 
 		if ([INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_NOT_SUPPORTED].includes(this.error.name)) {
-			await this.dialogService.show(Severity.Error, `${operationMessage}\n${getErrorMessage(this.error)}`, []);
+			await this.dialogService.show(Severity.Info, getErrorMessage(this.error), []);
 			return;
 		}
 
@@ -128,7 +129,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 		if (this.extension.gallery && this.productService.extensionsGallery) {
 			promptChoices.push({
 				label: localize('download', "Try Downloading Manually..."),
-				run: () => this.openerService.open(URI.parse(`${this.productService.extensionsGallery!.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.extension.version}/vspackage`)).then(() => {
+				run: () => this.openerService.open(URI.parse(`${this.productService.extensionsGallery!.serviceUrl}/publishers/${this.extension.publisher}/vsextensions/${this.extension.name}/${this.version}/vspackage`)).then(() => {
 					this.notificationService.prompt(
 						Severity.Info,
 						localize('install vsix', 'Once downloaded, please manually install the downloaded VSIX of \'{0}\'.', this.extension.identifier.id),
@@ -277,7 +278,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		try {
 			return await this.extensionsWorkbenchService.install(extension, this.getInstallOptions());
 		} catch (error) {
-			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Install, error).run();
+			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, error).run();
 			return undefined;
 		}
 	}
@@ -477,7 +478,7 @@ export abstract class InstallInOtherServerAction extends ExtensionAction {
 			|| !this.extension.local
 			|| this.extension.state !== ExtensionState.Installed
 			|| this.extension.type !== ExtensionType.User
-			|| this.extension.enablementState === EnablementState.DisabledByEnvironemt
+			|| this.extension.enablementState === EnablementState.DisabledByEnvironment
 		) {
 			return false;
 		}
@@ -705,7 +706,7 @@ export class UpdateAction extends ExtensionAction {
 			await this.extensionsWorkbenchService.install(extension);
 			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
 		} catch (err) {
-			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Update, err).run();
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err).run();
 		}
 	}
 
@@ -765,7 +766,8 @@ export class ExtensionActionWithDropdownActionViewItem extends ActionWithDropdow
 
 	updateClass(): void {
 		super.updateClass();
-		if (this.dropdownMenuActionViewItem && this.dropdownMenuActionViewItem.element) {
+		if (this.element && this.dropdownMenuActionViewItem && this.dropdownMenuActionViewItem.element) {
+			this.element.classList.toggle('empty', (<ActionWithDropDownAction>this._action).menuActions.length === 0);
 			this.dropdownMenuActionViewItem.element.classList.toggle('hide', (<ActionWithDropDownAction>this._action).menuActions.length === 0);
 		}
 	}
@@ -1053,7 +1055,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 							await this.extensionsWorkbenchService.installVersion(this.extension!, pick.id);
 						}
 					} catch (error) {
-						this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension!, InstallOperation.Install, error).run();
+						this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension!, pick.latest ? this.extension!.latestVersion : pick.id, InstallOperation.Install, error).run();
 					}
 				}
 				return null;
@@ -1641,7 +1643,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			try {
 				await this.extensionWorkbenchService.install(extension);
 			} catch (err) {
-				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, InstallOperation.Install, err).run();
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, err).run();
 			}
 		}
 	}
@@ -2473,7 +2475,7 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 	protected async installExtensions(localExtensionsToInstall: IExtension[]): Promise<void> {
 		const galleryExtensions: IGalleryExtension[] = [];
 		const vsixs: URI[] = [];
-		await Promise.all(localExtensionsToInstall.map(async extension => {
+		await Promises.settled(localExtensionsToInstall.map(async extension => {
 			if (this.extensionGalleryService.isEnabled()) {
 				const gallery = await this.extensionGalleryService.getCompatibleExtension(extension.identifier, extension.version);
 				if (gallery) {
@@ -2485,8 +2487,8 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 			vsixs.push(vsix);
 		}));
 
-		await Promise.all(galleryExtensions.map(gallery => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(gallery)));
-		await Promise.all(vsixs.map(vsix => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.install(vsix)));
+		await Promises.settled(galleryExtensions.map(gallery => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.installFromGallery(gallery)));
+		await Promises.settled(vsixs.map(vsix => this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.install(vsix)));
 	}
 }
 
@@ -2521,7 +2523,7 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 	protected async installExtensions(extensions: IExtension[]): Promise<void> {
 		const galleryExtensions: IGalleryExtension[] = [];
 		const vsixs: URI[] = [];
-		await Promise.all(extensions.map(async extension => {
+		await Promises.settled(extensions.map(async extension => {
 			if (this.extensionGalleryService.isEnabled()) {
 				const gallery = await this.extensionGalleryService.getCompatibleExtension(extension.identifier, extension.version);
 				if (gallery) {
@@ -2533,8 +2535,8 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 			vsixs.push(vsix);
 		}));
 
-		await Promise.all(galleryExtensions.map(gallery => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.installFromGallery(gallery)));
-		await Promise.all(vsixs.map(vsix => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.install(vsix)));
+		await Promises.settled(galleryExtensions.map(gallery => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.installFromGallery(gallery)));
+		await Promises.settled(vsixs.map(vsix => this.extensionManagementServerService.localExtensionManagementServer!.extensionManagementService.install(vsix)));
 	}
 }
 

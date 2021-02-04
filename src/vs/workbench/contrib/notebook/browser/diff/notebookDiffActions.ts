@@ -8,10 +8,11 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ActiveEditorContext, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
-import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { openAsTextIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { openAsTextIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -60,12 +61,14 @@ registerAction2(class extends Action2 {
 				icon: revertIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffCellMetadataTitle
-				}
+					id: MenuId.NotebookDiffCellMetadataTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY
+				},
+				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModel }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -77,7 +80,55 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		modified.metadata = original.metadata;
+		modified.textModel.metadata = original.metadata;
+	}
+});
+
+// registerAction2(class extends Action2 {
+// 	constructor() {
+// 		super(
+// 			{
+// 				id: 'notebook.diff.cell.switchOutputRenderingStyle',
+// 				title: localize('notebook.diff.cell.switchOutputRenderingStyle', "Switch Outputs Rendering"),
+// 				icon: renderOutputIcon,
+// 				f1: false,
+// 				menu: {
+// 					id: MenuId.NotebookDiffCellOutputsTitle
+// 				}
+// 			}
+// 		);
+// 	}
+// 	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+// 		if (!context) {
+// 			return;
+// 		}
+
+// 		context.cell.renderOutput = true;
+// 	}
+// });
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.cell.switchOutputRenderingStyleToText',
+				title: localize('notebook.diff.cell.switchOutputRenderingStyleToText', "Switch Output Rendering"),
+				icon: renderOutputIcon,
+				f1: false,
+				menu: {
+					id: MenuId.NotebookDiffCellOutputsTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+		if (!context) {
+			return;
+		}
+
+		context.cell.renderOutput = !context.cell.renderOutput;
 	}
 });
 
@@ -90,12 +141,14 @@ registerAction2(class extends Action2 {
 				icon: revertIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffCellOutputsTitle
-				}
+					id: MenuId.NotebookDiffCellOutputsTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY
+				},
+				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModel }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -107,9 +160,10 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		modified.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
+		modified.textModel.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
 	}
 });
+
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -120,12 +174,15 @@ registerAction2(class extends Action2 {
 				icon: revertIcon,
 				f1: false,
 				menu: {
-					id: MenuId.NotebookDiffCellInputTitle
-				}
+					id: MenuId.NotebookDiffCellInputTitle,
+					when: NOTEBOOK_DIFF_CELL_PROPERTY
+				},
+				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
+
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModel }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -139,7 +196,7 @@ registerAction2(class extends Action2 {
 
 		const bulkEditService = accessor.get(IBulkEditService);
 		return bulkEditService.apply([
-			new ResourceTextEdit(modified.uri, { range: modified.getFullModelRange(), text: original.getValue() }),
+			new ResourceTextEdit(modified.uri, { range: modified.textModel.getFullModelRange(), text: original.textModel.getValue() }),
 		], { quotableLabel: 'Split Notebook Cell' });
 	}
 });

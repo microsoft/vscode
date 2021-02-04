@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 /**
  * To an event a function with one or zero parameters
@@ -374,11 +374,11 @@ export namespace Event {
 	}
 
 	export function toPromise<T>(event: Event<T>): Promise<T> {
-		return new Promise(c => once(event)(c));
+		return new Promise(resolve => once(event)(resolve));
 	}
 }
 
-type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
+export type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
 
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
@@ -386,6 +386,41 @@ export interface EmitterOptions {
 	onListenerDidAdd?: Function;
 	onLastListenerRemove?: Function;
 	leakWarningThreshold?: number;
+
+	/** ONLY enable this during development */
+	_profName?: string
+}
+
+
+class EventProfiling {
+
+	private static _idPool = 0;
+
+	private _name: string;
+	private _stopWatch?: StopWatch;
+	private _listenerCount: number = 0;
+	private _invocationCount = 0;
+	private _elapsedOverall = 0;
+
+	constructor(name: string) {
+		this._name = `${name}_${EventProfiling._idPool++}`;
+	}
+
+	start(listenerCount: number): void {
+		this._stopWatch = new StopWatch(true);
+		this._listenerCount = listenerCount;
+	}
+
+	stop(): void {
+		if (this._stopWatch) {
+			const elapsed = this._stopWatch.elapsed();
+			this._elapsedOverall += elapsed;
+			this._invocationCount += 1;
+
+			console.info(`did FIRE ${this._name}: elapsed_ms: ${elapsed.toFixed(5)}, listener: ${this._listenerCount} (elapsed_overall: ${this._elapsedOverall.toFixed(2)}, invocations: ${this._invocationCount})`);
+			this._stopWatch = undefined;
+		}
+	}
 }
 
 let _globalLeakWarningThreshold = -1;
@@ -487,6 +522,7 @@ export class Emitter<T> {
 
 	private readonly _options?: EmitterOptions;
 	private readonly _leakageMon?: LeakageMonitor;
+	private readonly _perfMon?: EventProfiling;
 	private _disposed: boolean = false;
 	private _event?: Event<T>;
 	private _deliveryQueue?: LinkedList<[Listener<T>, T]>;
@@ -494,9 +530,8 @@ export class Emitter<T> {
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
-		this._leakageMon = _globalLeakWarningThreshold > 0
-			? new LeakageMonitor(this._options && this._options.leakWarningThreshold)
-			: undefined;
+		this._leakageMon = _globalLeakWarningThreshold > 0 ? new LeakageMonitor(this._options && this._options.leakWarningThreshold) : undefined;
+		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
 	}
 
 	/**
@@ -527,10 +562,7 @@ export class Emitter<T> {
 				}
 
 				// check and record this emitter for potential leakage
-				let removeMonitor: (() => void) | undefined;
-				if (this._leakageMon) {
-					removeMonitor = this._leakageMon.check(this._listeners.size);
-				}
+				const removeMonitor = this._leakageMon?.check(this._listeners.size);
 
 				let result: IDisposable;
 				result = {
@@ -580,6 +612,9 @@ export class Emitter<T> {
 				this._deliveryQueue.push([listener, event]);
 			}
 
+			// start/stop performance insight collection
+			this._perfMon?.start(this._deliveryQueue.size);
+
 			while (this._deliveryQueue.size > 0) {
 				const [listener, event] = this._deliveryQueue.shift()!;
 				try {
@@ -592,19 +627,15 @@ export class Emitter<T> {
 					onUnexpectedError(e);
 				}
 			}
+
+			this._perfMon?.stop();
 		}
 	}
 
 	dispose() {
-		if (this._listeners) {
-			this._listeners.clear();
-		}
-		if (this._deliveryQueue) {
-			this._deliveryQueue.clear();
-		}
-		if (this._leakageMon) {
-			this._leakageMon.dispose();
-		}
+		this._listeners?.clear();
+		this._deliveryQueue?.clear();
+		this._leakageMon?.dispose();
 		this._disposed = true;
 	}
 }
@@ -617,7 +648,7 @@ export class PauseableEmitter<T> extends Emitter<T> {
 
 	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
 		super(options);
-		this._mergeFn = options && options.merge;
+		this._mergeFn = options?.merge;
 	}
 
 	pause(): void {
@@ -650,64 +681,6 @@ export class PauseableEmitter<T> extends Emitter<T> {
 			} else {
 				super.fire(event);
 			}
-		}
-	}
-}
-
-export interface IWaitUntil {
-	waitUntil(thenable: Promise<any>): void;
-}
-
-export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
-
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
-
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
-		if (!this._listeners) {
-			return;
-		}
-
-		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = new LinkedList();
-		}
-
-		for (const listener of this._listeners) {
-			this._asyncDeliveryQueue.push([listener, data]);
-		}
-
-		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
-
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<any>[] = [];
-
-			const event = <T>{
-				...data,
-				waitUntil: (p: Promise<any>): void => {
-					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
-					}
-					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
-					}
-					thenables.push(p);
-				}
-			};
-
-			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
-				}
-			} catch (e) {
-				onUnexpectedError(e);
-				continue;
-			}
-
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
-			await Promise.all(thenables).catch(e => onUnexpectedError(e));
 		}
 	}
 }

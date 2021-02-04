@@ -90,6 +90,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		'terminal.integrated.altClickMovesCursor': {
+			description: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when `#editor.multiCursorModifier#` is set to `'alt'` (the default value). This may not work reliably depending on your shell."),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.copyOnSelection': {
 			description: localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
 			type: 'boolean',
@@ -262,7 +267,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.allowMnemonics': {
-			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true. This does nothing on macOS."),
+			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes to skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
 			default: false
 		},
@@ -397,11 +402,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.flowControl': {
+			description: localize('terminal.integrated.flowControl', "Experimental: whether to enable flow control which will slow the program on the remote side to avoid flooding remote connections with terminal output. This setting has no effect for local terminals and terminals where the output/input is controlled by an extension. Changing this will only affect new terminals."),
+			type: 'boolean',
+			default: true
 		}
 	}
 };
 
-export function getTerminalShellConfiguration(getSystemShell?: (p: Platform) => string): IConfigurationNode {
+function getTerminalShellConfigurationStub(linux: string, osx: string, windows: string): IConfigurationNode {
 	return {
 		id: 'terminal',
 		order: 100,
@@ -409,29 +419,34 @@ export function getTerminalShellConfiguration(getSystemShell?: (p: Platform) => 
 		type: 'object',
 		properties: {
 			'terminal.integrated.shell.linux': {
-				markdownDescription:
-					getSystemShell
-						? localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Linux))
-						: localize('terminal.integrated.shell.linux.noDefault', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				markdownDescription: linux,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.osx': {
-				markdownDescription:
-					getSystemShell
-						? localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Mac))
-						: localize('terminal.integrated.shell.osx.noDefault', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				markdownDescription: osx,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.windows': {
-				markdownDescription:
-					getSystemShell
-						? localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Windows))
-						: localize('terminal.integrated.shell.windows.noDefault', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				markdownDescription: windows,
 				type: ['string', 'null'],
 				default: null
 			}
 		}
 	};
+}
+
+export function getNoDefaultTerminalShellConfiguration(): IConfigurationNode {
+	return getTerminalShellConfigurationStub(
+		localize('terminal.integrated.shell.linux.noDefault', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+		localize('terminal.integrated.shell.osx.noDefault', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+		localize('terminal.integrated.shell.windows.noDefault', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."));
+}
+
+export async function getTerminalShellConfiguration(getSystemShell: (p: Platform) => Promise<string>): Promise<IConfigurationNode> {
+	return getTerminalShellConfigurationStub(
+		localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Linux)),
+		localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Mac)),
+		localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Windows)));
 }

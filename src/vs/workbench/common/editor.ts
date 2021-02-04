@@ -74,7 +74,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * The assigned options of the editor.
 	 */
-	readonly options: EditorOptions | undefined;
+	readonly options: IEditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
@@ -186,7 +186,7 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
-interface ICustomEditorInputFactory {
+export interface ICustomEditorInputFactory {
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
@@ -1215,7 +1215,7 @@ export interface IEditorOpenContext {
 	 * An editor is new for a group if it was not part of the group before and
 	 * otherwise was already opened in the group and just became the active editor.
 	 *
-	 * This hint can e.g. be used to decide wether to restore view state or not.
+	 * This hint can e.g. be used to decide whether to restore view state or not.
 	 */
 	newInGroup?: boolean;
 }
@@ -1257,14 +1257,15 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
-	workbench: {
-		editor: IEditorPartConfiguration,
-		iconTheme: string;
+	workbench?: {
+		editor?: IEditorPartConfiguration,
+		iconTheme?: string;
 	};
 }
 
 interface IEditorPartConfiguration {
 	showTabs?: boolean;
+	wrapTabs?: boolean;
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
@@ -1275,6 +1276,7 @@ interface IEditorPartConfiguration {
 	showIcons?: boolean;
 	enablePreview?: boolean;
 	enablePreviewFromQuickOpen?: boolean;
+	enablePreviewFromCodeNavigation?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
@@ -1290,6 +1292,10 @@ interface IEditorPartConfiguration {
 		value?: number;
 		perEditorGroup?: boolean;
 	};
+	decorations?: {
+		badges?: boolean;
+		colors?: boolean;
+	}
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -1328,7 +1334,9 @@ class EditorResourceAccessorImpl {
 	/**
 	 * The original URI of an editor is the URI that was used originally to open
 	 * the editor and should be used whenever the URI is presented to the user,
-	 * e.g. as a label.
+	 * e.g. as a label together with utility methods such as `ResourceLabel` or
+	 * `ILabelService` that can turn this original URI into the best form for
+	 * presenting.
 	 *
 	 * In contrast, the canonical URI (#getCanonicalUri) may be different and should
 	 * be used whenever the URI is used to e.g. compare with other editors or when
@@ -1577,7 +1585,7 @@ export function computeEditorAriaLabel(input: IEditorInput, index: number | unde
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
 	}
 
-	if (group && group.isSticky(index ?? input)) {
+	if (group?.isSticky(index ?? input)) {
 		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
 	}
 

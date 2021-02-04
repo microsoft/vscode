@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import { timeout, Delayer } from 'vs/base/common/async';
+import { timeout, Delayer, Promises } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -39,7 +39,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -787,7 +788,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 					.filter(e => maliciousSet.has(e.identifier.id));
 
 				if (maliciousExtensions.length) {
-					return Promise.all(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {
+					return Promises.settled(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {
 						this.notificationService.prompt(
 							Severity.Warning,
 							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.identifier.id),

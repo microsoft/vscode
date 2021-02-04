@@ -17,13 +17,13 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ClickTargetType, getExecuteCellPlaceholder } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
-import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
+import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 export class CodeCell extends Disposable {
-	private _outputContainerRenderer: OutputContainer;
+	private _outputContainerRenderer: CellOutputContainer;
 	private _activeCellRunPlaceholder: IDisposable | null = null;
 	private _untrustedStatusItem: IDisposable | null = null;
 
@@ -122,6 +122,12 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
+		this._register(viewCell.onDidChangeLayout((e) => {
+			if (e.totalHeight) {
+				this.relayoutCell();
+			}
+		}));
+
 		this._register(templateData.editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
@@ -215,7 +221,7 @@ export class CodeCell extends Disposable {
 		updateFocusMode();
 
 		// Render Outputs
-		this._outputContainerRenderer = new OutputContainer(notebookEditor, viewCell, templateData, notebookService, quickInputService, openerService, textFileService);
+		this._outputContainerRenderer = new CellOutputContainer(notebookEditor, viewCell, templateData, notebookService, quickInputService, openerService, textFileService);
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
 		updateForCollapseState();
@@ -231,6 +237,7 @@ export class CodeCell extends Disposable {
 				if (this._activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
 					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
+					this._register(this._activeCellRunPlaceholder);
 				}
 
 				return;
@@ -284,7 +291,7 @@ export class CodeCell extends Disposable {
 			this.viewUpdateAllCollapsed();
 		} else if (this.viewCell.metadata?.inputCollapsed) {
 			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputs.length) {
+		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputsViewModels.length) {
 			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();

@@ -2,127 +2,108 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { IBestWindowOrFolderOptions, IWindowContext, findBestWindowOrFolderForFile, OpenContext } from 'vs/platform/windows/electron-main/window';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { join } from 'vs/base/common/path';
+import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
+import { ICodeWindow, IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-
-const fixturesFolder = getPathFromAmdModule(require, './fixtures');
-
-const testWorkspace: IWorkspaceIdentifier = {
-	id: Date.now().toString(),
-	configPath: URI.file(path.join(fixturesFolder, 'workspaces.json'))
-};
-
-const testWorkspaceFolders = toWorkspaceFolders([{ path: path.join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: path.join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
-
-function options(custom?: Partial<IBestWindowOrFolderOptions<IWindowContext>>): IBestWindowOrFolderOptions<IWindowContext> {
-	return {
-		windows: [],
-		newWindow: false,
-		context: OpenContext.CLI,
-		codeSettingsFolder: '_vscode',
-		localWorkspaceResolver: workspace => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : null; },
-		...custom
-	};
-}
-
-const vscodeFolderWindow: IWindowContext = { lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'vscode_folder')) };
-const lastActiveWindow: IWindowContext = { lastFocusTime: 3, openedFolderUri: undefined };
-const noVscodeFolderWindow: IWindowContext = { lastFocusTime: 2, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder')) };
-const windows: IWindowContext[] = [
-	vscodeFolderWindow,
-	lastActiveWindow,
-	noVscodeFolderWindow,
-];
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { UriDto } from 'vs/base/common/types';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 suite('WindowsFinder', () => {
 
+	const fixturesFolder = getPathFromAmdModule(require, './fixtures');
+
+	const testWorkspace: IWorkspaceIdentifier = {
+		id: Date.now().toString(),
+		configPath: URI.file(join(fixturesFolder, 'workspaces.json'))
+	};
+
+	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
+	const localWorkspaceResolver = (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : null; };
+
+	function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?: URI, openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
+		return new class implements ICodeWindow {
+			onLoad: Event<void> = Event.None;
+			onReady: Event<void> = Event.None;
+			onClose: Event<void> = Event.None;
+			onDestroy: Event<void> = Event.None;
+			whenClosedOrLoaded: Promise<void> = Promise.resolve();
+			id: number = -1;
+			win: Electron.BrowserWindow = undefined!;
+			config: INativeWindowConfiguration | undefined;
+			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
+			backupPath?: string | undefined;
+			remoteAuthority?: string | undefined;
+			isExtensionDevelopmentHost = false;
+			isExtensionTestHost = false;
+			lastFocusTime = options.lastFocusTime;
+			isFullScreen = false;
+			isReady = true;
+			hasHiddenTitleBarStyle = false;
+
+			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
+			setReady(): void { throw new Error('Method not implemented.'); }
+			addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
+			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
+			reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
+			focus(options?: { force: boolean; }): void { throw new Error('Method not implemented.'); }
+			close(): void { throw new Error('Method not implemented.'); }
+			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }
+			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
+			sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void { throw new Error('Method not implemented.'); }
+			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
+			isMinimized(): boolean { throw new Error('Method not implemented.'); }
+			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
+			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
+			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }
+			isDocumentEdited(): boolean { throw new Error('Method not implemented.'); }
+			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
+			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
+			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
+			dispose(): void { }
+		};
+	}
+
+	const vscodeFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(join(fixturesFolder, 'vscode_folder')) });
+	const lastActiveWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 3, openedFolderUri: undefined });
+	const noVscodeFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 2, openedFolderUri: URI.file(join(fixturesFolder, 'no_vscode_folder')) });
+	const windows: ICodeWindow[] = [
+		vscodeFolderWindow,
+		lastActiveWindow,
+		noVscodeFolderWindow,
+	];
+
 	test('New window without folder when no windows exist', () => {
-		assert.equal(findBestWindowOrFolderForFile(options()), null);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt'))
-		})), null);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
-			newWindow: true
-		})), null);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
-		})), null);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
-			context: OpenContext.API
-		})), null);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt'))
-		})), null);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'new_folder', 'new_file.txt'))
-		})), null);
-	});
-
-	test('New window without folder when windows exist', () => {
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows,
-			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
-			newWindow: true
-		})), null);
-	});
-
-	test('Last active window', () => {
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows
-		})), lastActiveWindow);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows,
-			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder2', 'file.txt'))
-		})), lastActiveWindow);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows: [lastActiveWindow, noVscodeFolderWindow],
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt')),
-		})), lastActiveWindow);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows,
-			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt')),
-			context: OpenContext.API
-		})), lastActiveWindow);
+		assert.strictEqual(findWindowOnFile([], URI.file('nonexisting'), localWorkspaceResolver), undefined);
+		assert.strictEqual(findWindowOnFile([], URI.file(join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), undefined);
 	});
 
 	test('Existing window with folder', () => {
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows,
-			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'file.txt'))
-		})), noVscodeFolderWindow);
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows,
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'file.txt'))
-		})), vscodeFolderWindow);
-		const window: IWindowContext = { lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder')) };
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows: [window],
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt'))
-		})), window);
+		assert.strictEqual(findWindowOnFile(windows, URI.file(join(fixturesFolder, 'no_vscode_folder', 'file.txt')), localWorkspaceResolver), noVscodeFolderWindow);
+
+		assert.strictEqual(findWindowOnFile(windows, URI.file(join(fixturesFolder, 'vscode_folder', 'file.txt')), localWorkspaceResolver), vscodeFolderWindow);
+
+		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(join(fixturesFolder, 'vscode_folder', 'nested_folder')) });
+		assert.strictEqual(findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
 
 	test('More specific existing window wins', () => {
-		const window: IWindowContext = { lastFocusTime: 2, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder')) };
-		const nestedFolderWindow: IWindowContext = { lastFocusTime: 1, openedFolderUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder')) };
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows: [window, nestedFolderWindow],
-			fileUri: URI.file(path.join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt'))
-		})), nestedFolderWindow);
+		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 2, openedFolderUri: URI.file(join(fixturesFolder, 'no_vscode_folder')) });
+		const nestedFolderWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedFolderUri: URI.file(join(fixturesFolder, 'no_vscode_folder', 'nested_folder')) });
+		assert.strictEqual(findWindowOnFile([window, nestedFolderWindow], URI.file(join(fixturesFolder, 'no_vscode_folder', 'nested_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), nestedFolderWindow);
 	});
 
 	test('Workspace folder wins', () => {
-		const window: IWindowContext = { lastFocusTime: 1, openedWorkspace: testWorkspace };
-		assert.equal(findBestWindowOrFolderForFile(options({
-			windows: [window],
-			fileUri: URI.file(path.join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt'))
-		})), window);
+		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
+		assert.strictEqual(findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
 });

@@ -11,8 +11,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,6 +21,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 // --- bisect service
 
@@ -73,6 +74,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 	constructor(
 		@ILogService logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkbenchEnvironmentService private readonly _envService: IWorkbenchEnvironmentService
 	) {
 		const raw = _storageService.get(ExtensionBisectService._storageKey, StorageScope.GLOBAL);
 		this._state = BisectState.fromJSON(raw);
@@ -97,10 +99,24 @@ class ExtensionBisectService implements IExtensionBisectService {
 
 	isDisabledByBisect(extension: IExtension): boolean {
 		if (!this._state) {
+			// bisect isn't active
+			return false;
+		}
+		if (this._isRemoteResolver(extension)) {
+			// the current remote resolver extension cannot be disabled
 			return false;
 		}
 		const disabled = this._disabled.get(extension.identifier.id);
 		return disabled ?? false;
+	}
+
+	private _isRemoteResolver(extension: IExtension): boolean {
+		if (extension.manifest.enableProposedApi !== true) {
+			return false;
+		}
+		const idx = this._envService.remoteAuthority?.indexOf('+');
+		const activationEvent = `onResolveRemoteAuthority:${this._envService.remoteAuthority?.substr(0, idx)}`;
+		return Boolean(extension.manifest.activationEvents?.find(e => e === activationEvent));
 	}
 
 	async start(extensions: ILocalExtension[]): Promise<void> {
@@ -197,10 +213,16 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.start',
-			title: localize('title.start', "Start Extension Bisect"),
+			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
 			category: localize('help', "Help"),
 			f1: true,
-			precondition: ExtensionBisectUi.ctxIsBisectActive.negate()
+			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
+			menu: {
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyEqualsExpr.create('viewContainer', 'workbench.view.extensions'),
+				group: '2_enablement',
+				order: 3
+			}
 		});
 	}
 

@@ -6,13 +6,13 @@
 import { localize } from 'vs/nls';
 import { coalesce } from 'vs/base/common/arrays';
 import { IStateService } from 'vs/platform/state/node/state';
-import { app, JumpListCategory } from 'electron';
+import { app, JumpListCategory, JumpListItem } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getBaseLabel, getPathLabel, splitName } from 'vs/base/common/labels';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { IWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { dirname, originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -65,7 +65,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	constructor(
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
-		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
@@ -80,7 +80,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
 
 		// Add to history when entering workspace
-		this._register(this.workspacesMainService.onWorkspaceEntered(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
+		this._register(this.workspacesManagementMainService.onWorkspaceEntered(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
 	}
 
 	private handleWindowsJumpList(): void {
@@ -100,7 +100,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 			// Workspace
 			if (isRecentWorkspace(recent)) {
-				if (!this.workspacesMainService.isUntitledWorkspace(recent.workspace) && indexOfWorkspace(workspaces, recent.workspace) === -1) {
+				if (!this.workspacesManagementMainService.isUntitledWorkspace(recent.workspace) && indexOfWorkspace(workspaces, recent.workspace) === -1) {
 					workspaces.push(recent);
 				}
 			}
@@ -247,13 +247,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Add current workspace to beginning if set
 		const currentWorkspace = include?.config?.workspace;
-		if (currentWorkspace && !this.workspacesMainService.isUntitledWorkspace(currentWorkspace)) {
+		if (isWorkspaceIdentifier(currentWorkspace) && !this.workspacesManagementMainService.isUntitledWorkspace(currentWorkspace)) {
 			workspaces.push({ workspace: currentWorkspace });
-		}
-
-		const currentFolder = include?.config?.folderUri;
-		if (currentFolder) {
-			workspaces.push({ folderUri: currentFolder });
+		} else if (isSingleFolderWorkspaceIdentifier(currentWorkspace)) {
+			workspaces.push({ folderUri: currentWorkspace.uri });
 		}
 
 		// Add currently files to open to the beginning if any
@@ -350,34 +347,40 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			this.removeRecentlyOpened(toRemove);
 
 			// Add entries
-			jumpList.push({
-				type: 'custom',
-				name: localize('recentFolders', "Recent Workspaces"),
-				items: coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
-					const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
-					const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
+			let hasWorkspaces = false;
+			const items: JumpListItem[] = coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
+				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
+				const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
 
-					let description;
-					let args;
-					if (isSingleFolderWorkspaceIdentifier(workspace)) {
-						description = localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
-						args = `--folder-uri "${workspace.toString()}"`;
-					} else {
-						description = localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
-						args = `--file-uri "${workspace.configPath.toString()}"`;
-					}
+				let description;
+				let args;
+				if (URI.isUri(workspace)) {
+					description = localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
+					args = `--folder-uri "${workspace.toString()}"`;
+				} else {
+					hasWorkspaces = true;
+					description = localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
+					args = `--file-uri "${workspace.configPath.toString()}"`;
+				}
 
-					return {
-						type: 'task',
-						title: title.substr(0, 255), 				// Windows seems to be picky around the length of entries
-						description: description.substr(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
-						program: process.execPath,
-						args,
-						iconPath: 'explorer.exe', // simulate folder icon
-						iconIndex: 0
-					};
-				}))
-			});
+				return {
+					type: 'task',
+					title: title.substr(0, 255), 				// Windows seems to be picky around the length of entries
+					description: description.substr(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
+					program: process.execPath,
+					args,
+					iconPath: 'explorer.exe', // simulate folder icon
+					iconIndex: 0
+				};
+			}));
+
+			if (items.length > 0) {
+				jumpList.push({
+					type: 'custom',
+					name: hasWorkspaces ? localize('recentFoldersAndWorkspaces', "Recent Folders & Workspaces") : localize('recentFolders', "Recent Folders"),
+					items
+				});
+			}
 		}
 
 		// Recent
@@ -393,7 +396,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	private getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+
+		// Single Folder
+		if (URI.isUri(workspace)) {
 			return basename(workspace);
 		}
 
@@ -402,6 +407,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			return localize('untitledWorkspace', "Untitled (Workspace)");
 		}
 
+		// Workspace: normal
 		let filename = basename(workspace.configPath);
 		if (filename.endsWith(WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
@@ -427,7 +433,7 @@ function indexOfWorkspace(arr: IRecent[], candidate: IWorkspaceIdentifier): numb
 	return arr.findIndex(workspace => isRecentWorkspace(workspace) && workspace.workspace.id === candidate.id);
 }
 
-function indexOfFolder(arr: IRecent[], candidate: ISingleFolderWorkspaceIdentifier): number {
+function indexOfFolder(arr: IRecent[], candidate: URI): number {
 	return arr.findIndex(folder => isRecentFolder(folder) && extUriBiasedIgnorePathCase.isEqual(folder.folderUri, candidate));
 }
 

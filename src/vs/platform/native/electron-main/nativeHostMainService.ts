@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
-import { OpenContext } from 'vs/platform/windows/electron-main/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { dirExists } from 'vs/base/node/pfs';
+import { SymlinkSupport } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -28,6 +27,7 @@ import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -43,6 +43,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
+		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -91,7 +92,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
-	private readonly _onDidChangePassword = this._register(new Emitter<void>());
+	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	//#endregion
@@ -104,7 +105,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return windows.map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri,
 			title: window.win.getTitle(),
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
@@ -261,7 +261,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await dirExists(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
@@ -334,8 +334,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		if (isLinux && process.env.SNAP && process.env.SNAP_REVISION) {
-			NativeHostMainService._safeSnapOpenExternal(url);
+		if (isLinuxSnap) {
+			this.safeSnapOpenExternal(url);
 		} else {
 			shell.openExternal(url);
 		}
@@ -343,7 +343,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return true;
 	}
 
-	private static _safeSnapOpenExternal(url: string): void {
+	private safeSnapOpenExternal(url: string): void {
+
+		// Remove some environment variables before opening to avoid issues...
 		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
 		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
 		delete process.env['GDK_PIXBUF_MODULE_FILE'];
@@ -351,6 +353,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		shell.openExternal(url);
 
+		// ...but restore them after
 		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
 		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
@@ -626,6 +629,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async toggleSharedProcessWindow(): Promise<void> {
+		return this.sharedProcess.toggle();
+	}
+
 	//#endregion
 
 	//#region Registry (windows)
@@ -703,7 +710,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			await keytar.setPassword(service, account, password);
 		}
 
-		this._onDidChangePassword.fire();
+		this._onDidChangePassword.fire({ service, account });
 	}
 
 	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
@@ -711,7 +718,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const didDelete = await keytar.deletePassword(service, account);
 		if (didDelete) {
-			this._onDidChangePassword.fire();
+			this._onDidChangePassword.fire({ service, account });
 		}
 
 		return didDelete;

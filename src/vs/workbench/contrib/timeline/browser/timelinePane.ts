@@ -21,7 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -37,8 +37,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -1008,7 +1008,7 @@ export class TimelineElementTemplate implements IDisposable {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportCodicons: true });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
@@ -1085,15 +1085,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
-		this.actionViewItemProvider = (action: IAction) => {
-			if (action instanceof MenuItemAction) {
-				return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-			} else if (action instanceof SubmenuItemAction) {
-				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-			}
-
-			return undefined;
-		};
+		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 	}
 
 	private uri: URI | undefined;

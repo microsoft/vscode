@@ -407,21 +407,20 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#endregion
 
 	protected async _initialize(): Promise<void> {
-		perf.mark('willLoadExtensions');
+		perf.mark('code/willLoadExtensions');
 		this._startExtensionHosts(true, []);
-		this.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
 		await this._scanAndHandleExtensions();
 		this._releaseBarrier();
+		perf.mark('code/didLoadExtensions');
 	}
 
 	private _releaseBarrier(): void {
-		perf.mark('extensionHostReady');
 		this._installedExtensionsReady.open();
 		this._onDidRegisterExtensions.fire(undefined);
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
-	private _stopExtensionHosts(): void {
+	protected _stopExtensionHosts(): void {
 		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);
@@ -465,7 +464,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
-		this._stopExtensionHosts();
+		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
+			this._stopExtensionHosts();
+		}
 	}
 
 	//#region IExtensionService
@@ -644,11 +645,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
+		perf.mark('code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
 			if (affectedExtensionPoints[extensionPoint.name]) {
 				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
 			}
 		}
+		perf.mark('code/didHandleExtensionPoints');
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {
@@ -699,9 +702,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				});
 			}
 		}
-		perf.mark(`willHandleExtensionPoint/${extensionPoint.name}`);
 		extensionPoint.acceptUsers(users);
-		perf.mark(`didHandleExtensionPoint/${extensionPoint.name}`);
 	}
 
 	private _showMessageToUser(severity: Severity, msg: string): void {

@@ -287,10 +287,14 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	// Container Info
 	private _title!: string;
 	get title(): string { return this._title; }
+
 	private _icon: URI | ThemeIcon | undefined;
 	get icon(): URI | ThemeIcon | undefined { return this._icon; }
 
-	private _onDidChangeContainerInfo = this._register(new Emitter<{ title?: boolean, icon?: boolean }>());
+	private _keybindingId: string | undefined;
+	get keybindingId(): string | undefined { return this._keybindingId; }
+
+	private _onDidChangeContainerInfo = this._register(new Emitter<{ title?: boolean, icon?: boolean, keybindingId?: boolean }>());
 	readonly onDidChangeContainerInfo = this._onDidChangeContainerInfo.event;
 
 	// All View Descriptors
@@ -316,14 +320,14 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }> = this._onDidMoveVisibleViewDescriptors.event;
 
 	constructor(
-		private readonly container: ViewContainer,
+		readonly viewContainer: ViewContainer,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
-		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, container.storageId || `${container.id}.state`));
+		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`));
 		this._register(this.viewDescriptorsState.onDidChangeStoredState(items => this.updateVisibility(items)));
 
 		this._register(Event.any(
@@ -340,23 +344,30 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 
 	private updateContainerInfo(): void {
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
-		const useDefaultContainerInfo = this.container.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.container);
-		const title = useDefaultContainerInfo ? this.container.name : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
+		const useDefaultContainerInfo = this.viewContainer.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.viewContainer);
+		const title = useDefaultContainerInfo ? this.viewContainer.title : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
 		let titleChanged: boolean = false;
 		if (this._title !== title) {
 			this._title = title;
 			titleChanged = true;
 		}
 
-		const icon = useDefaultContainerInfo ? this.container.icon : this.visibleViewDescriptors[0]?.containerIcon || defaultViewIcon;
+		const icon = useDefaultContainerInfo ? this.viewContainer.icon : this.visibleViewDescriptors[0]?.containerIcon || defaultViewIcon;
 		let iconChanged: boolean = false;
 		if (!this.isEqualIcon(icon)) {
 			this._icon = icon;
 			iconChanged = true;
 		}
 
-		if (titleChanged || iconChanged) {
-			this._onDidChangeContainerInfo.fire({ title: titleChanged, icon: iconChanged });
+		const keybindingId = this.viewContainer.openCommandActionDescriptor?.id ?? this.activeViewDescriptors.find(v => v.openCommandActionDescriptor)?.openCommandActionDescriptor?.id;
+		let keybindingIdChanged: boolean = false;
+		if (this._keybindingId !== keybindingId) {
+			this._keybindingId = keybindingId;
+			keybindingIdChanged = true;
+		}
+
+		if (titleChanged || iconChanged || keybindingIdChanged) {
+			this._onDidChangeContainerInfo.fire({ title: titleChanged, icon: iconChanged, keybindingId: keybindingIdChanged });
 		}
 	}
 
@@ -425,11 +436,15 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		}
 
 		if (added.length) {
-			this._onDidAddVisibleViewDescriptors.fire(added);
+			this.triggerOnDidAddVisibleViewDescriptors(added);
 		}
 		if (removed.length) {
 			this._onDidRemoveVisibleViewDescriptors.fire(removed);
 		}
+	}
+
+	private triggerOnDidAddVisibleViewDescriptors(added: IAddedViewDescriptorRef[]) {
+		this._onDidAddVisibleViewDescriptors.fire(added.sort((a, b) => a.index - b.index));
 	}
 
 	isCollapsed(id: string): boolean {
@@ -530,7 +545,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			this._onDidChangeActiveViewDescriptors.fire(({ added: addedActiveDescriptors, removed: [] }));
 		}
 		if (addedVisibleItems.length) {
-			this._onDidAddVisibleViewDescriptors.fire(addedVisibleItems);
+			this.triggerOnDidAddVisibleViewDescriptors(addedVisibleItems);
 		}
 	}
 
@@ -616,7 +631,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			this._onDidRemoveVisibleViewDescriptors.fire(removedVisibleItems);
 		}
 		if (addedVisibleItems.length) {
-			this._onDidAddVisibleViewDescriptors.fire(addedVisibleItems);
+			this.triggerOnDidAddVisibleViewDescriptors(addedVisibleItems);
 		}
 	}
 

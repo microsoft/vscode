@@ -7,7 +7,7 @@ import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro, IRemoteTerminalAttachTarget } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro, IRemoteTerminalAttachTarget, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -58,16 +58,17 @@ export interface ITerminalTab {
 	title: string;
 	onDisposed: Event<ITerminalTab>;
 	onInstancesChanged: Event<void>;
-
 	focusPreviousPane(): void;
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
+	resizePanes(relativeSizes: number[]): void;
 	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
+	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById;
 }
 
 export const enum TerminalConnectionState {
@@ -186,11 +187,12 @@ export interface ITerminalService {
 
 export interface IRemoteTerminalService {
 	readonly _serviceBrand: undefined;
-
 	dispose(): void;
-
 	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
 	createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
+
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 /**
@@ -260,6 +262,12 @@ export interface ITerminalInstance {
 	 * with this terminal.
 	 */
 	processId: number | undefined;
+
+	/**
+	 * The id of a terminal on the remote server. Defined if this is a terminal created
+	 * by the RemoteTerminalService.
+	 */
+	readonly remoteTerminalId: number | undefined;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.

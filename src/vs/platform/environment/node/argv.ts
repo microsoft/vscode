@@ -53,8 +53,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
-	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
-	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
+	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
+	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions.") },
 	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id[@version] | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. The identifier of an extension is always `${publisher}.${name}`. Use `--force` argument to update to latest version. To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.") },
 	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
@@ -66,6 +66,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
 	'prof-append-timers': { type: 'string' },
 	'prof-startup-prefix': { type: 'string' },
+	'prof-v8-extensions': { type: 'boolean' },
 	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
 	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off"), args: ['on', 'off'] },
@@ -149,10 +150,6 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const string: string[] = [];
 	const boolean: string[] = [];
 	for (let optionId in options) {
-		if (optionId[0] === '_') {
-			continue;
-		}
-
 		const o = options[optionId];
 		if (o.alias) {
 			alias[optionId] = o.alias;

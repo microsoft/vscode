@@ -14,10 +14,12 @@ import { timeout } from 'vs/base/common/async';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
 import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('Debug - REPL', () => {
 	let model: DebugModel;
 	let rawSession: MockRawSession;
+	const configurationService = new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } });
 
 	setup(() => {
 		model = createMockDebugModel();
@@ -26,7 +28,7 @@ suite('Debug - REPL', () => {
 
 	test('repl output', () => {
 		const session = createMockSession(model);
-		const repl = new ReplModel();
+		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, 'first line\n', severity.Error);
 		repl.appendToRepl(session, 'second line ', severity.Error);
 		repl.appendToRepl(session, 'third line ', severity.Error);
@@ -74,17 +76,17 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, 'third line', severity.Info);
 		elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 3);
-		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].value, 'first line\n');
 		assert.equal(elements[0].count, 3);
-		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].value, 'second line');
 		assert.equal(elements[1].count, 2);
-		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].value, 'third line');
 		assert.equal(elements[2].count, 1);
 	});
 
 	test('repl output count', () => {
 		const session = createMockSession(model);
-		const repl = new ReplModel();
+		const repl = new ReplModel(configurationService);
 		repl.appendToRepl(session, 'first line\n', severity.Info);
 		repl.appendToRepl(session, 'first line\n', severity.Info);
 		repl.appendToRepl(session, 'first line\n', severity.Info);
@@ -93,11 +95,13 @@ suite('Debug - REPL', () => {
 		repl.appendToRepl(session, 'third line', severity.Info);
 		const elements = <SimpleReplElement[]>repl.getReplElements();
 		assert.equal(elements.length, 3);
-		assert.equal(elements[0], 'first line\n');
+		assert.equal(elements[0].value, 'first line\n');
+		assert.equal(elements[0].toString(), 'first line\nfirst line\nfirst line\n');
 		assert.equal(elements[0].count, 3);
-		assert.equal(elements[1], 'second line');
+		assert.equal(elements[1].value, 'second line');
+		assert.equal(elements[1].toString(), 'second line\nsecond line');
 		assert.equal(elements[1].count, 2);
-		assert.equal(elements[2], 'third line');
+		assert.equal(elements[2].value, 'third line');
 		assert.equal(elements[2].count, 1);
 	});
 
@@ -153,7 +157,7 @@ suite('Debug - REPL', () => {
 		session['raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, <any>undefined, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-		const replModel = new ReplModel();
+		const replModel = new ReplModel(configurationService);
 		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
 		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
 		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
@@ -172,7 +176,7 @@ suite('Debug - REPL', () => {
 		model.addSession(session);
 
 		const adapter = new MockDebugAdapter();
-		const raw = new RawDebugSession(adapter, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		const raw = new RawDebugSession(adapter, undefined!, '', undefined!, undefined!, undefined!, undefined!, undefined!);
 		session.initializeForTest(raw);
 
 		await session.addReplExpression(undefined, 'before.1');
@@ -191,7 +195,7 @@ suite('Debug - REPL', () => {
 
 	test('repl groups', async () => {
 		const session = createMockSession(model);
-		const repl = new ReplModel();
+		const repl = new ReplModel(configurationService);
 
 		repl.appendToRepl(session, 'first global line', severity.Info);
 		repl.startGroup('group_1', true);
@@ -229,7 +233,7 @@ suite('Debug - REPL', () => {
 
 	test('repl filter', async () => {
 		const session = createMockSession(model);
-		const repl = new ReplModel();
+		const repl = new ReplModel(configurationService);
 		const replFilter = new ReplFilter();
 
 		const getFilteredElements = () => {

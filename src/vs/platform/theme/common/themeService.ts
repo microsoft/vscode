@@ -11,7 +11,7 @@ import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -40,18 +40,15 @@ export namespace ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
-	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+	const _regexFromString = new RegExp(`^\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)$`);
 
 	export function fromString(str: string): ThemeIcon | undefined {
 		const match = _regexFromString.exec(str);
 		if (!match) {
 			return undefined;
 		}
-		let [, owner, name] = match;
-		if (!owner || owner === 'codicon/') {
-			return { id: name };
-		}
-		return { id: owner + name };
+		let [, name] = match;
+		return { id: name };
 	}
 
 	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
@@ -70,50 +67,13 @@ export namespace ThemeIcon {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
 	}
 
-	const _regexAsClassName = /^(codicon\/)?([a-z-]+)(~[a-z]+)?$/i;
-
-	export function asClassNameArray(icon: ThemeIcon): string[] {
-		const match = _regexAsClassName.exec(icon.id);
-		if (!match) {
-			return ['codicon', 'codicon-error'];
-		}
-		let [, , name, modifier] = match;
-		let className = `codicon-${name}`;
-		if (modifier) {
-			return ['codicon', className, modifier.substr(1)];
-		}
-		return ['codicon', className];
-	}
-
-
-	export function asClassName(icon: ThemeIcon): string {
-		return asClassNameArray(icon).join(' ');
-	}
-
-	export function asCSSSelector(icon: ThemeIcon): string {
-		return '.' + asClassNameArray(icon).join('.');
-	}
-
-	export function asCSSIcon(icon: ThemeIcon): CSSIcon {
-		return {
-			classNames: asClassName(icon)
-		};
-	}
-
-	export function asCodiconLabel(icon: ThemeIcon): string {
-		return '$(' + icon.id + ')';
-	}
-
-	export function revive(icon: any): ThemeIcon | undefined {
-		if (ThemeIcon.isThemeIcon(icon)) {
-			return { id: icon.id, color: icon.color ? { id: icon.color.id } : undefined };
-		}
-		return undefined;
-	}
+	export const asClassNameArray: (icon: ThemeIcon) => string[] = CSSIcon.asClassNameArray;
+	export const asClassName: (icon: ThemeIcon) => string = CSSIcon.asClassName;
+	export const asCSSSelector: (icon: ThemeIcon) => string = CSSIcon.asCSSSelector;
 }
 
-export const FileThemeIcon = { id: 'file' };
-export const FolderThemeIcon = { id: 'folder' };
+export const FileThemeIcon = Codicon.file;
+export const FolderThemeIcon = Codicon.folder;
 
 export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {

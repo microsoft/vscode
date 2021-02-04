@@ -445,131 +445,171 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 	}
 
 	async preview(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		if (this.isDisposed) {
-			throw new Error('Disposed');
+		try {
+			if (this.isDisposed) {
+				throw new Error('Disposed');
+			}
+			if (!this.previewsPromise) {
+				this.previewsPromise = createCancelablePromise(token => this.getPreviews(token));
+			}
+			if (!this.previews) {
+				this.previews = await this.previewsPromise;
+			}
+			return this.previews;
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
 		}
-		if (!this.previewsPromise) {
-			this.previewsPromise = createCancelablePromise(token => this.getPreviews(token));
-		}
-		if (!this.previews) {
-			this.previews = await this.previewsPromise;
-		}
-		return this.previews;
 	}
 
 	async accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.performAction(resource, sychronizer => sychronizer.accept(resource, content));
+		try {
+			return await this.performAction(resource, sychronizer => sychronizer.accept(resource, content));
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
+		}
 	}
 
 	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		if (resource) {
-			return this.performAction(resource, sychronizer => sychronizer.merge(resource));
-		} else {
-			return this.mergeAll();
+		try {
+			if (resource) {
+				return await this.performAction(resource, sychronizer => sychronizer.merge(resource));
+			} else {
+				return await this.mergeAll();
+			}
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
 		}
 	}
 
 	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
-		return this.performAction(resource, sychronizer => sychronizer.discard(resource));
+		try {
+			return await this.performAction(resource, sychronizer => sychronizer.discard(resource));
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
+		}
 	}
 
 	async discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		if (!this.previews) {
-			throw new Error('Missing preview. Create preview and try again.');
-		}
-		if (this.synchronizingResources.length) {
-			throw new Error('Cannot discard while synchronizing resources');
-		}
+		try {
+			if (!this.previews) {
+				throw new Error('Missing preview. Create preview and try again.');
+			}
+			if (this.synchronizingResources.length) {
+				throw new Error('Cannot discard while synchronizing resources');
+			}
 
-		const conflictResources: URI[] = [];
-		for (const [, syncResourcePreview] of this.previews) {
-			for (const resourcePreview of syncResourcePreview.resourcePreviews) {
-				if (resourcePreview.mergeState === MergeState.Conflict) {
-					conflictResources.push(resourcePreview.previewResource);
+			const conflictResources: URI[] = [];
+			for (const [, syncResourcePreview] of this.previews) {
+				for (const resourcePreview of syncResourcePreview.resourcePreviews) {
+					if (resourcePreview.mergeState === MergeState.Conflict) {
+						conflictResources.push(resourcePreview.previewResource);
+					}
 				}
 			}
-		}
 
-		for (const resource of conflictResources) {
-			await this.discard(resource);
+			for (const resource of conflictResources) {
+				await this.discard(resource);
+			}
+			return this.previews;
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
 		}
-		return this.previews;
 	}
 
 	async apply(): Promise<[SyncResource, ISyncResourcePreview][]> {
-		if (!this.previews) {
-			throw new Error('You need to create preview before applying');
-		}
-		if (this.synchronizingResources.length) {
-			throw new Error('Cannot pull while synchronizing resources');
-		}
-		const previews: [SyncResource, ISyncResourcePreview][] = [];
-		for (const [syncResource, preview] of this.previews) {
-			this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
+		try {
+			if (!this.previews) {
+				throw new Error('You need to create preview before applying');
+			}
+			if (this.synchronizingResources.length) {
+				throw new Error('Cannot pull while synchronizing resources');
+			}
+			const previews: [SyncResource, ISyncResourcePreview][] = [];
+			for (const [syncResource, preview] of this.previews) {
+				this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
+				this._onSynchronizeResources.fire(this.synchronizingResources);
 
-			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+				const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
 
-			/* merge those which are not yet merged */
-			for (const resourcePreview of preview.resourcePreviews) {
-				if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
-					await synchroniser.merge(resourcePreview.previewResource);
+				/* merge those which are not yet merged */
+				for (const resourcePreview of preview.resourcePreviews) {
+					if ((resourcePreview.localChange !== Change.None || resourcePreview.remoteChange !== Change.None) && resourcePreview.mergeState === MergeState.Preview) {
+						await synchroniser.merge(resourcePreview.previewResource);
+					}
 				}
-			}
 
-			/* apply */
-			const newPreview = await synchroniser.apply(false, this.syncHeaders);
-			if (newPreview) {
-				previews.push(this.toSyncResourcePreview(synchroniser.resource, newPreview));
-			}
+				/* apply */
+				const newPreview = await synchroniser.apply(false, this.syncHeaders);
+				if (newPreview) {
+					previews.push(this.toSyncResourcePreview(synchroniser.resource, newPreview));
+				}
 
-			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
+				this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
+				this._onSynchronizeResources.fire(this.synchronizingResources);
+			}
+			this.previews = previews;
+			return this.previews;
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
 		}
-		this.previews = previews;
-		return this.previews;
 	}
 
 	async pull(): Promise<void> {
-		if (!this.previews) {
-			throw new Error('You need to create preview before applying');
-		}
-		if (this.synchronizingResources.length) {
-			throw new Error('Cannot pull while synchronizing resources');
-		}
-		for (const [syncResource, preview] of this.previews) {
-			this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
-			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
-			for (const resourcePreview of preview.resourcePreviews) {
-				await synchroniser.accept(resourcePreview.remoteResource);
+		try {
+			if (!this.previews) {
+				throw new Error('You need to create preview before applying');
 			}
-			await synchroniser.apply(true, this.syncHeaders);
-			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
+			if (this.synchronizingResources.length) {
+				throw new Error('Cannot pull while synchronizing resources');
+			}
+			for (const [syncResource, preview] of this.previews) {
+				this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
+				this._onSynchronizeResources.fire(this.synchronizingResources);
+				const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+				for (const resourcePreview of preview.resourcePreviews) {
+					await synchroniser.accept(resourcePreview.remoteResource);
+				}
+				await synchroniser.apply(true, this.syncHeaders);
+				this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
+				this._onSynchronizeResources.fire(this.synchronizingResources);
+			}
+			this.previews = [];
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
 		}
-		this.previews = [];
 	}
 
 	async push(): Promise<void> {
-		if (!this.previews) {
-			throw new Error('You need to create preview before applying');
-		}
-		if (this.synchronizingResources.length) {
-			throw new Error('Cannot pull while synchronizing resources');
-		}
-		for (const [syncResource, preview] of this.previews) {
-			this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
-			const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
-			for (const resourcePreview of preview.resourcePreviews) {
-				await synchroniser.accept(resourcePreview.localResource);
+		try {
+			if (!this.previews) {
+				throw new Error('You need to create preview before applying');
 			}
-			await synchroniser.apply(true, this.syncHeaders);
-			this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
-			this._onSynchronizeResources.fire(this.synchronizingResources);
+			if (this.synchronizingResources.length) {
+				throw new Error('Cannot pull while synchronizing resources');
+			}
+			for (const [syncResource, preview] of this.previews) {
+				this.synchronizingResources.push([syncResource, preview.resourcePreviews.map(r => r.localResource)]);
+				this._onSynchronizeResources.fire(this.synchronizingResources);
+				const synchroniser = this.synchronisers.find(s => s.resource === syncResource)!;
+				for (const resourcePreview of preview.resourcePreviews) {
+					await synchroniser.accept(resourcePreview.localResource);
+				}
+				await synchroniser.apply(true, this.syncHeaders);
+				this.synchronizingResources.splice(this.synchronizingResources.findIndex(s => s[0] === syncResource), 1);
+				this._onSynchronizeResources.fire(this.synchronizingResources);
+			}
+			this.previews = [];
+		} catch (error) {
+			this.logService.error(error);
+			throw error;
 		}
-		this.previews = [];
 	}
 
 	async stop(): Promise<void> {

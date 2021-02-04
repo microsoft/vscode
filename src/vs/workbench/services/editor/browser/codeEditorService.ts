@@ -8,17 +8,19 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TextEditorOptions } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, TextEditorOptions } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class CodeEditorService extends CodeEditorServiceImpl {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(themeService);
 	}
@@ -71,11 +73,13 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 	private async doOpenCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 
 		// Special case: we want to detect the request to open an editor that
-		// is different from the current one to decide wether the current editor
+		// is different from the current one to decide whether the current editor
 		// should be pinned or not. This ensures that the source of a navigation
 		// is not being replaced by the target. An example is "Goto definition"
 		// that otherwise would replace the editor everytime the user navigates.
+		const enablePreviewFromCodeNavigation = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor?.enablePreviewFromCodeNavigation;
 		if (
+			!enablePreviewFromCodeNavigation &&              	// we only need to do this if the configuration requires it
 			source &&											// we need to know the origin of the navigation
 			!input.options?.pinned &&							// we only need to look at preview editors that open
 			!sideBySide &&										// we only need to care if editor opens in same group

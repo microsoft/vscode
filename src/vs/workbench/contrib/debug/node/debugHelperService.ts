@@ -5,7 +5,7 @@
 
 import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { FileAccess } from 'vs/base/common/network';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,8 +31,8 @@ export class NodeDebugHelperService implements IDebugHelperService {
 				args: args,
 				env: {
 					ELECTRON_RUN_AS_NODE: 1,
-					PIPE_LOGGING: 'true',
-					AMD_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/contrib/debug/node/telemetryApp'
 				}
 			}
 		);

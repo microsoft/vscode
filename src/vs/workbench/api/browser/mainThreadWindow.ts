@@ -52,7 +52,11 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			// called with URI or transformed -> use uri
 			target = uri;
 		}
-		return this.openerService.open(target, { openExternal: true, allowTunneling: options.allowTunneling });
+		return this.openerService.open(target, {
+			openExternal: true,
+			allowTunneling: options.allowTunneling,
+			allowContributedOpeners: options.allowContributedOpeners,
+		});
 	}
 
 	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {

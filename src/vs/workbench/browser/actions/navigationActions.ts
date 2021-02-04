@@ -17,7 +17,6 @@ import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/c
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isAncestor } from 'vs/base/browser/dom';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -215,7 +214,10 @@ function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Part
 }
 
 function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
-	const currentlyFocusedPart = isActiveElementInNotebookEditor(editorService) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
+	// Need to ask if the active editor has focus since the layoutService is not aware of some custom editor focus behavior(notebooks)
+	// Also need to ask the layoutService for the case if no editor is opened
+	const editorFocused = editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART);
+	const currentlyFocusedPart = editorFocused ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
 		layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART : layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
 	let partToFocus = Parts.EDITOR_PART;
 	if (currentlyFocusedPart) {
@@ -223,17 +225,6 @@ function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorS
 	}
 
 	layoutService.focusPart(partToFocus);
-}
-
-function isActiveElementInNotebookEditor(editorService: IEditorService): boolean {
-	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-	if (activeEditorPane?.isNotebookEditor) {
-		const control = editorService.activeEditorPane?.getControl() as { getDomNode(): HTMLElement; getOverflowContainerDomNode(): HTMLElement; };
-		const activeElement = document.activeElement;
-		return isAncestor(activeElement, control.getDomNode()) || isAncestor(activeElement, control.getOverflowContainerDomNode());
-	}
-
-	return false;
 }
 
 export class FocusNextPart extends Action {

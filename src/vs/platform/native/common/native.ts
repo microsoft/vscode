@@ -49,7 +49,7 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<void>;
+	readonly onDidChangePassword: Event<{ service: string, account: string }>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -137,6 +137,7 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
+	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
 	// Connectivity

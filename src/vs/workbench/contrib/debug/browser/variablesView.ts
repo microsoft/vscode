@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope, ErrorScope, StackFrame } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { Variable, Scope, ErrorScope, StackFrame, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -26,17 +23,19 @@ import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { debugCollapseAll } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { localize } from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
+import { coalesce } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -179,10 +178,6 @@ export class VariablesView extends ViewPane {
 		}));
 	}
 
-	getActions(): IAction[] {
-		return [new CollapseAction(() => this.tree, true, 'explorer-action ' + ThemeIcon.asClassName(debugCollapseAll))];
-	}
-
 	layoutBody(width: number, height: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(width, height);
@@ -190,6 +185,10 @@ export class VariablesView extends ViewPane {
 
 	focus(): void {
 		this.tree.domFocus();
+	}
+
+	collapseAll(): void {
+		this.tree.collapseAll();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
@@ -345,7 +344,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		const variable = <Variable>expression;
 		return {
 			initialValue: expression.value,
-			ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value"),
+			ariaLabel: localize('variableValueAriaLabel', "Type new variable value"),
 			validationOptions: {
 				validation: () => variable.errorMessage ? ({ content: variable.errorMessage }) : null
 			},
@@ -368,15 +367,15 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpression | IScope> {
 
 	getWidgetAriaLabel(): string {
-		return nls.localize('variablesAriaTreeLabel', "Debug Variables");
+		return localize('variablesAriaTreeLabel', "Debug Variables");
 	}
 
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
-			return nls.localize('variableScopeAriaLabel', "Scope {0}", element.name);
+			return localize('variableScopeAriaLabel', "Scope {0}", element.name);
 		}
 		if (element instanceof Variable) {
-			return nls.localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
+			return localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
 		}
 
 		return null;
@@ -392,14 +391,40 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const COPY_VALUE_ID = 'debug.copyValue';
+export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 CommandsRegistry.registerCommand({
 	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const instantiationService = accessor.get(IInstantiationService);
-		if (variableInternalContext) {
-			const action = instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variableInternalContext, 'variables');
-			await action.run();
+	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | unknown, ctx?: (Variable | Expression)[]) => {
+		const debugService = accessor.get(IDebugService);
+		const clipboardService = accessor.get(IClipboardService);
+		let elementContext = '';
+		let elements: (Variable | Expression)[];
+		if (arg instanceof Variable || arg instanceof Expression) {
+			elementContext = 'watch';
+			elements = ctx ? ctx : [];
+		} else {
+			elementContext = 'variables';
+			elements = variableInternalContext ? [variableInternalContext] : [];
+		}
+
+		const stackFrame = debugService.getViewModel().focusedStackFrame;
+		const session = debugService.getViewModel().focusedSession;
+		if (!stackFrame || !session || elements.length === 0) {
+			return;
+		}
+
+		const evalContext = session.capabilities.supportsClipboardContext ? 'clipboard' : elementContext;
+		const toEvaluate = elements.map(element => element instanceof Variable ? (element.evaluateName || element.value) : element.name);
+
+		try {
+			const evaluations = await Promise.all(toEvaluate.map(expr => session.evaluate(expr, stackFrame.frameId, evalContext)));
+			const result = coalesce(evaluations).map(evaluation => evaluation.body.result);
+			if (result.length) {
+				clipboardService.writeText(result.join('\n'));
+			}
+		} catch (e) {
+			const result = elements.map(element => element.value);
+			clipboardService.writeText(result.join('\n'));
 		}
 	}
 });
@@ -433,3 +458,23 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+registerAction2(class extends ViewAction<VariablesView> {
+	constructor() {
+		super({
+			id: 'variables.collapse',
+			viewId: VARIABLES_VIEW_ID,
+			title: localize('collapse', "Collapse All"),
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', VARIABLES_VIEW_ID)
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: VariablesView) {
+		view.collapseAll();
+	}
+});

@@ -39,7 +39,7 @@ export class NativeLogService extends DelegatedLogService {
 			bufferSpdLogService = disposables.add(new BufferLogService(environmentService.configuration.logLevel));
 			loggers.push(
 				disposables.add(new ConsoleLogService(environmentService.configuration.logLevel)),
-				bufferSpdLogService,
+				bufferSpdLogService
 			);
 		}
 

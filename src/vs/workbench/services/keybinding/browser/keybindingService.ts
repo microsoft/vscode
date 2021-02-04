@@ -50,6 +50,7 @@ import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { dirname } from 'vs/base/common/resources';
+import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -250,12 +251,24 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
 
+		// for standard keybindings
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
 			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
 			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+			this.isComposingGlobalContextKey.set(false);
+		}));
+
+		// for single modifier chord keybindings (e.g. shift shift)
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			this.isComposingGlobalContextKey.set(e.isComposing);
+			const keyEvent = new StandardKeyboardEvent(e);
+			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -594,7 +607,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-		const unboundCommands = KeybindingResolver.getAllUnboundCommands(boundCommands);
+		const unboundCommands = getAllUnboundCommands(boundCommands);
 		let pretty = unboundCommands.sort().join('\n// - ');
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}

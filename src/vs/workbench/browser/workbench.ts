@@ -8,7 +8,7 @@ import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
 import { Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { runWhenIdle } from 'vs/base/common/async';
-import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
+import { getZoomLevel, isFirefox, isSafari, isChrome, getPixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -177,10 +177,17 @@ export class Workbench extends Layout {
 		// Layout Service
 		serviceCollection.set(IWorkbenchLayoutService, this);
 
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       native and web or `workbench.sandbox.main.ts` if the service
+		//       is native only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// All Contributed Services
 		const contributedServices = getSingletonServiceDescriptors();
@@ -284,7 +291,7 @@ export class Workbench extends Layout {
 			}
 		}
 
-		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel()));
+		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
 	}
 
 	private storeFontInfo(storageService: IStorageService): void {
@@ -335,10 +342,11 @@ export class Workbench extends Layout {
 		// Create Parts
 		[
 			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
-			{ id: Parts.ACTIVITYBAR_PART, role: 'navigation', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
-			{ id: Parts.SIDEBAR_PART, role: 'complementary', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
+			// Use role 'none' for some parts to make screen readers less chatty #114892
+			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
+			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
-			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', positionToString(this.state.panel.position)] },
+			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', positionToString(this.state.panel.position)] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
@@ -412,10 +420,10 @@ export class Workbench extends Layout {
 			}, 2500);
 
 			// Telemetry: startup metrics
-			mark('didStartWorkbench');
+			mark('code/didStartWorkbench');
 
 			// Perf reporting (devtools)
-			performance.measure('perf: workbench create & restore', 'didLoadWorkbenchMain', 'didStartWorkbench');
+			performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
 		}
 	}
 }

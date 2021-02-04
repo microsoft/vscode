@@ -10,7 +10,8 @@ import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IWorkspaceContextService, toWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { ISearchPathsInfo, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IFileQuery, IFolderQuery, IPatternInfo, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
@@ -93,7 +94,27 @@ suite('QueryBuilder', () => {
 			});
 	});
 
-	test('does not split glob pattern when expandPatterns disabled', () => {
+	test('splits include pattern when expandPatterns enabled', () => {
+		assertEqualQueries(
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: '**/foo, **/bar', expandPatterns: true },
+			),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo': true,
+					'**/foo/**': true,
+					'**/bar': true,
+					'**/bar/**': true,
+				}
+			});
+	});
+
+	test('does not split include pattern when expandPatterns disabled', () => {
 		assertEqualQueries(
 			queryBuilder.file(
 				[ROOT_1_NAMED_FOLDER],
@@ -106,6 +127,44 @@ suite('QueryBuilder', () => {
 				type: QueryType.File,
 				includePattern: {
 					'**/foo, **/bar': true
+				}
+			});
+	});
+
+	test('includePattern array', () => {
+		assertEqualQueries(
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: ['**/foo', '**/bar'] },
+			),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo': true,
+					'**/bar': true
+				}
+			});
+	});
+
+	test('includePattern array with expandPatterns', () => {
+		assertEqualQueries(
+			queryBuilder.file(
+				[ROOT_1_NAMED_FOLDER],
+				{ includePattern: ['**/foo', '**/bar'], expandPatterns: true },
+			),
+			{
+				folderQueries: [{
+					folder: ROOT_1_URI
+				}],
+				type: QueryType.File,
+				includePattern: {
+					'**/foo': true,
+					'**/foo/**': true,
+					'**/bar': true,
+					'**/bar/**': true,
 				}
 			});
 	});

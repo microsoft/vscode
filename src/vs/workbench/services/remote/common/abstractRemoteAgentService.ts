@@ -3,20 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -198,27 +193,10 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null
 		};
 		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+		connection.protocol.onDidDispose(() => {
+			connection.dispose();
+		});
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
 		return connection.client;
 	}
 }
-
-class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@INotificationService notificationService: INotificationService,
-	) {
-		// Let's cover the case where connecting to fetch the remote extension info fails
-		remoteAgentService.getRawEnvironment()
-			.then(undefined, err => {
-				if (!RemoteAuthorityResolverError.isHandled(err)) {
-					notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''));
-				}
-			});
-	}
-
-}
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);

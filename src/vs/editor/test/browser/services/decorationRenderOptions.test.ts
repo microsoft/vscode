@@ -60,12 +60,12 @@ suite('Decoration Render Options', () => {
 	test('register and resolve decoration type', () => {
 		let s = new TestCodeEditorServiceImpl(themeServiceMock);
 		s.registerDecorationType('example', options);
-		assert.notEqual(s.resolveDecorationOptions('example', false), undefined);
+		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 	});
 	test('remove decoration type', () => {
 		let s = new TestCodeEditorServiceImpl(themeServiceMock);
 		s.registerDecorationType('example', options);
-		assert.notEqual(s.resolveDecorationOptions('example', false), undefined);
+		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 		s.removeDecorationType('example');
 		assert.throws(() => s.resolveDecorationOptions('example', false));
 	});
@@ -95,16 +95,16 @@ suite('Decoration Render Options', () => {
 		}));
 		const s = new TestCodeEditorServiceImpl(themeService, styleSheet);
 		s.registerDecorationType('example', options);
-		assert.equal(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ff0000;border-color:transparent;box-sizing: border-box;}');
+		assert.strictEqual(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ff0000;border-color:transparent;box-sizing: border-box;}');
 
 		themeService.setTheme(new TestColorTheme({
 			editorBackground: '#EE0000',
 			editorBorder: '#00FFFF'
 		}));
-		assert.equal(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ee0000;border-color:#00ffff;box-sizing: border-box;}');
+		assert.strictEqual(readStyleSheet(styleSheet), '.monaco-editor .ced-example-0 {background-color:#ee0000;border-color:#00ffff;box-sizing: border-box;}');
 
 		s.removeDecorationType('example');
-		assert.equal(readStyleSheet(styleSheet), '');
+		assert.strictEqual(readStyleSheet(styleSheet), '');
 	});
 
 	test('theme overrides', () => {
@@ -134,10 +134,10 @@ suite('Decoration Render Options', () => {
 			'.vs.monaco-editor .ced-example-1 {color:#FF00FF !important;}',
 			'.monaco-editor .ced-example-1 {color:#ff0000 !important;}'
 		].join('\n');
-		assert.equal(readStyleSheet(styleSheet), expected);
+		assert.strictEqual(readStyleSheet(styleSheet), expected);
 
 		s.removeDecorationType('example');
-		assert.equal(readStyleSheet(styleSheet), '');
+		assert.strictEqual(readStyleSheet(styleSheet), '');
 	});
 
 	test('css properties, gutterIconPaths', () => {

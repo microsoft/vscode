@@ -108,7 +108,6 @@ export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve
 	}, {} as Record<string, boolean>);
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
-		/^GOOGLE_API_KEY$/,
 		/^VSCODE_.+$/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.+$/,

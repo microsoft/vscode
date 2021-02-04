@@ -52,7 +52,7 @@ export function activate(
 	const versionProvider = new StaticVersionProvider(
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
-			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript-web/tsserver.web.js').toString(),
+			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
 			API.fromSimpleString('4.2.0')));
 
 	const lazyClientHost = createLazyClientHost(context, false, {

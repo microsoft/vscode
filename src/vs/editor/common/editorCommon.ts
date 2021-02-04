@@ -157,9 +157,10 @@ export interface IConfiguration extends IDisposable {
 
 	setMaxLineNumber(maxLineNumber: number): void;
 	setViewLineCount(viewLineCount: number): void;
-	updateOptions(newOptions: IEditorOptions): void;
+	updateOptions(newOptions: Readonly<IEditorOptions>): void;
 	getRawOptions(): IEditorOptions;
 	observeReferenceElement(dimension?: IDimension): void;
+	updatePixelRatio(): void;
 	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
@@ -605,6 +606,7 @@ export interface IThemeDecorationRenderOptions {
 
 	fontStyle?: string;
 	fontWeight?: string;
+	fontSize?: string;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -629,13 +631,17 @@ export interface IContentDecorationRenderOptions {
 
 	border?: string;
 	borderColor?: string | ThemeColor;
+	borderRadius?: string;
 	fontStyle?: string;
 	fontWeight?: string;
+	fontSize?: string;
+	fontFamily?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
 
 	margin?: string;
+	padding?: string;
 	width?: string;
 	height?: string;
 }

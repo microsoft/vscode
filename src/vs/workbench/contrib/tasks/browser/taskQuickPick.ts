@@ -35,7 +35,7 @@ export interface TaskTwoLevelQuickPickEntry extends IQuickPickItem {
 
 const SHOW_ALL: string = nls.localize('taskQuickPick.showAll', "Show All Tasks...");
 
-export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configration icon in the tasks selection list.'));
+export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configuration icon in the tasks selection list.'));
 const removeTaskIcon = registerIcon('tasks-remove', Codicon.close, nls.localize('removeTaskIcon', 'Icon for remove in the tasks selection list.'));
 
 export class TaskQuickPick extends Disposable {

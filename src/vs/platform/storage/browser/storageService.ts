@@ -12,7 +12,7 @@ import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
+import { runWhenIdle, RunOnceScheduler, Promises } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
@@ -71,7 +71,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
 		// Init both
-		await Promise.all([
+		await Promises.settled([
 			this.workspaceStorage.init(),
 			this.globalStorage.init()
 		]);
@@ -146,7 +146,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	protected async doFlush(): Promise<void> {
-		await Promise.all([
+		await Promises.settled([
 			this.getStorage(StorageScope.GLOBAL).whenFlushed(),
 			this.getStorage(StorageScope.WORKSPACE).whenFlushed()
 		]);

@@ -8,19 +8,19 @@ import { toDisposable, IDisposable, Disposable, DisposableStore } from 'vs/base/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { MenuId, IMenuService, MenuItemAction, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescriptorService, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, ViewContainer, ViewContainerLocation, ResolvableTreeItem } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
-import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -52,6 +52,8 @@ import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Codicon } from 'vs/base/common/codicons';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Command } from 'vs/editor/common/modes';
 
 export class TreeViewPane extends ViewPane {
 
@@ -453,15 +455,7 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	private createTree() {
-		const actionViewItemProvider = (action: IAction) => {
-			if (action instanceof MenuItemAction) {
-				return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-			} else if (action instanceof SubmenuItemAction) {
-				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-			}
-
-			return undefined;
-		};
+		const actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
@@ -534,12 +528,13 @@ export class TreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async (e) => {
 			if (!e.browserEvent) {
 				return;
 			}
 			const selection = this.tree!.getSelection();
-			const command = selection.length === 1 ? selection[0].command : undefined;
+			const command = await this.resolveCommand(selection.length === 1 ? selection[0] : undefined);
+
 			if (command) {
 				let args = command.arguments || [];
 				if (command.id === API_OPEN_EDITOR_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
@@ -552,6 +547,17 @@ export class TreeView extends Disposable implements ITreeView {
 			}
 		}));
 
+	}
+
+	private async resolveCommand(element: ITreeItem | undefined): Promise<Command | undefined> {
+		let command = element?.command;
+		if (element && !command) {
+			if ((element instanceof ResolvableTreeItem) && element.hasResolve) {
+				await element.resolve(new CancellationTokenSource().token);
+				command = element.command;
+			}
+		}
+		return command;
 	}
 
 	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>, actionRunner: MultipleSelectionActionRunner): void {
@@ -776,10 +782,17 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
+		let result: ITreeItem[] = [];
 		if (this.treeView.dataProvider) {
-			return this.withProgress(this.treeView.dataProvider.getChildren(element));
+			try {
+				result = await this.withProgress(this.treeView.dataProvider.getChildren(element));
+			} catch (e) {
+				if (!(<string>e.message).startsWith('Bad progress location:')) {
+					throw e;
+				}
+			}
 		}
-		return [];
+		return result;
 	}
 }
 
@@ -868,7 +881,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IIconLabelMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
-			if (resource) {
+			if (resource && !node.tooltip) {
 				return undefined;
 			} else if (!node.tooltip) {
 				return label;
@@ -880,13 +893,13 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 
 		return {
-			markdown: (): Promise<IMarkdownString | string | undefined> => {
+			markdown: (token: CancellationToken): Promise<IMarkdownString | string | undefined> => {
 				return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-					await node.resolve();
+					await node.resolve(token);
 					resolve(node.tooltip);
 				});
 			},
-			markdownNotSupportedFallback: resource ? undefined : '' // Passing undefined as the fallback for a resource falls back to the old native hover
+			markdownNotSupportedFallback: resource ? undefined : label ?? '' // Passing undefined as the fallback for a resource falls back to the old native hover
 		};
 	}
 
@@ -928,7 +941,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title,
-				hideIcon: !!iconUrl,
+				hideIcon: !!iconUrl || (!!node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)),
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -1168,4 +1181,3 @@ export class CustomTreeView extends TreeView {
 		}
 	}
 }
-

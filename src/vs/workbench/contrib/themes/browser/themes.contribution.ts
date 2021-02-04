@@ -198,7 +198,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		super(id, label, quickInputService, extensionGalleryService, viewletService);
 	}
 
-	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') };
+	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') };
 	protected installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
 	protected placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
 	protected marketplaceTag = 'tag:icon-theme';
@@ -230,7 +230,7 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 	}
 
 	protected builtInEntry: QuickPickInput<ThemeItem> = { id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') };
-	protected installMessage = undefined; //localize('installProductIconThemes', "Install Additional Product Icon Themes...");
+	protected installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
 	protected placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
 	protected marketplaceTag = 'tag:product-icon-theme';
 	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {
@@ -372,6 +372,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
+	},
+	order: 3
+});
+
+
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
@@ -388,4 +398,13 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
+	},
+	order: 3
 });

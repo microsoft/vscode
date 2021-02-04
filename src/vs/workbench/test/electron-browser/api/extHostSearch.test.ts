@@ -461,7 +461,7 @@ suite('ExtHostSearch', () => {
 				]);
 		});
 
-		test.skip('max results = 1', async () => {
+		test('max results = 1', async () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
@@ -497,7 +497,7 @@ suite('ExtHostSearch', () => {
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
-		test.skip('max results = 2', async () => {
+		test('max results = 2', async () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
@@ -533,7 +533,7 @@ suite('ExtHostSearch', () => {
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
-		test.skip('provider returns maxResults exactly', async () => {
+		test('provider returns maxResults exactly', async () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
@@ -879,7 +879,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('basic sibling clause', async () => {
-			mockPFS.readdir = (_path: string) => {
+			mockPFS.readdir = (_path: string): any => {
 				if (_path === rootFolderA.fsPath) {
 					return Promise.resolve([
 						'file1.js',
@@ -922,7 +922,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('multiroot sibling clause', async () => {
-			mockPFS.readdir = (_path: string) => {
+			mockPFS.readdir = (_path: string): any => {
 				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
 					return Promise.resolve([
 						'fileA.scss',

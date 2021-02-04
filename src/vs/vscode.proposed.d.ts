@@ -16,7 +16,7 @@
 
 declare module 'vscode' {
 
-	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
@@ -54,28 +54,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
-	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
-	 * treated case-sensitively.
+	 * A provider for performing authentication to a service.
 	 */
 	export interface AuthenticationProvider {
-		/**
-		 * Used as an identifier for extensions trying to work with a particular
-		 * provider: 'microsoft', 'github', etc. id must be unique, registering
-		 * another provider with the same id will fail.
-		 */
-		readonly id: string;
-
-		/**
-		 * The human-readable name of the provider.
-		 */
-		readonly label: string;
-
-		/**
-		 * Whether it is possible to be signed into multiple accounts at once with this provider
-		*/
-		readonly supportsMultipleAccounts: boolean;
-
 		/**
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
@@ -85,18 +66,32 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		login(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
 		 * @param sessionId The session id to log out of
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		logout(sessionId: string): Thenable<void>;
+	}
+
+	/**
+	 * Options for creating an [AuthenticationProvider](#AuthentcationProvider).
+	 */
+	export interface AuthenticationProviderOptions {
+		/**
+		 * Whether it is possible to be signed into multiple accounts at once with this provider.
+		 * If not specified, will default to false.
+		*/
+		readonly supportsMultipleAccounts?: boolean;
 	}
 
 	export namespace authentication {
@@ -104,12 +99,15 @@ declare module 'vscode' {
 		 * Register an authentication provider.
 		 *
 		 * There can only be one provider per id and an error is being thrown when an id
-		 * has already been used by another provider.
+		 * has already been used by another provider. Ids are case-sensitive.
 		 *
+		 * @param id The unique identifier of the provider.
+		 * @param label The human-readable name of the provider.
 		 * @param provider The authentication provider provider.
+		 * @params options Additional options for the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
+		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
 
 		/**
 		 * @deprecated - getSession should now trigger extension activation.
@@ -118,61 +116,30 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
-		 * @deprecated
-		 * The ids of the currently registered authentication providers.
-		 * @returns An array of the ids of authentication providers that are currently registered.
-		 */
-		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
-
-		/**
-		 * @deprecated
-		 * An array of the ids of authentication providers that are currently registered.
-		 */
-		export const providerIds: ReadonlyArray<string>;
-
-		/**
 		 * An array of the information of authentication providers that are currently registered.
 		 */
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		 * @deprecated
 		* Logout of a specific session.
 		* @param providerId The id of the provider to use
 		* @param sessionId The session id to remove
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		 * Retrieve a password that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the password was stored under.
-		 */
-		export function getPassword(key: string): Thenable<string | undefined>;
-
-		/**
-		 * Store a password under a given key.
-		 * @param key The key to store the password under
-		 * @param value The password
-		 */
-		export function setPassword(key: string, value: string): Thenable<void>;
-
-		/**
-		 * Remove a password from storage.
-		 * @param key The key the password was stored under.
-		 */
-		export function deletePassword(key: string): Thenable<void>;
-
-		/**
-		 * Fires when a password is set or deleted.
-		 */
-		export const onDidChangePassword: Event<void>;
 	}
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @alexdima - resolvers
+
+	export interface MessageOptions {
+		/**
+		 * Do not render a native message box.
+		 */
+		useCustom?: boolean;
+	}
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -195,18 +162,20 @@ declare module 'vscode' {
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		public?: boolean;
 	}
 
 	export interface TunnelDescription {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		public?: boolean;
 	}
 
 	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
-		dispose(): void;
+		dispose(): void | Thenable<void>;
 	}
 
 	/**
@@ -251,10 +220,19 @@ declare module 'vscode' {
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => Thenable<Tunnel> | undefined;
 
-		/**
+		/**p
 		 * Provides filtering for candidate ports.
 		 */
 		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
+
+		/**
+		 * Lets the resolver declare which tunnel factory features it supports.
+		 * UNDER DISCUSSION! MAY CHANGE SOON.
+		 */
+		tunnelFeatures?: {
+			elevation: boolean;
+			public: boolean;
+		};
 	}
 
 	export namespace workspace {
@@ -751,6 +729,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region debug
 
 	/**
@@ -771,8 +750,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM validation
 
 	/**
@@ -823,6 +801,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @joaomoreno: SCM selected provider
 
 	export interface SourceControl {
@@ -898,6 +877,7 @@ declare module 'vscode' {
 
 	//#endregion
 
+	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -906,18 +886,9 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @alexdima - OnEnter enhancement
-	export interface OnEnterRule {
-		/**
-		 * This rule will only execute if the text above the this line matches this regular expression.
-		 */
-		oneLineAboveText?: RegExp;
-	}
-	//#endregion
-
-	//#region Tree View: https://github.com/microsoft/vscode/issues/61313
+	//#region Tree View: https://github.com/microsoft/vscode/issues/61313 @alexr00
 	export interface TreeView<T> extends Disposable {
-		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+		reveal(element: T | undefined, options?: { select?: boolean, focus?: boolean, expand?: boolean | number; }): Thenable<void>;
 	}
 	//#endregion
 
@@ -1001,6 +972,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 
@@ -1017,92 +989,11 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @rebornix: Notebook
+	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum CellKind {
 		Markdown = 1,
 		Code = 2
-	}
-
-	export enum CellOutputKind {
-		Text = 1,
-		Error = 2,
-		Rich = 3
-	}
-
-	export interface CellStreamOutput {
-		outputKind: CellOutputKind.Text;
-		text: string;
-	}
-
-	export interface CellErrorOutput {
-		outputKind: CellOutputKind.Error;
-		/**
-		 * Exception Name
-		 */
-		ename: string;
-		/**
-		 * Exception Value
-		 */
-		evalue: string;
-		/**
-		 * Exception call stack
-		 */
-		traceback: string[];
-	}
-
-	export interface NotebookCellOutputMetadata {
-		/**
-		 * Additional attributes of a cell metadata.
-		 */
-		custom?: { [key: string]: any };
-	}
-
-	export interface CellDisplayOutput {
-		outputKind: CellOutputKind.Rich;
-		/**
-		 * { mime_type: value }
-		 *
-		 * Example:
-		 * ```json
-		 * {
-		 *   "outputKind": vscode.CellOutputKind.Rich,
-		 *   "data": {
-		 *      "text/html": [
-		 *          "<h1>Hello</h1>"
-		 *       ],
-		 *      "text/plain": [
-		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
-		 *      ]
-		 *   }
-		 * }
-		 */
-		data: { [key: string]: any; };
-
-		readonly metadata?: NotebookCellOutputMetadata;
-	}
-
-	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
-
-	export class NotebookCellOutputItem {
-
-		readonly mime: string;
-		readonly value: unknown;
-		readonly metadata?: Record<string, string | number | boolean>;
-
-		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
-	}
-
-	//TODO@jrieken add id?
-	export class NotebookCellOutput {
-
-		readonly outputs: NotebookCellOutputItem[];
-		readonly metadata?: Record<string, string | number | boolean>;
-
-		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
-
-		//TODO@jrieken HACK to workaround dependency issues...
-		toJSON(): any;
 	}
 
 	export enum NotebookCellRunState {
@@ -1179,9 +1070,10 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 	}
 
+	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
 		readonly index: number;
 		readonly notebook: NotebookDocument;
@@ -1189,7 +1081,9 @@ declare module 'vscode' {
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
 		readonly language: string;
+		/** @deprecated use WorkspaceEdit.replaceCellOutput */
 		outputs: CellOutput[];
+		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
 		metadata: NotebookCellMetadata;
 	}
 
@@ -1229,7 +1123,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of the document metadata.
 		 */
-		custom?: { [key: string]: any };
+		custom?: { [key: string]: any; };
 
 		/**
 		 * The document's current run state
@@ -1241,6 +1135,11 @@ declare module 'vscode' {
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
 		trusted?: boolean;
+
+		/**
+		 * Languages the document supports
+		 */
+		languages?: string[];
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1270,39 +1169,6 @@ declare module 'vscode' {
 		metadata: NotebookDocumentMetadata;
 	}
 
-	export interface NotebookConcatTextDocument {
-		uri: Uri;
-		isClosed: boolean;
-		dispose(): void;
-		onDidChange: Event<void>;
-		version: number;
-		getText(): string;
-		getText(range: Range): string;
-
-		offsetAt(position: Position): number;
-		positionAt(offset: number): Position;
-		validateRange(range: Range): Range;
-		validatePosition(position: Position): Position;
-
-		locationAt(positionOrRange: Position | Range): Location;
-		positionAt(location: Location): Position;
-		contains(uri: Uri): boolean
-	}
-
-	export interface WorkspaceEdit {
-		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
-		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
-	}
-
-	export interface NotebookEditorEdit {
-		replaceMetadata(value: NotebookDocumentMetadata): void;
-		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
-		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
-	}
-
 	export interface NotebookCellRange {
 		readonly start: number;
 		/**
@@ -1320,11 +1186,17 @@ declare module 'vscode' {
 		 * The range will always be revealed in the center of the viewport.
 		 */
 		InCenter = 1,
+
 		/**
 		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
 		 * Otherwise, it will be revealed with as little scrolling as possible.
 		 */
 		InCenterIfOutsideViewport = 2,
+
+		/**
+		 * The range will always be revealed at the top of the viewport.
+		 */
+		AtTop = 3
 	}
 
 	export interface NotebookEditor {
@@ -1336,68 +1208,44 @@ declare module 'vscode' {
 		/**
 		 * The primary selected cell on this notebook editor.
 		 */
+		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
 
+		// @rebornix
+		// todo@API should replace selection
+		// never empty!
+		// primary/secondary selections
+		// readonly selections: NotebookCellRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 */
 		readonly visibleRanges: NotebookCellRange[];
 
+		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
+
 		/**
 		 * The column in which this editor shows.
 		 */
+		// @jrieken
+		// todo@API maybe never undefined because notebooks always show in the editor area (unlike text editors)
+		// maybe for notebook diff editor
 		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Fired when the panel is disposed.
 		 */
+		// @rebornix REMOVE/REplace NotebookCommunication
+		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
 		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Active kernel used in the editor
-		 */
-		readonly kernel?: NotebookKernel;
-
-		/**
-		 * Fired when the output hosting webview posts a message.
-		 */
-		readonly onDidReceiveMessage: Event<any>;
-		/**
-		 * Post a message to the output hosting webview.
-		 *
-		 * Messages are only delivered if the editor is live.
-		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
-		 */
-		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Convert a uri for the local file system to one that can be used inside outputs webview.
-		 */
-		asWebviewUri(localResource: Uri): Uri;
-
-		/**
-		 * Perform an edit on the notebook associated with this notebook editor.
-		 *
-		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
-		 * be used to make edits. Note that the edit-builder is only valid while the
-		 * callback executes.
-		 *
-		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
-		 * @return A promise that resolves with a value indicating if the edits could be applied.
-		 */
-		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
-
-		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookCellRange): void;
-
-		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
 	}
 
+	// todo@API stale?
 	export interface NotebookOutputSelector {
 		mimeTypes?: string[];
 	}
 
+	// todo@API stale?
 	export interface NotebookRenderRequest {
 		output: CellDisplayOutput;
 		mimeType: string;
@@ -1424,6 +1272,7 @@ declare module 'vscode' {
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
+	// todo@API stale?
 	export interface NotebookCellMoveEvent {
 
 		/**
@@ -1460,6 +1309,8 @@ declare module 'vscode' {
 
 	export interface NotebookEditorSelectionChangeEvent {
 		readonly notebookEditor: NotebookEditor;
+		// @rebornix
+		// todo@API show NotebookCellRange[] instead
 		readonly selection?: NotebookCell;
 	}
 
@@ -1468,10 +1319,12 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
+	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCellData {
 		readonly cellKind: CellKind;
 		readonly source: string;
 		readonly language: string;
+		// todo@API maybe use a separate data type?
 		readonly outputs: CellOutput[];
 		readonly metadata: NotebookCellMetadata | undefined;
 	}
@@ -1482,71 +1335,6 @@ declare module 'vscode' {
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
-	interface NotebookDocumentContentChangeEvent {
-
-		/**
-		 * The document that the edit is for.
-		 */
-		readonly document: NotebookDocument;
-	}
-
-	interface NotebookDocumentEditEvent {
-
-		/**
-		 * The document that the edit is for.
-		 */
-		readonly document: NotebookDocument;
-
-		/**
-		 * Undo the edit operation.
-		 *
-		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
-		 * extension should restore the document and editor to the state they were in just before this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
-		 */
-		undo(): Thenable<void> | void;
-
-		/**
-		 * Redo the edit operation.
-		 *
-		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
-		 * extension should restore the document and editor to the state they were in just after this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
-		 */
-		redo(): Thenable<void> | void;
-
-		/**
-		 * Display name describing the edit.
-		 *
-		 * This will be shown to users in the UI for undo/redo operations.
-		 */
-		readonly label?: string;
-	}
-
-	interface NotebookDocumentBackup {
-		/**
-		 * Unique identifier for the backup.
-		 *
-		 * This id is passed back to your extension in `openNotebook` when opening a notebook editor from a backup.
-		 */
-		readonly id: string;
-
-		/**
-		 * Delete the current backup.
-		 *
-		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
-		 * is made or when the file is saved.
-		 */
-		delete(): void;
-	}
-
-	interface NotebookDocumentBackupContext {
-		readonly destination: Uri;
-	}
-
-	interface NotebookDocumentOpenContext {
-		readonly backupId?: string;
-	}
 
 	/**
 	 * Communication object passed to the {@link NotebookContentProvider} and
@@ -1578,23 +1366,248 @@ declare module 'vscode' {
 		 * Convert a uri for the local file system to one that can be used inside outputs webview.
 		 */
 		asWebviewUri(localResource: Uri): Uri;
+
+		// @rebornix
+		// readonly onDidDispose: Event<void>;
+	}
+
+	// export function registerNotebookKernel(selector: string, kernel: NotebookKernel): Disposable;
+
+
+	export interface NotebookDocumentShowOptions {
+		viewColumn?: ViewColumn;
+		preserveFocus?: boolean;
+		preview?: boolean;
+		selection?: NotebookCellRange;
+	}
+
+	export namespace notebook {
+
+		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		// todo@API really needed?
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * All currently known notebook documents.
+		 */
+		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
+		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
+		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
+		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
+		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
+		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
+	}
+
+	export namespace window {
+		export const visibleNotebookEditors: NotebookEditor[];
+		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+		export const activeNotebookEditor: NotebookEditor | undefined;
+		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookCellOutput
+
+	export enum CellOutputKind {
+		Text = 1,
+		Error = 2,
+		Rich = 3
+	}
+
+	export interface CellStreamOutput {
+		outputKind: CellOutputKind.Text;
+		text: string;
+	}
+
+	export interface CellErrorOutput {
+		outputKind: CellOutputKind.Error;
+		/**
+		 * Exception Name
+		 */
+		ename: string;
+		/**
+		 * Exception Value
+		 */
+		evalue: string;
+		/**
+		 * Exception call stack
+		 */
+		traceback: string[];
+	}
+
+	export interface NotebookCellOutputMetadata {
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		custom?: { [key: string]: any; };
+	}
+
+	export interface CellDisplayOutput {
+		outputKind: CellOutputKind.Rich;
+		/**
+		 * { mime_type: value }
+		 *
+		 * Example:
+		 * ```json
+		 * {
+		 *   "outputKind": vscode.CellOutputKind.Rich,
+		 *   "data": {
+		 *      "text/html": [
+		 *          "<h1>Hello</h1>"
+		 *       ],
+		 *      "text/plain": [
+		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
+		 *      ]
+		 *   }
+		 * }
+		 */
+		data: { [key: string]: any; };
+
+		readonly metadata?: NotebookCellOutputMetadata;
+	}
+
+	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
+
+	export class NotebookCellOutputItem {
+
+		readonly mime: string;
+		readonly value: unknown;
+		readonly metadata?: Record<string, string | number | boolean>;
+
+		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
+	}
+
+	// @jrieken
+	//TODO@API add execution count to cell output?
+	export class NotebookCellOutput {
+
+		readonly id: string;
+		readonly outputs: NotebookCellOutputItem[];
+
+		constructor(outputs: NotebookCellOutputItem[]);
+
+		//TODO@jrieken HACK to workaround dependency issues...
+		toJSON(): any;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorEdit
+
+	export interface WorkspaceEdit {
+		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
+		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+
+		// TODO@api
+		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
+		// updateNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+	}
+
+	export interface NotebookEditorEdit {
+		replaceMetadata(value: NotebookDocumentMetadata): void;
+		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
+		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
+		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
+	}
+
+	export interface NotebookEditor {
+		/**
+		 * Perform an edit on the notebook associated with this notebook editor.
+		 *
+		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
+		 * be used to make edits. Note that the edit-builder is only valid while the
+		 * callback executes.
+		 *
+		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
+		 * @return A promise that resolves with a value indicating if the edits could be applied.
+		 */
+		// @jrieken REMOVE maybe
+		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookContentProvider
+
+	interface NotebookDocumentBackup {
+		/**
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openNotebook` when opening a notebook editor from a backup.
+		 */
+		readonly id: string;
+
+		/**
+		 * Delete the current backup.
+		 *
+		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
+		 */
+		delete(): void;
+	}
+
+	interface NotebookDocumentBackupContext {
+		readonly destination: Uri;
+	}
+
+	interface NotebookDocumentOpenContext {
+		readonly backupId?: string;
 	}
 
 	export interface NotebookContentProvider {
 		readonly options?: NotebookDocumentContentOptions;
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
-
 		/**
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
-		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
-		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
-		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Thenable<NotebookData>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		// eslint-disable-next-line vscode-dts-cancellation
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Thenable<NotebookDocumentBackup>;
+
+		// ???
+		// provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
 	}
+
+	export namespace notebook {
+
+		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
+		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
+		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider,
+			options?: NotebookDocumentContentOptions & {
+				/**
+				 * Not ready for production or development use yet.
+				 */
+				viewOptions?: {
+					displayName: string;
+					filenamePattern: NotebookFilenamePattern[];
+					exclusive?: boolean;
+				};
+			}
+		): Disposable;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
 	export interface NotebookKernel {
 		readonly id?: string;
@@ -1603,24 +1616,73 @@ declare module 'vscode' {
 		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
+		// @roblourens
+		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
+		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741
+		// interrupt?():void;
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;
 		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
 		executeAllCells(document: NotebookDocument): void;
 		cancelAllCellsExecution(document: NotebookDocument): void;
 	}
 
-	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern };
+	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
 
+	// todo@API why not for NotebookContentProvider?
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
 		filenamePattern?: NotebookFilenamePattern;
 	}
 
+	// todo@API very unclear, provider MUST not return alive object but only data object
+	// todo@API unclear how the flow goes
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
 		onDidChangeKernels?: Event<NotebookDocument | undefined>;
 		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
 		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
+
+	export interface NotebookEditor {
+		/**
+		 * Active kernel used in the editor
+		 */
+		// todo@API unsure about that
+		// kernel, kernel selection, kernel provider
+		readonly kernel?: NotebookKernel;
+	}
+
+	export namespace notebook {
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
+
+		export function registerNotebookKernelProvider(selector: NotebookDocumentFilter, provider: NotebookKernelProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorDecorationType
+
+	export interface NotebookEditor {
+		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookCellRange): void;
+	}
+
+	export interface NotebookDecorationRenderOptions {
+		backgroundColor?: string | ThemeColor;
+		borderColor?: string | ThemeColor;
+		top: ThemableDecorationAttachmentRenderOptions;
+	}
+
+	export interface NotebookEditorDecorationType {
+		readonly key: string;
+		dispose(): void;
+	}
+
+	export namespace notebook {
+		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookCellStatusBarItem
 
 	/**
 	 * Represents the alignment of status bar items.
@@ -1651,72 +1713,7 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	export interface NotebookDecorationRenderOptions {
-		backgroundColor?: string | ThemeColor;
-		borderColor?: string | ThemeColor;
-		top: ThemableDecorationAttachmentRenderOptions;
-	}
-
-	export interface NotebookEditorDecorationType {
-		readonly key: string;
-		dispose(): void;
-	}
-
-	export interface NotebookDocumentShowOptions {
-		viewColumn?: ViewColumn;
-		preserveFocus?: boolean;
-		preview?: boolean;
-		selection?: NotebookCellRange;
-	}
-
-
 	export namespace notebook {
-		export function registerNotebookContentProvider(
-			notebookType: string,
-			provider: NotebookContentProvider,
-			options?: NotebookDocumentContentOptions & {
-				/**
-				 * Not ready for production or development use yet.
-				 */
-				viewOptions?: {
-					displayName: string;
-					filenamePattern: NotebookFilenamePattern[];
-					exclusive?: boolean;
-				};
-			}
-		): Disposable;
-
-		export function registerNotebookKernelProvider(
-			selector: NotebookDocumentFilter,
-			provider: NotebookKernelProvider
-		): Disposable;
-
-		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
-		export function openNotebookDocument(uri: Uri, viewType?: string): Promise<NotebookDocument>;
-		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
-		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
-		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
-
-		/**
-		 * All currently known notebook documents.
-		 */
-		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
-		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
-		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
-		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
-		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
-		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
-		/**
-		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
-		 * but a selector can be provided to narrow to down the set of cells.
-		 *
-		 * @param notebook
-		 * @param selector
-		 */
-		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
-
-		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
-
 		/**
 		 * Creates a notebook cell status bar [item](#NotebookCellStatusBarItem).
 		 * It will be disposed automatically when the notebook document is closed or the cell is deleted.
@@ -1726,17 +1723,45 @@ declare module 'vscode' {
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
 		 * @return A new status bar item.
 		 */
+		// @roblourens
+		// todo@API this should be a provider, https://github.com/microsoft/vscode/issues/105809
 		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
 	}
 
-	export namespace window {
-		export const visibleNotebookEditors: NotebookEditor[];
-		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
-		export const activeNotebookEditor: NotebookEditor | undefined;
-		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
-		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
-		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
-		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Promise<NotebookEditor>;
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookConcatTextDocument
+
+	export namespace notebook {
+		/**
+		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
+		 * but a selector can be provided to narrow to down the set of cells.
+		 *
+		 * @param notebook
+		 * @param selector
+		 */
+		// @jrieken REMOVE. p_never
+		// todo@API really needed? we didn't find a user here
+		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
+	}
+
+	export interface NotebookConcatTextDocument {
+		uri: Uri;
+		isClosed: boolean;
+		dispose(): void;
+		onDidChange: Event<void>;
+		version: number;
+		getText(): string;
+		getText(range: Range): string;
+
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		validateRange(range: Range): Range;
+		validatePosition(position: Position): Position;
+
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
+		contains(uri: Uri): boolean;
 	}
 
 	//#endregion
@@ -1947,9 +1972,86 @@ declare module 'vscode' {
 	}
 
 	export namespace languages {
-		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
+		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Thenable<TokenInformation>;
 	}
 
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/16221
+
+	export namespace languages {
+		/**
+		 * Register a inline hints provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline hints provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
+	}
+
+	/**
+	 * Inline hint information.
+	 */
+	export class InlineHint {
+		/**
+		 * The text of the hint.
+		 */
+		text: string;
+		/**
+		 * The range of the hint.
+		 */
+		range: Range;
+		/**
+		 * Tooltip when hover on the hint.
+		 */
+		description?: string | MarkdownString;
+		/**
+		 * Whitespace before the hint.
+		 */
+		whitespaceBefore?: boolean;
+		/**
+		 * Whitespace after the hint.
+		 */
+		whitespaceAfter?: boolean;
+
+		/**
+		 * Creates a new inline hint information object.
+		 *
+		 * @param text The text of the hint.
+		 * @param range The range of the hint.
+		 * @param hoverMessage Tooltip when hover on the hint.
+		 * @param whitespaceBefore Whitespace before the hint.
+		 * @param whitespaceAfter TWhitespace after the hint.
+		 */
+		constructor(text: string, range: Range, description?: string | MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
+	}
+
+	/**
+	 * The inline hints provider interface defines the contract between extensions and
+	 * the inline hints feature.
+	 */
+	export interface InlineHintsProvider {
+
+		/**
+		 * An optional event to signal that inline hints have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineHints?: Event<void>;
+
+		/**
+		 * @param model The document in which the command was invoked.
+		 * @param range The range for which line hints should be computed.
+		 * @param token A cancellation token.
+		 *
+		 * @return A list of arguments labels or a thenable that resolves to such.
+		 */
+		provideInlineHints(model: TextDocument, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+	}
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/104436
@@ -1970,7 +2072,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region https://github.com/microsoft/vscode/issues/102091
 
@@ -2004,7 +2105,7 @@ declare module 'vscode' {
 		 * Runs tests with the given options. If no options are given, then
 		 * all tests are run. Returns the resulting test run.
 		 */
-		export function runTests<T extends TestItem>(options: TestRunOptions<T>): Thenable<void>;
+		export function runTests<T extends TestItem>(options: TestRunOptions<T>, cancellationToken?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2015,13 +2116,31 @@ declare module 'vscode' {
 		 * Returns an observer that retrieves tests in the given text document.
 		 */
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
+
+		/**
+		 * The last or selected test run. Cleared when a new test run starts.
+		 */
+		export const testResults: TestResults | undefined;
+
+		/**
+		 * Event that fires when the testResults are updated.
+		 */
+		export const onDidChangeTestResults: Event<void>;
+	}
+
+	export interface TestResults {
+		/**
+		 * The results from the latest test run. The array contains a snapshot of
+		 * all tests involved in the run at the moment when it completed.
+		 */
+		readonly tests: ReadonlyArray<RequiredTestItem> | undefined;
 	}
 
 	export interface TestObserver {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem>;
+		readonly tests: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -2051,23 +2170,23 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<TestItem>;
+		readonly added: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<TestItem>;
+		readonly updated: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<TestItem>;
+		readonly removed: ReadonlyArray<RequiredTestItem>;
 
 		/**
 		 * Highest node in the test tree under which changes were made. This can
 		 * be easily plugged into events like the TreeDataProvider update event.
 		 */
-		readonly commonChangeAncestor: TestItem | null;
+		readonly commonChangeAncestor: RequiredTestItem | null;
 	}
 
 	/**
@@ -2094,13 +2213,11 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<T>;
 
 		/**
-		 * An event that should be fired when all tests that are currently defined
-		 * have been discovered. The provider should continue to watch for changes
-		 * and fire `onDidChangeTest` until the hierarchy is disposed.
-		 *
-		 * @todo can this be covered by existing progress apis? Or return a promise
+		 * Promise that should be resolved when all tests that are initially
+		 * defined have been discovered. The provider should continue to watch for
+		 * changes and fire `onDidChangeTest` until the hierarchy is disposed.
 		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
+		readonly discoveredInitialTests?: Thenable<unknown>;
 
 		/**
 		 * Dispose will be called when there are no longer observers interested
@@ -2129,20 +2246,23 @@ declare module 'vscode' {
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher for the given workspace folder.
 		 */
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
 		 * Requests that tests be provided for the given document. This will
 		 * be called when tests need to be enumerated for a single open file,
 		 * for instance by code lens UI.
 		 */
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T>;
+		// eslint-disable-next-line vscode-dts-provider-naming
+		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run.
 		 * @todo this will eventually need to be able to return a summary report, coverage for example.
 		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
 		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 
@@ -2171,6 +2291,16 @@ declare module 'vscode' {
 		 * Display name describing the test case.
 		 */
 		label: string;
+
+		/**
+		 * Optional unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of a test item.
+		 *
+		 * If the ID is not provided, it defaults to the concatenation of the
+		 * item's label and its parent's ID, if any.
+		 */
+		readonly id?: string;
 
 		/**
 		 * Optional description that appears next to the label.
@@ -2208,19 +2338,30 @@ declare module 'vscode' {
 		state: TestState;
 	}
 
+	/**
+	 * A {@link TestItem} with its defaults filled in.
+	 */
+	export type RequiredTestItem = {
+		[K in keyof Required<TestItem>]: K extends 'children'
+		? RequiredTestItem[]
+		: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
+	};
+
 	export enum TestRunState {
 		// Initial state
 		Unset = 0,
+		// Test will be run, but is not currently running.
+		Queued = 1,
 		// Test is currently running
-		Running = 1,
+		Running = 2,
 		// Test run has passed
-		Passed = 2,
+		Passed = 3,
 		// Test run has failed (on an assertion)
-		Failed = 3,
+		Failed = 4,
 		// Test run has been skipped
-		Skipped = 4,
+		Skipped = 5,
 		// Test run failed for some other reason (compilation error, timeout, etc)
-		Errored = 5
+		Errored = 6
 	}
 
 	/**
@@ -2294,27 +2435,180 @@ declare module 'vscode' {
 		 */
 		location?: Location;
 	}
+
 	//#endregion
 
-	//#region Statusbar Item Background Color (https://github.com/microsoft/vscode/issues/110214)
+	//#region Opener service (https://github.com/microsoft/vscode/issues/109277)
 
 	/**
-	 * A status bar item is a status bar contribution that can
-	 * show text and icons and run a command on click.
+	 * Details if an `ExternalUriOpener` can open a uri.
+	 *
+	 * The priority is also used to rank multiple openers against each other and determine
+	 * if an opener should be selected automatically or if the user should be prompted to
+	 * select an opener.
+	 *
+	 * VS Code will try to use the best available opener, as sorted by `ExternalUriOpenerPriority`.
+	 * If there are multiple potential "best" openers for a URI, then the user will be prompted
+	 * to select an opener.
 	 */
-	export interface StatusBarItem {
+	export enum ExternalUriOpenerPriority {
+		/**
+		 * The opener is disabled and will never be shown to users.
+		 *
+		 * Note that the opener can still be used if the user specifically
+		 * configures it in their settings.
+		 */
+		None = 0,
 
 		/**
-		 * The background color for this entry.
-		 *
-		 * Note: only `new ThemeColor('statusBarItem.errorBackground')` is
-		 * supported for now. More background colors may be supported in the
-		 * future.
-		 *
-		 * Note: when a background color is set, the statusbar may override
-		 * the `color` choice to ensure the entry is readable in all themes.
+		 * The opener can open the uri but will not cause a prompt on its own
+		 * since VS Code always contributes a built-in `Default` opener.
 		 */
-		backgroundColor: ThemeColor | undefined;
+		Option = 1,
+
+		/**
+		 * The opener can open the uri.
+		 *
+		 * VS Code's built-in opener has `Default` priority. This means that any additional `Default`
+		 * openers will cause the user to be prompted to select from a list of all potential openers.
+		 */
+		Default = 2,
+
+		/**
+		 * The opener can open the uri and should be automatically selected over any
+		 * default openers, include the built-in one from VS Code.
+		 *
+		 * A preferred opener will be automatically selected if no other preferred openers
+		 * are available. If multiple preferred openers are available, then the user
+		 * is shown a prompt with all potential openers (not just preferred openers).
+		 */
+		Preferred = 3,
+	}
+
+	/**
+	 * Handles opening uris to external resources, such as http(s) links.
+	 *
+	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
+	 * inside of VS Code instead of having the link be opened by the web browser.
+	 *
+	 * Currently openers may only be registered for `http` and `https` uris.
+	 */
+	export interface ExternalUriOpener {
+
+		/**
+		 * Check if the opener can open a uri.
+		 *
+		 * @param uri The uri being opened. This is the uri that the user clicked on. It has
+		 * not yet gone through port forwarding.
+		 * @param token Cancellation token indicating that the result is no longer needed.
+		 *
+		 * @return Priority indicating if the opener can open the external uri.
+		 */
+		canOpenExternalUri(uri: Uri, token: CancellationToken): ExternalUriOpenerPriority | Thenable<ExternalUriOpenerPriority>;
+
+		/**
+		 * Open a uri.
+		 *
+		 * This is invoked when:
+		 *
+		 * - The user clicks a link which does not have an assigned opener. In this case, first `canOpenExternalUri`
+		 *   is called and if the user selects this opener, then `openExternalUri` is called.
+		 * - The user sets the default opener for a link in their settings and then visits a link.
+		 *
+		 * @param resolvedUri The uri to open. This uri may have been transformed by port forwarding, so it
+		 * may not match the original uri passed to `canOpenExternalUri`. Use `ctx.originalUri` to check the
+		 * original uri.
+		 * @param ctx Additional information about the uri being opened.
+		 * @param token Cancellation token indicating that opening has been canceled.
+		 *
+		 * @return Thenable indicating that the opening has completed.
+		 */
+		openExternalUri(resolvedUri: Uri, ctx: OpenExternalUriContext, token: CancellationToken): Thenable<void> | void;
+	}
+
+	/**
+	 * Additional information about the uri being opened.
+	 */
+	interface OpenExternalUriContext {
+		/**
+		 * The uri that triggered the open.
+		 *
+		 * This is the original uri that the user clicked on or that was passed to `openExternal.`
+		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
+		 */
+		readonly sourceUri: Uri;
+	}
+
+	/**
+	 * Additional metadata about a registered `ExternalUriOpener`.
+	 */
+	interface ExternalUriOpenerMetadata {
+
+		/**
+		 * List of uri schemes the opener is triggered for.
+		 *
+		 * Currently only `http` and `https` are supported.
+		 */
+		readonly schemes: readonly string[]
+
+		/**
+		 * Text displayed to the user that explains what the opener does.
+		 *
+		 * For example, 'Open in browser preview'
+		 */
+		readonly label: string;
+	}
+
+	namespace window {
+		/**
+		 * Register a new `ExternalUriOpener`.
+		 *
+		 * When a uri is about to be opened, an `onOpenExternalUri:SCHEME` activation event is fired.
+		 *
+		 * @param id Unique id of the opener, such as `myExtension.browserPreview`. This is used in settings
+		 *   and commands to identify the opener.
+		 * @param opener Opener to register.
+		 * @param metadata Additional information about the opener.
+		 *
+		* @returns Disposable that unregisters the opener.
+		*/
+		export function registerExternalUriOpener(id: string, opener: ExternalUriOpener, metadata: ExternalUriOpenerMetadata): Disposable;
+	}
+
+	interface OpenExternalOptions {
+		/**
+		 * Allows using openers contributed by extensions through  `registerExternalUriOpener`
+		 * when opening the resource.
+		 *
+		 * If `true`, VS Code will check if any contributed openers can handle the
+		 * uri, and fallback to the default opener behavior.
+		 *
+		 * If it is string, this specifies the id of the `ExternalUriOpener`
+		 * that should be used if it is available. Use `'default'` to force VS Code's
+		 * standard external opener to be used.
+		 */
+		readonly allowContributedOpeners?: boolean | string;
+	}
+
+	namespace env {
+		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/Microsoft/vscode/issues/15178
+
+	// TODO@API must be a class
+	export interface OpenEditorInfo {
+		name: string;
+		resource: Uri;
+	}
+
+	export namespace window {
+		export const openEditors: ReadonlyArray<OpenEditorInfo>;
+
+		// todo@API proper event type
+		export const onDidChangeOpenEditors: Event<void>;
 	}
 
 	//#endregion

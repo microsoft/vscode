@@ -16,7 +16,7 @@ import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/ex
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -27,7 +27,7 @@ import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMul
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -40,11 +40,10 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { toAction } from 'vs/base/common/actions';
 
 // Commands
 
@@ -356,13 +355,11 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const configurationService = accessor.get(IConfigurationService);
-		const quickInputService = accessor.get(IQuickInputService);
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
 			const input = editorService.createEditorInput({ resource: uri });
-			openEditorWith(input, undefined, undefined, editorGroupsService.activeGroup, editorService, configurationService, quickInputService);
+			openEditorWith(accessor, input, undefined, undefined, editorGroupsService.activeGroup);
 		}
 	}
 });
@@ -441,12 +438,23 @@ function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyAr
 async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const notificationService = accessor.get(INotificationService);
+	const commandService = accessor.get(ICommandService);
 
 	try {
 		await editorService.save(editors, options);
 	} catch (error) {
 		if (!isPromiseCanceledError(error)) {
-			notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+			notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
+				actions: {
+					primary: [
+						toAction({ id: SAVE_FILE_COMMAND_ID, label: nls.localize('retry', "Retry"), run: () => commandService.executeCommand(SAVE_FILE_COMMAND_ID) }),
+						toAction({ id: SAVE_FILE_AS_COMMAND_ID, label: SAVE_FILE_AS_LABEL, run: () => commandService.executeCommand(SAVE_FILE_AS_COMMAND_ID) }),
+						toAction({ id: REVERT_FILE_COMMAND_ID, label: nls.localize('discard', "Discard"), run: () => commandService.executeCommand(REVERT_FILE_COMMAND_ID) })
+					]
+				}
+			});
 		}
 	}
 }
@@ -482,7 +490,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	when: undefined,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: undefined,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_S },
+	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S) },
 	id: SAVE_ALL_COMMAND_ID,
 	handler: (accessor) => {
 		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
@@ -664,12 +677,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (typeof args?.viewType === 'string') {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
-			const configurationService = accessor.get(IConfigurationService);
-			const quickInputService = accessor.get(IQuickInputService);
 
 			const textInput = editorService.createEditorInput({ options: { pinned: true } });
 			const group = editorGroupsService.activeGroup;
-			await openEditorWith(textInput, args.viewType, { pinned: true }, group, editorService, configurationService, quickInputService);
+			await openEditorWith(accessor, textInput, args.viewType, { pinned: true }, group);
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}

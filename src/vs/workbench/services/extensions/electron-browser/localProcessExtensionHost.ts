@@ -160,9 +160,9 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				this._tryFindDebugPort()
 			]).then(([pipeName, portNumber]) => {
 				const env = objects.mixin(objects.deepClone(process.env), {
-					AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: true,
+					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_VERBOSE_LOGGING: true,
 					VSCODE_LOG_NATIVE: this._isExtensionDevHost,
 					VSCODE_IPC_HOOK_EXTHOST: pipeName,
 					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
@@ -202,6 +202,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					opts.execArgv = ['--inspect-port=0'];
 				}
 
+				if (this._environmentService.args['prof-v8-extensions']) {
+					opts.execArgv.unshift('--prof');
+				}
+
 				// On linux crash reporter needs to be started on child node processes explicitly
 				if (platform.isLinux) {
 					const crashReporterStartOptions: CrashReporterStartOptions = {
@@ -223,7 +227,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					// For https://github.com/microsoft/vscode/issues/105743
 					const extHostCrashDirectory = this._environmentService.crashReporterDirectory || this._environmentService.userDataPath;
 					opts.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `${ExtensionHostLogFileName} Crash Reports`);
-					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
+					opts.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 				}
 
 				// Run Extension Host as fork of current process
@@ -651,7 +655,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		// to communicate this back to the main side to terminate the debug session
 		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
 			this._extensionHostDebugService.terminateSession(this._environmentService.debugExtensionHost.debugId);
-			event.join(timeout(100 /* wait a bit for IPC to get delivered */));
+			event.join(timeout(100 /* wait a bit for IPC to get delivered */), 'join.extensionDevelopment');
 		}
 	}
 }

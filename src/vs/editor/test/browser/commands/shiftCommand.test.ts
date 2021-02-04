@@ -964,7 +964,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					autoIndent: EditorAutoIndentStrategy.Full,
 				});
 				let actual = getEditOperation(model, op);
-				assert.deepEqual(actual, expected);
+				assert.deepStrictEqual(actual, expected);
 			});
 		}
 
@@ -979,7 +979,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					autoIndent: EditorAutoIndentStrategy.Full,
 				});
 				let actual = getEditOperation(model, op);
-				assert.deepEqual(actual, expected);
+				assert.deepStrictEqual(actual, expected);
 			});
 		}
 	});

@@ -55,12 +55,26 @@
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
+.monaco-icon-label.nowrap > .monaco-icon-label-container > .monaco-icon-description-container > .label-description{
+	white-space: nowrap
+}
+
 .vs .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	opacity: .95;
 }
 
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+	font-style: italic;
+}
+
+.monaco-icon-label.deprecated {
+	text-decoration: line-through;
+	opacity: 0.66;
+}
+
+/* make sure apply italic font style to decorations as well */
+.monaco-icon-label.italic::after {
 	font-style: italic;
 }
 

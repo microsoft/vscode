@@ -10,10 +10,12 @@ import * as model from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_RUN_GUTTER, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, getEditorTopPadding, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, getEditorTopPadding, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
@@ -21,19 +23,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
-	private _selfSizeMonitoring: boolean = false;
-	set selfSizeMonitoring(newVal: boolean) {
-		this._selfSizeMonitoring = newVal;
-	}
-
-	get selfSizeMonitoring() {
-		return this._selfSizeMonitoring;
-	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
-	get outputs() {
-		return this.model.outputs;
-	}
 
 	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
@@ -65,18 +56,29 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._layoutInfo;
 	}
 
+	private _outputViewModels: ICellOutputViewModel[];
+
+	get outputsViewModels() {
+		return this._outputViewModels;
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly eventDispatcher: NotebookEventDispatcher,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@INotebookService private _notebookService: INotebookService
 	) {
 		super(viewType, model, UUID.generateUuid(), configurationService);
+		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
+
 		this._register(this.model.onDidChangeOutputs((splices) => {
 			splices.reverse().forEach(splice => {
 				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
+				this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(this, output, this._notebookService)));
 			});
+
 			this._outputsTop = null;
 			this._onDidChangeOutputs.fire(splices);
 		}));
@@ -260,8 +262,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			throw new Error('Output index out of range!');
 		}
 
-		this._outputCollection[index] = height;
 		this._ensureOutputsTop();
+		this._outputCollection[index] = height;
 		if (this._outputsTop!.changeValue(index, height)) {
 			this.layoutChange({ outputHeight: true });
 		}

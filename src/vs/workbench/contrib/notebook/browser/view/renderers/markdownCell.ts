@@ -21,9 +21,8 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getExecuteCellPlaceholder, getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 export class StatefulMarkdownCell extends Disposable {
 
@@ -144,7 +143,11 @@ export class StatefulMarkdownCell extends Disposable {
 				// active cell and no run status
 				if (this._activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
-					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
+					const placeholder = getExecuteCellPlaceholder(this.viewCell);
+					if (!this.notebookCellStatusBarService.getEntries(this.viewCell.uri).find(entry => entry.text === placeholder.text && entry.command === placeholder.command)) {
+						this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(placeholder);
+						this._register(this._activeCellRunPlaceholder);
+					}
 				}
 
 				return;
@@ -334,8 +337,9 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		);
 
-		this.viewCell.editorHeight = realContentHeight;
-		this.relayoutCell();
+		// LET the content size observer to handle it
+		// this.viewCell.editorHeight = realContentHeight;
+		// this.relayoutCell();
 	}
 
 	private relayoutCell(): void {
@@ -355,10 +359,10 @@ export class StatefulMarkdownCell extends Disposable {
 				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
-				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(collapsedIcon)));
+				DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
 				break;
 			case CellFoldingState.Expanded:
-				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons(ThemeIcon.asCodiconLabel(expandedIcon)));
+				DOM.reset(this.templateData.foldingIndicator, renderIcon(expandedIcon));
 				break;
 
 			default:

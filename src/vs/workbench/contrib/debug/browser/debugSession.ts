@@ -64,7 +64,7 @@ export class DebugSession implements IDebugSession {
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
-	private name: string | undefined;
+	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
 
 	constructor(
@@ -88,7 +88,7 @@ export class DebugSession implements IDebugSession {
 	) {
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
-			this.repl = new ReplModel();
+			this.repl = new ReplModel(this.configurationService);
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
@@ -146,13 +146,16 @@ export class DebugSession implements IDebugSession {
 
 	getLabel(): string {
 		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
-		const name = this.name || this.configuration.name;
-		return includeRoot && this.root ? `${name} (${resources.basenameOrAuthority(this.root.uri)})` : name;
+		return includeRoot && this.root ? `${this.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.name;
 	}
 
 	setName(name: string): void {
-		this.name = name;
+		this._name = name;
 		this._onDidChangeName.fire(name);
+	}
+
+	get name(): string {
+		return this._name || this.configuration.name;
 	}
 
 	get state(): State {
@@ -232,7 +235,7 @@ export class DebugSession implements IDebugSession {
 		try {
 			const customTelemetryService = await dbgr.getCustomTelemetryService();
 			const debugAdapter = await dbgr.createDebugAdapter(this);
-			this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
+			this.raw = new RawDebugSession(debugAdapter, dbgr, this.id, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
 
 			await this.raw.start();
 			this.registerListeners();
@@ -253,7 +256,7 @@ export class DebugSession implements IDebugSession {
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
-			this.model.setExceptionBreakpoints((this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
+			this.debugService.setExceptionBreakpoints((this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
@@ -837,7 +840,8 @@ export class DebugSession implements IDebugSession {
 				await promises.topCallStack;
 				focus();
 				await promises.wholeCallStack;
-				if (!this.debugService.getViewModel().focusedStackFrame) {
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize') {
 					// The top stack frame can be deemphesized so try to focus again #68616
 					focus();
 				}
@@ -1015,8 +1019,8 @@ export class DebugSession implements IDebugSession {
 			this._onDidProgressEnd.fire(event);
 		}));
 		this.rawListeners.push(this.raw.onDidInvalidated(async event => {
-			if (!(event.body.areas && event.body.areas.length === 1 && event.body.areas[0] === 'variables')) {
-				// If invalidated event only requires to update variables, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
+			if (!(event.body.areas && event.body.areas.length === 1 && (event.body.areas[0] === 'variables' || event.body.areas[0] === 'watch'))) {
+				// If invalidated event only requires to update variables or watch, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
 				await this.fetchThreads(this.stoppedDetails);

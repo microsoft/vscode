@@ -14,6 +14,7 @@ import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { splitLines } from 'vs/base/common/strings';
 
+export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
 export function compareMarkersByUri(a: IMarker, b: IMarker) {
 	return extUri.compare(a.resource, b.resource);

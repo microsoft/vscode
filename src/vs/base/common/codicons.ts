@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { codiconStartMarker } from 'vs/base/common/codicon';
 import { Emitter, Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
 
 export interface IIconRegistry {
 	readonly all: IterableIterator<Codicon>;
@@ -47,8 +45,8 @@ const _registry = new Registry();
 
 export const iconRegistry: IIconRegistry = _registry;
 
-export function registerCodicon(id: string, def: Codicon, description?: string): Codicon {
-	return new Codicon(id, def, description);
+export function registerCodicon(id: string, def: Codicon): Codicon {
+	return new Codicon(id, def);
 }
 
 export class Codicon implements CSSIcon {
@@ -61,8 +59,48 @@ export class Codicon implements CSSIcon {
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 }
 
+export function getClassNamesArray(id: string, modifier?: string) {
+	const classNames = ['codicon', 'codicon-' + id];
+	if (modifier) {
+		classNames.push('codicon-modifier-' + modifier);
+	}
+	return classNames;
+}
+
 export interface CSSIcon {
-	readonly classNames: string;
+	readonly id: string;
+}
+
+
+export namespace CSSIcon {
+	export const iconNameExpression = '[A-Za-z0-9\\-]+';
+	export const iconModifierExpression = '~[A-Za-z]+';
+
+	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
+
+	export function asClassNameArray(icon: CSSIcon): string[] {
+		if (icon instanceof Codicon) {
+			return ['codicon', 'codicon-' + icon.id];
+		}
+		const match = cssIconIdRegex.exec(icon.id);
+		if (!match) {
+			return asClassNameArray(Codicon.error);
+		}
+		let [, id, modifier] = match;
+		const classNames = ['codicon', 'codicon-' + id];
+		if (modifier) {
+			classNames.push('codicon-modifier-' + modifier.substr(1));
+		}
+		return classNames;
+	}
+
+	export function asClassName(icon: CSSIcon): string {
+		return asClassNameArray(icon).join(' ');
+	}
+
+	export function asCSSSelector(icon: CSSIcon): string {
+		return '.' + asClassNameArray(icon).join('.');
+	}
 }
 
 
@@ -497,36 +535,15 @@ export namespace Codicon {
 	export const passFilled = new Codicon('pass-filled', { character: '\\ebb3' });
 	export const circleLargeFilled = new Codicon('circle-large-filled', { character: '\\ebb4' });
 	export const circleLargeOutline = new Codicon('circle-large-outline', { character: '\\ebb5' });
+	export const combine = new Codicon('combine', { character: '\\ebb6' });
+	export const gather = new Codicon('gather', { character: '\\ebb6' });
+	export const table = new Codicon('table', { character: '\\ebb7' });
+	export const variableGroup = new Codicon('variable-group', { character: '\\ebb8' });
+	export const typeHierarchy = new Codicon('type-hierarchy', { character: '\\ebb9' });
+	export const typeHierarchySub = new Codicon('type-hierarchy-sub', { character: '\\ebba' });
+	export const typeHierarchySuper = new Codicon('type-hierarchy-super', { character: '\\ebbb' });
+	export const gitPullRequestCreate = new Codicon('git-pull-request-create', { character: '\\ebbc' });
 
-	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition, localize('dropDownButton', 'Icon for drop down buttons.'));
+	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
 
-// common icons
-
-
-
-
-const escapeCodiconsRegex = /(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)/gi;
-export function escapeCodicons(text: string): string {
-	return text.replace(escapeCodiconsRegex, (match, escaped) => escaped ? match : `\\${match}`);
-}
-
-const markdownEscapedCodiconsRegex = /\\\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)/gi;
-export function markdownEscapeEscapedCodicons(text: string): string {
-	// Need to add an extra \ for escaping in markdown
-	return text.replace(markdownEscapedCodiconsRegex, match => `\\${match}`);
-}
-
-const markdownUnescapeCodiconsRegex = /(\\)?\$\\\(([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?)\\\)/gi;
-export function markdownUnescapeCodicons(text: string): string {
-	return text.replace(markdownUnescapeCodiconsRegex, (match, escaped, codicon) => escaped ? match : `$(${codicon})`);
-}
-
-const stripCodiconsRegex = /(\s)?(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)(\s)?/gi;
-export function stripCodicons(text: string): string {
-	if (text.indexOf(codiconStartMarker) === -1) {
-		return text;
-	}
-
-	return text.replace(stripCodiconsRegex, (match, preWhitespace, escaped, postWhitespace) => escaped ? match : preWhitespace || postWhitespace || '');
-}

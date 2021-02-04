@@ -33,14 +33,29 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
 			},
+			'workbench.editor.wrapTabs': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'default': false
+			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
-				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration. This value is ignored when `#workbench.editor.showTabs#` is `false`."),
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
-				'markdownDescription': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is `false`."),
+				'markdownDescription': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'default': false
+			},
+			'workbench.editor.decorations.badges': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('decorations.badges', "Controls whether editor file decorations should use badges."),
+				'default': false
+			},
+			'workbench.editor.decorations.colors': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('decorations.colors', "Controls whether editor file decorations should use colors."),
 				'default': false
 			},
 			'workbench.editor.labelFormat': {
@@ -75,7 +90,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
 				'default': 'right',
-				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
@@ -85,7 +100,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 					nls.localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
 					nls.localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
 				],
-				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
@@ -96,7 +111,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 					nls.localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
 					nls.localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name.")
 				],
-				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
@@ -130,7 +145,12 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing)."),
+				'markdownDescription': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
+				'default': false
+			},
+			'workbench.editor.enablePreviewFromCodeNavigation': {
+				'type': 'boolean',
+				'markdownDescription': nls.localize('enablePreviewFromCodeNavigation', "Controls whether editors remain in preview when a code navigation is started from them. Preview editors do not keep open and are reused until explicitly set to be kept open (e.g. via double click or editing). This value is ignored when `#workbench.editor.enablePreview#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -315,8 +335,8 @@ import { isStandalone } from 'vs/base/browser/browser';
 		nls.localize('activeFolderLong', "`\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
 		nls.localize('folderName', "`\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
 		nls.localize('folderPath', "`\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
-		nls.localize('rootName', "`\${rootName}`: name of the workspace (e.g. myFolder or myWorkspace)."),
-		nls.localize('rootPath', "`\${rootPath}`: file path of the workspace (e.g. /Users/Development/myWorkspace)."),
+		nls.localize('rootName', "`\${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
+		nls.localize('rootPath', "`\${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		nls.localize('appName', "`\${appName}`: e.g. VS Code."),
 		nls.localize('remoteName', "`\${remoteName}`: e.g. SSH"),
 		nls.localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
@@ -352,17 +372,17 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
-				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
-				'enumDescriptions': [
-					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
-					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
-					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
+				'enum': ['classic', 'visible', 'toggle', 'hidden', 'compact'],
+				'markdownEnumDescriptions': [
+					nls.localize('window.menuBarVisibility.classic', "Menu is displayed at the top of the window and only hidden in full screen mode."),
+					nls.localize('window.menuBarVisibility.visible', "Menu is always visible at the top of the window even in full screen mode."),
+					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via Alt key."),
 					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
 					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when `#window.titleBarStyle#` is `native`.")
 				],
-				'default': isWeb ? 'compact' : 'default',
+				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
+				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the sidebar."),
 				'included': isWindows || isLinux || isWeb
 			},
 			'window.enableMenuBarMnemonics': {
@@ -463,7 +483,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'zenMode.restore': {
 				'type': 'boolean',
-				'default': false,
+				'default': true,
 				'description': nls.localize('zenMode.restore', "Controls whether a window should restore to zen mode if it was exited in zen mode.")
 			},
 			'zenMode.silentNotifications': {

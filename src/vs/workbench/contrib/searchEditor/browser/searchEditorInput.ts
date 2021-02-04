@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/searchEditor';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,7 +23,6 @@ import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditorModel } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
 import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
@@ -40,6 +39,7 @@ export type SearchConfiguration = {
 	isRegexp: boolean,
 	useExcludeSettingsAndIgnoreFiles: boolean,
 	showIncludesExcludes: boolean,
+	onlyOpenEditors: boolean,
 };
 
 export const SEARCH_EDITOR_EXT = '.code-search';
@@ -84,7 +84,6 @@ export class SearchEditorInput extends EditorInput {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService storageService: IStorageService,
@@ -147,7 +146,7 @@ export class SearchEditorInput extends EditorInput {
 		if (path) {
 			this.telemetryService.publicLog2('searchEditor/saveSearchResults');
 			const toWrite = await this.serializeForDisk();
-			if (await this.textFileService.create(path, toWrite, { overwrite: true })) {
+			if (await this.textFileService.create([{ resource: path, value: toWrite, options: { overwrite: true } }])) {
 				this.setDirty(false);
 				if (!isEqual(path, this.modelUri)) {
 					const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: this.config, backingUri: path });
@@ -186,22 +185,6 @@ export class SearchEditorInput extends EditorInput {
 
 	isDirty() {
 		return this.dirty;
-	}
-
-	isSaving(): boolean {
-		if (!this.isDirty()) {
-			return false; // the editor needs to be dirty for being saved
-		}
-
-		if (this.isUntitled()) {
-			return false; // untitled are not saving automatically
-		}
-
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // a short auto save is configured, treat this as being saved
-		}
-
-		return false;
 	}
 
 	isReadonly() {
@@ -251,6 +234,11 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions) {
+		if (options?.soft) {
+			this.setDirty(false);
+			return;
+		}
+
 		if (this.backingUri) {
 			const { config, text } = await this.instantiationService.invokeFunction(parseSavedSearchEditor, this.backingUri);
 			(await this.model).setValue(text);

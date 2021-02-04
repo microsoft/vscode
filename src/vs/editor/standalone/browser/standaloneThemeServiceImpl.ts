@@ -16,7 +16,7 @@ import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/c
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -39,7 +39,11 @@ class StandaloneTheme implements IStandaloneTheme {
 		this.themeData = standaloneThemeData;
 		let base = standaloneThemeData.base;
 		if (name.length > 0) {
-			this.id = base + ' ' + name;
+			if (isBuiltinTheme(name)) {
+				this.id = name;
+			} else {
+				this.id = base + ' ' + name;
+			}
 			this.themeName = name;
 		} else {
 			this.id = base;
@@ -199,6 +203,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 	private _allCSS: string;
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
+	private _colorMapOverride: Color[] | null;
 	private _theme!: IStandaloneTheme;
 
 	constructor() {
@@ -209,17 +214,18 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 
-		const iconRegistry = getIconRegistry();
+		const iconsStyleSheet = getIconsStyleSheet();
 
-		this._codiconCSS = iconRegistry.getCSS();
+		this._codiconCSS = iconsStyleSheet.getCSS();
 		this._themeCSS = '';
 		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
 		this._globalStyleElement = null;
 		this._styleElements = [];
+		this._colorMapOverride = null;
 		this.setTheme(VS_THEME_NAME);
 
-		iconRegistry.onDidChange(() => {
-			this._codiconCSS = iconRegistry.getCSS();
+		iconsStyleSheet.onDidChange(() => {
+			this._codiconCSS = iconsStyleSheet.getCSS();
 			this._updateCSS();
 		});
 	}
@@ -284,6 +290,11 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		return this._theme;
 	}
 
+	public setColorMapOverride(colorMapOverride: Color[] | null): void {
+		this._colorMapOverride = colorMapOverride;
+		this._updateThemeOrColorMap();
+	}
+
 	public setTheme(themeName: string): string {
 		let theme: StandaloneTheme;
 		if (this._knownThemes.has(themeName)) {
@@ -296,7 +307,11 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 			return theme.id;
 		}
 		this._theme = theme;
+		this._updateThemeOrColorMap();
+		return theme.id;
+	}
 
+	private _updateThemeOrColorMap(): void {
 		let cssRules: string[] = [];
 		let hasRule: { [rule: string]: boolean; } = {};
 		let ruleCollector: ICssStyleCollector = {
@@ -307,19 +322,16 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(theme, ruleCollector, this._environment));
+		themingRegistry.getThemingParticipants().forEach(p => p(this._theme, ruleCollector, this._environment));
 
-		let tokenTheme = theme.tokenTheme;
-		let colorMap = tokenTheme.getColorMap();
+		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onColorThemeChange.fire(theme);
-
-		return theme.id;
+		this._onColorThemeChange.fire(this._theme);
 	}
 
 	private _updateCSS(): void {

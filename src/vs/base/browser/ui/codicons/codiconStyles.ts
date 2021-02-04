@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./codicon/codicon';
-import 'vs/css!./codicon/codicon-modifications';
-import 'vs/css!./codicon/codicon-animations';
+import 'vs/css!./codicon/codicon-modifiers';
 
 import { Codicon } from 'vs/base/common/codicons';
 

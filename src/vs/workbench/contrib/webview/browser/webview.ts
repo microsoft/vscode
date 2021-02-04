@@ -18,9 +18,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
  */
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
 export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('webviewFindWidgetFocused', false);
-
-export const webviewHasOwnEditFunctionsContextKey = 'webviewHasOwnEditFunctions';
-export const webviewHasOwnEditFunctionsContext = new RawContextKey<boolean>(webviewHasOwnEditFunctionsContextKey, false);
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<boolean>('webviewFindWidgetEnabled', false);
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
@@ -59,6 +57,8 @@ export const enum WebviewContentPurpose {
 	CustomEditor = 'customEditor',
 }
 
+export type WebviewStyles = { [key: string]: string | number; };
+
 export interface WebviewOptions {
 	// The purpose of the webview; this is (currently) only used for filtering in js-debug
 	readonly purpose?: WebviewContentPurpose;
@@ -66,6 +66,7 @@ export interface WebviewOptions {
 	readonly enableFindWidget?: boolean;
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
 }
 
 export interface WebviewContentOptions {

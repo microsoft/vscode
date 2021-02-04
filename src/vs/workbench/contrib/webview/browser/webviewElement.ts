@@ -5,6 +5,7 @@
 
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { streamToBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -16,7 +17,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { loadLocalResource, readFileStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
@@ -41,9 +42,20 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService);
+
+		/* __GDPR__
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"s": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		telemetryService.publicLog('webview.createWebview', {
+			extension: extension?.id.value,
+			webviewElementType: 'iframe',
+		});
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
 			() => this.extension?.location,
@@ -55,11 +67,11 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 			const rawPath = entry.path;
 			const normalizedPath = decodeURIComponent(rawPath);
 			const uri = URI.parse(normalizedPath.replace(/^\/([\w\-]+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
-			this.loadResource(rawPath, uri);
+			this.loadResource(entry.id, rawPath, uri, entry.ifNoneMatch);
 		}));
 
 		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
-			this.localLocalhost(entry.origin);
+			this.localLocalhost(entry.id, entry.origin);
 		}));
 
 		this._confirmBeforeClose = this._configurationService.getValue<string>('window.confirmBeforeClose');
@@ -161,7 +173,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		throw new Error('Method not implemented.');
 	}
 
-	private async loadResource(requestPath: string, uri: URI) {
+	private async loadResource(id: number, requestPath: string, uri: URI, ifNoneMatch: string | undefined) {
 		try {
 			const remoteAuthority = this.environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
@@ -185,39 +197,63 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 				};
 			}
 
-			const result = await loadLocalResource(uri, {
+			const result = await loadLocalResource(uri, ifNoneMatch, {
 				extensionLocation: extensionLocation,
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
 				rewriteUri,
 			}, {
-				readFileStream: (resource) => this.fileService.readFileStream(resource).then(x => x.value),
-			}, this.requestService);
+				readFileStream: (resource, etag) => readFileStream(this.fileService, resource, etag),
+			}, this.requestService, this.logService, CancellationToken.None);
 
-			if (result.type === WebviewResourceResponse.Type.Success) {
-				const { buffer } = await streamToBuffer(result.stream);
-				return this._send('did-load-resource', {
-					status: 200,
-					path: requestPath,
-					mime: result.mimeType,
-					data: buffer,
-				});
+			switch (result.type) {
+				case WebviewResourceResponse.Type.Success:
+					{
+						const { buffer } = await streamToBuffer(result.stream);
+						return this._send('did-load-resource', {
+							id,
+							status: 200,
+							path: requestPath,
+							mime: result.mimeType,
+							data: buffer,
+							etag: result.etag,
+						});
+					}
+				case WebviewResourceResponse.Type.NotModified:
+					{
+						return this._send('did-load-resource', {
+							id,
+							status: 304, // not modified
+							path: requestPath,
+							mime: result.mimeType,
+						});
+					}
+				case WebviewResourceResponse.Type.AccessDenied:
+					{
+						return this._send('did-load-resource', {
+							id,
+							status: 401, // unauthorized
+							path: requestPath,
+						});
+					}
 			}
 		} catch {
 			// noop
 		}
 
 		return this._send('did-load-resource', {
+			id,
 			status: 404,
 			path: requestPath
 		});
 	}
 
-	private async localLocalhost(origin: string) {
+	private async localLocalhost(id: string, origin: string) {
 		const authority = this.environmentService.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
 		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 		return this._send('did-load-localhost', {
+			id,
 			origin,
 			location: redirect
 		});

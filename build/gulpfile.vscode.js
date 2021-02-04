@@ -11,13 +11,10 @@ const os = require('os');
 const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
-const azure = require('gulp-azure-storage');
-const electron = require('gulp-atom-electron');
 const vfs = require('vinyl-fs');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
 const task = require('./lib/task');
@@ -29,14 +26,12 @@ const packageJson = require('../package.json');
 const product = require('../product.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
-const deps = require('./dependencies');
+const { getProductionDependencies } = require('./lib/dependencies');
 const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
-
-const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 
 // Build
 const vscodeEntryPoints = _.flatten([
@@ -104,6 +99,16 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 ));
 gulp.task(minifyVSCodeTask);
 
+const core = task.define('core-ci', task.series(
+	gulp.task('compile-build'),
+	task.parallel(
+		gulp.task('minify-vscode'),
+		gulp.task('minify-vscode-reh'),
+		gulp.task('minify-vscode-reh-web'),
+	)
+));
+gulp.task(core);
+
 /**
  * Compute checksums for some files.
  *
@@ -145,6 +150,9 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	platform = platform || process.platform;
 
 	return () => {
+		const electron = require('gulp-atom-electron');
+		const json = require('gulp-json-editor');
+
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
@@ -160,7 +168,16 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true });
+		const platformSpecificBuiltInExtensionsExclusions = product.builtInExtensions.filter(ext => {
+			if (!ext.platforms) {
+				return false;
+			}
+
+			const set = new Set(ext.platforms);
+			return !set.has(platform);
+		}).map(ext => `!.build/extensions/${ext.name}/**`);
+
+		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
 
 		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
@@ -202,10 +219,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(__dirname, '..'));
+		const productionDependencies = getProductionDependencies(root);
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
+			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-85/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
@@ -504,6 +522,8 @@ gulp.task(task.define(
 	task.series(
 		generateVSCodeConfigurationTask,
 		() => {
+			const azure = require('gulp-azure-storage');
+
 			if (!shouldSetupSettingsSearch()) {
 				const branch = process.env.BUILD_SOURCEBRANCH;
 				console.log(`Only runs on master and release branches, not ${branch}`);

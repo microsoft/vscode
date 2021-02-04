@@ -19,7 +19,7 @@ export function getRemoteName(authority: string | undefined): string | undefined
 	}
 	const pos = authority.indexOf('+');
 	if (pos < 0) {
-		// funky? bad authority?
+		// e.g. localhost:8000
 		return authority;
 	}
 	return authority.substr(0, pos);

@@ -19,12 +19,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "typescript": "^3.8.3",
-    "@types/node": "^12.11.7",
-    "mocha-junit-reporter": "^1.17.0",
-    "mocha-multi-reporters": "^1.1.7",
-    "vscode": "~1.1.36",
-    "mocha": "^2.3.3"
+    "@types/node": "^12.19.9"
   },
   "contributes": {
     "commands": [
@@ -85,5 +80,9 @@
         "url": "vscode://schemas/notebook/cellmetadata"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }
