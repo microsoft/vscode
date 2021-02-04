@@ -104,7 +104,6 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	const args = ['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
-		args.push(...['--install-builtin-extension', 'github.vscode-pull-request-github', '--start-server']);
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 		console.log(`Starting built server from '${serverLocation}'`);
 	} else {
