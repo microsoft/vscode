@@ -91,23 +91,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 	});
 };
 
-export class SelectDefaultShellWindowsTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_DEFAULT_SHELL;
-	public static readonly LABEL = localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.selectDefaultShell();
-	}
-}
-
 export class ConfigureTerminalSettingsAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS;
@@ -150,7 +133,7 @@ export class SwitchTerminalAction extends Action {
 			this._terminalService.refreshActiveTab();
 			return Promise.resolve(null);
 		}
-		if (item === SelectDefaultShellWindowsTerminalAction.LABEL) {
+		if (item === localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell")) {
 			this._terminalService.refreshActiveTab();
 			return this._terminalService.selectDefaultShell();
 		}
@@ -220,7 +203,7 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 		items.push({ text: contributed.title });
 	}
 
-	items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
+	items.push({ text: localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell") });
 	items.push({ text: ConfigureTerminalSettingsAction.LABEL });
 	return items;
 }
@@ -1462,6 +1445,20 @@ export function registerTerminalActions() {
 				t.clear();
 				t.focus();
 			});
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_SHELL,
+				title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell"), original: 'Select Default Shell' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).selectDefaultShell();
 		}
 	});
 
