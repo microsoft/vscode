@@ -43,6 +43,13 @@ import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { Codicon } from 'vs/base/common/codicons';
 
+const enum ContextMenuGroup {
+	Create = '1_create',
+	Edit = '2_edit',
+	Clear = '3_clear',
+	Kill = '4_kill'
+}
+
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
 		case 'workspaceRoot':
@@ -1393,6 +1400,9 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+				}, {
+					id: MenuId.TerminalContext,
+					group: ContextMenuGroup.Create
 				}]
 			});
 		}
@@ -1426,39 +1436,17 @@ export function registerTerminalActions() {
 					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
-				}]
+				}],
+				menu: {
+					id: MenuId.TerminalContext,
+					group: ContextMenuGroup.Edit
+				}
 			});
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).getActiveInstance()?.selectAll();
 		}
 	});
-
-	// actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectAllTerminalAction, {
-	// 	// Don't use ctrl+a by default as that would override the common go to start
-	// 	// of prompt shell binding
-	// 	primary: 0,
-	// 	// Technically this doesn't need to be here as it will fall back to this
-	// 	// behavior anyway when handed to xterm.js, having this handled by VS Code
-	// 	// makes it easier for users to see how it works though.
-	// 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A }
-	// }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
-	// export class SelectAllTerminalAction extends Action {
-
-	// 	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_ALL;
-	// 	public static readonly LABEL = localize('workbench.action.terminal.selectAll', "Select All");
-
-	// 	constructor(
-	// 		id: string, label: string,
-	// 		@ITerminalService private readonly _terminalService: ITerminalService
-	// 	) {
-	// 		super(id, label);
-	// 	}
-
-	// 	async run() {
-	// 		this._terminalService.getActiveInstance()?.selectAll();
-	// 	}
-	// }
 
 	// Commands might be affected by Web restrictons
 	if (BrowserFeatures.clipboard.writeText) {
@@ -1484,10 +1472,12 @@ export function registerTerminalActions() {
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+			// TODO: Disable when there is no selection
 			command: {
 				id: TERMINAL_COMMAND_ID.COPY_SELECTION,
 				title: { value: localize('workbench.action.terminal.copySelection.short', "Copy"), original: 'Copy' }
-			}
+			},
+			group: ContextMenuGroup.Edit
 		});
 	}
 }
