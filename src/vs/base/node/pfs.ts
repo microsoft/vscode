@@ -637,10 +637,3 @@ export async function exists(path: string): Promise<boolean> {
 }
 
 //#endregion
-
-// TODO@bpasero remove me
-export function readFile(path: string): Promise<Buffer>;
-export function readFile(path: string, encoding: string): Promise<string>;
-export function readFile(path: string, encoding?: string): Promise<Buffer | string> {
-	return fs.promises.readFile(path, encoding);
-}
