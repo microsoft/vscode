@@ -886,7 +886,6 @@ export class PredictionTimeline {
 					}
 					this.clearPredictionState();
 					this.failedEmitter.fire(prediction);
-
 					break ReadLoop;
 			}
 		}
