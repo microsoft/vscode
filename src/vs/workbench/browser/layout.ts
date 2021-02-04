@@ -321,7 +321,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (visible !== this.state.menuBar.toggled) {
 			this.state.menuBar.toggled = visible;
 
-			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
+			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'classic')) {
 				// Propagate to grid
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 			}
@@ -892,7 +892,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return false;
 				} else if (this.state.menuBar.visibility === 'visible') {
 					return true;
-				} else if (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default') {
+				} else if (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'classic') {
 					return this.state.menuBar.toggled;
 				}
 
@@ -1560,16 +1560,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	toggleMenuBar(): void {
 		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
 		if (typeof currentVisibilityValue !== 'string') {
-			currentVisibilityValue = 'default';
+			currentVisibilityValue = 'classic';
 		}
 
 		let newVisibilityValue: string;
-		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
+		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
 			newVisibilityValue = 'toggle';
 		} else if (currentVisibilityValue === 'compact') {
 			newVisibilityValue = 'hidden';
 		} else {
-			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
+			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'classic';
 		}
 
 		this.configurationService.updateValue(Storage.MENU_VISIBILITY, newVisibilityValue);
