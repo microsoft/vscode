@@ -28,10 +28,13 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalViewPane extends ViewPane {
+	private _menu: IMenu;
 	private _actions: IAction[] | undefined;
 	private _copyContextMenuAction: IAction | undefined;
 	private _contextMenuActions: IAction[] | undefined;
@@ -57,8 +60,10 @@ export class TerminalViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		this._menu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 		this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
@@ -363,11 +368,16 @@ export class TerminalViewPane extends ViewPane {
 	private _openContextMenu(event: MouseEvent): void {
 		const standardEvent = new StandardMouseEvent(event);
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this._menu, undefined, actions);
+
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			// TODO: Bring back context menu
-			getActions: () => [], // this._getContextMenuActions(),
-			getActionsContext: () => this._parentDomElement
+			getActions: () => actions,
+			getActionsContext: () => this._parentDomElement,
+			onHide: () => actionsDisposable.dispose()
 		});
 	}
 

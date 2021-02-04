@@ -24,7 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Action2, registerAction2, ILocalizedString, MenuId } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2, ILocalizedString, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -41,6 +41,7 @@ import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { Codicon } from 'vs/base/common/codicons';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -1386,8 +1387,11 @@ export function registerTerminalActions() {
 					},
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
 				}],
+				// TODO: Support splitVertical icon?
+				icon: Codicon.splitHorizontal,
 				menu: [{
-					id: MenuId.ViewContainerTitle,
+					id: MenuId.ViewTitle,
+					group: 'navigation',
 					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
 				}]
 			});
@@ -1458,14 +1462,12 @@ export function registerTerminalActions() {
 
 	// Commands might be affected by Web restrictons
 	if (BrowserFeatures.clipboard.writeText) {
-		// Copies the terminal selection. Note that since the command palette takes focus from the
-		// terminal, this cannot be triggered through the command palette.
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: TERMINAL_COMMAND_ID.COPY_SELECTION,
 					title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
-					f1: false,
+					f1: true,
 					category,
 					precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 					keybinding: [{
@@ -1474,12 +1476,17 @@ export function registerTerminalActions() {
 						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)
-					}]
+					}],
 				});
-				// TODO: Use public static readonly SHORT_LABEL = localize('workbench.action.terminal.copySelection.short', "Copy");
 			}
 			async run(accessor: ServicesAccessor) {
 				await accessor.get(ITerminalService).getActiveInstance()?.copySelection();
+			}
+		});
+		MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+			command: {
+				id: TERMINAL_COMMAND_ID.COPY_SELECTION,
+				title: { value: localize('workbench.action.terminal.copySelection.short', "Copy"), original: 'Copy' }
 			}
 		});
 	}
