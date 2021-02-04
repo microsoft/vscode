@@ -19,7 +19,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { registerTerminalActions, ClearTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalActions, SelectDefaultShellWindowsTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_VIEW_ID, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -29,7 +29,6 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITerminalService, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -93,14 +92,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registerTerminalActions();
 const category = TERMINAL_ACTION_CATEGORY;
-// Weight is higher than work workbench contributions so the keybinding remains
-// highest priority when chords are registered afterwards
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ClearTerminalAction, {
-	primary: 0,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingWeight.WorkbenchContrib + 1), 'Terminal: Clear', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectDefaultShellWindowsTerminalAction), 'Terminal: Select Default Shell', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SplitInActiveWorkspaceTerminalAction), 'Terminal: Split Terminal (In Active Workspace)', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
 
 function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({

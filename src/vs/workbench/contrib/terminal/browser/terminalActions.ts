@@ -91,26 +91,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 	});
 };
 
-export class SplitInActiveWorkspaceTerminalAction extends Action {
-	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE;
-	public static readonly LABEL = localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		await this._terminalService.doWithActiveInstance(async t => {
-			const cwd = await getCwdForSplit(this._terminalService.configHelper, t);
-			this._terminalService.splitInstance(t, { cwd });
-			await this._terminalService.showPanel(true);
-		});
-	}
-}
-
 export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_DEFAULT_SHELL;
@@ -243,26 +223,6 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 	items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
 	items.push({ text: ConfigureTerminalSettingsAction.LABEL });
 	return items;
-}
-
-export class ClearTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.CLEAR;
-	public static readonly LABEL = localize('workbench.action.terminal.clear', "Clear");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.doWithActiveInstance(t => {
-			t.clear();
-			t.focus();
-		});
-	}
 }
 
 export class TerminalLaunchHelpAction extends Action {
@@ -1334,6 +1294,25 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+				title: { value: localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)"), original: 'Split Terminal (In Active Workspace)' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			await terminalService.doWithActiveInstance(async t => {
+				const cwd = await getCwdForSplit(terminalService.configHelper, t);
+				terminalService.splitInstance(t, { cwd });
+				await terminalService.showPanel(true);
+			});
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TERMINAL_COMMAND_ID.SELECT_ALL,
 				title: { value: localize('workbench.action.terminal.selectAll', "Select All"), original: 'Select All' },
 				f1: true,
@@ -1421,7 +1400,6 @@ export function registerTerminalActions() {
 		},
 		group: ContextMenuGroup.Create
 	});
-
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1456,6 +1434,35 @@ export function registerTerminalActions() {
 			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
 		},
 		group: ContextMenuGroup.Kill
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.KILL,
+				title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: [{
+					primary: 0,
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K },
+					// Weight is higher than work workbench contributions so the keybinding remains
+					// highest priority when chords are registered afterwards
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+				}],
+				menu: {
+					id: MenuId.TerminalContext,
+					group: ContextMenuGroup.Clear
+				}
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).doWithActiveInstance(t => {
+				t.clear();
+				t.focus();
+			});
+		}
 	});
 
 	// Some commands depend on platform features
