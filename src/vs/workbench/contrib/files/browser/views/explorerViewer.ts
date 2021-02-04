@@ -1508,7 +1508,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Once everything has been moved successfully, we can delete the folders
 			try {
 				// BulkEdit does not allow deleting in order. Executing all folder-deletions at once would cause an error
-				// since the order is required for subfolders (otherwise they would not be empty).
+				// since deleting the parent-folder may fail with undeleted children-folder in there (because it is not empty).
 				for (const edit of resourceFileEdits.filter(edit => !edit.newResource)) {
 					const resolved = await this.fileService.resolve(edit.oldResource!);
 					// since the user could decide to skip some files, we only delete empty folders
@@ -1540,37 +1540,30 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 				}
 
-				// remove all edits that cause a conflict and (maybe) add (some of) them later
-				edits = edits.filter(e => overwrites.indexOf(e) < 0);
-
-				if (overwrites.length === 1) {
-					//TODO: code duplication
-					const { choice } = await this.chooseOverwriteOrSkip(overwrites[0].newResource!);
-
-					if (choice === 'cancel') {
-						return false;
-					} else if (choice === 'replace') {
-						edits.push(overwrites[0]);
-					}
+				let choice: 'replace' | 'skip' | 'decide' | 'cancel';
+				if (overwrites.length > 1) {
+					choice = await this.chooseMultipleOverwriteSkipOrDecide(overwrites.map(e => e.newResource!));
 				} else {
-					const dialog = getMultipleFilesOverwriteOrSkip(overwrites.map(o => o.newResource!));
-					const { choice } = await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options);
+					choice = 'decide';
+				}
 
-					//TODO: those choices do not seem consistent with above
+				if (choice === 'skip') {
+					edits = edits.filter(e => overwrites.indexOf(e) < 0);
+				} else if (choice === 'decide') {
+					// remove all edits that cause a conflict and ask the user whether to include them
+					edits = edits.filter(e => overwrites.indexOf(e) < 0);
 
-					if (choice === 2) {
-						for (const overwrite of overwrites) {
-							const { choice } = await this.chooseOverwriteOrSkip(overwrite.newResource!);
+					for (const overwrite of overwrites) {
+						const choice = await this.chooseOverwriteOrSkip(overwrite.newResource!);
 
-							if (choice === 'cancel') {
-								return false;
-							} else if (choice === 'replace') {
-								edits.push(overwrite);
-							}
+						if (choice === 'replace') {
+							edits.push(overwrite);
+						} else if (choice === 'cancel') {
+							return false;
 						}
-					} else if (choice === 3) {
-						return false;
 					}
+				} else if (choice === 'cancel') {
+					return false;
 				}
 
 				try {
@@ -1589,17 +1582,32 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return false;
 	}
 
-	private async chooseOverwriteOrSkip(file: URI): Promise<{ choice: 'replace' | 'skip' | 'cancel' }> {
+	private async chooseOverwriteOrSkip(file: URI): Promise<('replace' | 'skip' | 'cancel')> {
 		const confirmDialog = getFileOverwriteOrSkip(basename(file));
 		const { choice } = await this.dialogService.show(confirmDialog.severity, confirmDialog.message, confirmDialog.buttons, confirmDialog.options);
 
 		if (choice === 0) {
-			return { choice: 'replace' };
+			return 'replace';
 		} else if (choice === 1) {
-			return { choice: 'skip' };
+			return 'skip';
 		}
 
-		return { choice: 'cancel' };
+		return 'cancel';
+	}
+
+	private async chooseMultipleOverwriteSkipOrDecide(files: URI[]): Promise<('replace' | 'skip' | 'decide' | 'cancel')> {
+		const dialog = getMultipleFilesOverwriteOrSkip(files);
+		const { choice } = await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options);
+
+		if (choice === 0) {
+			return 'replace';
+		} else if (choice === 1) {
+			return 'skip';
+		} else if (choice === 2) {
+			return 'decide';
+		}
+
+		return 'cancel';
 	}
 
 	private async explodeConflictingFolderEdit(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
