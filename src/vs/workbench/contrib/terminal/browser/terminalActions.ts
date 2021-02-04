@@ -8,7 +8,7 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, IRemoteTerminalAttachTarget, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -39,7 +39,6 @@ import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/searc
 import { ILabelService } from 'vs/platform/label/common/label';
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { Codicon } from 'vs/base/common/codicons';
 
@@ -91,56 +90,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		t.sendText(resolvedText, false);
 	});
 };
-
-
-export class CreateNewTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.NEW;
-	public static readonly LABEL = localize('workbench.action.terminal.new', "Create New Integrated Terminal");
-	public static readonly SHORT_LABEL = localize('workbench.action.terminal.new.short', "New Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
-	) {
-		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(newTerminalIcon));
-	}
-
-	async run(event?: any) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
-			const activeInstance = this._terminalService.getActiveInstance();
-			if (activeInstance) {
-				const cwd = await getCwdForSplit(this._terminalService.configHelper, activeInstance);
-				this._terminalService.splitInstance(activeInstance, { cwd });
-				return;
-			}
-		}
-
-		if (this._terminalService.isProcessSupportRegistered) {
-			let instance: ITerminalInstance | undefined;
-			if (folders.length <= 1) {
-				// Allow terminal service to handle the path when there is only a
-				// single root
-				instance = this._terminalService.createTerminal(undefined);
-			} else {
-				const options: IPickOptions<IQuickPickItem> = {
-					placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
-				};
-				const workspace = await this._commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
-				if (!workspace) {
-					// Don't create the instance if the workspace picker was canceled
-					return;
-				}
-				instance = this._terminalService.createTerminal({ cwd: workspace.uri });
-			}
-			this._terminalService.setActiveInstance(instance);
-		}
-		await this._terminalService.showPanel(true);
-	}
-}
 
 export class SplitInActiveWorkspaceTerminalAction extends Action {
 	public static readonly ID = TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE;
@@ -1432,6 +1381,67 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TERMINAL_COMMAND_ID.NEW,
+				title: { value: localize('workbench.action.terminal.new', "Create New Integrated Terminal"), original: 'Create New Integrated Terminal' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				icon: Codicon.plus,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor, event: unknown) {
+			const terminalService = accessor.get(ITerminalService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const commandService = accessor.get(ICommandService);
+			const folders = workspaceContextService.getWorkspace().folders;
+			if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
+				const activeInstance = terminalService.getActiveInstance();
+				if (activeInstance) {
+					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
+					terminalService.splitInstance(activeInstance, { cwd });
+					return;
+				}
+			}
+
+			if (terminalService.isProcessSupportRegistered) {
+				let instance: ITerminalInstance | undefined;
+				if (folders.length <= 1) {
+					// Allow terminal service to handle the path when there is only a
+					// single root
+					instance = terminalService.createTerminal(undefined);
+				} else {
+					const options: IPickOptions<IQuickPickItem> = {
+						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+					};
+					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+					if (!workspace) {
+						// Don't create the instance if the workspace picker was canceled
+						return;
+					}
+					instance = terminalService.createTerminal({ cwd: workspace.uri });
+				}
+				terminalService.setActiveInstance(instance);
+			}
+			await terminalService.showPanel(true);
+		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW,
+			title: localize('workbench.action.terminal.new.short', "New Terminal")
+		},
+		group: ContextMenuGroup.Create
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TERMINAL_COMMAND_ID.KILL,
 				title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
 				f1: true,
@@ -1464,30 +1474,6 @@ export function registerTerminalActions() {
 		},
 		group: ContextMenuGroup.Kill
 	});
-
-	// actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(KillTerminalAction), 'Terminal: Kill the Active Terminal Instance', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
-	// export class KillTerminalAction extends Action {
-
-	// 	public static readonly ID = TERMINAL_COMMAND_ID.KILL;
-	// 	public static readonly LABEL = localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance");
-	// 	public static readonly PANEL_LABEL = localize('workbench.action.terminal.kill.short', "Kill Terminal");
-
-	// 	constructor(
-	// 		id: string, label: string,
-	// 		@ITerminalService private readonly _terminalService: ITerminalService
-	// 	) {
-	// 		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(killTerminalIcon));
-	// 	}
-
-	// 	async run() {
-	// 		await this._terminalService.doWithActiveInstance(async t => {
-	// 			t.dispose(true);
-	// 			if (this._terminalService.terminalInstances.length > 0) {
-	// 				await this._terminalService.showPanel(true);
-	// 			}
-	// 		});
-	// 	}
-	// }
 
 	// Commands might be affected by Web restrictons
 	if (BrowserFeatures.clipboard.writeText) {
