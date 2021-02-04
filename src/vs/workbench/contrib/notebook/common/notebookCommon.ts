@@ -202,18 +202,18 @@ export interface ITransformedErrorOutputDto extends IErrorOutput {
 	outputId: string;
 }
 
-export const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IOutputDtoWithId => ({ ...output, outputId: id });
+export const addIdToOutput = (output: IOutputDto, id = UUID.generateUuid()): IOutputDtoWithId => ({ ...output, outputId: id });
 
 export type IOutputDtoWithId = ITransformedDisplayOutputDto | ITransformedStreamOutputDto | ITransformedErrorOutputDto;
 
-export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
+export type IOutputDto = IDisplayOutput | IStreamOutput | IErrorOutput;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;
 	outputId: string;
 	handlerId: string;
 	mimeType: string;
-	output?: IRawOutput;
+	output?: IOutputDto;
 }
 
 export interface IOutputRenderRequestCellInfo<T> {
