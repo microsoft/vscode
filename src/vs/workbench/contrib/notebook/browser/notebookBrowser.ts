@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, ITransformedDisplayOutputDto, INotebookRendererInfo, IErrorOutput, IStreamOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutputDtoWithId, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, ITransformedDisplayOutputDto, INotebookRendererInfo, ITransformedErrorOutputDto, ITransformedStreamOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -107,7 +107,7 @@ export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOut
 
 export interface ICellOutputViewModel {
 	cellViewModel: IGenericCellViewModel;
-	model: IProcessedOutput;
+	model: IOutputDtoWithId;
 	isDisplayOutput(): this is IDisplayOutputViewModel;
 	isErrorOutput(): this is IErrorOutputViewModel;
 	isStreamOutput(): this is IStreamOutputViewModel;
@@ -120,11 +120,11 @@ export interface IDisplayOutputViewModel extends ICellOutputViewModel {
 }
 
 export interface IErrorOutputViewModel extends ICellOutputViewModel {
-	model: IErrorOutput;
+	model: ITransformedErrorOutputDto;
 }
 
 export interface IStreamOutputViewModel extends ICellOutputViewModel {
-	model: IStreamOutput;
+	model: ITransformedStreamOutputDto;
 }
 
 //#endregion

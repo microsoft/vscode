@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, NotebookCellOutputsSplice, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, CellOutputKind, diff, IMainCellDto, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, diff, IMainCellDto, IOutputDtoWithId, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 
@@ -69,8 +69,8 @@ export class ExtHostCell extends Disposable {
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _onDidChangeOutputs = new Emitter<ISplice<IProcessedOutput>[]>();
-	readonly onDidChangeOutputs: Event<ISplice<IProcessedOutput>[]> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<ISplice<IOutputDtoWithId>[]>();
+	readonly onDidChangeOutputs: Event<ISplice<IOutputDtoWithId>[]> = this._onDidChangeOutputs.event;
 
 	private _outputs: any[];
 	private _outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
@@ -149,7 +149,7 @@ export class ExtHostCell extends Disposable {
 			return this._outputMapping.has(a);
 		});
 
-		const transformedDiffs: ISplice<IProcessedOutput>[] = rawDiffs.map(diff => {
+		const transformedDiffs: ISplice<IOutputDtoWithId>[] = rawDiffs.map(diff => {
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				this._outputMapping.delete(this._outputs[i]);
 			}
@@ -157,15 +157,10 @@ export class ExtHostCell extends Disposable {
 			return {
 				deleteCount: diff.deleteCount,
 				start: diff.start,
-				toInsert: diff.toInsert.map((output): IProcessedOutput => {
-					if (output.outputKind === CellOutputKind.Rich) {
-						const uuid = UUID.generateUuid();
-						this._outputMapping.set(output, uuid);
-						return { ...output, outputId: uuid };
-					}
-
-					this._outputMapping.set(output, undefined);
-					return output;
+				toInsert: diff.toInsert.map((output): IOutputDtoWithId => {
+					const uuid = UUID.generateUuid();
+					this._outputMapping.set(output, uuid);
+					return { ...output, outputId: uuid };
 				})
 			};
 		});
@@ -450,7 +445,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		});
 	}
 
-	private _setCellOutputs(index: number, outputs: IProcessedOutput[]): void {
+	private _setCellOutputs(index: number, outputs: IOutputDtoWithId[]): void {
 		const cell = this._cells[index];
 		cell.setOutputs(outputs);
 		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });
@@ -469,7 +464,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		this._emitter.emitCellMetadataChange(event);
 	}
 
-	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<IProcessedOutput>[]) {
+	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<IOutputDtoWithId>[]) {
 		const outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
 			const outputs = diff.toInsert;
 			return [diff.start, diff.deleteCount, outputs];

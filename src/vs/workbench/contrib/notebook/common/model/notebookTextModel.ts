@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IProcessedOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDtoWithId, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
@@ -649,7 +649,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }, true);
 	}
 
-	private _spliceNotebookCellOutputs2(cellHandle: number, outputs: IProcessedOutput[], computeUndoRedo: boolean): void {
+	private _spliceNotebookCellOutputs2(cellHandle: number, outputs: IOutputDtoWithId[], computeUndoRedo: boolean): void {
 		const cell = this._mapping.get(cellHandle);
 		if (!cell) {
 			return;
@@ -702,7 +702,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 }
 
 class OutputSequence implements ISequence {
-	constructor(readonly outputs: IProcessedOutput[]) {
+	constructor(readonly outputs: IOutputDtoWithId[]) {
 	}
 
 	getElements(): Int32Array | number[] | string[] {

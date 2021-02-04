@@ -44,6 +44,7 @@ class RichRenderer implements IOutputTransformContribution {
 		this._richMimeTypeRenderers.set('text/plain', this.renderPlainText.bind(this));
 		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
 		this._richMimeTypeRenderers.set('application/x.notebook.error-traceback', this._renderErrorTraceback.bind(this));
+		this._richMimeTypeRenderers.set('application/x.notebook.stream', this._renderStream.bind(this));
 	}
 
 	render(output: IDisplayOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
@@ -222,6 +223,15 @@ class RichRenderer implements IOutputTransformContribution {
 		const transform = new ErrorTransform(this.notebookEditor, this.themeService);
 		transform.render(output, container);
 		transform.dispose();
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
+	}
+
+	private _renderStream(outputViewModel: IDisplayOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
+		const data = outputViewModel.model.data['application/x.notebook.stream'] as any;
+		const text = (isArray(data) ? data.join('') : data) as string;
+		const contentNode = DOM.$('span.output-stream');
+		truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
+		container.appendChild(contentNode);
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 

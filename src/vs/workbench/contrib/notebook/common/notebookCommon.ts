@@ -194,16 +194,17 @@ export interface ITransformedDisplayOutputDto extends IDisplayOutput {
 	outputId: string;
 }
 
-export function isTransformedDisplayOutput(thing: unknown): thing is ITransformedDisplayOutputDto {
-	return (thing as ITransformedDisplayOutputDto).outputKind === CellOutputKind.Rich && !!(thing as ITransformedDisplayOutputDto).outputId;
+export interface ITransformedStreamOutputDto extends IStreamOutput {
+	outputId: string;
 }
 
+export interface ITransformedErrorOutputDto extends IErrorOutput {
+	outputId: string;
+}
 
-export const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
-	? ({ ...output, outputId: id }) : output;
+export const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IOutputDtoWithId => ({ ...output, outputId: id });
 
-
-export type IProcessedOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
+export type IOutputDtoWithId = ITransformedDisplayOutputDto | ITransformedStreamOutputDto | ITransformedErrorOutputDto;
 
 export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
 
@@ -248,7 +249,7 @@ export interface ICell {
 	handle: number;
 	language: string;
 	cellKind: CellKind;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDtoWithId[];
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
@@ -282,7 +283,7 @@ export type NotebookCellTextModelSplice<T> = [
 export type NotebookCellOutputsSplice = [
 	start: number /* start */,
 	deleteCount: number /* delete count */,
-	newOutputs: IProcessedOutput[]
+	newOutputs: IOutputDtoWithId[]
 ];
 
 export interface IMainCellDto {
@@ -292,7 +293,7 @@ export interface IMainCellDto {
 	eol: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDtoWithId[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -341,7 +342,7 @@ export interface NotebookCellsModelMoveEvent<T> {
 export interface NotebookOutputChangedEvent {
 	readonly kind: NotebookCellsChangeType.Output;
 	readonly index: number;
-	readonly outputs: IProcessedOutput[];
+	readonly outputs: IOutputDtoWithId[];
 }
 
 export interface NotebookCellsChangeLanguageEvent {
@@ -396,7 +397,7 @@ export interface ICellDto2 {
 	source: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDtoWithId[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -410,7 +411,7 @@ export interface ICellReplaceEdit {
 export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDtoWithId[];
 	append?: boolean
 }
 
