@@ -214,7 +214,9 @@ function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Part
 }
 
 function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
-	const editorFocused = editorService.activeEditorPane?.hasFocus();
+	// Need to ask if the active editor has focus since the layoutService is not aware of some custom editor focus behavior(notebooks)
+	// Also need to ask the layoutService for the case if no editor is opened
+	const editorFocused = editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART);
 	const currentlyFocusedPart = editorFocused ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
 		layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART : layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
 	let partToFocus = Parts.EDITOR_PART;

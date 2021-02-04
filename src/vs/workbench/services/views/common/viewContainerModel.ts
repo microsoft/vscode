@@ -287,10 +287,14 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	// Container Info
 	private _title!: string;
 	get title(): string { return this._title; }
+
 	private _icon: URI | ThemeIcon | undefined;
 	get icon(): URI | ThemeIcon | undefined { return this._icon; }
 
-	private _onDidChangeContainerInfo = this._register(new Emitter<{ title?: boolean, icon?: boolean }>());
+	private _keybindingId: string | undefined;
+	get keybindingId(): string | undefined { return this._keybindingId; }
+
+	private _onDidChangeContainerInfo = this._register(new Emitter<{ title?: boolean, icon?: boolean, keybindingId?: boolean }>());
 	readonly onDidChangeContainerInfo = this._onDidChangeContainerInfo.event;
 
 	// All View Descriptors
@@ -355,8 +359,15 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			iconChanged = true;
 		}
 
-		if (titleChanged || iconChanged) {
-			this._onDidChangeContainerInfo.fire({ title: titleChanged, icon: iconChanged });
+		const keybindingId = this.viewContainer.openCommandActionDescriptor?.id ?? this.activeViewDescriptors.find(v => v.openCommandActionDescriptor)?.openCommandActionDescriptor?.id;
+		let keybindingIdChanged: boolean = false;
+		if (this._keybindingId !== keybindingId) {
+			this._keybindingId = keybindingId;
+			keybindingIdChanged = true;
+		}
+
+		if (titleChanged || iconChanged || keybindingIdChanged) {
+			this._onDidChangeContainerInfo.fire({ title: titleChanged, icon: iconChanged, keybindingId: keybindingIdChanged });
 		}
 	}
 

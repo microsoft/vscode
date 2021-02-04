@@ -1087,6 +1087,7 @@ declare module 'vscode' {
 		custom?: { [key: string]: any; };
 	}
 
+	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
 		readonly index: number;
 		readonly notebook: NotebookDocument;
@@ -1251,30 +1252,6 @@ declare module 'vscode' {
 		// @rebornix REMOVE/REplace NotebookCommunication
 		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
 		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Fired when the output hosting webview posts a message.
-		 */
-		// @rebornix REMOVE
-		// todo@API notebook editors are public -> ANY extension can listen to these event
-		readonly onDidReceiveMessage: Event<any>;
-		/**
-		 * Post a message to the output hosting webview.
-		 *
-		 * Messages are only delivered if the editor is live.
-		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
-		 */
-		// @rebornix REMOVE
-		// todo@API notebook editors are public -> ANY extension can send messages
-		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Convert a uri for the local file system to one that can be used inside outputs webview.
-		 */
-		// @rebornix REMOVE
-		// todo@API unsure about that, how do you this when executing a cell without having an editor
-		asWebviewUri(localResource: Uri): Uri;
 	}
 
 	// todo@API stale?
@@ -1356,6 +1333,7 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
+	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCellData {
 		readonly cellKind: CellKind;
 		readonly source: string;
@@ -1371,48 +1349,6 @@ declare module 'vscode' {
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
-	interface NotebookDocumentContentChangeEvent {
-
-		/**
-		 * The document that the edit is for.
-		 */
-		readonly document: NotebookDocument;
-	}
-
-	// @rebornix p2, remove
-	// todo@API is this still needed? With transient metadata have we everything covered?
-	interface NotebookDocumentEditEvent {
-
-		/**
-		 * The document that the edit is for.
-		 */
-		readonly document: NotebookDocument;
-
-		/**
-		 * Undo the edit operation.
-		 *
-		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
-		 * extension should restore the document and editor to the state they were in just before this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
-		 */
-		undo(): Thenable<void> | void;
-
-		/**
-		 * Redo the edit operation.
-		 *
-		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
-		 * extension should restore the document and editor to the state they were in just after this
-		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
-		 */
-		redo(): Thenable<void> | void;
-
-		/**
-		 * Display name describing the edit.
-		 *
-		 * This will be shown to users in the UI for undo/redo operations.
-		 */
-		readonly label?: string;
-	}
 
 	/**
 	 * Communication object passed to the {@link NotebookContentProvider} and
@@ -1562,13 +1498,14 @@ declare module 'vscode' {
 		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
 	}
 
-	//TODO@jrieken add id?
+	// @jrieken
+	//TODO@API add execution count to cell output?
 	export class NotebookCellOutput {
 
+		readonly id: string;
 		readonly outputs: NotebookCellOutputItem[];
-		readonly metadata?: Record<string, string | number | boolean>;
 
-		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
+		constructor(outputs: NotebookCellOutputItem[]);
 
 		//TODO@jrieken HACK to workaround dependency issues...
 		toJSON(): any;
@@ -1581,8 +1518,13 @@ declare module 'vscode' {
 	export interface WorkspaceEdit {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+
+		// TODO@api
+		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
+		// updateNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
@@ -1640,11 +1582,6 @@ declare module 'vscode' {
 	export interface NotebookContentProvider {
 		readonly options?: NotebookDocumentContentOptions;
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
-
-		// @rebornix
-		// todo@API should be removed
-		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
-
 		/**
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.

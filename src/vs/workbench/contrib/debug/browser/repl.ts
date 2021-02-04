@@ -578,7 +578,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap,

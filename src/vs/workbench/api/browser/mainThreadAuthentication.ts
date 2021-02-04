@@ -7,67 +7,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { isWeb } from 'vs/base/common/platform';
-
-const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser', 'github.codespaces'];
-
-interface IAccountUsage {
-	extensionId: string;
-	extensionName: string;
-	lastUsed: number;
-}
-
-function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
-	const accountKey = `${providerId}-${accountName}-usages`;
-	const storedUsages = storageService.get(accountKey, StorageScope.GLOBAL);
-	let usages: IAccountUsage[] = [];
-	if (storedUsages) {
-		try {
-			usages = JSON.parse(storedUsages);
-		} catch (e) {
-			// ignore
-		}
-	}
-
-	return usages;
-}
-
-function removeAccountUsage(storageService: IStorageService, providerId: string, accountName: string): void {
-	const accountKey = `${providerId}-${accountName}-usages`;
-	storageService.remove(accountKey, StorageScope.GLOBAL);
-}
-
-function addAccountUsage(storageService: IStorageService, providerId: string, accountName: string, extensionId: string, extensionName: string) {
-	const accountKey = `${providerId}-${accountName}-usages`;
-	const usages = readAccountUsages(storageService, providerId, accountName);
-
-	const existingUsageIndex = usages.findIndex(usage => usage.extensionId === extensionId);
-	if (existingUsageIndex > -1) {
-		usages.splice(existingUsageIndex, 1, {
-			extensionId,
-			extensionName,
-			lastUsed: Date.now()
-		});
-	} else {
-		usages.push({
-			extensionId,
-			extensionName,
-			lastUsed: Date.now()
-		});
-	}
-
-	storageService.store(accountKey, JSON.stringify(usages), StorageScope.GLOBAL, StorageTarget.MACHINE);
-}
 
 export class MainThreadAuthenticationProvider extends Disposable {
 	private _accounts = new Map<string, string[]>(); // Map account name to session ids
@@ -220,7 +168,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
@@ -246,10 +193,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}));
 	}
 
-	$getProviderIds(): Promise<string[]> {
-		return Promise.resolve(this.authenticationService.getProviderIds());
-	}
-
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, this.storageService, this.quickInputService, this.dialogService);
 		await provider.initialize();
@@ -268,172 +211,17 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
-	$getSessions(id: string): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		return this.authenticationService.getSessions(id);
-	}
-
-	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
-		return this.authenticationService.login(providerId, scopes);
-	}
-
 	$logout(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.logout(providerId, sessionId);
 	}
 
-	async $requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void> {
-		return this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
-	}
-
-	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
-		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await this.$getSessions(providerId)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
-		const label = this.authenticationService.getLabel(providerId);
-
-		if (sessions.length) {
-			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
-				const session = sessions[0];
-				const allowed = await this.$getSessionsPrompt(providerId, session.account.label, label, extensionId, extensionName);
-				if (allowed) {
-					return session;
-				} else {
-					throw new Error('User did not consent to login.');
-				}
-			}
-
-			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
-			const selected = await this.$selectSession(providerId, label, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
-			return sessions.find(session => session.id === selected.id);
-		} else {
-			if (options.createIfNone) {
-				const isAllowed = await this.$loginPrompt(label, extensionName);
-				if (!isAllowed) {
-					throw new Error('User did not consent to login.');
-				}
-
-				const session = await this.authenticationService.login(providerId, scopes);
-				await this.$setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
-				return session;
-			} else {
-				await this.$requestNewSession(providerId, scopes, extensionId, extensionName);
-				return undefined;
-			}
-		}
-	}
-
-	async $selectSession(providerId: string, providerName: string, extensionId: string, extensionName: string, potentialSessions: modes.AuthenticationSession[], scopes: string[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
-		if (!potentialSessions.length) {
-			throw new Error('No potential sessions found');
-		}
-
-		if (clearSessionPreference) {
-			this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
-		} else {
-			const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
-			if (existingSessionPreference) {
-				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
-				if (matchingSession) {
-					const allowed = await this.$getSessionsPrompt(providerId, matchingSession.account.label, providerName, extensionId, extensionName);
-					if (allowed) {
-						return matchingSession;
-					}
-				}
-			}
-		}
-
-		return new Promise((resolve, reject) => {
-			const quickPick = this.quickInputService.createQuickPick<{ label: string, session?: modes.AuthenticationSession }>();
-			quickPick.ignoreFocusOut = true;
-			const items: { label: string, session?: modes.AuthenticationSession }[] = potentialSessions.map(session => {
-				return {
-					label: session.account.label,
-					session
-				};
-			});
-
-			items.push({
-				label: nls.localize('useOtherAccount', "Sign in to another account")
-			});
-
-			quickPick.items = items;
-			quickPick.title = nls.localize(
-				{
-					key: 'selectAccount',
-					comment: ['The placeholder {0} is the name of an extension. {1} is the name of the type of account, such as Microsoft or GitHub.']
-				},
-				"The extension '{0}' wants to access a {1} account",
-				extensionName,
-				providerName);
-			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
-
-			quickPick.onDidAccept(async _ => {
-				const selected = quickPick.selectedItems[0];
-
-				const session = selected.session ?? await this.authenticationService.login(providerId, scopes);
-
-				const accountName = session.account.label;
-
-				const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-				if (!allowList.find(allowed => allowed.id === extensionId)) {
-					allowList.push({ id: extensionId, name: extensionName });
-					this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-				}
-
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
-
-				quickPick.dispose();
-				resolve(session);
-			});
-
-			quickPick.onDidHide(_ => {
-				if (!quickPick.selectedItems[0]) {
-					reject('User did not consent to account access');
-				}
-
-				quickPick.dispose();
-			});
-
-			quickPick.show();
-		});
-	}
-
-	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
+	private isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
-		if (extensionData) {
-			addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
-			return true;
-		}
-
-		const remoteConnection = this.remoteAgentService.getConnection();
-		const isVSO = remoteConnection !== null
-			? remoteConnection.remoteAuthority.startsWith('vsonline') || remoteConnection.remoteAuthority.startsWith('codespaces')
-			: isWeb;
-
-		if (isVSO && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
-			addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
-			return true;
-		}
-
-		const { choice } = await this.dialogService.show(
-			Severity.Info,
-			nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
-			[nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel")],
-			{
-				cancelId: 1
-			}
-		);
-
-		const allow = choice === 0;
-		if (allow) {
-			addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
-			allowList.push({ id: extensionId, name: extensionName });
-			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-		}
-
-		return allow;
+		return !!extensionData;
 	}
 
-	async $loginPrompt(providerName: string, extensionName: string): Promise<boolean> {
+	private async loginPrompt(providerName: string, extensionName: string): Promise<boolean> {
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
 			nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName),
@@ -446,7 +234,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return choice === 0;
 	}
 
-	async $setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
+	private async setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		if (!allowList.find(allowed => allowed.id === extensionId)) {
 			allowList.push({ id: extensionId, name: extensionName });
@@ -454,6 +242,77 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
-		addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);
+
+	}
+
+	private async selectSession(providerId: string, extensionId: string, extensionName: string, potentialSessions: modes.AuthenticationSession[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
+		if (!potentialSessions.length) {
+			throw new Error('No potential sessions found');
+		}
+
+		if (clearSessionPreference) {
+			this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+		} else {
+			const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+			if (existingSessionPreference) {
+				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
+				if (matchingSession) {
+					const allowed = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
+					if (allowed) {
+						return matchingSession;
+					}
+				}
+			}
+		}
+
+		return this.authenticationService.selectSession(providerId, extensionId, extensionName, potentialSessions);
+	}
+
+	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
+		const orderedScopes = scopes.sort().join(' ');
+		const sessions = (await this.authenticationService.getSessions(providerId)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
+
+		const silent = !options.createIfNone;
+		let session: modes.AuthenticationSession | undefined;
+		if (sessions.length) {
+			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
+				session = sessions[0];
+				const allowed = this.isAccessAllowed(providerId, session.account.label, extensionId);
+				if (!allowed) {
+					if (!silent) {
+						const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, session.account.label, extensionId, extensionName);
+						if (!didAcceptPrompt) {
+							throw new Error('User did not consent to login.');
+						}
+					} else {
+						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, [session]);
+					}
+				}
+			} else {
+				if (!silent) {
+					session = await this.selectSession(providerId, extensionId, extensionName, sessions, !!options.clearSessionPreference);
+				} else {
+					this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, sessions);
+				}
+			}
+		} else {
+			if (!silent) {
+				const isAllowed = await this.loginPrompt(providerId, extensionName);
+				if (!isAllowed) {
+					throw new Error('User did not consent to login.');
+				}
+
+				session = await this.authenticationService.login(providerId, scopes);
+				await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
+			} else {
+				await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
+			}
+		}
+
+		if (session) {
+			addAccountUsage(this.storageService, providerId, session.account.label, extensionId, extensionName);
+		}
+
+		return session;
 	}
 }

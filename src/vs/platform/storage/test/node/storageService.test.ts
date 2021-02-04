@@ -7,7 +7,8 @@ import { strictEqual } from 'assert';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf } from 'vs/base/node/pfs';
+import { promises } from 'fs';
+import { rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
@@ -22,7 +23,7 @@ flakySuite('NativeStorageService', function () {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 
-		return mkdirp(testDir);
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {

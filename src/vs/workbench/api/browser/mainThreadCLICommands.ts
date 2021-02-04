@@ -20,7 +20,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { canExecuteOnWorkspace, getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { canExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
 
 
@@ -100,8 +100,7 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 
 	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
 		if (!canExecuteOnWorkspace(manifest, this.productService, this.configurationService)) {
-			const extensionKinds = getExtensionKind(manifest, this.productService, this.configurationService);
-			output.log(localize('cannot be installed', "Cannot install '{0}' extension because it is declared as {1} extension kind and does not run in this setup.", getExtensionId(manifest.publisher, manifest.name), extensionKinds.map(e => `"${e}"`).join(', ')));
+			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;
 		}
 		return true;

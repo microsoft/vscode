@@ -196,6 +196,7 @@ suite('ExtHostTreeView', function () {
 			'aa': {},
 			'ba': {}
 		};
+		let caughtExpectedError = false;
 		target.onRefresh.event(() => {
 			testObject.$getChildren('testNodeWithIdTreeProvider')
 				.then(elements => {
@@ -204,7 +205,8 @@ suite('ExtHostTreeView', function () {
 					return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
 						.then(() => testObject.$getChildren('testNodeWithIdTreeProvider', '1/b'))
 						.then(() => assert.fail('Should fail with duplicate id'))
-						.finally(done);
+						.catch(() => caughtExpectedError = true)
+						.finally(() => caughtExpectedError ? done() : assert.fail('Expected duplicate id error not thrown.'));
 				});
 		});
 		onDidChangeTreeNode.fire(undefined);

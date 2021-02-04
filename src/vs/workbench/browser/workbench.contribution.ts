@@ -372,17 +372,17 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
-				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
+				'enum': ['classic', 'visible', 'toggle', 'hidden', 'compact'],
 				'markdownEnumDescriptions': [
-					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
-					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
-					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
+					nls.localize('window.menuBarVisibility.classic', "Menu is displayed at the top of the window and only hidden in full screen mode."),
+					nls.localize('window.menuBarVisibility.visible', "Menu is always visible at the top of the window even in full screen mode."),
+					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via Alt key."),
 					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
 					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when `#window.titleBarStyle#` is `native`.")
 				],
-				'default': isWeb ? 'compact' : 'default',
+				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
+				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the sidebar."),
 				'included': isWindows || isLinux || isWeb
 			},
 			'window.enableMenuBarMnemonics': {

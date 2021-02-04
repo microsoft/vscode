@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { localize } from 'vs/nls';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
@@ -10,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileService, ByteSize } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { stat, chmod, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
+import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join } from 'vs/base/common/path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
@@ -108,11 +109,11 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// check for overwriteReadonly property (only supported for local file://)
 		try {
-			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await this.fileService.exists(resource)) {
-				const fileStat = await stat(resource.fsPath);
+			if (options?.overwriteReadonly && resource.scheme === Schemas.file) {
+				const fileStat = await promises.stat(resource.fsPath);
 
 				// try to change mode to writeable
-				await chmod(resource.fsPath, fileStat.mode | 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */);
+				await promises.chmod(resource.fsPath, fileStat.mode | 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */);
 			}
 		} catch (error) {
 			// ignore and simply retry the operation
@@ -131,7 +132,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED) {
 				let isReadonly = false;
 				try {
-					const fileStat = await stat(resource.fsPath);
+					const fileStat = await promises.stat(resource.fsPath);
 					if (!(fileStat.mode & 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */)) {
 						isReadonly = true;
 					}

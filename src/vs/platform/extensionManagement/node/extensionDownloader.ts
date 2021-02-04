@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { rename } from 'vs/base/node/pfs';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -63,7 +63,7 @@ export class ExtensionsDownloader extends Disposable {
 
 	private async rename(from: URI, to: URI, retryUntil: number): Promise<void> {
 		try {
-			await rename(from.fsPath, to.fsPath);
+			await promises.rename(from.fsPath, to.fsPath);
 		} catch (error) {
 			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
 				this.logService.info(`Failed renaming ${from} to ${to} with 'EPERM' error. Trying again...`);

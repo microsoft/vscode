@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { StorageScope, WillSaveStateReason, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
@@ -10,7 +11,7 @@ import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
 import { join } from 'vs/base/common/path';
-import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
+import { copy, exists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -138,7 +139,7 @@ export class NativeStorageService extends AbstractStorageService {
 			return { path: workspaceStorageFolderPath, wasCreated: false };
 		}
 
-		await mkdirp(workspaceStorageFolderPath);
+		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder
 		this.ensureWorkspaceStorageFolderMeta(payload);
@@ -267,7 +268,7 @@ export class NativeStorageService extends AbstractStorageService {
 		const newWorkspaceStoragePath = join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME);
 
 		// Copy current storage over to new workspace storage
-		await copy(assertIsDefined(this.workspaceStoragePath), newWorkspaceStoragePath);
+		await copy(assertIsDefined(this.workspaceStoragePath), newWorkspaceStoragePath, { preserveSymlinks: false });
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();

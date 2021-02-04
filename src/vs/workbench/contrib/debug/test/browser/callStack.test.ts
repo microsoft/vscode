@@ -19,6 +19,7 @@ import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug
 import { generateUuid } from 'vs/base/common/uuid';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 const mockWorkspaceContextService = {
 	getWorkspace: () => {
@@ -37,7 +38,7 @@ export function createMockSession(model: DebugModel, name = 'mockSession', optio
 				}
 			};
 		}
-	} as IDebugService, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
+	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
