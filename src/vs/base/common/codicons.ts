@@ -542,6 +542,7 @@ export namespace Codicon {
 	export const typeHierarchy = new Codicon('type-hierarchy', { character: '\\ebb9' });
 	export const typeHierarchySub = new Codicon('type-hierarchy-sub', { character: '\\ebba' });
 	export const typeHierarchySuper = new Codicon('type-hierarchy-super', { character: '\\ebbb' });
+	export const gitPullRequestCreate = new Codicon('git-pull-request-create', { character: '\\ebbc' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
