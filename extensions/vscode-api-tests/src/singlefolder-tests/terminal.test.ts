@@ -48,7 +48,12 @@ import { assertNoRpc } from '../utils';
 				disposables.push(window.onDidCloseTerminal(() => done()));
 			}));
 			const terminal = window.createTerminal();
-			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
+			try {
+				doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
+			} catch (e) {
+				done(e);
+				return;
+			}
 		});
 
 		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
