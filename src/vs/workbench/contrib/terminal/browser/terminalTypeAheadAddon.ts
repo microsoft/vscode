@@ -204,7 +204,7 @@ export interface IPrediction {
 	 * @param input reader for the input the PTY is giving
 	 * @param lookBehind the last successfully-made prediction, if any
 	 */
-	matches(input: StringReader, lookBehind?: IPrediction): MatchResult;
+	matches(input: StringReader, lookBehind?: IPrediction, cursor?: Cursor): MatchResult;
 }
 
 class StringReader {
@@ -348,8 +348,8 @@ class TentativeBoundary implements IPrediction {
 		return withInput;
 	}
 
-	public matches(input: StringReader) {
-		return this.inner.matches(input);
+	public matches(input: StringReader, lookBehind?: IPrediction, cursor?: Cursor) {
+		return this.inner.matches(input, lookBehind, cursor);
 	}
 }
 
@@ -399,8 +399,25 @@ class CharacterPrediction implements IPrediction {
 		return cursor.clone().moveTo(this.appliedAt.pos) + input;
 	}
 
-	public matches(input: StringReader, lookBehind?: IPrediction) {
+	public matches(input: StringReader, lookBehind?: IPrediction, cursor?: Cursor) {
 		let startIndex = input.index;
+
+		const cursorMove = input.eatRe(/^\x1b\[(\d+);(\d+)H/);
+		if (cursorMove) {
+			const x = this.appliedAt!.pos.x;
+			// We need to follow the cursor movements
+			cursor!.moveTo({
+				x: parseInt(cursorMove[2]) - 1,
+				y: parseInt(cursorMove[1]) - 1,
+				baseY: cursor!.baseY
+			});
+			while (cursor!.x < x) {
+				while (input.eatRe(CSI_STYLE_RE)) { }
+				const a = cursor!.getCell()?.getChars();
+				input.eatChar(a!);
+				cursor!.shift(a?.length);
+			}
+		}
 
 		// remove any styling CSI before checking the char
 		while (input.eatRe(CSI_STYLE_RE)) { }
@@ -832,25 +849,7 @@ export class PredictionTimeline {
 			const cursor = this.physicalCursor(buffer);
 			let beforeTestReaderIndex = reader.index;
 
-			const cursorMove = reader.eatRe(/^\x1b\[(\d+);(\d+)H/);
-			if (cursorMove) {
-				flushOutput(this.terminal);
-				const x = cursor.x - 1;
-				// We need to follow the cursor movements
-				cursor.moveTo({
-					x: parseInt(cursorMove[2]) - 1,
-					y: parseInt(cursorMove[1]) - 1,
-					baseY: cursor.baseY
-				});
-				do {
-					while (reader.eatRe(CSI_STYLE_RE)) { }
-					const a = cursor.getCell()?.getChars();
-					reader.eatChar(a!);
-					cursor.shift(a?.length);
-				} while (cursor.x < x);
-			}
-
-			const matchResult = prediction.matches(reader, this.lookBehind);
+			const matchResult = prediction.matches(reader, this.lookBehind, cursor);
 			switch (matchResult) {
 				case MatchResult.Success:
 					// if the input character matches what the next prediction expected, undo
@@ -866,7 +865,7 @@ export class PredictionTimeline {
 					this.succeededEmitter.fire(prediction);
 					this.lookBehind = prediction;
 					this.expected.shift();
-					break;
+					break ReadLoop;
 				case MatchResult.Buffer:
 					// on a buffer, store the remaining data and completely read data
 					// to be output as normal.
@@ -887,8 +886,6 @@ export class PredictionTimeline {
 					this.failedEmitter.fire(prediction);
 					break ReadLoop;
 			}
-
-			emitPredictionOmitted();
 		}
 
 		// Extra data (like the result of running a command) should cause us to
