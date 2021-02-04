@@ -143,6 +143,8 @@ export class GettingStartedPage extends Disposable {
 			if (command) {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
 
+					this.commandService.executeCommand('workbench.action.keepEditor');
+
 					type GettingStartedActionClassification = {
 						command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 						argument: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
