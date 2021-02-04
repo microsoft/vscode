@@ -127,17 +127,18 @@ export class NotebookEditor extends EditorPane {
 		this._widget.value?.focus();
 	}
 
+	hasFocus(): boolean {
+		const activeElement = document.activeElement;
+		const value = this._widget.value;
+
+		return !!value && (DOM.isAncestor(activeElement, value.getDomNode() || DOM.isAncestor(activeElement, value.getOverflowContainerDomNode())));
+	}
+
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		const group = this.group!;
 
 		this._saveEditorViewState(this.input);
-		await super.setInput(input, options, context, token);
-
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
 
 		this._widgetDisposableStore.clear();
 
@@ -153,6 +154,10 @@ export class NotebookEditor extends EditorPane {
 		if (this._dimension) {
 			this._widget.value!.layout(this._dimension, this._rootElement);
 		}
+
+		// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
+		// so that others synchronously receive a notebook editor with the correct widget being set
+		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();
 		// Check for cancellation

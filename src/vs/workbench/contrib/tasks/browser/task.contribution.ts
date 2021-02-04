@@ -28,7 +28,7 @@ import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/cont
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import schemaVersion1 from '../common/jsonSchema_v1';
-import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
+import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '../common/jsonSchema_v2';
 import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -36,6 +36,7 @@ import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 
 const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.or(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
@@ -412,6 +413,11 @@ jsonRegistry.registerSchema(tasksSchemaId, schema);
 
 ProblemMatcherRegistry.onMatcherChanged(() => {
 	updateProblemMatchers();
+	jsonRegistry.notifySchemaChanged(tasksSchemaId);
+});
+
+TaskDefinitionRegistry.onDefinitionsChanged(() => {
+	updateTaskDefinitions();
 	jsonRegistry.notifySchemaChanged(tasksSchemaId);
 });
 

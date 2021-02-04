@@ -186,7 +186,6 @@ const newCommands: ApiCommand[] = [
 			if (!value) {
 				return undefined;
 			}
-			console.log(`instantiating here`);
 			return new types.SemanticTokensLegend(value.tokenTypes, value.tokenModifiers);
 		})
 	),

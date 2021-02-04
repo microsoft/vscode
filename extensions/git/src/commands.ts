@@ -372,6 +372,24 @@ export class CommandCenter {
 		await resource.open();
 	}
 
+	@command('git.openAllChanges', { repository: true })
+	async openChanges(repository: Repository): Promise<void> {
+		for (const resource of [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]) {
+			if (
+				resource.type === Status.DELETED || resource.type === Status.DELETED_BY_THEM ||
+				resource.type === Status.DELETED_BY_US || resource.type === Status.BOTH_DELETED
+			) {
+				continue;
+			}
+
+			void commands.executeCommand(
+				'vscode.open',
+				resource.resourceUri,
+				{ background: true, preview: false, }
+			);
+		}
+	}
+
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
 		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {

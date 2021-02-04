@@ -176,8 +176,8 @@ export class SimpleEditorProgressService implements IEditorProgressService {
 		return SimpleEditorProgressService.NULL_PROGRESS_RUNNER;
 	}
 
-	showWhile(promise: Promise<any>, delay?: number): Promise<void> {
-		return Promise.resolve(undefined);
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
+		await promise;
 	}
 }
 
@@ -310,12 +310,22 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];
 
+		// for standard keybindings
 		this._register(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let keyEvent = new StandardKeyboardEvent(e);
-			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			const keyEvent = new StandardKeyboardEvent(e);
+			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 				keyEvent.stopPropagation();
+			}
+		}));
+
+		// for single modifier chord keybindings (e.g. shift shift)
+		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			const keyEvent = new StandardKeyboardEvent(e);
+			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
 			}
 		}));
 	}
@@ -638,7 +648,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
-	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
+	public isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
 		return true;
 	}
 }
@@ -736,7 +746,7 @@ export class SimpleUriLabelService implements ILabelService {
 		return basename(resource);
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
 		return '';
 	}
 

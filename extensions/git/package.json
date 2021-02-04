@@ -72,6 +72,11 @@
         "icon": "$(compare-changes)"
       },
       {
+        "command": "git.openAllChanges",
+        "title": "%command.openAllChanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.openFile",
         "title": "%command.openFile%",
         "category": "Git",
@@ -1288,6 +1293,11 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
+          "command": "git.openFile",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
           "command": "git.openChange",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
@@ -2332,5 +2342,9 @@
     "@types/mocha": "^8.2.0",
     "@types/node": "^12.19.9",
     "@types/which": "^1.0.28"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

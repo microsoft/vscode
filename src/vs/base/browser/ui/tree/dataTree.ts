@@ -161,7 +161,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 			};
 		}
 
-		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements, onDidCreateNode, onDidDeleteNode);
+		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements, { onDidCreateNode, onDidDeleteNode });
 	}
 
 	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean | undefined): { elements: Iterable<ITreeElement<T>>, size: number } {

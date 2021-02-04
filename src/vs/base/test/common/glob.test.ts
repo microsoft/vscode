@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
 import * as glob from 'vs/base/common/glob';
+import { sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 
 suite('Glob', () => {
@@ -63,10 +64,12 @@ suite('Glob', () => {
 
 	function assertGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
 		assert(glob.match(pattern, input), `${pattern} should match ${input}`);
+		assert(glob.match(pattern, nativeSep(input)), `${pattern} should match ${nativeSep(input)}`);
 	}
 
 	function assertNoGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
 		assert(!glob.match(pattern, input), `${pattern} should not match ${input}`);
+		assert(!glob.match(pattern, nativeSep(input)), `${pattern} should not match ${nativeSep(input)}`);
 	}
 
 	test('simple', () => {
@@ -538,9 +541,13 @@ suite('Glob', () => {
 	});
 
 	test('full path', function () {
-		let p = 'testing/this/foo.txt';
+		assertGlobMatch('testing/this/foo.txt', 'testing/this/foo.txt');
+		// assertGlobMatch('testing/this/foo.txt', 'testing\\this\\foo.txt');
+	});
 
-		assert(glob.match(p, nativeSep('testing/this/foo.txt')));
+	test('ending path', function () {
+		assertGlobMatch('**/testing/this/foo.txt', 'some/path/testing/this/foo.txt');
+		// assertGlobMatch('**/testing/this/foo.txt', 'some\\path\\testing\\this\\foo.txt');
 	});
 
 	test('prefix agnostic', function () {
@@ -946,7 +953,7 @@ suite('Glob', () => {
 	}
 
 	function nativeSep(slashPath: string): string {
-		return slashPath.replace(/\//g, path.sep);
+		return slashPath.replace(/\//g, sep);
 	}
 
 	test('relative pattern - glob star', function () {

@@ -24,7 +24,9 @@ export interface IGettingStartedTask {
 	category: GettingStartedCategory | string,
 	when: ContextKeyExpression,
 	order: number,
-	button: { title: string, command: string },
+	button:
+	| { title: string, command?: never, link: string }
+	| { title: string, command: string, link?: never },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	media: { type: 'image', path: URI, altText: string },
 }

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { release } from 'os';
+import * as fs from 'fs';
+import { gracefulify } from 'graceful-fs';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
@@ -26,7 +28,6 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IStateService } from 'vs/platform/state/node/state';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { ILogService, getLogLevel, LogLevel, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
@@ -36,108 +37,121 @@ import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
 import { URI } from 'vs/base/common/uri';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { VSBuffer } from 'vs/base/common/buffer';
 
-export class Main {
+class CliMain extends Disposable {
 
 	constructor(
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@IExtensionManagementCLIService private readonly extensionManagementCLIService: IExtensionManagementCLIService
-	) { }
+		private argv: NativeParsedArgs
+	) {
+		super();
 
-	async run(argv: NativeParsedArgs): Promise<void> {
-		if (argv['install-source']) {
-			await this.setInstallSource(argv['install-source']);
-			return;
+		// Enable gracefulFs
+		gracefulify(fs);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Dispose on exit
+		process.once('exit', () => this.dispose());
+	}
+
+	async run(): Promise<void> {
+
+		// Services
+		const [instantiationService, appenders] = await this.initServices();
+
+		return instantiationService.invokeFunction(async accessor => {
+			const logService = accessor.get(ILogService);
+			const fileService = accessor.get(IFileService);
+			const environmentService = accessor.get(INativeEnvironmentService);
+			const extensionManagementCLIService = accessor.get(IExtensionManagementCLIService);
+
+			// Log info
+			logService.info('CLI main', this.argv);
+
+			// Error handler
+			this.registerErrorHandler(logService);
+
+			// Run based on argv
+			await this.doRun(environmentService, extensionManagementCLIService, fileService);
+
+			// Flush the remaining data in AI adapter (with 1s timeout)
+			return raceTimeout(combinedAppender(...appenders).flush(), 1000);
+		});
+	}
+
+	private async initServices(): Promise<[IInstantiationService, AppInsightsAppender[]]> {
+		const services = new ServiceCollection();
+
+		// Environment
+		const environmentService = new NativeEnvironmentService(this.argv);
+		services.set(IEnvironmentService, environmentService);
+		services.set(INativeEnvironmentService, environmentService);
+
+		// Init folders
+		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? fs.promises.mkdir(path, { recursive: true }) : undefined));
+
+		// Log
+		const logLevel = getLogLevel(environmentService);
+		const loggers: ILogService[] = [];
+		loggers.push(new SpdLogService('cli', environmentService.logsPath, logLevel));
+		if (logLevel === LogLevel.Trace) {
+			loggers.push(new ConsoleLogService(logLevel));
 		}
 
-		if (argv['list-extensions']) {
-			await this.extensionManagementCLIService.listExtensions(!!argv['show-versions'], argv['category']);
-		} else if (argv['install-extension'] || argv['install-builtin-extension']) {
-			await this.extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(argv['install-extension'] || []), argv['install-builtin-extension'] || [], !!argv['do-not-sync'], !!argv['force']);
-		} else if (argv['uninstall-extension']) {
-			await this.extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(argv['uninstall-extension']), !!argv['force']);
-		} else if (argv['locate-extension']) {
-			await this.extensionManagementCLIService.locateExtension(argv['locate-extension']);
-		} else if (argv['telemetry']) {
-			console.log(buildTelemetryMessage(this.environmentService.appRoot, this.environmentService.extensionsPath));
-		}
-	}
+		const logService = this._register(new MultiplexLogService(loggers));
+		services.set(ILogService, logService);
 
-	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
-		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(process.cwd(), input)) : input);
-	}
+		// Files
+		const fileService = this._register(new FileService(logService));
+		services.set(IFileService, fileService);
 
-	private setInstallSource(installSource: string): Promise<void> {
-		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
-	}
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-}
+		// Configuration
+		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
+		services.set(IConfigurationService, configurationService);
 
-const eventPrefix = 'monacoworkbench';
+		// Init config
+		await configurationService.initialize();
 
-export async function main(argv: NativeParsedArgs): Promise<void> {
-	const services = new ServiceCollection();
-	const disposables = new DisposableStore();
+		// State
+		const stateService = new StateService(environmentService, logService);
+		services.set(IStateService, stateService);
 
-	const environmentService = new NativeEnvironmentService(argv);
-	const logLevel = getLogLevel(environmentService);
-	const loggers: ILogService[] = [];
-	loggers.push(new SpdLogService('cli', environmentService.logsPath, logLevel));
-	if (logLevel === LogLevel.Trace) {
-		loggers.push(new ConsoleLogService(logLevel));
-	}
-	const logService = new MultiplexLogService(loggers);
-	process.once('exit', () => logService.dispose());
-	logService.info('main', argv);
-
-	await Promise.all<void | undefined>([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath]
-		.map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
-
-	// Files
-	const fileService = new FileService(logService);
-	disposables.add(fileService);
-	services.set(IFileService, fileService);
-
-	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
-	disposables.add(diskFileSystemProvider);
-	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-
-	const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
-	disposables.add(configurationService);
-	await configurationService.initialize();
-
-	services.set(IEnvironmentService, environmentService);
-	services.set(INativeEnvironmentService, environmentService);
-
-	services.set(ILogService, logService);
-	services.set(IConfigurationService, configurationService);
-	services.set(IStateService, new SyncDescriptor(StateService));
-	services.set(IProductService, { _serviceBrand: undefined, ...product });
-
-	const instantiationService: IInstantiationService = new InstantiationService(services);
-
-	return instantiationService.invokeFunction(async accessor => {
-		const stateService = accessor.get(IStateService);
+		// Product
+		services.set(IProductService, { _serviceBrand: undefined, ...product });
 
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 
-		const services = new ServiceCollection();
+		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
+
+		// Extensions
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 		services.set(IExtensionManagementCLIService, new SyncDescriptor(ExtensionManagementCLIService));
+
+		// Localizations
 		services.set(ILocalizationsService, new SyncDescriptor(LocalizationsService));
 
+		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
 		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
+				appenders.push(new AppInsightsAppender('monacoworkbench', null, product.aiConfig.asimovKey));
 			}
 
 			const config: ITelemetryServiceConfig = {
@@ -153,17 +167,70 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 			services.set(ITelemetryService, NullTelemetryService);
 		}
 
-		const instantiationService2 = instantiationService.createChild(services);
-		const main = instantiationService2.createInstance(Main);
+		return [new InstantiationService(services), appenders];
+	}
 
-		try {
-			await main.run(argv);
+	private registerErrorHandler(logService: ILogService): void {
 
-			// Flush the remaining data in AI adapter.
-			// If it does not complete in 1 second, exit the process.
-			await raceTimeout(combinedAppender(...appenders).flush(), 1000);
-		} finally {
-			disposables.dispose();
+		// Install handler for unexpected errors
+		setUnexpectedErrorHandler(error => {
+			const message = toErrorMessage(error, true);
+			if (!message) {
+				return;
+			}
+
+			logService.error(`[uncaught exception in CLI]: ${message}`);
+		});
+	}
+
+	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService, fileService: IFileService): Promise<void> {
+
+		// Install Source
+		if (this.argv['install-source']) {
+			return this.setInstallSource(environmentService, fileService, this.argv['install-source']);
 		}
-	});
+
+		// List Extensions
+		if (this.argv['list-extensions']) {
+			return extensionManagementCLIService.listExtensions(!!this.argv['show-versions'], this.argv['category']);
+		}
+
+		// Install Extension
+		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
+			return extensionManagementCLIService.installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], !!this.argv['do-not-sync'], !!this.argv['force']);
+		}
+
+		// Uninstall Extension
+		else if (this.argv['uninstall-extension']) {
+			return extensionManagementCLIService.uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force']);
+		}
+
+		// Locate Extension
+		else if (this.argv['locate-extension']) {
+			return extensionManagementCLIService.locateExtension(this.argv['locate-extension']);
+		}
+
+		// Telemetry
+		else if (this.argv['telemetry']) {
+			console.log(buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
+		}
+	}
+
+	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
+		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(process.cwd(), input)) : input);
+	}
+
+	private async setInstallSource(environmentService: INativeEnvironmentService, fileService: IFileService, installSource: string): Promise<void> {
+		await fileService.writeFile(URI.file(environmentService.installSourcePath), VSBuffer.fromString(installSource.slice(0, 30)));
+	}
+}
+
+export async function main(argv: NativeParsedArgs): Promise<void> {
+	const cliMain = new CliMain(argv);
+
+	try {
+		await cliMain.run();
+	} finally {
+		cliMain.dispose();
+	}
 }

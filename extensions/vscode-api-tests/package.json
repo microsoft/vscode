@@ -37,6 +37,14 @@
         }
       }
     },
+    "views": {
+      "remote": [
+        {
+          "id": "test.treeId",
+          "when": "never"
+        }
+      ]
+    },
     "configurationDefaults": {
       "[abcLang]": {
         "editor.lineNumbers": "off",
@@ -115,5 +123,9 @@
   "devDependencies": {
     "@types/mocha": "^8.2.0",
     "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

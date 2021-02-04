@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncEmitter, Emitter, Event, IWaitUntil } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { AsyncEmitter, IWaitUntil } from 'vs/base/common/async';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';

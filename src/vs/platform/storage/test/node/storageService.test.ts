@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equal } from 'assert';
+import { strictEqual } from 'assert';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf } from 'vs/base/node/pfs';
+import { promises } from 'fs';
+import { rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
@@ -22,7 +23,7 @@ flakySuite('NativeStorageService', function () {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 
-		return mkdirp(testDir);
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {
@@ -53,15 +54,15 @@ flakySuite('NativeStorageService', function () {
 		storage.store('barNumber', 55, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storage.store('barBoolean', true, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
-		equal(storage.get('bar', StorageScope.WORKSPACE), 'foo');
-		equal(storage.getNumber('barNumber', StorageScope.WORKSPACE), 55);
-		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
+		strictEqual(storage.get('bar', StorageScope.WORKSPACE), 'foo');
+		strictEqual(storage.getNumber('barNumber', StorageScope.WORKSPACE), 55);
+		strictEqual(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.migrate({ id: String(Date.now() + 100) });
 
-		equal(storage.get('bar', StorageScope.WORKSPACE), 'foo');
-		equal(storage.getNumber('barNumber', StorageScope.WORKSPACE), 55);
-		equal(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
+		strictEqual(storage.get('bar', StorageScope.WORKSPACE), 'foo');
+		strictEqual(storage.getNumber('barNumber', StorageScope.WORKSPACE), 55);
+		strictEqual(storage.getBoolean('barBoolean', StorageScope.GLOBAL), true);
 
 		await storage.close();
 	});

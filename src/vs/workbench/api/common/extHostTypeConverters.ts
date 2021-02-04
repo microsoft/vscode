@@ -1412,8 +1412,9 @@ export namespace TestState {
 
 
 export namespace TestItem {
-	export function from(item: vscode.TestItem): ITestItem {
+	export function from(item: vscode.TestItem, parentExtId?: string): ITestItem {
 		return {
+			extId: item.id ?? (parentExtId ? `${parentExtId}\0${item.label}` : item.label),
 			label: item.label,
 			location: item.location ? location.from(item.location) : undefined,
 			debuggable: item.debuggable ?? false,
@@ -1423,8 +1424,9 @@ export namespace TestItem {
 		};
 	}
 
-	export function to(item: ITestItem): vscode.TestItem {
+	export function toShallow(item: ITestItem): Omit<vscode.RequiredTestItem, 'children'> {
 		return {
+			id: item.extId,
 			label: item.label,
 			location: item.location && location.to({
 				range: item.location.range,

@@ -246,13 +246,16 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label::after {
-	content: '';
+	content: ''; /* enables a linear gradient to overlay the end of the label when tabs overflow */
 	position: absolute;
 	right: 0;
-	height: 100%;
 	width: 5px;
 	opacity: 1;
 	padding: 0;
+	/* the rules below ensure that the gradient does not impact top/bottom borders (https://github.com/microsoft/vscode/issues/115129) */
+	top: 1px;
+	bottom: 1px;
+	height: calc(100% - 2px);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label::after {

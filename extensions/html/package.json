@@ -1,0 +1,85 @@
+{
+  "name": "html",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "scripts": {
+    "update-grammar": "node ./build/update-grammar.js"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "html",
+        "extensions": [
+          ".html",
+          ".htm",
+          ".shtml",
+          ".xhtml",
+          ".xht",
+          ".mdoc",
+          ".jsp",
+          ".asp",
+          ".aspx",
+          ".jshtm",
+          ".volt",
+          ".ejs",
+          ".rhtml"
+        ],
+        "aliases": [
+          "HTML",
+          "htm",
+          "html",
+          "xhtml"
+        ],
+        "mimetypes": [
+          "text/html",
+          "text/x-jshtm",
+          "text/template",
+          "text/ng-template",
+          "application/xhtml+xml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "scopeName": "text.html.basic",
+        "path": "./syntaxes/html.tmLanguage.json",
+        "embeddedLanguages": {
+          "text.html": "html",
+          "source.css": "css",
+          "source.js": "javascript",
+          "source.python": "python",
+          "source.smarty": "smarty"
+        },
+        "tokenTypes": {
+          "meta.tag string.quoted": "other"
+        }
+      },
+      {
+        "language": "html",
+        "scopeName": "text.html.derivative",
+        "path": "./syntaxes/html-derivative.tmLanguage.json",
+        "embeddedLanguages": {
+          "text.html": "html",
+          "source.css": "css",
+          "source.js": "javascript",
+          "source.python": "python",
+          "source.smarty": "smarty"
+        },
+        "tokenTypes": {
+          "meta.tag string.quoted": "other"
+        }
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

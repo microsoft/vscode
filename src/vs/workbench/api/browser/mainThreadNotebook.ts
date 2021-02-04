@@ -10,7 +10,6 @@ import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
 import { IExtUri } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -31,7 +30,6 @@ import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection }
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
@@ -131,7 +129,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookCellStatusBarService private readonly cellStatusBarService: INotebookCellStatusBarService,
-		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -603,32 +600,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 
 		return false;
-	}
-
-	$onUndoableContentChange(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void {
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-
-		if (textModel) {
-			textModel.handleUnknownUndoableEdit(label, () => {
-				const isDirty = this._workingCopyService.isDirty(textModel.uri.with({ scheme: Schemas.vscodeNotebook }));
-				return this._proxy.$undoNotebook(textModel.viewType, textModel.uri, editId, isDirty);
-			}, () => {
-				const isDirty = this._workingCopyService.isDirty(textModel.uri.with({ scheme: Schemas.vscodeNotebook }));
-				return this._proxy.$redoNotebook(textModel.viewType, textModel.uri, editId, isDirty);
-			});
-		}
-	}
-
-	$onContentChange(resource: UriComponents, viewType: string): void {
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-
-		if (textModel) {
-			textModel.applyEdits(textModel.versionId, [
-				{
-					editType: CellEditType.Unknown
-				}
-			], true, undefined, () => undefined, undefined);
-		}
 	}
 
 	async $tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType) {

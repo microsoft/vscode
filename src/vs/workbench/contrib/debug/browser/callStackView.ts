@@ -212,11 +212,11 @@ export class CallStackView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu);
+		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu, this.callStackItemType);
 		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
 			sessionsRenderer,
-			new ThreadsRenderer(this.instantiationService),
-			this.instantiationService.createInstance(StackFramesRenderer),
+			new ThreadsRenderer(this.callStackItemType, this.instantiationService),
+			this.instantiationService.createInstance(StackFramesRenderer, this.callStackItemType),
 			new ErrorsRenderer(),
 			new LoadAllRenderer(this.themeService),
 			new ShowMoreRenderer(this.themeService)
@@ -489,6 +489,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 	constructor(
 		private menu: IMenu,
+		private callStackItemType: IContextKey<string>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
@@ -538,6 +539,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 			const primary: IAction[] = actions;
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
+			this.callStackItemType.set('session');
 			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => /^inline/.test(g)));
 
 			data.actionBar.clear();
@@ -569,7 +571,10 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, IThreadTemplateData> {
 	static readonly ID = 'thread';
 
-	constructor(private readonly instantiationService: IInstantiationService) { }
+	constructor(
+		private callStackItemType: IContextKey<string>,
+		private readonly instantiationService: IInstantiationService
+	) { }
 
 	get templateId(): string {
 		return ThreadsRenderer.ID;
@@ -592,6 +597,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		data.stateLabel.textContent = thread.stateLabel;
 
 		data.actionBar.clear();
+		this.callStackItemType.set('thread');
 		const actions = getActions(this.instantiationService, thread);
 		data.actionBar.push(actions, { icon: true, label: false });
 	}
@@ -609,8 +615,9 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 	static readonly ID = 'stackFrame';
 
 	constructor(
+		private callStackItemType: IContextKey<string>,
 		@ILabelService private readonly labelService: ILabelService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
 	get templateId(): string {
@@ -655,6 +662,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		}
 
 		data.actionBar.clear();
+		this.callStackItemType.set('stackFrame');
 		if (hasActions) {
 			const action = new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
 				try {

@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
+import { globals, IProcessEnvironment } from 'vs/base/common/platform';
 import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
-export interface ISandboxNodeProcess extends INodeProcess {
+/**
+ * In sandboxed renderers we cannot expose all of the `process` global of node.js
+ */
+export interface IPartialNodeProcess {
 
 	/**
 	 * The process.platform property returns a string identifying the operating system platform
@@ -41,24 +44,6 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	readonly execPath: string;
 
 	/**
-	 * Resolve the true process environment to use and apply it to `process.env`.
-	 *
-	 * There are different layers of environment that will apply:
-	 * - `process.env`: this is the actual environment of the process before this method
-	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
-	 *                  variables to get the same experience as if the program was started from
-	 *                  a terminal (Linux, macOS)
-	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
-	 *                  from a terminal and changed certain variables
-	 *
-	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
-	 *
-	 * It is critical that every process awaits this method early on startup to get the right
-	 * set of environment in `process.env`.
-	 */
-	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
-
-	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.
 	 */
 	on: (type: string, callback: Function) => void;
@@ -77,6 +62,28 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * process on macOS.
 	 */
 	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
+}
+
+export interface ISandboxNodeProcess extends IPartialNodeProcess {
+
+	/**
+	 * A custom method we add to `process`: Resolve the true process environment to use and
+	 * apply it to `process.env`.
+	 *
+	 * There are different layers of environment that will apply:
+	 * - `process.env`: this is the actual environment of the process before this method
+	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
+	 *                  variables to get the same experience as if the program was started from
+	 *                  a terminal (Linux, macOS)
+	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
+	 *                  from a terminal and changed certain variables
+	 *
+	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
+	 *
+	 * It is critical that every process awaits this method early on startup to get the right
+	 * set of environment in `process.env`.
+	 */
+	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
 }
 
 export interface ISandboxContext {

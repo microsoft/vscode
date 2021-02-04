@@ -25,6 +25,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { IAction } from 'vs/base/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -106,7 +107,7 @@ export interface ITreeElement {
 }
 
 export interface IReplElement extends ITreeElement {
-	toString(): string;
+	toString(includeSource?: boolean): string;
 	readonly sourceData?: IReplElementSource;
 }
 
@@ -131,7 +132,7 @@ export interface IExpression extends IExpressionContainer {
 
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getCustomTelemetryService(): Promise<TelemetryService | undefined>;
 }
 
@@ -503,6 +504,7 @@ export interface IDebugConfiguration {
 		lineHeight: number;
 		wordWrap: boolean;
 		closeOnEnd: boolean;
+		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
 	};
 	focusWindowOnBreak: boolean;
@@ -660,7 +662,7 @@ export interface IDebugAdapterTrackerFactory {
 }
 
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 }
 
 export interface IConfigurationManager {
@@ -714,7 +716,7 @@ export interface IAdapterManager {
 	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 }
 
 export interface ILaunch {
@@ -873,6 +875,8 @@ export interface IDebugService {
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 
+	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
+
 	/**
 	 * Sends all breakpoints to the passed session.
 	 * If session is not passed, sends all breakpoints to each session.
@@ -951,6 +955,7 @@ export interface IDebugEditorContribution extends editorCommon.IEditorContributi
 export interface IBreakpointEditorContribution extends editorCommon.IEditorContribution {
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
+	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
 }
 
 // temporary debug helper service

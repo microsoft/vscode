@@ -46,7 +46,7 @@ export interface INotebookService {
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
 	onNotebookDocumentSaved: Event<URI>;
 	onDidChangeKernels: Event<URI | undefined>;
-	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined; }>;
+	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: ITransformedDisplayOutputDto): readonly IOrderedMimeType[];

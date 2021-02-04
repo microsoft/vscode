@@ -39,7 +39,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
+import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
@@ -63,7 +63,7 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { WorkspacesManagementMainService, IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { statSync } from 'fs';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
@@ -149,19 +149,19 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 		});
 		app.on('remote-get-global', (event, sender, module) => {
-			this.logService.trace(`App#on(remote-get-global): prevented on ${module}`);
+			this.logService.trace(`app#on(remote-get-global): prevented on ${module}`);
 
 			event.preventDefault();
 		});
 		app.on('remote-get-builtin', (event, sender, module) => {
-			this.logService.trace(`App#on(remote-get-builtin): prevented on ${module}`);
+			this.logService.trace(`app#on(remote-get-builtin): prevented on ${module}`);
 
 			if (module !== 'clipboard') {
 				event.preventDefault();
 			}
 		});
 		app.on('remote-get-current-window', event => {
-			this.logService.trace(`App#on(remote-get-current-window): prevented`);
+			this.logService.trace(`app#on(remote-get-current-window): prevented`);
 
 			event.preventDefault();
 		});
@@ -170,7 +170,7 @@ export class CodeApplication extends Disposable {
 				return; // the driver needs access to web contents
 			}
 
-			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+			this.logService.trace(`app#on(remote-get-current-web-contents): prevented`);
 
 			event.preventDefault();
 		});
@@ -270,9 +270,13 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
+		let slowShellResolveWarningShown = false;
 		ipcMain.on('vscode:fetchShellEnv', async event => {
+
+			// DO NOT remove: not only usual windows are fetching the
+			// shell environment but also shared process, issue reporter
+			// etc, so we need to reply via `webContents` always
 			const webContents = event.sender;
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 
 			let replied = false;
 
@@ -290,10 +294,18 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Handle slow shell environment resolve calls:
-			// - a warning after 3s but continue to resolve
-			// - an error after 10s and stop trying to resolve
+			// - a warning after 3s but continue to resolve (only once in active window)
+			// - an error after 10s and stop trying to resolve (in every window where this happens)
 			const cts = new CancellationTokenSource();
-			const shellEnvSlowWarningHandle = setTimeout(() => window?.sendWhenReady('vscode:showShellEnvSlowWarning', cts.token), 3000);
+
+			const shellEnvSlowWarningHandle = setTimeout(() => {
+				if (!slowShellResolveWarningShown) {
+					this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
+					slowShellResolveWarningShown = true;
+				}
+			}, 3000);
+
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
 			const shellEnvTimeoutErrorHandle = setTimeout(() => {
 				cts.dispose(true);
 				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
@@ -305,6 +317,9 @@ export class CodeApplication extends Disposable {
 			// a first window was opened from the UI but a second
 			// from the CLI and that has implications for whether to
 			// resolve the shell environment or not.
+			//
+			// Window can be undefined for e.g. the shared process
+			// that is not part of our windows registry!
 			let args: NativeParsedArgs;
 			let env: NodeJS.ProcessEnv;
 			if (window?.config) {
@@ -518,7 +533,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
-		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
@@ -531,7 +546,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
 		services.set(IURLService, new SyncDescriptor(NativeURLService));
-		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
+		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -906,8 +921,8 @@ export class CodeApplication extends Disposable {
 				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
 				const mutex = new WindowsMutex(win32MutexName);
 				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
-			} catch (e) {
-				this.logService.error(e);
+			} catch (error) {
+				this.logService.error(error);
 			}
 		}
 

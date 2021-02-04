@@ -15,7 +15,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { dirExists } from 'vs/base/node/pfs';
+import { SymlinkSupport } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -105,7 +105,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return windows.map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri,
 			title: window.win.getTitle(),
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
@@ -262,7 +261,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await dirExists(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 

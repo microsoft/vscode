@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { addIdToOutput, CellEditType, ICellEditOperation, IDisplayOutput, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, ICellEditOperation, ICellOutputEdit, IDisplayOutput, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -648,17 +648,27 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	replaceNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({
-			_type: FileEditType.Cell, metadata, uri, edit: {
-				editType: CellEditType.Output, index, outputs: outputs.map(output => {
-					if (NotebookCellOutput.isNotebookCellOutput(output)) {
-						return addIdToOutput(output.toJSON());
-					} else {
-						return addIdToOutput(output);
-					}
-				})
-			}
-		});
+		this._editNotebookCellOutput(uri, index, false, outputs, metadata);
+	}
+
+	appendNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._editNotebookCellOutput(uri, index, true, outputs, metadata);
+	}
+
+	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
+		const edit: ICellOutputEdit = {
+			editType: CellEditType.Output,
+			index,
+			append,
+			outputs: outputs.map(output => {
+				if (NotebookCellOutput.isNotebookCellOutput(output)) {
+					return addIdToOutput(output.toJSON());
+				} else {
+					return addIdToOutput(output);
+				}
+			})
+		};
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit });
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -2315,9 +2325,6 @@ export class FunctionBreakpoint extends Breakpoint {
 
 	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		super(enabled, condition, hitCondition, logMessage);
-		if (!functionName) {
-			throw illegalArgument('functionName');
-		}
 		this.functionName = functionName;
 	}
 }
@@ -2819,10 +2826,7 @@ export class NotebookCellOutput {
 		return obj instanceof NotebookCellOutput;
 	}
 
-	constructor(
-		readonly outputs: NotebookCellOutputItem[],
-		readonly metadata?: Record<string, string | number | boolean>
-	) { }
+	constructor(readonly outputs: NotebookCellOutputItem[]) { }
 
 	toJSON(): IDisplayOutput {
 		let data: { [key: string]: unknown; } = {};
@@ -2982,16 +2986,9 @@ export class TestState {
 	}
 }
 
-type AllowedUndefined = 'description' | 'location';
+export type RequiredTestItem = vscode.RequiredTestItem;
 
-/**
- * Test item without any optional properties. Only some properties are
- * permitted to be undefined, but they must still exist.
- */
-export type RequiredTestItem = {
-	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
-};
-
+export type TestItem = vscode.TestItem;
 
 //#endregion
 

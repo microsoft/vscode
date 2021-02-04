@@ -28,9 +28,8 @@ import { OpenEditorCommandId } from 'vs/workbench/contrib/searchEditor/browser/c
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
@@ -207,35 +206,6 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 		accessor.get(ICommandService).executeCommand(OpenEditorCommandId, convertArgs(args));
 	}
 };
-
-export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
-
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = nls.localize('showSearch', "Show Search");
-
-	constructor(id: string, label: string,
-		@IViewsService viewsService: IViewsService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService) {
-		super(id, label, viewsService, /*expandSearchReplaceWidget=*/false);
-	}
-
-	run(): Promise<any> {
-
-		// Pass focus to viewlet if not open or focused
-		if (this.otherViewletShowing() || !isSearchViewFocused(this.viewsService)) {
-			return super.run();
-		}
-
-		// Otherwise pass focus to editor group
-		this.editorGroupService.activeGroup.focus();
-
-		return Promise.resolve(true);
-	}
-
-	private otherViewletShowing(): boolean {
-		return !getSearchView(this.viewsService);
-	}
-}
 
 export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 

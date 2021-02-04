@@ -82,6 +82,7 @@ export class RawDebugSession implements IDisposable {
 	constructor(
 		debugAdapter: IDebugAdapter,
 		dbgr: IDebugger,
+		private readonly sessionId: string,
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
 		private readonly extensionHostDebugService: IExtensionHostDebugService,
@@ -583,7 +584,7 @@ export class RawDebugSession implements IDisposable {
 				break;
 			case 'runInTerminal':
 				try {
-					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments);
+					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
 					const resp = response as DebugProtocol.RunInTerminalResponse;
 					resp.body = {};
 					if (typeof shellProcessId === 'number') {

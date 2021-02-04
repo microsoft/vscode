@@ -19,31 +19,31 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { InMemoryTestBackupFileService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { BrowserBackupTracker } from 'vs/workbench/contrib/backup/browser/backupTracker';
 
-class TestBackupTracker extends BrowserBackupTracker {
-
-	constructor(
-		@IBackupFileService backupFileService: IBackupFileService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@ILogService logService: ILogService,
-	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, logService);
-	}
-
-	protected getBackupScheduleDelay(): number {
-		return 10; // Reduce timeout for tests
-	}
-}
-
 suite('BackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
+
+	class TestBackupTracker extends BrowserBackupTracker {
+
+		constructor(
+			@IBackupFileService backupFileService: IBackupFileService,
+			@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+			@IWorkingCopyService workingCopyService: IWorkingCopyService,
+			@ILifecycleService lifecycleService: ILifecycleService,
+			@ILogService logService: ILogService,
+		) {
+			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, logService);
+		}
+
+		protected getBackupScheduleDelay(): number {
+			return 10; // Reduce timeout for tests
+		}
+	}
 
 	async function createTracker(): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: BackupTracker, backupFileService: InMemoryTestBackupFileService, instantiationService: IInstantiationService, cleanup: () => void }> {
 		const backupFileService = new InMemoryTestBackupFileService();
@@ -53,6 +53,8 @@ suite('BackupTracker (browser)', function () {
 		const part = instantiationService.createInstance(EditorPart);
 		part.create(document.createElement('div'));
 		part.layout(400, 300);
+
+		const editorRegistration = registerTestResourceEditor();
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -68,6 +70,7 @@ suite('BackupTracker (browser)', function () {
 		const cleanup = () => {
 			part.dispose();
 			tracker.dispose();
+			editorRegistration.dispose();
 		};
 
 		return { accessor, part, tracker, backupFileService, instantiationService, cleanup };
@@ -86,13 +89,13 @@ suite('BackupTracker (browser)', function () {
 
 		await backupFileService.joinBackupResource();
 
-		assert.equal(backupFileService.hasBackupSync(untitledEditor.resource), true);
+		assert.strictEqual(backupFileService.hasBackupSync(untitledEditor.resource), true);
 
 		untitledModel.dispose();
 
 		await backupFileService.joinDiscardBackup();
 
-		assert.equal(backupFileService.hasBackupSync(untitledEditor.resource), false);
+		assert.strictEqual(backupFileService.hasBackupSync(untitledEditor.resource), false);
 
 		cleanup();
 	}
@@ -131,25 +134,25 @@ suite('BackupTracker (browser)', function () {
 		// Normal
 		customWorkingCopy.setDirty(true);
 		await backupFileService.joinBackupResource();
-		assert.equal(backupFileService.hasBackupSync(resource), true);
+		assert.strictEqual(backupFileService.hasBackupSync(resource), true);
 
 		customWorkingCopy.setDirty(false);
 		customWorkingCopy.setDirty(true);
 		await backupFileService.joinBackupResource();
-		assert.equal(backupFileService.hasBackupSync(resource), true);
+		assert.strictEqual(backupFileService.hasBackupSync(resource), true);
 
 		customWorkingCopy.setDirty(false);
 		await backupFileService.joinDiscardBackup();
-		assert.equal(backupFileService.hasBackupSync(resource), false);
+		assert.strictEqual(backupFileService.hasBackupSync(resource), false);
 
 		// Cancellation
 		customWorkingCopy.setDirty(true);
 		await timeout(0);
 		customWorkingCopy.setDirty(false);
 		await backupFileService.joinDiscardBackup();
-		assert.equal(backupFileService.hasBackupSync(resource), false);
+		assert.strictEqual(backupFileService.hasBackupSync(resource), false);
 
 		customWorkingCopy.dispose();
-		await cleanup();
+		cleanup();
 	});
 });

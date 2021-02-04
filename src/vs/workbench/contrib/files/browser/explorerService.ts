@@ -110,7 +110,7 @@ export class ExplorerService implements IExplorerService {
 			});
 			if (affected) {
 				if (this.view) {
-					await this.view.refresh(true);
+					await this.view.setTreeInput();
 				}
 			}
 		}));

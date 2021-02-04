@@ -49,7 +49,7 @@ function generateViewMoreElement(outputs: string[], openerService: IOpenerServic
 	return element;
 }
 
-export function truncatedArrayOfString(container: HTMLElement, outputs: string[], openerService: IOpenerService, textFileService: ITextFileService, themeService: IThemeService, renderANSI: boolean) {
+export function truncatedArrayOfString(container: HTMLElement, outputs: string[], openerService: IOpenerService, textFileService: ITextFileService, themeService: IThemeService) {
 	const fullLen = outputs.reduce((p, c) => {
 		return p + c.length;
 	}, 0);
@@ -65,14 +65,7 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 		const sizeBufferLimitPosition = buffer.getPositionAt(SIZE_LIMIT);
 		if (sizeBufferLimitPosition.lineNumber < LINES_LIMIT) {
 			const truncatedText = buffer.getValueInRange(new Range(1, 1, sizeBufferLimitPosition.lineNumber, sizeBufferLimitPosition.column), EndOfLinePreference.TextDefined);
-			if (renderANSI) {
-				container.appendChild(handleANSIOutput(truncatedText, themeService));
-			} else {
-				const pre = DOM.$('pre');
-				pre.innerText = truncatedText;
-				container.appendChild(pre);
-			}
-
+			container.appendChild(handleANSIOutput(truncatedText, themeService));
 			// view more ...
 			container.appendChild(generateViewMoreElement(outputs, openerService, textFileService));
 			return;
@@ -89,42 +82,19 @@ export function truncatedArrayOfString(container: HTMLElement, outputs: string[]
 	if (buffer.getLineCount() < LINES_LIMIT) {
 		const lineCount = buffer.getLineCount();
 		const fullRange = new Range(1, 1, lineCount, Math.max(1, buffer.getLineLastNonWhitespaceColumn(lineCount)));
-
-		if (renderANSI) {
-			const pre = DOM.$('pre');
-			container.appendChild(pre);
-
-			pre.appendChild(handleANSIOutput(buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined), themeService));
-		} else {
-			const pre = DOM.$('pre');
-			container.appendChild(pre);
-			pre.innerText = buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
-		}
+		container.appendChild(handleANSIOutput(buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined), themeService));
 		return;
 	}
 
-	if (renderANSI) {
-		const pre = DOM.$('pre');
-		container.appendChild(pre);
-		pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined), themeService));
-	} else {
-		const pre = DOM.$('pre');
-		pre.innerText = buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined);
-		container.appendChild(pre);
-	}
-
+	const pre = DOM.$('pre');
+	container.appendChild(pre);
+	pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, LINES_LIMIT - 5, buffer.getLineLastNonWhitespaceColumn(LINES_LIMIT - 5)), EndOfLinePreference.TextDefined), themeService));
 
 	// view more ...
 	container.appendChild(generateViewMoreElement(outputs, openerService, textFileService));
 
 	const lineCount = buffer.getLineCount();
-	if (renderANSI) {
-		const pre = DOM.$('div');
-		container.appendChild(pre);
-		pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), themeService));
-	} else {
-		const post = DOM.$('div');
-		post.innerText = buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined);
-		container.appendChild(post);
-	}
+	const pre2 = DOM.$('div');
+	container.appendChild(pre2);
+	pre2.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), themeService));
 }

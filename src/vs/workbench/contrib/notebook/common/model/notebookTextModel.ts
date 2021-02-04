@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -275,7 +274,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, this.viewType, cellHandle);
+			const cellUri = CellUri.generate(this.uri, cellHandle);
 			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modelService);
 		});
 
@@ -314,7 +313,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return {
 				edit,
 				end:
-					(edit.editType === CellEditType.DocumentMetadata || edit.editType === CellEditType.Unknown)
+					(edit.editType === CellEditType.DocumentMetadata)
 						? undefined
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : edit.index),
 				originalIndex: index,
@@ -340,7 +339,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					//TODO@jrieken,@rebornix no event, no undo stop (?)
 					this._assertIndex(edit.index);
 					const cell = this._cells[edit.index];
-					this._spliceNotebookCellOutputs2(cell.handle, edit.outputs, computeUndoRedo);
+					if (edit.append) {
+						this._spliceNotebookCellOutputs(cell.handle, [[cell.outputs.length, 0, edit.outputs]], computeUndoRedo);
+					} else {
+						this._spliceNotebookCellOutputs2(cell.handle, edit.outputs, computeUndoRedo);
+					}
 					break;
 				case CellEditType.OutputsSplice:
 					{
@@ -364,9 +367,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				case CellEditType.Move:
 					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, undefined, undefined);
 					break;
-				case CellEditType.Unknown:
-					this._handleUnknownChange();
-					break;
 			}
 		}
 
@@ -378,32 +378,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
 		return new NotebookTextModelSnapshot(this);
-	}
-
-	handleUnknownUndoableEdit(label: string | undefined, undo: () => void, redo: () => void): void {
-		this._operationManager.pushEditOperation({
-			type: UndoRedoElementType.Resource,
-			resource: this.uri,
-			label: label ?? nls.localize('defaultEditLabel', "Edit"),
-			undo: async () => {
-				undo();
-			},
-			redo: async () => {
-				redo();
-			},
-		}, undefined, undefined);
-
-		this._eventEmitter.emit({
-			kind: NotebookCellsChangeType.Unknown,
-			transient: false
-		}, true);
-	}
-
-	private _handleUnknownChange() {
-		this._eventEmitter.emit({
-			kind: NotebookCellsChangeType.Unknown,
-			transient: false
-		}, true);
 	}
 
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {
@@ -425,7 +399,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// prepare add
 		const cells = cellDtos.map(cellDto => {
 			const cellHandle = this._cellhandlePool++;
-			const cellUri = CellUri.generate(this.uri, this.viewType, cellHandle);
+			const cellUri = CellUri.generate(this.uri, cellHandle);
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, this.transientOptions,
@@ -624,7 +598,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						if (!cell) {
 							return;
 						}
-						this._changeCellMetadata(cell.handle, newMetadata, false);
+						this._changeCellMetadata(cell.handle, {
+							...newMetadata,
+							runState: cell.metadata.runState
+						}, false);
 					}
 				}), undefined, undefined);
 			}
