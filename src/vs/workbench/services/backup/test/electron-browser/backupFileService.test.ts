@@ -7,9 +7,9 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { createHash } from 'crypto';
 import { tmpdir } from 'os';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { promises, existsSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'vs/base/common/path';
-import { mkdirp, readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
+import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { BackupFilesModel } from 'vs/workbench/services/backup/common/backupFileService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
@@ -140,7 +140,7 @@ suite('BackupFileService', () => {
 
 		service = new NodeTestBackupFileService(testDir, workspaceBackupPath);
 
-		await mkdirp(backupHome);
+		await promises.mkdir(backupHome, { recursive: true });
 
 		return writeFile(workspacesJsonPath, '');
 	});
@@ -639,7 +639,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('resolve', async () => {
-			await mkdirp(dirname(fooBackupPath));
+			await promises.mkdir(dirname(fooBackupPath), { recursive: true });
 			writeFileSync(fooBackupPath, 'foo');
 			const model = new BackupFilesModel(service.fileService);
 

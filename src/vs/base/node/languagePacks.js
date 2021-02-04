@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 //@ts-check
+'use strict';
 
 /**
  * @param {NodeRequire} nodeRequire
@@ -31,22 +31,6 @@ function factory(nodeRequire, path, fs, perf) {
 	}
 
 	/**
-	 * @param {string} file
-	 * @returns {Promise<object>}
-	 */
-	function lstat(file) {
-		return new Promise((c, e) => fs.lstat(file, (err, stats) => err ? e(err) : c(stats)));
-	}
-
-	/**
-	 * @param {string} dir
-	 * @returns {Promise<string[]>}
-	 */
-	function readdir(dir) {
-		return new Promise((c, e) => fs.readdir(dir, (err, files) => err ? e(err) : c(files)));
-	}
-
-	/**
 	 * @param {string} dir
 	 * @returns {Promise<string>}
 	 */
@@ -55,52 +39,19 @@ function factory(nodeRequire, path, fs, perf) {
 	}
 
 	/**
-	 * @param {string} dir
-	 * @returns {Promise<void>}
-	 */
-	function rmdir(dir) {
-		return new Promise((c, e) => fs.rmdir(dir, err => err ? e(err) : c(undefined)));
-	}
-
-	/**
-	 * @param {string} file
-	 * @returns {Promise<void>}
-	 */
-	function unlink(file) {
-		return new Promise((c, e) => fs.unlink(file, err => err ? e(err) : c(undefined)));
-	}
-
-	/**
 	 * @param {string} location
 	 * @returns {Promise<void>}
 	 */
 	function rimraf(location) {
-		return lstat(location).then(stat => {
-			if (stat.isDirectory() && !stat.isSymbolicLink()) {
-				return readdir(location)
-					.then(children => Promise.all(children.map(child => rimraf(path.join(location, child)))))
-					.then(() => rmdir(location));
-			} else {
-				return unlink(location);
-			}
-		}, err => {
-			if (err.code === 'ENOENT') {
-				return undefined;
-			}
-			throw err;
-		});
+		return new Promise((c, e) => fs.rmdir(location, { recursive: true }, err => (err && err.code !== 'ENOENT') ? e(err) : c()));
 	}
 
+	/**
+	 * @param {string} file
+	 * @returns {Promise<string>}
+	 */
 	function readFile(file) {
-		return new Promise(function (resolve, reject) {
-			fs.readFile(file, 'utf8', function (err, data) {
-				if (err) {
-					reject(err);
-					return;
-				}
-				resolve(data);
-			});
-		});
+		return new Promise((c, e) => fs.readFile(file, 'utf8', (err, data) => err ? e(err) : c(data)));
 	}
 
 	/**
@@ -109,17 +60,8 @@ function factory(nodeRequire, path, fs, perf) {
 	 * @returns {Promise<void>}
 	 */
 	function writeFile(file, content) {
-		return new Promise(function (resolve, reject) {
-			fs.writeFile(file, content, 'utf8', function (err) {
-				if (err) {
-					reject(err);
-					return;
-				}
-				resolve();
-			});
-		});
+		return new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
 	}
-
 
 	/**
 	 * @param {string} userDataPath
@@ -301,8 +243,10 @@ function factory(nodeRequire, path, fs, perf) {
 }
 
 
+// @ts-ignore
 if (typeof define === 'function') {
 	// amd
+	// @ts-ignore
 	define(['path', 'fs', 'vs/base/common/performance'], function (path, fs, perf) { return factory(require.__$__nodeRequire, path, fs, perf); });
 } else if (typeof module === 'object' && typeof module.exports === 'object') {
 	const path = require('path');

@@ -5,7 +5,7 @@
 
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { statLink } from 'vs/base/node/pfs';
+import { SymlinkSupport } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -35,7 +35,7 @@ export class FileWatcher extends Disposable {
 
 	private async startWatching(): Promise<void> {
 		try {
-			const { stat, symbolicLink } = await statLink(this.path);
+			const { stat, symbolicLink } = await SymlinkSupport.stat(this.path);
 
 			if (this.isDisposed) {
 				return;
