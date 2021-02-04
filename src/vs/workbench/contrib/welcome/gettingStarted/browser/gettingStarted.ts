@@ -16,7 +16,7 @@ import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -26,6 +26,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { URI } from 'vs/base/common/uri';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -98,6 +99,7 @@ export class GettingStartedPage extends Disposable {
 		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -202,7 +204,7 @@ export class GettingStartedPage extends Disposable {
 	}
 
 	private selectTask(container: HTMLElement, id: string | undefined, contractIfAlreadySelected = true) {
-		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media'));
+		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media') as HTMLImageElement);
 		this.taskDisposables.clear();
 		if (id) {
 			const taskElement = assertIsDefined(container.querySelector(`[data-task-id="${id}"]`));
@@ -218,8 +220,9 @@ export class GettingStartedPage extends Disposable {
 			this.editorInput.selectedTask = id;
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
 
-			mediaElement.setAttribute('src', taskToExpand.media.path.toString());
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
+			this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path);
+			this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path)));
 			this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
 			taskElement.classList.add('expanded');
 		} else {
@@ -229,6 +232,11 @@ export class GettingStartedPage extends Disposable {
 		}
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
+	}
+
+	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
+		const themeType = this.themeService.getColorTheme().type;
+		element.src = sources[themeType].toString();
 	}
 
 	onReady(container: HTMLElement) {
