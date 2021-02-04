@@ -106,7 +106,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		}
 		if (this.model.detected.size > 0) {
 			groups.push({
-				label: nls.localize('remote.tunnelsView.detected', "Existing Tunnels"),
+				label: nls.localize('remote.tunnelsView.detected', "Static Ports"),
 				tunnelType: TunnelType.Detected,
 				items: this.detected
 			});

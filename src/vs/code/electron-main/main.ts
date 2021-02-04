@@ -5,13 +5,12 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import { unlinkSync } from 'fs';
+import { promises, unlinkSync } from 'fs';
 import { localize } from 'vs/nls';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
-import { mkdirp } from 'vs/base/node/pfs';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { Server as NodeIPCServer, serve as nodeIPCServe, connect as nodeIPCConnect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
@@ -186,7 +185,7 @@ class CodeMain {
 			environmentService.globalStorageHome.fsPath,
 			environmentService.workspaceStorageHome.fsPath,
 			environmentService.backupHome
-		].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
+		].map((path): undefined | Promise<void> => path ? promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Configuration service
 		const configurationServiceInitialization = configurationService.initialize();

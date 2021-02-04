@@ -231,11 +231,13 @@ export class IconLabel extends Disposable {
 			}
 			tokenSource = new CancellationTokenSource();
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
-				isHovering = false;
-				hoverOptions = undefined;
-				tokenSource.dispose(true);
-				mouseLeaveDisposable.dispose();
-				mouseDownDisposable.dispose();
+				if ((<any>e).fromElement === htmlElement) {
+					isHovering = false;
+					hoverOptions = undefined;
+					tokenSource.dispose(true);
+					mouseLeaveDisposable.dispose();
+					mouseDownDisposable.dispose();
+				}
 			}
 			const mouseLeaveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_LEAVE, true)(mouseLeaveOrDown.bind(htmlElement));
 			const mouseDownDisposable = domEvent(htmlElement, dom.EventType.MOUSE_DOWN, true)(mouseLeaveOrDown.bind(htmlElement));
