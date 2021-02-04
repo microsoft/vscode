@@ -221,6 +221,7 @@ export class GettingStartedPage extends Disposable {
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
 
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
+			mediaElement.onload = () => mediaElement.width = mediaElement.naturalWidth * 2 / 3;
 			this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path);
 			this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path)));
 			this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));

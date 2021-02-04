@@ -116,10 +116,6 @@
 	flex: 150px 1 1000
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-media {
-	min-height: 300px;
-}
-
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category .codicon {
 	margin-left:0;
 	font-size: 22pt;
