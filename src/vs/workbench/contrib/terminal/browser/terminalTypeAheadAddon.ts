@@ -827,7 +827,6 @@ export class PredictionTimeline {
 
 		emitPredictionOmitted();
 		ReadLoop: while (this.expected.length && reader.remaining > 0) {
-			emitPredictionOmitted();
 
 			const { p: prediction, gen } = this.expected[0];
 			const cursor = this.physicalCursor(buffer);
@@ -888,9 +887,9 @@ export class PredictionTimeline {
 					this.failedEmitter.fire(prediction);
 					break ReadLoop;
 			}
-		}
 
-		emitPredictionOmitted();
+			emitPredictionOmitted();
+		}
 
 		// Extra data (like the result of running a command) should cause us to
 		// reset the cursor
