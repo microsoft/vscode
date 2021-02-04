@@ -8,10 +8,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -233,7 +235,18 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}
 		}
 
-		const input = this.createInput(resource, viewType, group?.id);
+		// If it's an untitled file we must populate the untitledDocumentData
+		let untitledDocumentData = await this.instantiationService.invokeFunction(async accessor => {
+			if (resource.scheme === Schemas.untitled) {
+				const textModelResolverService = accessor.get(ITextModelService);
+				const model = await textModelResolverService.createModelReference(resource);
+				const untitledFileValue = model.object.textEditorModel.getValue();
+				return Buffer.from(untitledFileValue);
+			}
+			return;
+		});
+
+		const input = this.createInput(resource, viewType, group?.id, { untitledDocumentData });
 		return this.openEditorForResource(resource, input, options, group);
 	}
 
@@ -241,7 +254,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		resource: URI,
 		viewType: string,
 		group: GroupIdentifier | undefined,
-		options?: { readonly customClasses: string; },
+		options?: { readonly customClasses?: string, readonly untitledDocumentData?: Uint8Array },
 	): IEditorInput {
 		if (viewType === defaultCustomEditor.id) {
 			return this.editorService.createEditorInput({ resource, forceFile: true });
@@ -251,7 +264,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const webview = new Lazy(() => {
 			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
 		});
-		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, {});
+		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: options?.untitledDocumentData });
 		if (typeof group !== 'undefined') {
 			input.updateGroup(group);
 		}

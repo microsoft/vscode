@@ -30,6 +30,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private readonly _backupId: string | undefined;
 
+	private readonly _untitledDocumentData: Uint8Array | undefined;
+
 	get resource() { return this._editorResource; }
 
 	private _modelRef?: IReference<ICustomEditorModel>;
@@ -39,7 +41,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: Lazy<WebviewOverlay>,
-		options: { startsDirty?: boolean, backupId?: string },
+		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: Uint8Array },
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -53,6 +55,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._editorResource = resource;
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;
+		this._untitledDocumentData = options.untitledDocumentData;
 	}
 
 	public getTypeId(): string {
@@ -237,5 +240,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return this._modelRef.object.backupId;
 		}
 		return this._backupId;
+	}
+
+	get untiltedDocumentData(): Uint8Array | undefined {
+		return this._untitledDocumentData;
 	}
 }

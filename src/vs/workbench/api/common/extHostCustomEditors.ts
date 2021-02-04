@@ -209,7 +209,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			}));
 	}
 
-	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {
+	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: Uint8Array | undefined, cancellation: CancellationToken) {
 		const entry = this._editorProviders.get(viewType);
 		if (!entry) {
 			throw new Error(`No provider found for '${viewType}'`);
@@ -220,7 +220,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		}
 
 		const revivedResource = URI.revive(resource);
-		const document = await entry.provider.openCustomDocument(revivedResource, { backupId }, cancellation);
+		const document = await entry.provider.openCustomDocument(revivedResource, { backupId, untitledDocumentData }, cancellation);
 
 		let storageRoot: URI | undefined;
 		if (this.supportEditing(entry.provider) && this._extensionStoragePaths) {

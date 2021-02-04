@@ -1602,7 +1602,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let activeReplacement: EditorReplacement | undefined;
 		const inactiveReplacements: EditorReplacement[] = [];
 		editors.forEach(({ editor, replacement, options }) => {
-			if (editor.isDirty() && !editor.isSaving()) {
+			if (!editor.isUntitled() && editor.isDirty() && !editor.isSaving()) {
 				return; // we do not handle dirty in this method, so ignore all dirty
 			}
 

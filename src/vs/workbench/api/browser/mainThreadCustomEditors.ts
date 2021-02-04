@@ -205,7 +205,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		modelType: CustomEditorModelType,
 		resource: URI,
 		viewType: string,
-		options: { backupId?: string },
+		options: { backupId?: string, untitledDocumentData?: Uint8Array },
 		cancellation: CancellationToken,
 	): Promise<IReference<ICustomEditorModel>> {
 		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
@@ -290,12 +290,16 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		proxy: extHostProtocol.ExtHostCustomEditorsShape,
 		viewType: string,
 		resource: URI,
-		options: { backupId?: string },
+		options: { backupId?: string, untitledDocumentData?: Uint8Array },
 		getEditors: () => CustomEditorInput[],
 		cancellation: CancellationToken,
 		_backupFileService: IBackupFileService,
-	) {
-		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, cancellation);
+	): Promise<MainThreadCustomEditorModel> {
+		const editors = getEditors();
+		if (editors.length !== 0) {
+			options.untitledDocumentData = editors[0].untiltedDocumentData;
+		}
+		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, options.untitledDocumentData, cancellation);
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, getEditors);
 	}
 
