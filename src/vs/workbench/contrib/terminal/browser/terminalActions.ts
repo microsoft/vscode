@@ -341,7 +341,6 @@ export class SwitchTerminalAction extends Action {
 		if (customType) {
 			return this._commands.executeCommand(customType.command);
 		}
-
 		console.warn(`Unmatched terminal item: "${item}"`);
 		return Promise.resolve();
 	}
@@ -350,7 +349,7 @@ export class SwitchTerminalAction extends Action {
 export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	public static readonly SEPARATOR = '─────────';
-	private lastOptions: ISelectOptionItem[] = [];
+	private _lastOptions: ISelectOptionItem[] = [];
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -379,9 +378,9 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	private _updateItems(): void {
 		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
 		// only update options if they've changed
-		if (!equals(Object.values(options), Object.values(this.lastOptions))) {
+		if (!equals(Object.values(options), Object.values(this._lastOptions))) {
 			this.setOptions(options, this._terminalService.activeTabIndex);
-			this.lastOptions = options;
+			this._lastOptions = options;
 		}
 	}
 }
