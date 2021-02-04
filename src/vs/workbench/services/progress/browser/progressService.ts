@@ -111,7 +111,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				this.windowProgressStack.splice(idx, 1);
 				this.updateWindowProgress();
 			});
-		}, 150);
+		}, (options.delay && options.delay > 0) ? options.delay : 150);
 
 		// cancel delay if promise finishes below 150ms
 		return promise.finally(() => clearTimeout(delayHandle));
