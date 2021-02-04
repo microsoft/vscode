@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { SwitchTerminalAction, SwitchTerminalActionViewItem } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { SwitchTerminalActionViewItem } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -28,20 +28,18 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalViewPane extends ViewPane {
 	private _menu: IMenu;
 	private _actions: IAction[] | undefined;
-	private _copyContextMenuAction: IAction | undefined;
-	private _contextMenuActions: IAction[] | undefined;
 	private _cancelContextMenu: boolean = false;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
-	private _splitTerminalAction: IAction | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 
@@ -151,68 +149,10 @@ export class TerminalViewPane extends ViewPane {
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
 		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
-		// Update orientation of split button icon
-		// if (this._splitTerminalAction) {
-		// 	this._splitTerminalAction.class = this.orientation === Orientation.HORIZONTAL ? SplitTerminalAction.HORIZONTAL_CLASS : SplitTerminalAction.VERTICAL_CLASS;
-		// }
 	}
 
-	// TODO: Bring back panel actions
-	// public getActions(): IAction[] {
-	// 	if (!this._actions) {
-	// 		this._splitTerminalAction = this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL);
-	// 		this._actions = [
-	// 			this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
-	// 			this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-	// 			this._splitTerminalAction,
-	// 			this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
-	// 		];
-	// 		for (const action of this._actions) {
-	// 			if (!this._terminalService.isProcessSupportRegistered) {
-	// 				action.enabled = false;
-	// 			}
-	// 			this._register(action);
-	// 		}
-	// 	}
-	// 	return this._actions;
-	// }
-
-	// private _getContextMenuActions(): IAction[] {
-	// 	if (!this._contextMenuActions || !this._copyContextMenuAction) {
-	// 		this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
-
-	// 		const clipboardActions = [];
-	// 		if (BrowserFeatures.clipboard.writeText) {
-	// 			clipboardActions.push(this._copyContextMenuAction);
-	// 		}
-	// 		if (BrowserFeatures.clipboard.readText) {
-	// 			clipboardActions.push(this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL));
-	// 		}
-
-	// 		clipboardActions.push(this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL));
-
-	// 		this._contextMenuActions = [
-	// 			this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-	// 			// this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
-	// 			new Separator(),
-	// 			...clipboardActions,
-	// 			new Separator(),
-	// 			this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL),
-	// 			new Separator(),
-	// 			this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
-
-	// 		];
-	// 		this._contextMenuActions.forEach(a => {
-	// 			this._register(a);
-	// 		});
-	// 	}
-	// 	const activeInstance = this._terminalService.getActiveInstance();
-	// 	this._copyContextMenuAction.enabled = !!activeInstance && activeInstance.hasSelection();
-	// 	return this._contextMenuActions;
-	// }
-
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
-		if (action.id === SwitchTerminalAction.ID) {
+		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		}
 

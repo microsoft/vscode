@@ -24,7 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Action2, registerAction2, ILocalizedString, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2, ILocalizedString, MenuId, MenuRegistry, ICommandActionTitle } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -109,54 +109,6 @@ export class ConfigureTerminalSettingsAction extends Action {
 }
 
 const terminalIndexRe = /^([0-9]+): /;
-
-export class SwitchTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SWITCH_TERMINAL;
-	public static readonly LABEL = localize('workbench.action.terminal.switchTerminal', "Switch Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
-		@ICommandService private readonly _commands: ICommandService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
-	) {
-		super(id, label, 'terminal-action switch-terminal');
-	}
-
-	public run(item?: string): Promise<any> {
-		if (!item || !item.split) {
-			return Promise.resolve(null);
-		}
-		if (item === SwitchTerminalActionViewItem.SEPARATOR) {
-			this._terminalService.refreshActiveTab();
-			return Promise.resolve(null);
-		}
-		if (item === localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell")) {
-			this._terminalService.refreshActiveTab();
-			return this._terminalService.selectDefaultShell();
-		}
-		if (item === ConfigureTerminalSettingsAction.LABEL) {
-			const settingsAction = new ConfigureTerminalSettingsAction(ConfigureTerminalSettingsAction.ID, ConfigureTerminalSettingsAction.LABEL, this.preferencesService);
-			settingsAction.run();
-			this._terminalService.refreshActiveTab();
-		}
-		const indexMatches = terminalIndexRe.exec(item);
-		if (indexMatches) {
-			this._terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
-			return this._terminalService.showPanel(true);
-		}
-
-		const customType = this._contributions.terminalTypes.find(t => t.title === item);
-		if (customType) {
-			return this._commands.executeCommand(customType.command);
-		}
-
-		console.warn(`Unmatched terminal item: "${item}"`);
-		return Promise.resolve();
-	}
-}
 
 export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
@@ -1529,6 +1481,118 @@ export function registerTerminalActions() {
 			order: 2
 		});
 	}
+
+
+	// export class SwitchTerminalAction extends Action {
+
+	// 	public static readonly ID = TERMINAL_COMMAND_ID.SWITCH_TERMINAL;
+	// 	public static readonly LABEL = localize('workbench.action.terminal.switchTerminal', "Switch Terminal");
+
+	// 	constructor(
+	// 		id: string, label: string,
+	// 		@ITerminalService private readonly _terminalService: ITerminalService,
+	// 		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
+	// 		@ICommandService private readonly _commands: ICommandService,
+	// 		@IPreferencesService private readonly preferencesService: IPreferencesService
+	// 	) {
+	// 		super(id, label, 'terminal-action switch-terminal');
+	// 	}
+
+	// 	public run(item?: string): Promise<any> {
+	// 		if (!item || !item.split) {
+	// 			return Promise.resolve(null);
+	// 		}
+	// 		if (item === SwitchTerminalActionViewItem.SEPARATOR) {
+	// 			this._terminalService.refreshActiveTab();
+	// 			return Promise.resolve(null);
+	// 		}
+	// 		if (item === localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell")) {
+	// 			this._terminalService.refreshActiveTab();
+	// 			return this._terminalService.selectDefaultShell();
+	// 		}
+	// 		if (item === ConfigureTerminalSettingsAction.LABEL) {
+	// 			const settingsAction = new ConfigureTerminalSettingsAction(ConfigureTerminalSettingsAction.ID, ConfigureTerminalSettingsAction.LABEL, this.preferencesService);
+	// 			settingsAction.run();
+	// 			this._terminalService.refreshActiveTab();
+	// 		}
+	// 		const indexMatches = terminalIndexRe.exec(item);
+	// 		if (indexMatches) {
+	// 			this._terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
+	// 			return this._terminalService.showPanel(true);
+	// 		}
+
+	// 		const customType = this._contributions.terminalTypes.find(t => t.title === item);
+	// 		if (customType) {
+	// 			return this._commands.executeCommand(customType.command);
+	// 		}
+
+	// 		console.warn(`Unmatched terminal item: "${item}"`);
+	// 		return Promise.resolve();
+	// 	}
+	// }
+	const switchTerminalTitle: ICommandActionTitle = { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' };
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SWITCH_TERMINAL,
+				title: switchTerminalTitle,
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: [{
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
+					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+				}],
+			});
+		}
+		async run(accessor: ServicesAccessor, item?: string) {
+			const terminalService = accessor.get(ITerminalService);
+			const terminalContributionService = accessor.get(ITerminalContributionService);
+			const commandService = accessor.get(ICommandService);
+			const preferencesService = accessor.get(IPreferencesService);
+			if (!item || !item.split) {
+				return Promise.resolve(null);
+			}
+			if (item === SwitchTerminalActionViewItem.SEPARATOR) {
+				terminalService.refreshActiveTab();
+				return Promise.resolve(null);
+			}
+			if (item === localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell")) {
+				terminalService.refreshActiveTab();
+				return terminalService.selectDefaultShell();
+			}
+			if (item === ConfigureTerminalSettingsAction.LABEL) {
+				const settingsAction = new ConfigureTerminalSettingsAction(ConfigureTerminalSettingsAction.ID, ConfigureTerminalSettingsAction.LABEL, preferencesService);
+				settingsAction.run();
+				terminalService.refreshActiveTab();
+			}
+			const indexMatches = terminalIndexRe.exec(item);
+			if (indexMatches) {
+				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
+				return terminalService.showPanel(true);
+			}
+
+			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
+			if (customType) {
+				return commandService.executeCommand(customType.command);
+			}
+
+			console.warn(`Unmatched terminal item: "${item}"`);
+			return Promise.resolve();
+		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SWITCH_TERMINAL,
+			title: switchTerminalTitle
+		},
+		group: 'navigation',
+		order: 0,
+		when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+	});
 }
 
 interface IRemoteTerminalPick extends IQuickPickItem {
