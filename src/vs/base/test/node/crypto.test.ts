@@ -6,7 +6,8 @@
 import { checksum } from 'vs/base/node/crypto';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf, writeFile } from 'vs/base/node/pfs';
+import { promises } from 'fs';
+import { rimraf, writeFile } from 'vs/base/node/pfs';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 suite('Crypto', () => {
@@ -16,7 +17,7 @@ suite('Crypto', () => {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'crypto');
 
-		return mkdirp(testDir);
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {

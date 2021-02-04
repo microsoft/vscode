@@ -88,6 +88,7 @@
 	margin: 0;
 	background-repeat: no-repeat;
 	background-position: center;
+	background-size: contain;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {

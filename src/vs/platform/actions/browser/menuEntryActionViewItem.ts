@@ -27,10 +27,10 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean, primaryMaxCount?: number): IDisposable {
 	const groups = menu.getActions(options);
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryGroup);
+	fillInActions(groups, target, false, isPrimaryGroup, primaryMaxCount);
 	return asDisposable(groups);
 }
 
@@ -44,25 +44,37 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 	return disposables;
 }
 
-function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation', primaryMaxCount: number = Number.MAX_SAFE_INTEGER): void {
+
+	let primaryBucket: IAction[];
+	let secondaryBucket: IAction[];
+	if (Array.isArray(target)) {
+		primaryBucket = target;
+		secondaryBucket = target;
+	} else {
+		primaryBucket = target.primary;
+		secondaryBucket = target.secondary;
+	}
+
 	for (let [group, actions] of groups) {
 		if (useAlternativeActions) {
 			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
 		}
 
 		if (isPrimaryGroup(group)) {
-			const to = Array.isArray(target) ? target : target.primary;
-
-			to.unshift(...actions);
+			primaryBucket.unshift(...actions);
 		} else {
-			const to = Array.isArray(target) ? target : target.secondary;
-
-			if (to.length > 0) {
-				to.push(new Separator());
+			if (secondaryBucket.length > 0) {
+				secondaryBucket.push(new Separator());
 			}
-
-			to.push(...actions);
+			secondaryBucket.push(...actions);
 		}
+	}
+
+	// overflow items from the primary group into the secondary bucket
+	if (primaryBucket !== secondaryBucket && primaryBucket.length > primaryMaxCount) {
+		const overflow = primaryBucket.splice(primaryMaxCount, primaryBucket.length - primaryMaxCount);
+		secondaryBucket.unshift(...overflow, new Separator());
 	}
 }
 

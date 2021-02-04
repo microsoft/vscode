@@ -191,21 +191,22 @@ async function withToken(cb: (token: CancellationToken) => any) {
 	}
 }
 
-export class NotebookEditorDecorationType implements vscode.NotebookEditorDecorationType {
+export class NotebookEditorDecorationType {
 
 	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
 
-	private _proxy: MainThreadNotebookShape;
-	public key: string;
+	readonly value: vscode.NotebookEditorDecorationType;
 
 	constructor(proxy: MainThreadNotebookShape, options: vscode.NotebookDecorationRenderOptions) {
-		this.key = NotebookEditorDecorationType._Keys.nextId();
-		this._proxy = proxy;
-		this._proxy.$registerNotebookEditorDecorationType(this.key, typeConverters.NotebookDecorationRenderOptions.from(options));
-	}
+		const key = NotebookEditorDecorationType._Keys.nextId();
+		proxy.$registerNotebookEditorDecorationType(key, typeConverters.NotebookDecorationRenderOptions.from(options));
 
-	public dispose(): void {
-		this._proxy.$removeNotebookEditorDecorationType(this.key);
+		this.value = {
+			key,
+			dispose() {
+				proxy.$removeNotebookEditorDecorationType(key);
+			}
+		};
 	}
 }
 
@@ -321,23 +322,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookContentProviders.set(viewType, { extension, provider });
 		const listeners: vscode.Disposable[] = [];
 
-		listeners.push(provider.onDidChangeNotebook
-			? provider.onDidChangeNotebook(e => {
-				const document = this._documents.get(URI.revive(e.document.uri));
-
-				if (!document) {
-					throw new Error(`Notebook document ${e.document.uri.toString()} not found`);
-				}
-
-				if (isEditEvent(e)) {
-					const editId = document.addEdit(e);
-					this._proxy.$onUndoableContentChange(e.document.uri, viewType, editId, e.label);
-				} else {
-					this._proxy.$onContentChange(e.document.uri, viewType);
-				}
-			})
-			: Disposable.None);
-
 		listeners.push(provider.onDidChangeNotebookContentOptions
 			? provider.onDidChangeNotebookContentOptions(() => {
 				this._proxy.$updateNotebookProviderOptions(viewType, provider.options);
@@ -384,7 +368,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
-		return new NotebookEditorDecorationType(this._proxy, options);
+		return new NotebookEditorDecorationType(this._proxy, options).value;
 	}
 
 	async openNotebookDocument(uriComponents: UriComponents, viewType?: string): Promise<vscode.NotebookDocument> {
@@ -543,26 +527,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		return false;
 	}
-
-	async $undoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-		if (!document) {
-			return;
-		}
-
-		document.undo(editId, isDirty);
-
-	}
-
-	async $redoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-		if (!document) {
-			return;
-		}
-
-		document.redo(editId, isDirty);
-	}
-
 
 	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined> {
 		const document = this._documents.get(URI.revive(uri));
@@ -890,11 +854,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		return statusBarItem;
 	}
-}
-
-function isEditEvent(e: vscode.NotebookDocumentEditEvent | vscode.NotebookDocumentContentChangeEvent): e is vscode.NotebookDocumentEditEvent {
-	return typeof (e as vscode.NotebookDocumentEditEvent).undo === 'function'
-		&& typeof (e as vscode.NotebookDocumentEditEvent).redo === 'function';
 }
 
 export class NotebookCellStatusBarItemInternal extends Disposable {

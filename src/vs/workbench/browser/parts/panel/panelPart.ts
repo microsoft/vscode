@@ -286,7 +286,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const activity: IActivity = {
 			id: viewContainer.id,
 			name: this.extensionsRegistered || cachedTitle === undefined ? viewContainerModel.title : cachedTitle,
-			keybindingId: viewContainer.commandId || viewContainer.id
+			keybindingId: viewContainerModel.keybindingId
 		};
 
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
@@ -310,7 +310,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 		if (viewContainerModel.activeViewDescriptors.length) {
 			contextKey.set(true);
-			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title.value, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 		} else if (viewContainer.hideIfEmpty) {
 			contextKey.set(false);
 			this.hideComposite(viewContainer.id);

@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	ExtensionContext, TextDocument, commands, ProviderResult, CancellationToken,
-	workspace, tasks, HoverProvider, Hover, Position, MarkdownString, Uri
-} from 'vscode';
-import {
-	createTask, startDebugging
-} from './tasks';
-import * as nls from 'vscode-nls';
 import { dirname } from 'path';
+import {
+	CancellationToken, commands, ExtensionContext,
+	Hover, HoverProvider, MarkdownString, Position, ProviderResult,
+	tasks, TextDocument,
+	Uri, workspace
+} from 'vscode';
+import * as nls from 'vscode-nls';
 import { INpmScriptInfo, readScripts } from './readScripts';
+import {
+	createTask,
+	getPackageManager, startDebugging
+} from './tasks';
 
 const localize = nls.loadMessageBundle();
 
@@ -100,7 +103,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = await createTask(this.context, script, ['run', script], folder, documentUri);
+			let task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
 			await tasks.executeTask(task);
 		}
 	}

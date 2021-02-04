@@ -77,5 +77,9 @@
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

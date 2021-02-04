@@ -342,10 +342,11 @@ export class Workbench extends Layout {
 		// Create Parts
 		[
 			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
-			{ id: Parts.ACTIVITYBAR_PART, role: 'navigation', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
-			{ id: Parts.SIDEBAR_PART, role: 'complementary', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
+			// Use role 'none' for some parts to make screen readers less chatty #114892
+			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
+			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
-			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', positionToString(this.state.panel.position)] },
+			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', positionToString(this.state.panel.position)] },
 			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);

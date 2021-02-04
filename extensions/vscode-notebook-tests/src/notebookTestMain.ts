@@ -9,10 +9,7 @@ import { smokeTestActivate } from './notebookSmokeTestMain';
 export function activate(context: vscode.ExtensionContext): any {
 	smokeTestActivate(context);
 
-	const _onDidChangeNotebook = new vscode.EventEmitter<vscode.NotebookDocumentEditEvent | vscode.NotebookDocumentContentChangeEvent>();
-	context.subscriptions.push(_onDidChangeNotebook);
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
-		onDidChangeNotebook: _onDidChangeNotebook.event,
 		openNotebook: async (_resource: vscode.Uri) => {
 			if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
 				return {
@@ -91,7 +88,7 @@ export function activate(context: vscode.ExtensionContext): any {
 				return;
 			}
 
-			const previousOutputs = cell.outputs;
+			// const previousOutputs = cell.outputs;
 			const newOutputs: vscode.CellOutput[] = [{
 				outputKind: vscode.CellOutputKind.Rich,
 				data: {
@@ -100,20 +97,6 @@ export function activate(context: vscode.ExtensionContext): any {
 			}];
 
 			cell.outputs = newOutputs;
-
-			_onDidChangeNotebook.fire({
-				document: document,
-				undo: () => {
-					if (cell) {
-						cell.outputs = previousOutputs;
-					}
-				},
-				redo: () => {
-					if (cell) {
-						cell.outputs = newOutputs;
-					}
-				}
-			});
 			return;
 		},
 		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
@@ -151,7 +134,6 @@ export function activate(context: vscode.ExtensionContext): any {
 				return;
 			}
 
-			const previousOutputs = cell.outputs;
 			const newOutputs: vscode.CellOutput[] = [{
 				outputKind: vscode.CellOutputKind.Rich,
 				data: {
@@ -160,20 +142,6 @@ export function activate(context: vscode.ExtensionContext): any {
 			}];
 
 			cell.outputs = newOutputs;
-
-			_onDidChangeNotebook.fire({
-				document: document,
-				undo: () => {
-					if (cell) {
-						cell.outputs = previousOutputs;
-					}
-				},
-				redo: () => {
-					if (cell) {
-						cell.outputs = newOutputs;
-					}
-				}
-			});
 			return;
 		},
 		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }

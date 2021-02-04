@@ -43,23 +43,14 @@ const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.s
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: {
-		value: localize('source control', "Source Control"), original: 'Source Control',
-		mnemonic: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM")
-	},
-	keybindings: {
-		primary: 0,
-		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
-	},
+	title: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
 	icon: sourceControlViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true,
-}, ViewContainerLocation.Sidebar);
+}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -77,7 +68,18 @@ viewsRegistry.registerViews([{
 	canMoveView: true,
 	weight: 80,
 	order: -999,
-	containerIcon: sourceControlViewIcon
+	containerIcon: sourceControlViewIcon,
+	openCommandActionDescriptor: {
+		id: viewContainer.id,
+		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
+		keybindings: {
+			primary: 0,
+			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
+		},
+		order: 2,
+	}
 }], viewContainer);
 
 viewsRegistry.registerViews([{

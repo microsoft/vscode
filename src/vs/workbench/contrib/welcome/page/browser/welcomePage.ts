@@ -72,7 +72,12 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				// Open the welcome even if we opened a set of default editors
 				if ((!editorService.activeEditor || layoutService.openedDefaultEditors) && !hasBackups) {
 					const startupEditorSetting = configurationService.inspect<string>(configurationKey);
-					const openWithReadme = startupEditorSetting.userValue === 'readme';
+
+					// 'readme' should not be set in workspace settings to prevent tracking,
+					// but it can be set as a default (as in codespaces) or a user setting
+					const openWithReadme = startupEditorSetting.value === 'readme' &&
+						(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+
 					if (openWithReadme) {
 						return Promise.all(contextService.getWorkspace().folders.map(folder => {
 							const folderUri = folder.uri;

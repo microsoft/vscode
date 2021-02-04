@@ -233,6 +233,7 @@ class ExtHostQuickInput implements QuickInput {
 	private static _nextId = 1;
 	_id = ExtHostQuickPick._nextId++;
 
+	#proxy: MainThreadQuickOpenShape;
 	private _title: string | undefined;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
@@ -260,7 +261,8 @@ class ExtHostQuickInput implements QuickInput {
 		this._onDidChangeValueEmitter
 	];
 
-	constructor(protected _proxy: MainThreadQuickOpenShape, protected _extensionId: ExtensionIdentifier, private _onDidDispose: () => void) {
+	constructor(proxy: MainThreadQuickOpenShape, protected _extensionId: ExtensionIdentifier, private _onDidDispose: () => void) {
+		this.#proxy = proxy;
 	}
 
 	get title() {
@@ -409,7 +411,7 @@ class ExtHostQuickInput implements QuickInput {
 			this._updateTimeout = undefined;
 		}
 		this._onDidDispose();
-		this._proxy.$dispose(this._id);
+		this.#proxy.$dispose(this._id);
 	}
 
 	protected update(properties: Record<string, any>): void {
@@ -437,7 +439,7 @@ class ExtHostQuickInput implements QuickInput {
 	}
 
 	private dispatchUpdate() {
-		this._proxy.$createOrUpdate(this._pendingUpdate);
+		this.#proxy.$createOrUpdate(this._pendingUpdate);
 		this._pendingUpdate = { id: this._id };
 	}
 }

@@ -23,1027 +23,1027 @@
 	],
 	"iconDefinitions": {
 		"_R_light": {
-			"fontCharacter": "\\E001",
+			"fontCharacter": "\\E075",
 			"fontColor": "#498ba7"
 		},
 		"_R": {
-			"fontCharacter": "\\E001",
+			"fontCharacter": "\\E075",
 			"fontColor": "#519aba"
 		},
 		"_argdown_light": {
-			"fontCharacter": "\\E003",
+			"fontCharacter": "\\E002",
 			"fontColor": "#498ba7"
 		},
 		"_argdown": {
-			"fontCharacter": "\\E003",
+			"fontCharacter": "\\E002",
 			"fontColor": "#519aba"
 		},
 		"_asm_light": {
-			"fontCharacter": "\\E004",
+			"fontCharacter": "\\E003",
 			"fontColor": "#b8383d"
 		},
 		"_asm": {
-			"fontCharacter": "\\E004",
+			"fontCharacter": "\\E003",
 			"fontColor": "#cc3e44"
 		},
 		"_audio_light": {
-			"fontCharacter": "\\E005",
+			"fontCharacter": "\\E004",
 			"fontColor": "#9068b0"
 		},
 		"_audio": {
-			"fontCharacter": "\\E005",
+			"fontCharacter": "\\E004",
 			"fontColor": "#a074c4"
 		},
 		"_babel_light": {
-			"fontCharacter": "\\E006",
+			"fontCharacter": "\\E005",
 			"fontColor": "#b7b73b"
 		},
 		"_babel": {
-			"fontCharacter": "\\E006",
+			"fontCharacter": "\\E005",
 			"fontColor": "#cbcb41"
 		},
 		"_bower_light": {
-			"fontCharacter": "\\E007",
+			"fontCharacter": "\\E006",
 			"fontColor": "#cc6d2e"
 		},
 		"_bower": {
-			"fontCharacter": "\\E007",
+			"fontCharacter": "\\E006",
 			"fontColor": "#e37933"
 		},
 		"_bsl_light": {
-			"fontCharacter": "\\E008",
+			"fontCharacter": "\\E007",
 			"fontColor": "#b8383d"
 		},
 		"_bsl": {
-			"fontCharacter": "\\E008",
+			"fontCharacter": "\\E007",
 			"fontColor": "#cc3e44"
 		},
 		"_c_light": {
-			"fontCharacter": "\\E00A",
+			"fontCharacter": "\\E009",
 			"fontColor": "#498ba7"
 		},
 		"_c": {
-			"fontCharacter": "\\E00A",
+			"fontCharacter": "\\E009",
 			"fontColor": "#519aba"
 		},
 		"_c-sharp_light": {
-			"fontCharacter": "\\E009",
+			"fontCharacter": "\\E008",
 			"fontColor": "#498ba7"
 		},
 		"_c-sharp": {
-			"fontCharacter": "\\E009",
+			"fontCharacter": "\\E008",
 			"fontColor": "#519aba"
 		},
 		"_c_1_light": {
-			"fontCharacter": "\\E00A",
+			"fontCharacter": "\\E009",
 			"fontColor": "#9068b0"
 		},
 		"_c_1": {
-			"fontCharacter": "\\E00A",
+			"fontCharacter": "\\E009",
 			"fontColor": "#a074c4"
 		},
 		"_c_2_light": {
-			"fontCharacter": "\\E00A",
+			"fontCharacter": "\\E009",
 			"fontColor": "#b7b73b"
 		},
 		"_c_2": {
-			"fontCharacter": "\\E00A",
+			"fontCharacter": "\\E009",
 			"fontColor": "#cbcb41"
 		},
 		"_cake_light": {
-			"fontCharacter": "\\E00B",
+			"fontCharacter": "\\E00A",
 			"fontColor": "#b8383d"
 		},
 		"_cake": {
-			"fontCharacter": "\\E00B",
+			"fontCharacter": "\\E00A",
 			"fontColor": "#cc3e44"
 		},
 		"_cake_php_light": {
-			"fontCharacter": "\\E00C",
+			"fontCharacter": "\\E00B",
 			"fontColor": "#b8383d"
 		},
 		"_cake_php": {
-			"fontCharacter": "\\E00C",
+			"fontCharacter": "\\E00B",
 			"fontColor": "#cc3e44"
 		},
 		"_clock_light": {
-			"fontCharacter": "\\E010",
+			"fontCharacter": "\\E00F",
 			"fontColor": "#498ba7"
 		},
 		"_clock": {
-			"fontCharacter": "\\E010",
+			"fontCharacter": "\\E00F",
 			"fontColor": "#519aba"
 		},
 		"_clock_1_light": {
-			"fontCharacter": "\\E010",
+			"fontCharacter": "\\E00F",
 			"fontColor": "#627379"
 		},
 		"_clock_1": {
-			"fontCharacter": "\\E010",
+			"fontCharacter": "\\E00F",
 			"fontColor": "#6d8086"
 		},
 		"_clojure_light": {
-			"fontCharacter": "\\E011",
+			"fontCharacter": "\\E010",
 			"fontColor": "#7fae42"
 		},
 		"_clojure": {
-			"fontCharacter": "\\E011",
+			"fontCharacter": "\\E010",
 			"fontColor": "#8dc149"
 		},
 		"_clojure_1_light": {
-			"fontCharacter": "\\E011",
+			"fontCharacter": "\\E010",
 			"fontColor": "#498ba7"
 		},
 		"_clojure_1": {
-			"fontCharacter": "\\E011",
+			"fontCharacter": "\\E010",
 			"fontColor": "#519aba"
 		},
 		"_code-climate_light": {
-			"fontCharacter": "\\E012",
+			"fontCharacter": "\\E011",
 			"fontColor": "#7fae42"
 		},
 		"_code-climate": {
-			"fontCharacter": "\\E012",
+			"fontCharacter": "\\E011",
 			"fontColor": "#8dc149"
 		},
 		"_code-search_light": {
-			"fontCharacter": "\\E013",
+			"fontCharacter": "\\E012",
 			"fontColor": "#9068b0"
 		},
 		"_code-search": {
-			"fontCharacter": "\\E013",
+			"fontCharacter": "\\E012",
 			"fontColor": "#a074c4"
 		},
 		"_coffee_light": {
-			"fontCharacter": "\\E014",
+			"fontCharacter": "\\E013",
 			"fontColor": "#b7b73b"
 		},
 		"_coffee": {
-			"fontCharacter": "\\E014",
+			"fontCharacter": "\\E013",
 			"fontColor": "#cbcb41"
 		},
 		"_coldfusion_light": {
-			"fontCharacter": "\\E016",
+			"fontCharacter": "\\E015",
 			"fontColor": "#498ba7"
 		},
 		"_coldfusion": {
-			"fontCharacter": "\\E016",
+			"fontCharacter": "\\E015",
 			"fontColor": "#519aba"
 		},
 		"_config_light": {
-			"fontCharacter": "\\E017",
+			"fontCharacter": "\\E016",
 			"fontColor": "#627379"
 		},
 		"_config": {
-			"fontCharacter": "\\E017",
+			"fontCharacter": "\\E016",
 			"fontColor": "#6d8086"
 		},
 		"_cpp_light": {
-			"fontCharacter": "\\E018",
+			"fontCharacter": "\\E017",
 			"fontColor": "#498ba7"
 		},
 		"_cpp": {
-			"fontCharacter": "\\E018",
+			"fontCharacter": "\\E017",
 			"fontColor": "#519aba"
 		},
 		"_cpp_1_light": {
-			"fontCharacter": "\\E018",
+			"fontCharacter": "\\E017",
 			"fontColor": "#9068b0"
 		},
 		"_cpp_1": {
-			"fontCharacter": "\\E018",
+			"fontCharacter": "\\E017",
 			"fontColor": "#a074c4"
 		},
 		"_cpp_2_light": {
-			"fontCharacter": "\\E018",
+			"fontCharacter": "\\E017",
 			"fontColor": "#b7b73b"
 		},
 		"_cpp_2": {
-			"fontCharacter": "\\E018",
+			"fontCharacter": "\\E017",
 			"fontColor": "#cbcb41"
 		},
 		"_crystal_light": {
-			"fontCharacter": "\\E019",
+			"fontCharacter": "\\E018",
 			"fontColor": "#bfc2c1"
 		},
 		"_crystal": {
-			"fontCharacter": "\\E019",
+			"fontCharacter": "\\E018",
 			"fontColor": "#d4d7d6"
 		},
 		"_crystal_embedded_light": {
-			"fontCharacter": "\\E01A",
+			"fontCharacter": "\\E019",
 			"fontColor": "#bfc2c1"
 		},
 		"_crystal_embedded": {
-			"fontCharacter": "\\E01A",
+			"fontCharacter": "\\E019",
 			"fontColor": "#d4d7d6"
 		},
 		"_css_light": {
-			"fontCharacter": "\\E01B",
+			"fontCharacter": "\\E01A",
 			"fontColor": "#498ba7"
 		},
 		"_css": {
-			"fontCharacter": "\\E01B",
+			"fontCharacter": "\\E01A",
 			"fontColor": "#519aba"
 		},
 		"_csv_light": {
-			"fontCharacter": "\\E01C",
+			"fontCharacter": "\\E01B",
 			"fontColor": "#7fae42"
 		},
 		"_csv": {
-			"fontCharacter": "\\E01C",
+			"fontCharacter": "\\E01B",
 			"fontColor": "#8dc149"
 		},
 		"_cu_light": {
-			"fontCharacter": "\\E01D",
+			"fontCharacter": "\\E01C",
 			"fontColor": "#7fae42"
 		},
 		"_cu": {
-			"fontCharacter": "\\E01D",
+			"fontCharacter": "\\E01C",
 			"fontColor": "#8dc149"
 		},
 		"_cu_1_light": {
-			"fontCharacter": "\\E01D",
+			"fontCharacter": "\\E01C",
 			"fontColor": "#9068b0"
 		},
 		"_cu_1": {
-			"fontCharacter": "\\E01D",
+			"fontCharacter": "\\E01C",
 			"fontColor": "#a074c4"
 		},
 		"_d_light": {
-			"fontCharacter": "\\E01E",
+			"fontCharacter": "\\E01D",
 			"fontColor": "#b8383d"
 		},
 		"_d": {
-			"fontCharacter": "\\E01E",
+			"fontCharacter": "\\E01D",
 			"fontColor": "#cc3e44"
 		},
 		"_dart_light": {
-			"fontCharacter": "\\E01F",
+			"fontCharacter": "\\E01E",
 			"fontColor": "#498ba7"
 		},
 		"_dart": {
-			"fontCharacter": "\\E01F",
+			"fontCharacter": "\\E01E",
 			"fontColor": "#519aba"
 		},
 		"_db_light": {
-			"fontCharacter": "\\E020",
+			"fontCharacter": "\\E01F",
 			"fontColor": "#dd4b78"
 		},
 		"_db": {
-			"fontCharacter": "\\E020",
+			"fontCharacter": "\\E01F",
 			"fontColor": "#f55385"
 		},
 		"_default_light": {
-			"fontCharacter": "\\E021",
+			"fontCharacter": "\\E020",
 			"fontColor": "#bfc2c1"
 		},
 		"_default": {
-			"fontCharacter": "\\E021",
+			"fontCharacter": "\\E020",
 			"fontColor": "#d4d7d6"
 		},
 		"_docker_light": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#498ba7"
 		},
 		"_docker": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#519aba"
 		},
 		"_docker_1_light": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#455155"
 		},
 		"_docker_1": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#4d5a5e"
 		},
 		"_docker_2_light": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#7fae42"
 		},
 		"_docker_2": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#8dc149"
 		},
 		"_docker_3_light": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#dd4b78"
 		},
 		"_docker_3": {
-			"fontCharacter": "\\E023",
+			"fontCharacter": "\\E022",
 			"fontColor": "#f55385"
 		},
 		"_ejs_light": {
-			"fontCharacter": "\\E025",
+			"fontCharacter": "\\E024",
 			"fontColor": "#b7b73b"
 		},
 		"_ejs": {
-			"fontCharacter": "\\E025",
+			"fontCharacter": "\\E024",
 			"fontColor": "#cbcb41"
 		},
 		"_elixir_light": {
-			"fontCharacter": "\\E026",
+			"fontCharacter": "\\E025",
 			"fontColor": "#9068b0"
 		},
 		"_elixir": {
-			"fontCharacter": "\\E026",
+			"fontCharacter": "\\E025",
 			"fontColor": "#a074c4"
 		},
 		"_elixir_script_light": {
-			"fontCharacter": "\\E027",
+			"fontCharacter": "\\E026",
 			"fontColor": "#9068b0"
 		},
 		"_elixir_script": {
-			"fontCharacter": "\\E027",
+			"fontCharacter": "\\E026",
 			"fontColor": "#a074c4"
 		},
 		"_elm_light": {
-			"fontCharacter": "\\E028",
+			"fontCharacter": "\\E027",
 			"fontColor": "#498ba7"
 		},
 		"_elm": {
-			"fontCharacter": "\\E028",
+			"fontCharacter": "\\E027",
 			"fontColor": "#519aba"
 		},
 		"_eslint_light": {
-			"fontCharacter": "\\E02A",
+			"fontCharacter": "\\E029",
 			"fontColor": "#9068b0"
 		},
 		"_eslint": {
-			"fontCharacter": "\\E02A",
+			"fontCharacter": "\\E029",
 			"fontColor": "#a074c4"
 		},
 		"_eslint_1_light": {
-			"fontCharacter": "\\E02A",
+			"fontCharacter": "\\E029",
 			"fontColor": "#455155"
 		},
 		"_eslint_1": {
-			"fontCharacter": "\\E02A",
+			"fontCharacter": "\\E029",
 			"fontColor": "#4d5a5e"
 		},
 		"_ethereum_light": {
-			"fontCharacter": "\\E02B",
+			"fontCharacter": "\\E02A",
 			"fontColor": "#498ba7"
 		},
 		"_ethereum": {
-			"fontCharacter": "\\E02B",
+			"fontCharacter": "\\E02A",
 			"fontColor": "#519aba"
 		},
 		"_f-sharp_light": {
-			"fontCharacter": "\\E02C",
+			"fontCharacter": "\\E02B",
 			"fontColor": "#498ba7"
 		},
 		"_f-sharp": {
-			"fontCharacter": "\\E02C",
+			"fontCharacter": "\\E02B",
 			"fontColor": "#519aba"
 		},
 		"_favicon_light": {
-			"fontCharacter": "\\E02D",
+			"fontCharacter": "\\E02C",
 			"fontColor": "#b7b73b"
 		},
 		"_favicon": {
-			"fontCharacter": "\\E02D",
+			"fontCharacter": "\\E02C",
 			"fontColor": "#cbcb41"
 		},
 		"_firebase_light": {
-			"fontCharacter": "\\E02E",
+			"fontCharacter": "\\E02D",
 			"fontColor": "#cc6d2e"
 		},
 		"_firebase": {
-			"fontCharacter": "\\E02E",
+			"fontCharacter": "\\E02D",
 			"fontColor": "#e37933"
 		},
 		"_firefox_light": {
-			"fontCharacter": "\\E02F",
+			"fontCharacter": "\\E02E",
 			"fontColor": "#cc6d2e"
 		},
 		"_firefox": {
-			"fontCharacter": "\\E02F",
+			"fontCharacter": "\\E02E",
 			"fontColor": "#e37933"
 		},
 		"_font_light": {
-			"fontCharacter": "\\E031",
+			"fontCharacter": "\\E030",
 			"fontColor": "#b8383d"
 		},
 		"_font": {
-			"fontCharacter": "\\E031",
+			"fontCharacter": "\\E030",
 			"fontColor": "#cc3e44"
 		},
 		"_git_light": {
-			"fontCharacter": "\\E032",
+			"fontCharacter": "\\E031",
 			"fontColor": "#3b4b52"
 		},
 		"_git": {
-			"fontCharacter": "\\E032",
+			"fontCharacter": "\\E031",
 			"fontColor": "#41535b"
 		},
 		"_github_light": {
-			"fontCharacter": "\\E035",
+			"fontCharacter": "\\E032",
 			"fontColor": "#bfc2c1"
 		},
 		"_github": {
-			"fontCharacter": "\\E035",
+			"fontCharacter": "\\E032",
 			"fontColor": "#d4d7d6"
 		},
 		"_go_light": {
-			"fontCharacter": "\\E036",
+			"fontCharacter": "\\E035",
 			"fontColor": "#498ba7"
 		},
 		"_go": {
-			"fontCharacter": "\\E036",
+			"fontCharacter": "\\E035",
 			"fontColor": "#519aba"
 		},
 		"_go2_light": {
-			"fontCharacter": "\\E037",
+			"fontCharacter": "\\E036",
 			"fontColor": "#498ba7"
 		},
 		"_go2": {
-			"fontCharacter": "\\E037",
+			"fontCharacter": "\\E036",
 			"fontColor": "#519aba"
 		},
 		"_gradle_light": {
-			"fontCharacter": "\\E038",
+			"fontCharacter": "\\E037",
 			"fontColor": "#498ba7"
 		},
 		"_gradle": {
-			"fontCharacter": "\\E038",
+			"fontCharacter": "\\E037",
 			"fontColor": "#519aba"
 		},
 		"_grails_light": {
-			"fontCharacter": "\\E039",
+			"fontCharacter": "\\E038",
 			"fontColor": "#7fae42"
 		},
 		"_grails": {
-			"fontCharacter": "\\E039",
+			"fontCharacter": "\\E038",
 			"fontColor": "#8dc149"
 		},
 		"_graphql_light": {
-			"fontCharacter": "\\E03A",
+			"fontCharacter": "\\E039",
 			"fontColor": "#dd4b78"
 		},
 		"_graphql": {
-			"fontCharacter": "\\E03A",
+			"fontCharacter": "\\E039",
 			"fontColor": "#f55385"
 		},
 		"_grunt_light": {
-			"fontCharacter": "\\E03B",
+			"fontCharacter": "\\E03A",
 			"fontColor": "#cc6d2e"
 		},
 		"_grunt": {
-			"fontCharacter": "\\E03B",
+			"fontCharacter": "\\E03A",
 			"fontColor": "#e37933"
 		},
 		"_gulp_light": {
-			"fontCharacter": "\\E03C",
+			"fontCharacter": "\\E03B",
 			"fontColor": "#b8383d"
 		},
 		"_gulp": {
-			"fontCharacter": "\\E03C",
+			"fontCharacter": "\\E03B",
 			"fontColor": "#cc3e44"
 		},
 		"_haml_light": {
-			"fontCharacter": "\\E03E",
+			"fontCharacter": "\\E03D",
 			"fontColor": "#b8383d"
 		},
 		"_haml": {
-			"fontCharacter": "\\E03E",
+			"fontCharacter": "\\E03D",
 			"fontColor": "#cc3e44"
 		},
 		"_happenings_light": {
-			"fontCharacter": "\\E03F",
+			"fontCharacter": "\\E03E",
 			"fontColor": "#498ba7"
 		},
 		"_happenings": {
-			"fontCharacter": "\\E03F",
+			"fontCharacter": "\\E03E",
 			"fontColor": "#519aba"
 		},
 		"_haskell_light": {
-			"fontCharacter": "\\E040",
+			"fontCharacter": "\\E03F",
 			"fontColor": "#9068b0"
 		},
 		"_haskell": {
-			"fontCharacter": "\\E040",
+			"fontCharacter": "\\E03F",
 			"fontColor": "#a074c4"
 		},
 		"_haxe_light": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#cc6d2e"
 		},
 		"_haxe": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#e37933"
 		},
 		"_haxe_1_light": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#b7b73b"
 		},
 		"_haxe_1": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#cbcb41"
 		},
 		"_haxe_2_light": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#498ba7"
 		},
 		"_haxe_2": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#519aba"
 		},
 		"_haxe_3_light": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#9068b0"
 		},
 		"_haxe_3": {
-			"fontCharacter": "\\E041",
+			"fontCharacter": "\\E040",
 			"fontColor": "#a074c4"
 		},
 		"_heroku_light": {
-			"fontCharacter": "\\E042",
+			"fontCharacter": "\\E041",
 			"fontColor": "#9068b0"
 		},
 		"_heroku": {
-			"fontCharacter": "\\E042",
+			"fontCharacter": "\\E041",
 			"fontColor": "#a074c4"
 		},
 		"_hex_light": {
-			"fontCharacter": "\\E043",
+			"fontCharacter": "\\E042",
 			"fontColor": "#b8383d"
 		},
 		"_hex": {
-			"fontCharacter": "\\E043",
+			"fontCharacter": "\\E042",
 			"fontColor": "#cc3e44"
 		},
 		"_html_light": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#498ba7"
 		},
 		"_html": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#519aba"
 		},
 		"_html_1_light": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#7fae42"
 		},
 		"_html_1": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#8dc149"
 		},
 		"_html_2_light": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#b7b73b"
 		},
 		"_html_2": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#cbcb41"
 		},
 		"_html_3_light": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#cc6d2e"
 		},
 		"_html_3": {
-			"fontCharacter": "\\E044",
+			"fontCharacter": "\\E043",
 			"fontColor": "#e37933"
 		},
 		"_html_erb_light": {
-			"fontCharacter": "\\E045",
+			"fontCharacter": "\\E044",
 			"fontColor": "#b8383d"
 		},
 		"_html_erb": {
-			"fontCharacter": "\\E045",
+			"fontCharacter": "\\E044",
 			"fontColor": "#cc3e44"
 		},
 		"_ignored_light": {
-			"fontCharacter": "\\E046",
+			"fontCharacter": "\\E045",
 			"fontColor": "#3b4b52"
 		},
 		"_ignored": {
-			"fontCharacter": "\\E046",
+			"fontCharacter": "\\E045",
 			"fontColor": "#41535b"
 		},
 		"_illustrator_light": {
-			"fontCharacter": "\\E047",
+			"fontCharacter": "\\E046",
 			"fontColor": "#b7b73b"
 		},
 		"_illustrator": {
-			"fontCharacter": "\\E047",
+			"fontCharacter": "\\E046",
 			"fontColor": "#cbcb41"
 		},
 		"_image_light": {
-			"fontCharacter": "\\E048",
+			"fontCharacter": "\\E047",
 			"fontColor": "#9068b0"
 		},
 		"_image": {
-			"fontCharacter": "\\E048",
+			"fontCharacter": "\\E047",
 			"fontColor": "#a074c4"
 		},
 		"_info_light": {
-			"fontCharacter": "\\E049",
+			"fontCharacter": "\\E048",
 			"fontColor": "#498ba7"
 		},
 		"_info": {
-			"fontCharacter": "\\E049",
+			"fontCharacter": "\\E048",
 			"fontColor": "#519aba"
 		},
 		"_ionic_light": {
-			"fontCharacter": "\\E04A",
+			"fontCharacter": "\\E049",
 			"fontColor": "#498ba7"
 		},
 		"_ionic": {
-			"fontCharacter": "\\E04A",
+			"fontCharacter": "\\E049",
 			"fontColor": "#519aba"
 		},
 		"_jade_light": {
-			"fontCharacter": "\\E04B",
+			"fontCharacter": "\\E04A",
 			"fontColor": "#b8383d"
 		},
 		"_jade": {
-			"fontCharacter": "\\E04B",
+			"fontCharacter": "\\E04A",
 			"fontColor": "#cc3e44"
 		},
 		"_java_light": {
-			"fontCharacter": "\\E04C",
+			"fontCharacter": "\\E04B",
 			"fontColor": "#b8383d"
 		},
 		"_java": {
-			"fontCharacter": "\\E04C",
+			"fontCharacter": "\\E04B",
 			"fontColor": "#cc3e44"
 		},
 		"_javascript_light": {
-			"fontCharacter": "\\E04D",
+			"fontCharacter": "\\E04C",
 			"fontColor": "#b7b73b"
 		},
 		"_javascript": {
-			"fontCharacter": "\\E04D",
+			"fontCharacter": "\\E04C",
 			"fontColor": "#cbcb41"
 		},
 		"_javascript_1_light": {
-			"fontCharacter": "\\E04D",
+			"fontCharacter": "\\E04C",
 			"fontColor": "#cc6d2e"
 		},
 		"_javascript_1": {
-			"fontCharacter": "\\E04D",
+			"fontCharacter": "\\E04C",
 			"fontColor": "#e37933"
 		},
 		"_javascript_2_light": {
-			"fontCharacter": "\\E04D",
+			"fontCharacter": "\\E04C",
 			"fontColor": "#498ba7"
 		},
 		"_javascript_2": {
-			"fontCharacter": "\\E04D",
+			"fontCharacter": "\\E04C",
 			"fontColor": "#519aba"
 		},
 		"_jenkins_light": {
-			"fontCharacter": "\\E04E",
+			"fontCharacter": "\\E04D",
 			"fontColor": "#b8383d"
 		},
 		"_jenkins": {
-			"fontCharacter": "\\E04E",
+			"fontCharacter": "\\E04D",
 			"fontColor": "#cc3e44"
 		},
 		"_jinja_light": {
-			"fontCharacter": "\\E04F",
+			"fontCharacter": "\\E04E",
 			"fontColor": "#b8383d"
 		},
 		"_jinja": {
-			"fontCharacter": "\\E04F",
+			"fontCharacter": "\\E04E",
 			"fontColor": "#cc3e44"
 		},
 		"_json_light": {
-			"fontCharacter": "\\E051",
+			"fontCharacter": "\\E04F",
 			"fontColor": "#b7b73b"
 		},
 		"_json": {
-			"fontCharacter": "\\E051",
+			"fontCharacter": "\\E04F",
 			"fontColor": "#cbcb41"
 		},
 		"_json_1_light": {
-			"fontCharacter": "\\E051",
+			"fontCharacter": "\\E04F",
 			"fontColor": "#7fae42"
 		},
 		"_json_1": {
-			"fontCharacter": "\\E051",
+			"fontCharacter": "\\E04F",
 			"fontColor": "#8dc149"
 		},
 		"_julia_light": {
-			"fontCharacter": "\\E052",
+			"fontCharacter": "\\E051",
 			"fontColor": "#9068b0"
 		},
 		"_julia": {
-			"fontCharacter": "\\E052",
+			"fontCharacter": "\\E051",
 			"fontColor": "#a074c4"
 		},
 		"_karma_light": {
-			"fontCharacter": "\\E053",
+			"fontCharacter": "\\E052",
 			"fontColor": "#7fae42"
 		},
 		"_karma": {
-			"fontCharacter": "\\E053",
+			"fontCharacter": "\\E052",
 			"fontColor": "#8dc149"
 		},
 		"_kotlin_light": {
-			"fontCharacter": "\\E054",
+			"fontCharacter": "\\E053",
 			"fontColor": "#cc6d2e"
 		},
 		"_kotlin": {
-			"fontCharacter": "\\E054",
+			"fontCharacter": "\\E053",
 			"fontColor": "#e37933"
 		},
 		"_less_light": {
-			"fontCharacter": "\\E055",
+			"fontCharacter": "\\E054",
 			"fontColor": "#498ba7"
 		},
 		"_less": {
-			"fontCharacter": "\\E055",
+			"fontCharacter": "\\E054",
 			"fontColor": "#519aba"
 		},
 		"_license_light": {
-			"fontCharacter": "\\E056",
+			"fontCharacter": "\\E055",
 			"fontColor": "#b7b73b"
 		},
 		"_license": {
-			"fontCharacter": "\\E056",
+			"fontCharacter": "\\E055",
 			"fontColor": "#cbcb41"
 		},
 		"_license_1_light": {
-			"fontCharacter": "\\E056",
+			"fontCharacter": "\\E055",
 			"fontColor": "#cc6d2e"
 		},
 		"_license_1": {
-			"fontCharacter": "\\E056",
+			"fontCharacter": "\\E055",
 			"fontColor": "#e37933"
 		},
 		"_license_2_light": {
-			"fontCharacter": "\\E056",
+			"fontCharacter": "\\E055",
 			"fontColor": "#b8383d"
 		},
 		"_license_2": {
-			"fontCharacter": "\\E056",
+			"fontCharacter": "\\E055",
 			"fontColor": "#cc3e44"
 		},
 		"_liquid_light": {
-			"fontCharacter": "\\E057",
+			"fontCharacter": "\\E056",
 			"fontColor": "#7fae42"
 		},
 		"_liquid": {
-			"fontCharacter": "\\E057",
+			"fontCharacter": "\\E056",
 			"fontColor": "#8dc149"
 		},
 		"_livescript_light": {
-			"fontCharacter": "\\E058",
+			"fontCharacter": "\\E057",
 			"fontColor": "#498ba7"
 		},
 		"_livescript": {
-			"fontCharacter": "\\E058",
+			"fontCharacter": "\\E057",
 			"fontColor": "#519aba"
 		},
 		"_lock_light": {
-			"fontCharacter": "\\E059",
+			"fontCharacter": "\\E058",
 			"fontColor": "#7fae42"
 		},
 		"_lock": {
-			"fontCharacter": "\\E059",
+			"fontCharacter": "\\E058",
 			"fontColor": "#8dc149"
 		},
 		"_lua_light": {
-			"fontCharacter": "\\E05A",
+			"fontCharacter": "\\E059",
 			"fontColor": "#498ba7"
 		},
 		"_lua": {
-			"fontCharacter": "\\E05A",
+			"fontCharacter": "\\E059",
 			"fontColor": "#519aba"
 		},
 		"_makefile_light": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#cc6d2e"
 		},
 		"_makefile": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#e37933"
 		},
 		"_makefile_1_light": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#9068b0"
 		},
 		"_makefile_1": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#a074c4"
 		},
 		"_makefile_2_light": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#627379"
 		},
 		"_makefile_2": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#6d8086"
 		},
 		"_makefile_3_light": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#498ba7"
 		},
 		"_makefile_3": {
-			"fontCharacter": "\\E05B",
+			"fontCharacter": "\\E05A",
 			"fontColor": "#519aba"
 		},
 		"_markdown_light": {
-			"fontCharacter": "\\E05C",
+			"fontCharacter": "\\E05B",
 			"fontColor": "#498ba7"
 		},
 		"_markdown": {
-			"fontCharacter": "\\E05C",
+			"fontCharacter": "\\E05B",
 			"fontColor": "#519aba"
 		},
 		"_maven_light": {
-			"fontCharacter": "\\E05D",
+			"fontCharacter": "\\E05C",
 			"fontColor": "#b8383d"
 		},
 		"_maven": {
-			"fontCharacter": "\\E05D",
+			"fontCharacter": "\\E05C",
 			"fontColor": "#cc3e44"
 		},
 		"_mdo_light": {
-			"fontCharacter": "\\E05E",
+			"fontCharacter": "\\E05D",
 			"fontColor": "#b8383d"
 		},
 		"_mdo": {
-			"fontCharacter": "\\E05E",
+			"fontCharacter": "\\E05D",
 			"fontColor": "#cc3e44"
 		},
 		"_mustache_light": {
-			"fontCharacter": "\\E05F",
+			"fontCharacter": "\\E05E",
 			"fontColor": "#cc6d2e"
 		},
 		"_mustache": {
-			"fontCharacter": "\\E05F",
+			"fontCharacter": "\\E05E",
 			"fontColor": "#e37933"
 		},
 		"_nim_light": {
-			"fontCharacter": "\\E061",
+			"fontCharacter": "\\E060",
 			"fontColor": "#b7b73b"
 		},
 		"_nim": {
-			"fontCharacter": "\\E061",
+			"fontCharacter": "\\E060",
 			"fontColor": "#cbcb41"
 		},
 		"_notebook_light": {
-			"fontCharacter": "\\E062",
+			"fontCharacter": "\\E061",
 			"fontColor": "#498ba7"
 		},
 		"_notebook": {
-			"fontCharacter": "\\E062",
+			"fontCharacter": "\\E061",
 			"fontColor": "#519aba"
 		},
 		"_npm_light": {
-			"fontCharacter": "\\E063",
+			"fontCharacter": "\\E062",
 			"fontColor": "#3b4b52"
 		},
 		"_npm": {
-			"fontCharacter": "\\E063",
+			"fontCharacter": "\\E062",
 			"fontColor": "#41535b"
 		},
 		"_npm_1_light": {
-			"fontCharacter": "\\E063",
+			"fontCharacter": "\\E062",
 			"fontColor": "#b8383d"
 		},
 		"_npm_1": {
-			"fontCharacter": "\\E063",
+			"fontCharacter": "\\E062",
 			"fontColor": "#cc3e44"
 		},
 		"_npm_ignored_light": {
-			"fontCharacter": "\\E064",
+			"fontCharacter": "\\E063",
 			"fontColor": "#3b4b52"
 		},
 		"_npm_ignored": {
-			"fontCharacter": "\\E064",
+			"fontCharacter": "\\E063",
 			"fontColor": "#41535b"
 		},
 		"_nunjucks_light": {
-			"fontCharacter": "\\E065",
+			"fontCharacter": "\\E064",
 			"fontColor": "#7fae42"
 		},
 		"_nunjucks": {
-			"fontCharacter": "\\E065",
+			"fontCharacter": "\\E064",
 			"fontColor": "#8dc149"
 		},
 		"_ocaml_light": {
-			"fontCharacter": "\\E066",
+			"fontCharacter": "\\E065",
 			"fontColor": "#cc6d2e"
 		},
 		"_ocaml": {
-			"fontCharacter": "\\E066",
+			"fontCharacter": "\\E065",
 			"fontColor": "#e37933"
 		},
 		"_odata_light": {
-			"fontCharacter": "\\E067",
+			"fontCharacter": "\\E066",
 			"fontColor": "#cc6d2e"
 		},
 		"_odata": {
-			"fontCharacter": "\\E067",
+			"fontCharacter": "\\E066",
 			"fontColor": "#e37933"
 		},
 		"_pddl_light": {
-			"fontCharacter": "\\E068",
+			"fontCharacter": "\\E067",
 			"fontColor": "#9068b0"
 		},
 		"_pddl": {
-			"fontCharacter": "\\E068",
+			"fontCharacter": "\\E067",
 			"fontColor": "#a074c4"
 		},
 		"_pdf_light": {
-			"fontCharacter": "\\E069",
+			"fontCharacter": "\\E068",
 			"fontColor": "#b8383d"
 		},
 		"_pdf": {
-			"fontCharacter": "\\E069",
+			"fontCharacter": "\\E068",
 			"fontColor": "#cc3e44"
 		},
 		"_perl_light": {
-			"fontCharacter": "\\E06A",
+			"fontCharacter": "\\E069",
 			"fontColor": "#498ba7"
 		},
 		"_perl": {
-			"fontCharacter": "\\E06A",
+			"fontCharacter": "\\E069",
 			"fontColor": "#519aba"
 		},
 		"_photoshop_light": {
-			"fontCharacter": "\\E06B",
+			"fontCharacter": "\\E06A",
 			"fontColor": "#498ba7"
 		},
 		"_photoshop": {
-			"fontCharacter": "\\E06B",
+			"fontCharacter": "\\E06A",
 			"fontColor": "#519aba"
 		},
 		"_php_light": {
-			"fontCharacter": "\\E06C",
+			"fontCharacter": "\\E06B",
 			"fontColor": "#9068b0"
 		},
 		"_php": {
-			"fontCharacter": "\\E06C",
+			"fontCharacter": "\\E06B",
 			"fontColor": "#a074c4"
 		},
 		"_plan_light": {
-			"fontCharacter": "\\E06D",
+			"fontCharacter": "\\E06C",
 			"fontColor": "#7fae42"
 		},
 		"_plan": {
-			"fontCharacter": "\\E06D",
+			"fontCharacter": "\\E06C",
 			"fontColor": "#8dc149"
 		},
 		"_platformio_light": {
-			"fontCharacter": "\\E06E",
+			"fontCharacter": "\\E06D",
 			"fontColor": "#cc6d2e"
 		},
 		"_platformio": {
-			"fontCharacter": "\\E06E",
+			"fontCharacter": "\\E06D",
 			"fontColor": "#e37933"
 		},
 		"_powershell_light": {
-			"fontCharacter": "\\E06F",
+			"fontCharacter": "\\E06E",
 			"fontColor": "#498ba7"
 		},
 		"_powershell": {
-			"fontCharacter": "\\E06F",
+			"fontCharacter": "\\E06E",
 			"fontColor": "#519aba"
 		},
 		"_prisma_light": {
-			"fontCharacter": "\\E070",
+			"fontCharacter": "\\E06F",
 			"fontColor": "#498ba7"
 		},
 		"_prisma": {
-			"fontCharacter": "\\E070",
+			"fontCharacter": "\\E06F",
 			"fontColor": "#519aba"
 		},
 		"_prolog_light": {
-			"fontCharacter": "\\E072",
+			"fontCharacter": "\\E071",
 			"fontColor": "#cc6d2e"
 		},
 		"_prolog": {
-			"fontCharacter": "\\E072",
+			"fontCharacter": "\\E071",
 			"fontColor": "#e37933"
 		},
 		"_pug_light": {
-			"fontCharacter": "\\E073",
+			"fontCharacter": "\\E072",
 			"fontColor": "#b8383d"
 		},
 		"_pug": {
-			"fontCharacter": "\\E073",
+			"fontCharacter": "\\E072",
 			"fontColor": "#cc3e44"
 		},
 		"_puppet_light": {
-			"fontCharacter": "\\E074",
+			"fontCharacter": "\\E073",
 			"fontColor": "#b7b73b"
 		},
 		"_puppet": {
-			"fontCharacter": "\\E074",
+			"fontCharacter": "\\E073",
 			"fontColor": "#cbcb41"
 		},
 		"_python_light": {
-			"fontCharacter": "\\E075",
+			"fontCharacter": "\\E074",
 			"fontColor": "#498ba7"
 		},
 		"_python": {
-			"fontCharacter": "\\E075",
+			"fontCharacter": "\\E074",
 			"fontColor": "#519aba"
 		},
 		"_react_light": {
@@ -1198,223 +1198,231 @@
 			"fontCharacter": "\\E088",
 			"fontColor": "#e37933"
 		},
-		"_svg_light": {
+		"_svelte_light": {
 			"fontCharacter": "\\E089",
+			"fontColor": "#b8383d"
+		},
+		"_svelte": {
+			"fontCharacter": "\\E089",
+			"fontColor": "#cc3e44"
+		},
+		"_svg_light": {
+			"fontCharacter": "\\E08A",
 			"fontColor": "#9068b0"
 		},
 		"_svg": {
-			"fontCharacter": "\\E089",
+			"fontCharacter": "\\E08A",
 			"fontColor": "#a074c4"
 		},
 		"_svg_1_light": {
-			"fontCharacter": "\\E089",
+			"fontCharacter": "\\E08A",
 			"fontColor": "#498ba7"
 		},
 		"_svg_1": {
-			"fontCharacter": "\\E089",
+			"fontCharacter": "\\E08A",
 			"fontColor": "#519aba"
 		},
 		"_swift_light": {
-			"fontCharacter": "\\E08A",
+			"fontCharacter": "\\E08B",
 			"fontColor": "#cc6d2e"
 		},
 		"_swift": {
-			"fontCharacter": "\\E08A",
+			"fontCharacter": "\\E08B",
 			"fontColor": "#e37933"
 		},
 		"_terraform_light": {
-			"fontCharacter": "\\E08B",
+			"fontCharacter": "\\E08C",
 			"fontColor": "#9068b0"
 		},
 		"_terraform": {
-			"fontCharacter": "\\E08B",
+			"fontCharacter": "\\E08C",
 			"fontColor": "#a074c4"
 		},
 		"_tex_light": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#498ba7"
 		},
 		"_tex": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#519aba"
 		},
 		"_tex_1_light": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#b7b73b"
 		},
 		"_tex_1": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#cbcb41"
 		},
 		"_tex_2_light": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#cc6d2e"
 		},
 		"_tex_2": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#e37933"
 		},
 		"_tex_3_light": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#bfc2c1"
 		},
 		"_tex_3": {
-			"fontCharacter": "\\E08C",
+			"fontCharacter": "\\E08D",
 			"fontColor": "#d4d7d6"
 		},
 		"_todo": {
-			"fontCharacter": "\\E08E"
+			"fontCharacter": "\\E08F"
 		},
 		"_tsconfig_light": {
-			"fontCharacter": "\\E08F",
+			"fontCharacter": "\\E090",
 			"fontColor": "#498ba7"
 		},
 		"_tsconfig": {
-			"fontCharacter": "\\E08F",
+			"fontCharacter": "\\E090",
 			"fontColor": "#519aba"
 		},
 		"_twig_light": {
-			"fontCharacter": "\\E090",
+			"fontCharacter": "\\E091",
 			"fontColor": "#7fae42"
 		},
 		"_twig": {
-			"fontCharacter": "\\E090",
+			"fontCharacter": "\\E091",
 			"fontColor": "#8dc149"
 		},
 		"_typescript_light": {
-			"fontCharacter": "\\E091",
+			"fontCharacter": "\\E092",
 			"fontColor": "#498ba7"
 		},
 		"_typescript": {
-			"fontCharacter": "\\E091",
+			"fontCharacter": "\\E092",
 			"fontColor": "#519aba"
 		},
 		"_typescript_1_light": {
-			"fontCharacter": "\\E091",
+			"fontCharacter": "\\E092",
 			"fontColor": "#b7b73b"
 		},
 		"_typescript_1": {
-			"fontCharacter": "\\E091",
+			"fontCharacter": "\\E092",
 			"fontColor": "#cbcb41"
 		},
 		"_vala_light": {
-			"fontCharacter": "\\E092",
+			"fontCharacter": "\\E093",
 			"fontColor": "#627379"
 		},
 		"_vala": {
-			"fontCharacter": "\\E092",
+			"fontCharacter": "\\E093",
 			"fontColor": "#6d8086"
 		},
 		"_video_light": {
-			"fontCharacter": "\\E093",
+			"fontCharacter": "\\E094",
 			"fontColor": "#dd4b78"
 		},
 		"_video": {
-			"fontCharacter": "\\E093",
+			"fontCharacter": "\\E094",
 			"fontColor": "#f55385"
 		},
 		"_vue_light": {
-			"fontCharacter": "\\E094",
+			"fontCharacter": "\\E095",
 			"fontColor": "#7fae42"
 		},
 		"_vue": {
-			"fontCharacter": "\\E094",
+			"fontCharacter": "\\E095",
 			"fontColor": "#8dc149"
 		},
 		"_wasm_light": {
-			"fontCharacter": "\\E095",
+			"fontCharacter": "\\E096",
 			"fontColor": "#9068b0"
 		},
 		"_wasm": {
-			"fontCharacter": "\\E095",
+			"fontCharacter": "\\E096",
 			"fontColor": "#a074c4"
 		},
 		"_wat_light": {
-			"fontCharacter": "\\E096",
+			"fontCharacter": "\\E097",
 			"fontColor": "#9068b0"
 		},
 		"_wat": {
-			"fontCharacter": "\\E096",
+			"fontCharacter": "\\E097",
 			"fontColor": "#a074c4"
 		},
 		"_webpack_light": {
-			"fontCharacter": "\\E097",
+			"fontCharacter": "\\E098",
 			"fontColor": "#498ba7"
 		},
 		"_webpack": {
-			"fontCharacter": "\\E097",
+			"fontCharacter": "\\E098",
 			"fontColor": "#519aba"
 		},
 		"_wgt_light": {
-			"fontCharacter": "\\E098",
+			"fontCharacter": "\\E099",
 			"fontColor": "#498ba7"
 		},
 		"_wgt": {
-			"fontCharacter": "\\E098",
+			"fontCharacter": "\\E099",
 			"fontColor": "#519aba"
 		},
 		"_windows_light": {
-			"fontCharacter": "\\E099",
+			"fontCharacter": "\\E09A",
 			"fontColor": "#498ba7"
 		},
 		"_windows": {
-			"fontCharacter": "\\E099",
+			"fontCharacter": "\\E09A",
 			"fontColor": "#519aba"
 		},
 		"_word_light": {
-			"fontCharacter": "\\E09A",
+			"fontCharacter": "\\E09B",
 			"fontColor": "#498ba7"
 		},
 		"_word": {
-			"fontCharacter": "\\E09A",
+			"fontCharacter": "\\E09B",
 			"fontColor": "#519aba"
 		},
 		"_xls_light": {
-			"fontCharacter": "\\E09B",
+			"fontCharacter": "\\E09C",
 			"fontColor": "#7fae42"
 		},
 		"_xls": {
-			"fontCharacter": "\\E09B",
+			"fontCharacter": "\\E09C",
 			"fontColor": "#8dc149"
 		},
 		"_xml_light": {
-			"fontCharacter": "\\E09C",
+			"fontCharacter": "\\E09D",
 			"fontColor": "#cc6d2e"
 		},
 		"_xml": {
-			"fontCharacter": "\\E09C",
+			"fontCharacter": "\\E09D",
 			"fontColor": "#e37933"
 		},
 		"_yarn_light": {
-			"fontCharacter": "\\E09D",
+			"fontCharacter": "\\E09E",
 			"fontColor": "#498ba7"
 		},
 		"_yarn": {
-			"fontCharacter": "\\E09D",
+			"fontCharacter": "\\E09E",
 			"fontColor": "#519aba"
 		},
 		"_yml_light": {
-			"fontCharacter": "\\E09E",
+			"fontCharacter": "\\E09F",
 			"fontColor": "#9068b0"
 		},
 		"_yml": {
-			"fontCharacter": "\\E09E",
+			"fontCharacter": "\\E09F",
 			"fontColor": "#a074c4"
 		},
 		"_zip_light": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#b8383d"
 		},
 		"_zip": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#cc3e44"
 		},
 		"_zip_1_light": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#627379"
 		},
 		"_zip_1": {
-			"fontCharacter": "\\E09F",
+			"fontCharacter": "\\E0A0",
 			"fontColor": "#6d8086"
 		}
 	},
@@ -1546,6 +1554,7 @@
 		"scala": "_scala",
 		"sol": "_ethereum",
 		"styl": "_stylus",
+		"svelte": "_svelte",
 		"tf": "_terraform",
 		"tf.json": "_terraform",
 		"tfvars": "_terraform",
@@ -1666,9 +1675,6 @@
 		"gruntfile.coffee": "_grunt",
 		"gulpfile": "_gulp",
 		"gulpfile.js": "_gulp",
-		"gulpfile.mjs": "_gulp",
-		"gulpfile.cjs": "_gulp",
-		"gulpfile.esm.js": "_gulp",
 		"ionic.config.json": "_ionic",
 		"ionic.project": "_ionic",
 		"platformio.ini": "_platformio",
@@ -1757,6 +1763,7 @@
 		"haml": "_haml",
 		"stylus": "_stylus",
 		"vala": "_vala",
+		"github-issues": "_github",
 		"todo": "_todo",
 		"postcss": "_css",
 		"django-html": "_html_3"
@@ -1890,6 +1897,7 @@
 			"scala": "_scala_light",
 			"sol": "_ethereum_light",
 			"styl": "_stylus_light",
+			"svelte": "_svelte_light",
 			"tf": "_terraform_light",
 			"tf.json": "_terraform_light",
 			"tfvars": "_terraform_light",
@@ -2041,6 +2049,7 @@
 			"haml": "_haml_light",
 			"stylus": "_stylus_light",
 			"vala": "_vala_light",
+			"github-issues": "_github_light",
 			"postcss": "_css_light",
 			"django-html": "_html_3_light"
 		},
@@ -2101,5 +2110,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/4bbf2132df28c71302e305077ce20a811bf7d64b"
+	"version": "https://github.com/jesseweed/seti-ui/commit/9c1c29d6e9358f9ae99bd3a4bf0d2fa804dca686"
 }

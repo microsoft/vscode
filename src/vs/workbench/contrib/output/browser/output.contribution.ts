@@ -54,23 +54,13 @@ ModesRegistry.registerLanguage({
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	title: {
-		value: nls.localize('output', "Output"), original: 'Output',
-		mnemonic: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
-	},
-	keybindings: {
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
-		linux: {
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
-		}
-	},
-	commandId: 'workbench.action.output.toggleOutput',
+	title: nls.localize('output', "Output"),
 	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: OUTPUT_VIEW_ID,
 	hideIfEmpty: true,
-}, ViewContainerLocation.Panel);
+}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
@@ -79,6 +69,17 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	canMoveView: true,
 	canToggleVisibility: false,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
+	openCommandActionDescriptor: {
+		id: 'workbench.action.output.toggleOutput',
+		mnemonicTitle: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"),
+		keybindings: {
+			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_U,
+			linux: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_H)  // On Ubuntu Ctrl+Shift+U is taken by some global OS command
+			}
+		},
+		order: 1,
+	}
 }], VIEW_CONTAINER);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(

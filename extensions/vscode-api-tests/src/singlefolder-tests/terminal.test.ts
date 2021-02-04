@@ -5,6 +5,7 @@
 
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
+import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
@@ -30,6 +31,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		let disposables: Disposable[] = [];
 
 		teardown(() => {
+			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
 		});

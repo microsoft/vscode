@@ -1136,7 +1136,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: SYNC_VIEW_CONTAINER_ID,
-				title: { value: SYNC_TITLE, original: 'Settings Sync' },
+				title: SYNC_TITLE,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					[SYNC_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]

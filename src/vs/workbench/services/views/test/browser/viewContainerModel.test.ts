@@ -61,13 +61,13 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('empty model', function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		assert.equal(testObject.visibleViewDescriptors.length, 0);
 	});
 
 	test('register/unregister', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -94,7 +94,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('when contexts', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		assert.equal(testObject.visibleViewDescriptors.length, 0);
@@ -138,7 +138,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('when contexts - multiple', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
@@ -161,7 +161,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('when contexts - multiple 2', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
@@ -184,7 +184,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('setVisible', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', canToggleVisibility: true };
@@ -229,7 +229,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('move', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
@@ -259,7 +259,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states', async function () {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -279,7 +279,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states and when contexts', async function () {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -309,7 +309,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states and when contexts multiple views', async function () {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -354,7 +354,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('remove event is not triggered if view was hidden and removed', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
@@ -383,7 +383,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('add event is not triggered if view was set visible (when visible) and not active', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
@@ -409,7 +409,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('remove event is not triggered if view was hidden and not active', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
@@ -435,7 +435,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('add event is not triggered if view was set visible (when not visible) and not active', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
@@ -465,7 +465,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('added view descriptors are in ascending order in the event', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
