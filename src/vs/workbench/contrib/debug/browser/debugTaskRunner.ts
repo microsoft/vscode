@@ -185,7 +185,7 @@ export class DebugTaskRunner {
 			setTimeout(() => {
 				if (!taskStarted) {
 					const errorMessage = typeof taskId === 'string'
-						? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked. Make sure to have a problem matcher defined.")
+						? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
 						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
 					e({ severity: severity.Error, message: errorMessage });
 				}
