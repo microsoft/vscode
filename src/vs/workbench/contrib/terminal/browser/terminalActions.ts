@@ -1471,14 +1471,14 @@ export function registerTerminalActions() {
 					title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
 					f1: true,
 					category,
-					precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+					precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED),
 					keybinding: [{
 						primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C] },
 						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)
-					}],
+					}]
 				});
 			}
 			async run(accessor: ServicesAccessor) {
@@ -1486,13 +1486,14 @@ export function registerTerminalActions() {
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
-			// TODO: Disable when there is no selection
 			command: {
 				id: TERMINAL_COMMAND_ID.COPY_SELECTION,
 				title: localize('workbench.action.terminal.copySelection.short', "Copy")
 			},
 			group: ContextMenuGroup.Edit,
-			order: 1
+			order: 1,
+			// TODO: Ideally this would disable not hide so users can discover the keybinding
+			when: KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED
 		});
 	}
 
