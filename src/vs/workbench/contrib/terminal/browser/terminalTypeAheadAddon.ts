@@ -37,7 +37,7 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  *  - cursor hide/show
  *  - mode set/reset
  */
-const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
+const PREDICTION_OMIT_RE = /^((\x1b\[\??25[hl])|(\x1b\[6n)|(\x1b\[\??12[hl]))+/;
 
 const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
 const flushOutput = (terminal: Terminal) => core(terminal).writeSync('');
@@ -820,18 +820,39 @@ export class PredictionTimeline {
 		const reader = new StringReader(input);
 		const startingGen = this.expected[0].gen;
 		const emitPredictionOmitted = () => {
-			const omit = reader.eatRe(PREDICTION_OMIT_RE);
+			let omit = reader.eatRe(PREDICTION_OMIT_RE);
 			if (omit) {
 				output += omit[0];
+				omit = reader.eatRe(PREDICTION_OMIT_RE);
 			}
 		};
 
+		emitPredictionOmitted();
 		ReadLoop: while (this.expected.length && reader.remaining > 0) {
 			emitPredictionOmitted();
 
 			const { p: prediction, gen } = this.expected[0];
 			const cursor = this.physicalCursor(buffer);
 			let beforeTestReaderIndex = reader.index;
+
+			const cursorMove = reader.eatRe(/^\x1b\[(\d+);(\d+)H/);
+			if (cursorMove) {
+				flushOutput(this.terminal);
+				const x = cursor.x - 1;
+				// We need to follow the cursor movements
+				cursor.moveTo({
+					x: parseInt(cursorMove[2]) - 1,
+					y: parseInt(cursorMove[1]) - 1,
+					baseY: cursor.baseY
+				});
+				do {
+					while (reader.eatRe(CSI_STYLE_RE)) { }
+					const a = cursor.getCell()?.getChars();
+					reader.eatChar(a!);
+					cursor.shift(a?.length);
+				} while (cursor.x < x);
+			}
+
 			const matchResult = prediction.matches(reader, this.lookBehind);
 			switch (matchResult) {
 				case MatchResult.Success:
