@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,7 +30,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 	private statusBarDisposable: IDisposable = Disposable.None;
 	private focusDisposable: IDisposable = Disposable.None;
 	private focusedRepository: ISCMRepository | undefined = undefined;
-	private focusedProviderContextKey: IContextKey<string | undefined>;
 	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
 	private disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
@@ -45,7 +44,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
@@ -126,7 +124,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		this.focusDisposable.dispose();
 		this.focusedRepository = repository;
-		this.focusedProviderContextKey.set(repository && repository.provider.id);
 
 		if (repository && repository.provider.onDidChangeStatusBarCommands) {
 			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.renderStatusBar(repository));

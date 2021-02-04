@@ -1486,9 +1486,8 @@ declare module 'vscode' {
 	export class NotebookCellOutput {
 
 		readonly outputs: NotebookCellOutputItem[];
-		readonly metadata?: Record<string, string | number | boolean>;
 
-		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
+		constructor(outputs: NotebookCellOutputItem[]);
 
 		//TODO@jrieken HACK to workaround dependency issues...
 		toJSON(): any;

@@ -2826,10 +2826,7 @@ export class NotebookCellOutput {
 		return obj instanceof NotebookCellOutput;
 	}
 
-	constructor(
-		readonly outputs: NotebookCellOutputItem[],
-		readonly metadata?: Record<string, string | number | boolean>
-	) { }
+	constructor(readonly outputs: NotebookCellOutputItem[]) { }
 
 	toJSON(): IDisplayOutput {
 		let data: { [key: string]: unknown; } = {};

@@ -1230,6 +1230,10 @@ export function asCSSUrl(uri: URI): string {
 	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
+export function asCSSPropertyValue(value: string) {
+	return `'${value.replace(/'/g, '%27')}'`;
+}
+
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
 	// If the data is provided as Buffer, we create a
