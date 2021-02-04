@@ -186,10 +186,10 @@
     global-agent "^2.0.2"
     global-tunnel-ng "^2.7.1"
 
-"@gitpod/gitpod-protocol@master":
-  version "0.1.5-master.453"
-  resolved "https://registry.yarnpkg.com/@gitpod/gitpod-protocol/-/gitpod-protocol-0.1.5-master.453.tgz#c2e9b04acedc4a13d52092a65b055c3ef9386a94"
-  integrity sha512-MOKm3lLThZCadJ76G+dEQeZYSWc8Dh6knYMDar4qQTjST0jF6dzX2tHI/yWQAz9QgUui+SWLqp9GUasyYaF5Zg==
+"@gitpod/gitpod-protocol@ak-code-user-data-sync":
+  version "0.1.5-ak-code-user-data-sync.75"
+  resolved "https://registry.yarnpkg.com/@gitpod/gitpod-protocol/-/gitpod-protocol-0.1.5-ak-code-user-data-sync.75.tgz#2b91c323bfffa7fa48fba015bb053ff05d0c1e7a"
+  integrity sha512-zgxap0MpCtXbQcOzdnF1WXb8QLaOCuoz2g8zXmMw9uSNvtY9xUgsFOb4TA7NrUX5HeKquJ6u3Lw/RtMA991AtA==
   dependencies:
     ajv "^6.5.4"
     inversify "^5.0.1"

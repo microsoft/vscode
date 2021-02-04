@@ -21,7 +21,7 @@
 	"linuxIconName": "io.gitpod.code",
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/gitpod-io/gitpod/issues/new",
-	"urlProtocol": "code-oss",
+	"urlProtocol": "gitpod-code",
 	"extensionAllowedProposedApi": [
 		"gitpod",
 		"ms-vscode.vscode-js-profile-flame",
