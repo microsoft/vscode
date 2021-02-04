@@ -8,12 +8,12 @@ import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { SwitchTerminalActionViewItem } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { ConfigureTerminalSettingsAction, switchTerminalActionViewItemSepartator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -29,6 +29,11 @@ import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -344,3 +349,51 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
 	}
 });
+
+
+class SwitchTerminalActionViewItem extends SelectActionViewItem {
+	constructor(
+		action: IAction,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
+		@IContextViewService contextViewService: IContextViewService,
+	) {
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+
+		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
+		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
+		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this._register(_terminalService.onTabDisposed(this._updateItems, this));
+		this._register(_terminalService.onDidChangeConnectionState(this._updateItems, this));
+		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('switch-terminal');
+		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+		}));
+	}
+
+	private _updateItems(): void {
+		this.setOptions(getTerminalSelectOpenItems(this._terminalService, this._contributions), this._terminalService.activeTabIndex);
+	}
+}
+
+function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
+	const items = terminalService.connectionState === TerminalConnectionState.Connected ?
+		terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }) :
+		[{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
+
+	items.push({ text: switchTerminalActionViewItemSepartator, isDisabled: true });
+
+	for (const contributed of contributions.terminalTypes) {
+		items.push({ text: contributed.title });
+	}
+
+	items.push({ text: nls.localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell") });
+	items.push({ text: ConfigureTerminalSettingsAction.LABEL });
+	return items;
+}

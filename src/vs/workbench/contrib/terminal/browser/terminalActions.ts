@@ -3,44 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction } from 'vs/base/common/actions';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, IRemoteTerminalAttachTarget, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { Action } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Action2, registerAction2, ILocalizedString, MenuId, MenuRegistry, ICommandActionTitle } from 'vs/platform/actions/common/actions';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
+import { Action2, ICommandActionTitle, ILocalizedString, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
+import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
+import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { Codicon } from 'vs/base/common/codicons';
+
+export const switchTerminalActionViewItemSepartator = '─────────';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -91,6 +87,7 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 	});
 };
 
+// TODO: Convert this to registerAction2
 export class ConfigureTerminalSettingsAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS;
@@ -109,56 +106,6 @@ export class ConfigureTerminalSettingsAction extends Action {
 }
 
 const terminalIndexRe = /^([0-9]+): /;
-
-export class SwitchTerminalActionViewItem extends SelectActionViewItem {
-
-	public static readonly SEPARATOR = '─────────';
-
-	constructor(
-		action: IAction,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
-		@IContextViewService contextViewService: IContextViewService,
-	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
-
-		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
-		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
-		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
-		this._register(_terminalService.onTabDisposed(this._updateItems, this));
-		this._register(_terminalService.onDidChangeConnectionState(this._updateItems, this));
-		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
-	}
-
-	render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('switch-terminal');
-		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
-		}));
-	}
-
-	private _updateItems(): void {
-		this.setOptions(getTerminalSelectOpenItems(this._terminalService, this._contributions), this._terminalService.activeTabIndex);
-	}
-}
-
-function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
-	const items = terminalService.connectionState === TerminalConnectionState.Connected ?
-		terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }) :
-		[{ text: localize('terminalConnectingLabel', "Starting...") }];
-
-	items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
-
-	for (const contributed of contributions.terminalTypes) {
-		items.push({ text: contributed.title });
-	}
-
-	items.push({ text: localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell") });
-	items.push({ text: ConfigureTerminalSettingsAction.LABEL });
-	return items;
-}
 
 export class TerminalLaunchHelpAction extends Action {
 
@@ -1482,54 +1429,6 @@ export function registerTerminalActions() {
 		});
 	}
 
-
-	// export class SwitchTerminalAction extends Action {
-
-	// 	public static readonly ID = TERMINAL_COMMAND_ID.SWITCH_TERMINAL;
-	// 	public static readonly LABEL = localize('workbench.action.terminal.switchTerminal', "Switch Terminal");
-
-	// 	constructor(
-	// 		id: string, label: string,
-	// 		@ITerminalService private readonly _terminalService: ITerminalService,
-	// 		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
-	// 		@ICommandService private readonly _commands: ICommandService,
-	// 		@IPreferencesService private readonly preferencesService: IPreferencesService
-	// 	) {
-	// 		super(id, label, 'terminal-action switch-terminal');
-	// 	}
-
-	// 	public run(item?: string): Promise<any> {
-	// 		if (!item || !item.split) {
-	// 			return Promise.resolve(null);
-	// 		}
-	// 		if (item === SwitchTerminalActionViewItem.SEPARATOR) {
-	// 			this._terminalService.refreshActiveTab();
-	// 			return Promise.resolve(null);
-	// 		}
-	// 		if (item === localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell")) {
-	// 			this._terminalService.refreshActiveTab();
-	// 			return this._terminalService.selectDefaultShell();
-	// 		}
-	// 		if (item === ConfigureTerminalSettingsAction.LABEL) {
-	// 			const settingsAction = new ConfigureTerminalSettingsAction(ConfigureTerminalSettingsAction.ID, ConfigureTerminalSettingsAction.LABEL, this.preferencesService);
-	// 			settingsAction.run();
-	// 			this._terminalService.refreshActiveTab();
-	// 		}
-	// 		const indexMatches = terminalIndexRe.exec(item);
-	// 		if (indexMatches) {
-	// 			this._terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
-	// 			return this._terminalService.showPanel(true);
-	// 		}
-
-	// 		const customType = this._contributions.terminalTypes.find(t => t.title === item);
-	// 		if (customType) {
-	// 			return this._commands.executeCommand(customType.command);
-	// 		}
-
-	// 		console.warn(`Unmatched terminal item: "${item}"`);
-	// 		return Promise.resolve();
-	// 	}
-	// }
 	const switchTerminalTitle: ICommandActionTitle = { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' };
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1556,7 +1455,7 @@ export function registerTerminalActions() {
 			if (!item || !item.split) {
 				return Promise.resolve(null);
 			}
-			if (item === SwitchTerminalActionViewItem.SEPARATOR) {
+			if (item === switchTerminalActionViewItemSepartator) {
 				terminalService.refreshActiveTab();
 				return Promise.resolve(null);
 			}
