@@ -107,7 +107,7 @@ export interface ITreeElement {
 }
 
 export interface IReplElement extends ITreeElement {
-	toString(): string;
+	toString(includeSource?: boolean): string;
 	readonly sourceData?: IReplElementSource;
 }
 
@@ -504,6 +504,7 @@ export interface IDebugConfiguration {
 		lineHeight: number;
 		wordWrap: boolean;
 		closeOnEnd: boolean;
+		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
 	};
 	focusWindowOnBreak: boolean;

@@ -88,7 +88,7 @@ export class DebugSession implements IDebugSession {
 	) {
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
-			this.repl = new ReplModel();
+			this.repl = new ReplModel(this.configurationService);
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}

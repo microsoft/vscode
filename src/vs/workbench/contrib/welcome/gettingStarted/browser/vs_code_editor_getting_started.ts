@@ -17,7 +17,7 @@ export default () => `
 			</div>
 		</div>
 		<div class="gettingStartedSlideDetails gettingStartedSlide detail">
-			<a class="prev-button" x-dispatch="scrollPrev"><span class="scroll-button codicon codicon-chevron-left"></span>Back</a>
+			<button class="prev-button button-link" x-dispatch="scrollPrev"><span class="scroll-button codicon codicon-chevron-left"></span>Back</a>
 			<div class="gettingStartedDetailsContent">
 				<div class="gap"></div>
 				<div class="getting-started-detail-columns">

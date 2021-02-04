@@ -238,10 +238,11 @@
 	outline-style: solid;
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button {
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button.button-link {
 	position: absolute;
-	left: -2px;
-	top: -10px;
+	left: 40px;
+	top: 5px;
+	padding: 0 2px 2px;
 	margin: 10px;
 	z-index: 1;
 }
@@ -252,7 +253,8 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button .codicon {
 	position: relative;
-	top: 2px;
+	top: 3px;
+	left: -4px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide .skip {
