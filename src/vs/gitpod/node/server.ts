@@ -234,8 +234,9 @@ async function installExtensionsFromServer(
 			continue;
 		}
 		const { fullPluginName, url, kind } = resolvedPlugin;
-		if (kind === 'builtin') {
-			// ignore built-in extension configured for Theia, we default to VS Code built-in extensions
+		if (kind === 'builtin' || kind === 'user') {
+			// ignore built-in extensions configured for Theia, we default to VS Code built-in extensions
+			// ignore user extensions installed in Theia, since we switched to the sync storage for them
 			continue;
 		}
 		pending.push((async () => {

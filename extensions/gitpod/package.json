@@ -212,7 +212,13 @@
           "name": "Gitpod Workspace"
         }
       ]
-    }
+    },
+    "authentication": [
+      {
+        "id": "gitpod",
+        "label": "Gitpod"
+      }
+    ]
   },
   "scripts": {
     "compile": "gulp compile-extension:gitpod",

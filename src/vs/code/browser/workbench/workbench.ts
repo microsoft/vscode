@@ -5,22 +5,21 @@
 
 /// <reference types='@gitpod/gitpod-protocol/lib/typings/globals'/>
 
+import type { IDEFrontendState } from '@gitpod/gitpod-protocol/lib/ide-frontend-service';
 import { isStandalone } from 'vs/base/browser/browser';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { commands, create, IHomeIndicator, IWorkspace, IWorkspaceProvider, ICredentialsProvider } from 'vs/workbench/workbench.web.api';
-import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { join } from 'vs/base/common/path';
-import product from 'vs/platform/product/common/product';
-import { extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
-import type { IDEFrontendState } from '@gitpod/gitpod-protocol/lib/ide-frontend-service';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { parseLogLevel } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
+import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
+import { extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { commands, create, ICredentialsProvider, IHomeIndicator, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
 
 interface ICredential {
 	service: string;
@@ -57,17 +56,17 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	async getPassword(service: string, account: string): Promise<string | null> {
-		const password = (await commands.executeCommand('gitpod.getPassword', service, account)) as any as string | undefined;
-		if (password) {
-			return password;
-		}
-
 		for (const credential of this.credentials) {
 			if (credential.service === service) {
 				if (typeof account !== 'string' || account === credential.account) {
 					return credential.password;
 				}
 			}
+		}
+
+		const password = (await commands.executeCommand('gitpod.getPassword', service, account)) as any as string | undefined;
+		if (password) {
+			return password;
 		}
 
 		return null;
@@ -205,6 +204,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 const devMode = product.nameShort.endsWith(' Dev');
 
 let _state: IDEFrontendState = 'init';
+let _failureCause: Error | undefined;
 const onDidChangeEmitter = new Emitter<void>();
 const toStop = new DisposableStore();
 toStop.add(onDidChangeEmitter);
@@ -219,6 +219,10 @@ function start(): IDisposable {
 	doStart().then(toDoStop => {
 		toStop.add(toDoStop);
 		_state = 'ready';
+		onDidChangeEmitter.fire();
+	}, e => {
+		_failureCause = e;
+		_state = 'terminated';
 		onDidChangeEmitter.fire();
 	});
 	return toStop;
@@ -242,19 +246,16 @@ async function doStart(): Promise<IDisposable> {
 		workspaceLocationFolder?: string
 		userHome: string
 		gitpodHost: string
+		gitpodApi: {
+			host: string
+		}
 	} = await infoResponse.json();
-
+	if (_state as any === 'terminated') {
+		return Disposable.None;
+	}
 
 	const remotePort = location.protocol === 'https:' ? '443' : '80';
 	const remoteAuthority = window.location.host + ':' + remotePort;
-	const remoteUserDataElement = document.getElementById('vscode-remote-user-data-uri');
-	if (remoteUserDataElement) {
-		remoteUserDataElement.setAttribute('data-settings', JSON.stringify({
-			scheme: 'vscode-remote',
-			authority: remoteAuthority,
-			path: join(info.userHome, product.dataFolderName)
-		}));
-	}
 
 	const webviewEndpoint = new URL(document.baseURI);
 	webviewEndpoint.host = 'webview-' + webviewEndpoint.host;
@@ -337,6 +338,45 @@ async function doStart(): Promise<IDisposable> {
 
 	const gitpodHostURL = new URL(info.gitpodHost);
 	const gitpodDomain = gitpodHostURL.protocol + '//*.' + gitpodHostURL.host;
+	const syncStoreURL = info.gitpodHost + '/code-sync';
+
+	const scopes = [
+		'function:accessCodeSyncStorage'
+	];
+	const tokenResponse = await fetch(window.location.protocol + '//' + supervisorHost + '/_supervisor/v1/token/gitpod/' + info.gitpodApi.host + '/' + scopes.join(','), {
+		credentials: 'include'
+	});
+	if (_state as any === 'terminated') {
+		return Disposable.None;
+	}
+
+	const getToken: {
+		token: string
+		user?: string
+	} = await tokenResponse.json();
+	if (_state as any === 'terminated') {
+		return Disposable.None;
+	}
+
+	// see https://github.com/gitpod-io/vscode/blob/gp-code/src/vs/workbench/services/authentication/browser/authenticationService.ts#L34
+	type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
+	const currentSession: AuthenticationSessionInfo = {
+		// current session ID should remain stable between window reloads
+		// otherwise setting sync will log out
+		id: 'gitpod-current-session',
+		accessToken: getToken.token,
+		providerId: 'gitpod',
+		canSignOut: false
+	};
+	const credentialsProvider = new LocalStorageCredentialsProvider();
+	// Settings Sync Entry
+	await credentialsProvider.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(currentSession));
+	// Auth extension Entry
+	await credentialsProvider.setPassword(`${product.urlProtocol}-gitpod.login`, 'account', JSON.stringify([{
+		id: currentSession.id,
+		scopes,
+		accessToken: currentSession.accessToken
+	}]));
 
 	return create(document.body, {
 		remoteAuthority,
@@ -368,17 +408,34 @@ async function doStart(): Promise<IDisposable> {
 			themeType: ColorScheme.DARK
 		},
 		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
-		credentialsProvider: new LocalStorageCredentialsProvider(),
+		credentialsProvider,
 		productConfiguration: {
 			linkProtectionTrustedDomains: [
 				...(product.linkProtectionTrustedDomains || []),
 				gitpodDomain
-			]
+			],
+			'configurationSync.store': {
+				url: syncStoreURL,
+				stableUrl: syncStoreURL,
+				insidersUrl: syncStoreURL,
+				canSwitch: false,
+				authenticationProviders: {
+					gitpod: {
+						scopes: ['function:accessCodeSyncStorage']
+					}
+				}
+			}
 		},
 		defaultLayout: {
 			views: [{
 				id: 'terminal'
 			}]
+		},
+		settingsSyncOptions: {
+			enabled: true,
+			enablementHandler: enablement => {
+				// TODO
+			}
 		}
 	});
 }
@@ -389,6 +446,9 @@ if (devMode) {
 	window.gitpod.ideService = {
 		get state() {
 			return _state;
+		},
+		get failureCause() {
+			return _failureCause;
 		},
 		onDidChange: onDidChangeEmitter.event,
 		start: () => start()
