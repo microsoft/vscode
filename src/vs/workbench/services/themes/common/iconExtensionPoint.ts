@@ -56,17 +56,18 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 							type: 'object',
 							properties: {
 								iconFontId: {
-									description: nls.localize('contributes.default.fontId', 'The id of the icon font that defines the default icon.'),
+									description: nls.localize('contributes.icon.default.iconFontId', 'The id of the icon font that defines the icon.'),
 									type: 'string'
 								},
 								character: {
-									description: nls.localize('contributes.default.character', 'The character in the icon font.'),
+									description: nls.localize('contributes.icon.default.character', 'The character for the icon in the icon font.'),
 									type: 'string'
 								}
-							}
+							},
+							defaultSnippets: [{ body: { iconFontId: '${1:myIconFont}', character: '${2:\\\\E001}' } }]
 						}
 					],
-					description: nls.localize('contributes.default', 'The default of the icon. Either a reference to a '),
+					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an extisting ThemeIcon or an icon in an icon font.'),
 				}
 			}
 		}
@@ -76,7 +77,7 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 const iconFontConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconFontExtensionPoint[]>({
 	extensionPoint: 'iconFonts',
 	jsonSchema: {
-		description: nls.localize('contributes.iconFonts', 'Contributes icons fonts to be used by contributed icons'),
+		description: nls.localize('contributes.iconFonts', 'Contributes icon fonts to be used by icon contributions.'),
 		type: 'array',
 		items: {
 			type: 'object',
@@ -95,11 +96,11 @@ const iconFontConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<
 						properties: {
 							path: {
 								type: 'string',
-								description: nls.localize('contributes.iconFonts.font-path', 'The font path, relative to the current product icon theme file.'),
+								description: nls.localize('contributes.iconFonts.src.path', 'The font path, relative to the current extension location.'),
 							},
 							format: {
 								type: 'string',
-								description: nls.localize('contributes.iconFonts.font-format', 'The format of the font.'),
+								description: nls.localize('contributes.iconFonts.src.format', 'The format of the font.'),
 								enum: ['woff', 'woff2', 'truetype', 'opentype', 'embedded-opentype', 'svg']
 							}
 						},
@@ -123,7 +124,7 @@ export class IconExtensionPoint {
 				const collector = extension.collector;
 
 				if (!extension.description.enableProposedApi) {
-					collector.error(nls.localize('invalid.icons.proposedAPI', "'configuration.icons is a proposed constribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
+					collector.error(nls.localize('invalid.icons.proposedAPI', "'configuration.icons is a proposed contribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 					return;
 				}
 
@@ -177,7 +178,7 @@ export class IconFontExtensionPoint {
 				const collector = extension.collector;
 
 				if (!extension.description.enableProposedApi) {
-					collector.error(nls.localize('invalid.iconFonts.proposedAPI', "'configuration.iconFonts is a proposed constribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
+					collector.error(nls.localize('invalid.iconFonts.proposedAPI', "'configuration.iconFonts is a proposed contribution point and only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 					return;
 				}
 
