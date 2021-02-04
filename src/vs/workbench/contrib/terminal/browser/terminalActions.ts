@@ -77,29 +77,6 @@ async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITe
 	}
 }
 
-export class KillTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.KILL;
-	public static readonly LABEL = localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance");
-	public static readonly PANEL_LABEL = localize('workbench.action.terminal.kill.short', "Kill Terminal");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(killTerminalIcon));
-	}
-
-	async run() {
-		await this._terminalService.doWithActiveInstance(async t => {
-			t.dispose(true);
-			if (this._terminalService.terminalInstances.length > 0) {
-				await this._terminalService.showPanel(true);
-			}
-		});
-	}
-}
-
 export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
 	accessor.get(ITerminalService).doWithActiveInstance(t => {
 		if (!args?.text) {
@@ -1399,10 +1376,8 @@ export function registerTerminalActions() {
 				menu: [{
 					id: MenuId.ViewTitle,
 					group: 'navigation',
+					order: 2,
 					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-				}, {
-					id: MenuId.TerminalContext,
-					group: ContextMenuGroup.Create
 				}]
 			});
 		}
@@ -1417,6 +1392,13 @@ export function registerTerminalActions() {
 				return terminalService.showPanel(true);
 			});
 		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SPLIT,
+			title: localize('workbench.action.terminal.split.short', "Split")
+		},
+		group: ContextMenuGroup.Create
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1447,6 +1429,65 @@ export function registerTerminalActions() {
 			accessor.get(ITerminalService).getActiveInstance()?.selectAll();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.KILL,
+				title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				icon: Codicon.trash,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			await terminalService.doWithActiveInstance(async t => {
+				t.dispose(true);
+				if (terminalService.terminalInstances.length > 0) {
+					await terminalService.showPanel(true);
+				}
+			});
+		}
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		// TODO: Disable when there is no selection
+		command: {
+			id: TERMINAL_COMMAND_ID.KILL,
+			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
+		},
+		group: ContextMenuGroup.Kill
+	});
+
+	// actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(KillTerminalAction), 'Terminal: Kill the Active Terminal Instance', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
+	// export class KillTerminalAction extends Action {
+
+	// 	public static readonly ID = TERMINAL_COMMAND_ID.KILL;
+	// 	public static readonly LABEL = localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance");
+	// 	public static readonly PANEL_LABEL = localize('workbench.action.terminal.kill.short', "Kill Terminal");
+
+	// 	constructor(
+	// 		id: string, label: string,
+	// 		@ITerminalService private readonly _terminalService: ITerminalService
+	// 	) {
+	// 		super(id, label, 'terminal-action ' + ThemeIcon.asClassName(killTerminalIcon));
+	// 	}
+
+	// 	async run() {
+	// 		await this._terminalService.doWithActiveInstance(async t => {
+	// 			t.dispose(true);
+	// 			if (this._terminalService.terminalInstances.length > 0) {
+	// 				await this._terminalService.showPanel(true);
+	// 			}
+	// 		});
+	// 	}
+	// }
 
 	// Commands might be affected by Web restrictons
 	if (BrowserFeatures.clipboard.writeText) {
