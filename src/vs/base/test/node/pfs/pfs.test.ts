@@ -14,6 +14,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { isWindows } from 'vs/base/common/platform';
 
 flakySuite('PFS', function () {
 
@@ -205,27 +206,31 @@ flakySuite('PFS', function () {
 		fs.symlinkSync(symbolicLinkTarget, symLink, 'junction');
 
 		// Copy preserves symlinks if configured as such
+		//
+		// Windows: this test does not work because creating symlinks
+		// requires priviledged permissions (admin).
+		if (!isWindows) {
+			await copy(symLink, copyTarget, { preserveSymlinks: true });
 
-		await copy(symLink, copyTarget, { preserveSymlinks: true });
+			assert.ok(fs.existsSync(copyTarget));
 
-		assert.ok(fs.existsSync(copyTarget));
+			const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
+			assert.ok(symbolicLink);
+			assert.ok(!symbolicLink.dangling);
 
-		const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
-		assert.ok(symbolicLink);
-		assert.ok(!symbolicLink.dangling);
+			const target = await fs.promises.readlink(copyTarget);
+			assert.strictEqual(target, symbolicLinkTarget);
 
-		const target = await fs.promises.readlink(copyTarget);
-		assert.strictEqual(target, symbolicLinkTarget);
+			// Copy does not preserve symlinks if configured as such
 
-		// Copy does not preserve symlinks if configured as such
+			await rimraf(copyTarget);
+			await copy(symLink, copyTarget, { preserveSymlinks: false });
 
-		await rimraf(copyTarget);
-		await copy(symLink, copyTarget, { preserveSymlinks: false });
+			assert.ok(fs.existsSync(copyTarget));
 
-		assert.ok(fs.existsSync(copyTarget));
-
-		const { symbolicLink: symbolicLink2 } = await SymlinkSupport.stat(copyTarget);
-		assert.ok(!symbolicLink2);
+			const { symbolicLink: symbolicLink2 } = await SymlinkSupport.stat(copyTarget);
+			assert.ok(!symbolicLink2);
+		}
 
 		// Copy ignores dangling symlinks
 
@@ -248,7 +253,7 @@ flakySuite('PFS', function () {
 		await writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
 
 		const sourceLinkMD5JSFolderLinked = join(sourceLinkTestFolder, 'md5-linked');	// copy-test/link-test/md5-linked
-		await fs.promises.symlink(sourceLinkMD5JSFolder, sourceLinkMD5JSFolderLinked);
+		fs.symlinkSync(sourceLinkMD5JSFolder, sourceLinkMD5JSFolderLinked, 'junction');
 
 		// Target Folder
 		const targetLinkTestFolder = join(sourceFolder, 'link-test copy');				// copy-test/link-test copy
@@ -257,18 +262,23 @@ flakySuite('PFS', function () {
 		const targetLinkMD5JSFolderLinked = join(targetLinkTestFolder, 'md5-linked');	// copy-test/link-test copy/md5-linked
 
 		// Copy with `preserveSymlinks: true` and verify result
-		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
+		//
+		// Windows: this test does not work because creating symlinks
+		// requires priviledged permissions (admin).
+		if (!isWindows) {
+			await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
 
-		assert.ok(fs.existsSync(targetLinkTestFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFile));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
-		assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isSymbolicLink());
+			assert.ok(fs.existsSync(targetLinkTestFolder));
+			assert.ok(fs.existsSync(targetLinkMD5JSFolder));
+			assert.ok(fs.existsSync(targetLinkMD5JSFile));
+			assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
+			assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isSymbolicLink());
 
-		const linkTarget = await fs.promises.readlink(targetLinkMD5JSFolderLinked);
-		assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
+			const linkTarget = await fs.promises.readlink(targetLinkMD5JSFolderLinked);
+			assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
 
-		await fs.promises.rmdir(targetLinkTestFolder, { recursive: true });
+			await fs.promises.rmdir(targetLinkTestFolder, { recursive: true });
+		}
 
 		// Copy with `preserveSymlinks: false` and verify result
 		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: false });
