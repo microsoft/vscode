@@ -19,7 +19,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { registerTerminalActions, ClearTerminalAction, CreateNewTerminalAction, KillTerminalAction, SelectAllTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, TerminalPasteAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalActions, ClearTerminalAction, CreateNewTerminalAction, KillTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, TerminalPasteAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_VIEW_ID, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -98,15 +98,6 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(CreateNewTermin
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
 }), 'Terminal: Create New Integrated Terminal', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectAllTerminalAction, {
-	// Don't use ctrl+a by default as that would override the common go to start
-	// of prompt shell binding
-	primary: 0,
-	// Technically this doesn't need to be here as it will fall back to this
-	// behavior anyway when handed to xterm.js, having this handled by VS Code
-	// makes it easier for users to see how it works though.
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
 // Weight is higher than work workbench contributions so the keybinding remains
 // highest priority when chords are registered afterwards
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ClearTerminalAction, {

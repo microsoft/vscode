@@ -92,23 +92,6 @@ export class KillTerminalAction extends Action {
 	}
 }
 
-export class SelectAllTerminalAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_ALL;
-	public static readonly LABEL = localize('workbench.action.terminal.selectAll', "Select All");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveInstance()?.selectAll();
-	}
-}
-
 export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
 	accessor.get(ITerminalService).doWithActiveInstance(t => {
 		if (!args?.text) {
@@ -1421,6 +1404,57 @@ export function registerTerminalActions() {
 			});
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SELECT_ALL,
+				title: { value: localize('workbench.action.terminal.selectAll', "Select All"), original: 'Select All' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				keybinding: [{
+					// Don't use ctrl+a by default as that would override the common go to start
+					// of prompt shell binding
+					primary: 0,
+					// Technically this doesn't need to be here as it will fall back to this
+					// behavior anyway when handed to xterm.js, having this handled by VS Code
+					// makes it easier for users to see how it works though.
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A },
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+				}]
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.selectAll();
+		}
+	});
+
+	// actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectAllTerminalAction, {
+	// 	// Don't use ctrl+a by default as that would override the common go to start
+	// 	// of prompt shell binding
+	// 	primary: 0,
+	// 	// Technically this doesn't need to be here as it will fall back to this
+	// 	// behavior anyway when handed to xterm.js, having this handled by VS Code
+	// 	// makes it easier for users to see how it works though.
+	// 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A }
+	// }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
+	// export class SelectAllTerminalAction extends Action {
+
+	// 	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_ALL;
+	// 	public static readonly LABEL = localize('workbench.action.terminal.selectAll', "Select All");
+
+	// 	constructor(
+	// 		id: string, label: string,
+	// 		@ITerminalService private readonly _terminalService: ITerminalService
+	// 	) {
+	// 		super(id, label);
+	// 	}
+
+	// 	async run() {
+	// 		this._terminalService.getActiveInstance()?.selectAll();
+	// 	}
+	// }
 
 	// Commands might be affected by Web restrictons
 	if (BrowserFeatures.clipboard.writeText) {

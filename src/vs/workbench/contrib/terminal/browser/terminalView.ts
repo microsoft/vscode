@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionViewItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionViewItem, TerminalPasteAction, ClearTerminalAction, CreateNewTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -154,6 +154,7 @@ export class TerminalViewPane extends ViewPane {
 		// }
 	}
 
+	// TODO: Bring back panel actions
 	// public getActions(): IAction[] {
 	// 	if (!this._actions) {
 	// 		this._splitTerminalAction = this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL);
@@ -173,39 +174,39 @@ export class TerminalViewPane extends ViewPane {
 	// 	return this._actions;
 	// }
 
-	private _getContextMenuActions(): IAction[] {
-		if (!this._contextMenuActions || !this._copyContextMenuAction) {
-			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
+	// private _getContextMenuActions(): IAction[] {
+	// 	if (!this._contextMenuActions || !this._copyContextMenuAction) {
+	// 		this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
 
-			const clipboardActions = [];
-			if (BrowserFeatures.clipboard.writeText) {
-				clipboardActions.push(this._copyContextMenuAction);
-			}
-			if (BrowserFeatures.clipboard.readText) {
-				clipboardActions.push(this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL));
-			}
+	// 		const clipboardActions = [];
+	// 		if (BrowserFeatures.clipboard.writeText) {
+	// 			clipboardActions.push(this._copyContextMenuAction);
+	// 		}
+	// 		if (BrowserFeatures.clipboard.readText) {
+	// 			clipboardActions.push(this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL));
+	// 		}
 
-			clipboardActions.push(this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL));
+	// 		clipboardActions.push(this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL));
 
-			this._contextMenuActions = [
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-				// this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
-				new Separator(),
-				...clipboardActions,
-				new Separator(),
-				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL),
-				new Separator(),
-				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
+	// 		this._contextMenuActions = [
+	// 			this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
+	// 			// this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
+	// 			new Separator(),
+	// 			...clipboardActions,
+	// 			new Separator(),
+	// 			this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL),
+	// 			new Separator(),
+	// 			this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 
-			];
-			this._contextMenuActions.forEach(a => {
-				this._register(a);
-			});
-		}
-		const activeInstance = this._terminalService.getActiveInstance();
-		this._copyContextMenuAction.enabled = !!activeInstance && activeInstance.hasSelection();
-		return this._contextMenuActions;
-	}
+	// 		];
+	// 		this._contextMenuActions.forEach(a => {
+	// 			this._register(a);
+	// 		});
+	// 	}
+	// 	const activeInstance = this._terminalService.getActiveInstance();
+	// 	this._copyContextMenuAction.enabled = !!activeInstance && activeInstance.hasSelection();
+	// 	return this._contextMenuActions;
+	// }
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchTerminalAction.ID) {
@@ -364,7 +365,8 @@ export class TerminalViewPane extends ViewPane {
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this._getContextMenuActions(),
+			// TODO: Bring back context menu
+			getActions: () => [], // this._getContextMenuActions(),
 			getActionsContext: () => this._parentDomElement
 		});
 	}
