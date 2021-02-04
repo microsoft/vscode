@@ -15,7 +15,9 @@ export function setup() {
 				return;
 			}
 
-			await app.workbench.settingsEditor.addUserSetting('webview.experimental.useIframes', 'true');
+			if (!app.web) {
+				await app.workbench.settingsEditor.addUserSetting('webview.experimental.useIframes', 'true');
+			}
 
 			await app.workbench.extensions.openExtensionsViewlet();
 
@@ -27,24 +29,12 @@ export function setup() {
 			await app.workbench.statusbar.waitForStatusbarText('smoke test', 'VS Code Smoke Test Check');
 		});
 
-		it(`extension installed by server cli`, async function () {
+		after(async function () {
 			const app = this.app as Application;
-
-			if (app.quality === Quality.Dev || !app.web) {
-				this.skip();
+			if (app.web) {
 				return;
 			}
 
-			await app.workbench.extensions.openExtensionsViewlet();
-
-			await app.workbench.extensions.openExtension('github.vscode-pull-request-github');
-
-			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
-			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action[title="Disable this extension"]`);
-		});
-
-		after(async function () {
-			const app = this.app as Application;
 			await app.workbench.settingsEditor.clearUserSettings();
 		});
 
