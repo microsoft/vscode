@@ -211,7 +211,7 @@ class RichRenderer implements IOutputTransformContribution {
 	renderPlainText(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['text/plain'];
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService, true);
+		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
