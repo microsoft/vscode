@@ -8,7 +8,7 @@ import {
 	workspace, tasks, Range, HoverProvider, Hover, Position, MarkdownString, Uri
 } from 'vscode';
 import {
-	createTask, startDebugging, findAllScriptRanges
+	createTask, startDebugging, findAllScriptRanges, getPackageManager
 } from './tasks';
 import * as nls from 'vscode-nls';
 import { dirname } from 'path';
@@ -103,7 +103,7 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = await createTask(this.context, script, ['run', script], folder, documentUri);
+			let task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
 			await tasks.executeTask(task);
 		}
 	}
