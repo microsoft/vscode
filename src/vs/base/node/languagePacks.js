@@ -243,6 +243,7 @@ function factory(nodeRequire, path, fs, perf) {
 }
 
 
+// @ts-ignore
 if (typeof define === 'function') {
 	// amd
 	// @ts-ignore

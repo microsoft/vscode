@@ -165,8 +165,6 @@ export async function readDirsInDir(dirPath: string): Promise<string[]> {
  * is deleted from disk.
  */
 export function whenDeleted(path: string, intervalMs = 1000): Promise<void> {
-
-	// Complete when wait marker file is deleted
 	return new Promise<void>(resolve => {
 		let running = false;
 		const interval = setInterval(() => {

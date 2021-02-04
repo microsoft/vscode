@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { StorageScope, WillSaveStateReason, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
@@ -11,7 +12,6 @@ import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/
 import { mark } from 'vs/base/common/performance';
 import { join } from 'vs/base/common/path';
 import { copy, exists, writeFile } from 'vs/base/node/pfs';
-import { promises } from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';

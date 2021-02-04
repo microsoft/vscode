@@ -237,6 +237,49 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(copyTarget));
 	});
 
+	test('copy handles symbolic links when the reference is inside source', async () => {
+
+		// Source Folder
+		const sourceFolder = join(testDir, generateUuid(), 'copy-test'); 	// copy-test
+		const sourceLinkTestFolder = join(sourceFolder, 'link-test');		// copy-test/link-test
+		const sourceLinkMD5JSFolder = join(sourceLinkTestFolder, 'md5');	// copy-test/link-test/md5
+		const sourceLinkMD5JSFile = join(sourceLinkMD5JSFolder, 'md5.js');	// copy-test/link-test/md5/md5.js
+		await fs.promises.mkdir(sourceLinkMD5JSFolder, { recursive: true });
+		await writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
+
+		const sourceLinkMD5JSFolderLinked = join(sourceLinkTestFolder, 'md5-linked');	// copy-test/link-test/md5-linked
+		await fs.promises.symlink(sourceLinkMD5JSFolder, sourceLinkMD5JSFolderLinked);
+
+		// Target Folder
+		const targetLinkTestFolder = join(sourceFolder, 'link-test copy');				// copy-test/link-test copy
+		const targetLinkMD5JSFolder = join(targetLinkTestFolder, 'md5');				// copy-test/link-test copy/md5
+		const targetLinkMD5JSFile = join(targetLinkMD5JSFolder, 'md5.js');				// copy-test/link-test copy/md5/md5.js
+		const targetLinkMD5JSFolderLinked = join(targetLinkTestFolder, 'md5-linked');	// copy-test/link-test copy/md5-linked
+
+		// Copy with `preserveSymlinks: true` and verify result
+		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
+
+		assert.ok(fs.existsSync(targetLinkTestFolder));
+		assert.ok(fs.existsSync(targetLinkMD5JSFolder));
+		assert.ok(fs.existsSync(targetLinkMD5JSFile));
+		assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
+		assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isSymbolicLink());
+
+		const linkTarget = await fs.promises.readlink(targetLinkMD5JSFolderLinked);
+		assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
+
+		await fs.promises.rmdir(targetLinkTestFolder, { recursive: true });
+
+		// Copy with `preserveSymlinks: false` and verify result
+		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: false });
+
+		assert.ok(fs.existsSync(targetLinkTestFolder));
+		assert.ok(fs.existsSync(targetLinkMD5JSFolder));
+		assert.ok(fs.existsSync(targetLinkMD5JSFile));
+		assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
+		assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isDirectory());
+	});
+
 	test('readDirsInDir', async () => {
 		fs.mkdirSync(join(testDir, 'somefolder1'));
 		fs.mkdirSync(join(testDir, 'somefolder2'));
