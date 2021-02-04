@@ -74,7 +74,9 @@ export class FileWatcher extends Disposable {
 				}, error => this.onError(error)));
 			}
 		} catch (error) {
-			this.onError(error);
+			if (error.code !== 'ENOENT') {
+				this.onError(error);
+			}
 		}
 	}
 
