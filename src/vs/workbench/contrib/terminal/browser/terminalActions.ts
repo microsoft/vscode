@@ -36,7 +36,9 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-export const switchTerminalActionViewItemSepartator = '─────────';
+export const switchTerminalActionViewItemSeparator = '─────────';
+export const selectDefaultShellTitle = localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell");
+export const configureTerminalSettingsTitle = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -86,24 +88,6 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		t.sendText(resolvedText, false);
 	});
 };
-
-// TODO: Convert this to registerAction2
-export class ConfigureTerminalSettingsAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS;
-	public static readonly LABEL = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
-
-	constructor(
-		id: string, label: string,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._preferencesService.openSettings(false, '@feature:terminal');
-	}
-}
 
 const terminalIndexRe = /^([0-9]+): /;
 
@@ -1360,6 +1344,20 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalService).selectDefaultShell();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
+				title: { value: configureTerminalSettingsTitle, original: 'Configure Terminal Settings' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(IPreferencesService).openSettings(false, '@feature:terminal');
+		}
+	});
 
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
@@ -1370,6 +1368,7 @@ export function registerTerminalActions() {
 					title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
 					f1: true,
 					category,
+					// TODO: Why is copy still showing up when text isn't selected?
 					precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED),
 					keybinding: [{
 						primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
@@ -1390,9 +1389,7 @@ export function registerTerminalActions() {
 				title: localize('workbench.action.terminal.copySelection.short', "Copy")
 			},
 			group: ContextMenuGroup.Edit,
-			order: 1,
-			// TODO: Ideally this would disable not hide so users can discover the keybinding
-			when: KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED
+			order: 1
 		});
 	}
 
@@ -1451,21 +1448,19 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalContributionService = accessor.get(ITerminalContributionService);
 			const commandService = accessor.get(ICommandService);
-			const preferencesService = accessor.get(IPreferencesService);
 			if (!item || !item.split) {
 				return Promise.resolve(null);
 			}
-			if (item === switchTerminalActionViewItemSepartator) {
+			if (item === switchTerminalActionViewItemSeparator) {
 				terminalService.refreshActiveTab();
 				return Promise.resolve(null);
 			}
-			if (item === localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell")) {
+			if (item === selectDefaultShellTitle) {
 				terminalService.refreshActiveTab();
 				return terminalService.selectDefaultShell();
 			}
-			if (item === ConfigureTerminalSettingsAction.LABEL) {
-				const settingsAction = new ConfigureTerminalSettingsAction(ConfigureTerminalSettingsAction.ID, ConfigureTerminalSettingsAction.LABEL, preferencesService);
-				settingsAction.run();
+			if (item === configureTerminalSettingsTitle) {
+				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
 				terminalService.refreshActiveTab();
 			}
 			const indexMatches = terminalIndexRe.exec(item);

@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { ConfigureTerminalSettingsAction, switchTerminalActionViewItemSepartator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { configureTerminalSettingsTitle, selectDefaultShellTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -387,13 +387,13 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 		terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }) :
 		[{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
 
-	items.push({ text: switchTerminalActionViewItemSepartator, isDisabled: true });
+	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 
 	for (const contributed of contributions.terminalTypes) {
 		items.push({ text: contributed.title });
 	}
 
-	items.push({ text: nls.localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell") });
-	items.push({ text: ConfigureTerminalSettingsAction.LABEL });
+	items.push({ text: selectDefaultShellTitle });
+	items.push({ text: configureTerminalSettingsTitle });
 	return items;
 }
