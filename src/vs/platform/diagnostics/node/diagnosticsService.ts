@@ -5,7 +5,7 @@
 import * as osLib from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
-import { Dirent, exists, readFile } from 'fs';
+import { exists, readFile } from 'fs';
 import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError, getNodeType } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
@@ -19,7 +19,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Iterable } from 'vs/base/common/iterator';
 import { Schemas } from 'vs/base/common/network';
 import { ByteSize } from 'vs/platform/files/common/files';
-import { readdir } from 'vs/base/node/pfs';
+import { IDirent, readdir } from 'vs/base/node/pfs';
 
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
@@ -81,7 +81,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		const relativePath = dir.substring(root.length + 1);
 
 		return new Promise(async resolve => {
-			let files: Dirent[];
+			let files: IDirent[];
 			try {
 				files = await readdir(dir, { withFileTypes: true });
 			} catch (error) {

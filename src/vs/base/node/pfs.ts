@@ -100,15 +100,55 @@ export function rimrafSync(path: string): void {
 
 //#region readdir with NFC support (macos)
 
+export interface IDirent {
+	name: string;
+
+	isFile(): boolean;
+	isDirectory(): boolean;
+	isSymbolicLink(): boolean;
+}
+
 /**
  * Drop-in replacement of `fs.readdir` with support
  * for converting from macOS NFD unicon form to NFC
  * (https://github.com/nodejs/node/issues/2165)
  */
 export async function readdir(path: string): Promise<string[]>;
-export async function readdir(path: string, options: { withFileTypes: true }): Promise<fs.Dirent[]>;
-export async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | fs.Dirent)[]> {
-	return handleDirectoryChildren(await (options ? fs.promises.readdir(path, options) : fs.promises.readdir(path)));
+export async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
+export async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
+	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : fs.promises.readdir(path)));
+}
+
+async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
+	try {
+		return await fs.promises.readdir(path, { withFileTypes: true });
+	} catch (error) {
+		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
+	}
+
+	// Fallback to manually reading and resolving each
+	// children of the folder in case we hit an error
+	// previously.
+	// This can only really happen on exotic file systems
+	// such as explained in #115645 where we get entries
+	// from `readdir` that we can later not `lstat`. 
+	const result: IDirent[] = [];
+	const children = await readdir(path);
+	for (const child of children) {
+		try {
+			const lstat = await fs.promises.lstat(join(path, child));
+			result.push({
+				name: child,
+				isFile: () => lstat.isFile(),
+				isDirectory: () => lstat.isDirectory(),
+				isSymbolicLink: () => lstat.isSymbolicLink()
+			});
+		} catch (error) {
+			console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+		}
+	}
+
+	return result;
 }
 
 /**
@@ -121,9 +161,9 @@ export function readdirSync(path: string): string[] {
 }
 
 function handleDirectoryChildren(children: string[]): string[];
-function handleDirectoryChildren(children: fs.Dirent[]): fs.Dirent[];
-function handleDirectoryChildren(children: (string | fs.Dirent)[]): (string | fs.Dirent)[];
-function handleDirectoryChildren(children: (string | fs.Dirent)[]): (string | fs.Dirent)[] {
+function handleDirectoryChildren(children: IDirent[]): IDirent[];
+function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDirent)[];
+function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDirent)[] {
 	return children.map(child => {
 
 		// Mac: uses NFD unicode form on disk, but we want NFC
