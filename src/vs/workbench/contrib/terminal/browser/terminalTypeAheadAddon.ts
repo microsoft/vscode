@@ -158,8 +158,6 @@ const moveToWordBoundary = (b: IBuffer, cursor: Cursor, direction: -1 | 1) => {
 const enum MatchResult {
 	/** matched successfully */
 	Success,
-	/** Close enough but still needs to be reverted */
-	ConditionalSuccess,
 	/** failed to match */
 	Failure,
 	/** buffer data, it might match in the future one more data comes in */
@@ -876,7 +874,6 @@ export class PredictionTimeline {
 					this.inputBuffer = input.slice(beforeTestReaderIndex);
 					reader.index = input.length;
 					break ReadLoop;
-				case MatchResult.ConditionalSuccess:
 				case MatchResult.Failure:
 					// on a failure, roll back all remaining items in this generation
 					// and clear predictions, since they are no longer valid
@@ -888,12 +885,7 @@ export class PredictionTimeline {
 						output += attributesToSeq(core(this.terminal)._inputHandler._curAttrData);
 					}
 					this.clearPredictionState();
-
-					// For both ConditionalSuccess and Failure we revert,
-					// but if we got ConditionalSuccess, we revert but treat it as a success
-					matchResult === MatchResult.ConditionalSuccess
-						? this.succeededEmitter.fire(prediction)
-						: this.failedEmitter.fire(prediction);
+					this.failedEmitter.fire(prediction);
 
 					break ReadLoop;
 			}
