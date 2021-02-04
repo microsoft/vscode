@@ -171,9 +171,6 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	};
 }
 
-/**
- * TODO Why do we need this class?
- */
 export class SettingsEditorOptions extends EditorOptions implements ISettingsEditorOptions {
 
 	target?: ConfigurationTarget;
@@ -192,6 +189,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 		options.folderUri = settings.folderUri;
 		options.query = settings.query;
 		options.revealSetting = settings.revealSetting;
+		options.pinned = true;
 
 		return options;
 	}

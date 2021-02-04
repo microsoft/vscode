@@ -15,7 +15,6 @@ import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto,
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { CellEditType, CellOutputKind, diff, IMainCellDto, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
-import { Cache } from './cache';
 
 
 interface IObservable<T> {
@@ -230,8 +229,6 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _backup?: vscode.NotebookDocumentBackup;
 	private _disposed = false;
 	private _languages: string[] = [];
-
-	private readonly _edits = new Cache<vscode.NotebookDocumentEditEvent>('notebook documents');
 
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
@@ -495,38 +492,5 @@ export class ExtHostNotebookDocument extends Disposable {
 
 	getCellIndex(cell: ExtHostCell): number {
 		return this._cells.indexOf(cell);
-	}
-
-	addEdit(item: vscode.NotebookDocumentEditEvent): number {
-		return this._edits.add([item]);
-	}
-
-	async undo(editId: number, isDirty: boolean): Promise<void> {
-		await this.getEdit(editId).undo();
-		// if (!isDirty) {
-		// 	this.disposeBackup();
-		// }
-	}
-
-	async redo(editId: number, isDirty: boolean): Promise<void> {
-		await this.getEdit(editId).redo();
-		// if (!isDirty) {
-		// 	this.disposeBackup();
-		// }
-	}
-
-	private getEdit(editId: number): vscode.NotebookDocumentEditEvent {
-		const edit = this._edits.get(editId, 0);
-		if (!edit) {
-			throw new Error('No edit found');
-		}
-
-		return edit;
-	}
-
-	disposeEdits(editIds: number[]): void {
-		for (const id of editIds) {
-			this._edits.delete(id);
-		}
 	}
 }

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.54.0",
-  "distro": "ef4e25f8dccec71b96ee8c6d0a770f1e53bcf84c",
+  "distro": "a1836302c2aaab6ded8ad4a0871f74dbc42359f5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -46,7 +46,7 @@
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
     "watch-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-web",
     "eslint": "node build/eslint",
-    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.2.1",
+    "electron-rebuild": "electron-rebuild --arch=arm64 --force --version=11.2.2",
     "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
     "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
@@ -55,8 +55,7 @@
     "minify-vscode-reh-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode-reh-web",
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci",
-    "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
-    "ext": "node build/ext.js"
+    "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
@@ -83,10 +82,10 @@
     "vscode-ripgrep": "^1.11.1",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.10.0-beta.39",
-    "xterm-addon-search": "0.8.0-beta.3",
+    "xterm": "4.11.0-beta.2",
+    "xterm-addon-search": "0.8.0",
     "xterm-addon-unicode11": "0.3.0-beta.3",
-    "xterm-addon-webgl": "0.10.0-beta.1",
+    "xterm-addon-webgl": "0.10.0-beta.2",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -126,7 +125,7 @@
     "cssnano": "^4.1.10",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "11.2.1",
+    "electron": "11.2.2",
     "electron-rebuild": "2.0.3",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
@@ -179,7 +178,7 @@
     "opn": "^6.0.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
-    "playwright": "1.7.1",
+    "playwright": "1.8.0",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",

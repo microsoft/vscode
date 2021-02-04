@@ -264,7 +264,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
 				installOptions = { isMachineScoped, isBuiltin: false };
 			}
-			if (!installOptions.isMachineScoped) {
+			if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
 				if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)) {
 					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 				}
@@ -272,13 +272,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-			const error = new Error(localize('cannot be installed', "Cannot install '{0}' because this extension has defined that it cannot run on the remote server.", gallery.displayName || gallery.name));
-			error.name = INSTALL_ERROR_NOT_SUPPORTED;
-			return Promise.reject(error);
-		}
-
-		const error = new Error(localize('cannot be installed on web', "Cannot install '{0}' because this extension has defined that it cannot run on the web server.", gallery.displayName || gallery.name));
+		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", gallery.displayName || gallery.name));
 		error.name = INSTALL_ERROR_NOT_SUPPORTED;
 		return Promise.reject(error);
 	}
@@ -307,32 +301,36 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return this.extensionManagementServerService.localExtensionManagementServer;
 	}
 
+	private isExtensionsSyncEnabled(): boolean {
+		return this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions);
+	}
+
 	private async hasToFlagExtensionsMachineScoped(extensions: IGalleryExtension[]): Promise<boolean> {
-		if (!this.userDataAutoSyncEnablementService.isEnabled() || !this.userDataSyncResourceEnablementService.isResourceEnabled(SyncResource.Extensions)) {
-			return false;
-		}
-		const result = await this.dialogService.show(
-			Severity.Info,
-			extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
-			[
-				localize('install', "Install"),
-				localize('install and do no sync', "Install (Do not sync)"),
-				localize('cancel', "Cancel"),
-			],
-			{
-				cancelId: 2,
-				detail: extensions.length === 1
-					? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
-					: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?")
+		if (this.isExtensionsSyncEnabled()) {
+			const result = await this.dialogService.show(
+				Severity.Info,
+				extensions.length === 1 ? localize('install extension', "Install Extension") : localize('install extensions', "Install Extensions"),
+				[
+					localize('install', "Install"),
+					localize('install and do no sync', "Install (Do not sync)"),
+					localize('cancel', "Cancel"),
+				],
+				{
+					cancelId: 2,
+					detail: extensions.length === 1
+						? localize('install single extension', "Would you like to install and synchronize '{0}' extension across your devices?", extensions[0].displayName)
+						: localize('install multiple extensions', "Would you like to install and synchronize extensions across your devices?")
+				}
+			);
+			switch (result.choice) {
+				case 0:
+					return false;
+				case 1:
+					return true;
 			}
-		);
-		switch (result.choice) {
-			case 0:
-				return false;
-			case 1:
-				return true;
+			throw canceled();
 		}
-		throw canceled();
+		return false;
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {

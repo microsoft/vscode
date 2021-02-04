@@ -100,7 +100,7 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 
 	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
 		if (!canExecuteOnWorkspace(manifest, this.productService, this.configurationService)) {
-			output.log(localize('cannot be installed', "Cannot install '{0}' because this extension has defined that it cannot run on the remote server.", getExtensionId(manifest.publisher, manifest.name)));
+			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;
 		}
 		return true;

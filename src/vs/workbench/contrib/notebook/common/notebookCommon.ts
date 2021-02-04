@@ -280,9 +280,9 @@ export type NotebookCellTextModelSplice<T> = [
 ];
 
 export type NotebookCellOutputsSplice = [
-	number /* start */,
-	number /* delete count */,
-	IProcessedOutput[]
+	start: number /* start */,
+	deleteCount: number /* delete count */,
+	newOutputs: IProcessedOutput[]
 ];
 
 export interface IMainCellDto {
@@ -411,6 +411,7 @@ export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
 	outputs: IProcessedOutput[];
+	append?: boolean
 }
 
 export interface ICellMetadataEdit {
@@ -444,11 +445,7 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export interface IDocumentUnknownEdit {
-	editType: CellEditType.Unknown;
-}
-
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | IDocumentUnknownEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
@@ -528,35 +525,30 @@ export namespace CellUri {
 	}
 }
 
-export function mimeTypeIsAlwaysSecure(mimeType: string) {
-	if ([
-		'application/json',
-		'text/markdown',
-		'image/png',
-		'text/plain'
-	].indexOf(mimeType) > -1) {
-		return true;
-	}
+type MimeTypeInfo = {
+	alwaysSecure?: boolean;
+	supportedByCore?: boolean;
+};
 
-	return false;
+const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
+	['application/json', { alwaysSecure: true, supportedByCore: true }],
+	['text/markdown', { alwaysSecure: true, supportedByCore: true }],
+	['image/png', { alwaysSecure: true, supportedByCore: true }],
+	['text/plain', { alwaysSecure: true, supportedByCore: true }],
+	['application/javascript', { supportedByCore: true }],
+	['text/html', { supportedByCore: true }],
+	['image/svg+xml', { supportedByCore: true }],
+	['image/jpeg', { supportedByCore: true }],
+	['text/x-javascript', { supportedByCore: true }],
+	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+]);
+
+export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
+	return _mimeTypeInfo.get(mimeType)?.alwaysSecure ?? false;
 }
 
 export function mimeTypeSupportedByCore(mimeType: string) {
-	if ([
-		'application/json',
-		'application/javascript',
-		'text/html',
-		'image/svg+xml',
-		'text/markdown',
-		'image/png',
-		'image/jpeg',
-		'text/plain',
-		'text/x-javascript'
-	].indexOf(mimeType) > -1) {
-		return true;
-	}
-
-	return false;
+	return _mimeTypeInfo.get(mimeType)?.supportedByCore ?? false;
 }
 
 // if (isWindows) {

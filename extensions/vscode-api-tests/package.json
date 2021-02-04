@@ -37,6 +37,14 @@
         }
       }
     },
+    "views": {
+      "remote": [
+        {
+          "id": "test.treeId",
+          "when": "never"
+        }
+      ]
+    },
     "configurationDefaults": {
       "[abcLang]": {
         "editor.lineNumbers": "off",

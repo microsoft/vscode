@@ -99,7 +99,7 @@ suite('WorkspacesManagementMainService', () => {
 
 		service = new WorkspacesManagementMainService(environmentService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService());
 
-		return pfs.mkdirp(untitledWorkspacesHomePath);
+		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});
 
 	teardown(() => {

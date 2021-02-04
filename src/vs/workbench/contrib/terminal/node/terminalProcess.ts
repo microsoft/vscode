@@ -14,7 +14,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, FlowControlConstants } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
-import { stat } from 'vs/base/node/pfs';
 import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -122,7 +121,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
 		try {
-			const result = await stat(this._initialCwd);
+			const result = await fs.promises.stat(this._initialCwd);
 			if (!result.isDirectory()) {
 				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
 			}
@@ -140,7 +139,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
 		try {
-			const result = await stat(slc.executable);
+			const result = await fs.promises.stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file of a symlink", slc.executable) };
 			}

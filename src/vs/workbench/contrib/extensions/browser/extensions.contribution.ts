@@ -102,8 +102,12 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	{
 		id: VIEWLET_ID,
 		title: localize('extensions', "Extensions"),
-		mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
+		openCommandActionDescriptor: {
+			id: VIEWLET_ID,
+			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
+			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
+			order: 4,
+		},
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: extensionsViewIcon,
 		order: 4,
@@ -673,8 +677,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 							notificationService.prompt(
 								Severity.Info,
 								message,
-								actions,
-								{ sticky: true }
+								actions
 							);
 						}
 					});
