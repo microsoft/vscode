@@ -314,7 +314,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						return match;
 
-					case 'appDirname':
+					case 'appFolder':
 						const ar = this._context.getAppRoot();
 						if (ar) {
 							return ar;
