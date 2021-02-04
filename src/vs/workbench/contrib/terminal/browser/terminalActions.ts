@@ -6,7 +6,7 @@
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, IRemoteTerminalAttachTarget, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, IRemoteTerminalAttachTarget, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -26,9 +26,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITerminalInstance, ITerminalService, Direction, IRemoteTerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Action2, registerAction2, ILocalizedString, MenuId } from 'vs/platform/actions/common/actions';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
-import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IContextKeyService, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -42,6 +40,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -90,28 +89,6 @@ export class KillTerminalAction extends Action {
 				await this._terminalService.showPanel(true);
 			}
 		});
-	}
-}
-
-/**
- * Copies the terminal selection. Note that since the command palette takes focus from the terminal,
- * this cannot be triggered through the command palette.
- */
-export class CopyTerminalSelectionAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.COPY_SELECTION;
-	public static readonly LABEL = localize('workbench.action.terminal.copySelection', "Copy Selection");
-	public static readonly SHORT_LABEL = localize('workbench.action.terminal.copySelection.short', "Copy");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		await this._terminalService.getActiveInstance()?.copySelection();
 	}
 }
 
@@ -1431,13 +1408,6 @@ export function registerTerminalActions() {
 					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
 				}]
 			});
-			// actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SplitTerminalAction, {
-			// 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
-			// 	mac: {
-			// 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-			// 		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
-			// 	}
-			// }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split Terminal', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
@@ -1451,6 +1421,34 @@ export function registerTerminalActions() {
 			});
 		}
 	});
+
+	// Commands might be affected by Web restrictons
+	if (BrowserFeatures.clipboard.writeText) {
+		// Copies the terminal selection. Note that since the command palette takes focus from the
+		// terminal, this cannot be triggered through the command palette.
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TERMINAL_COMMAND_ID.COPY_SELECTION,
+					title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
+					f1: false,
+					category,
+					precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+					keybinding: [{
+						primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C] },
+						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FOCUS)
+					}]
+				});
+				// TODO: Use public static readonly SHORT_LABEL = localize('workbench.action.terminal.copySelection.short', "Copy");
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(ITerminalService).getActiveInstance()?.copySelection();
+			}
+		});
+	}
 }
 
 interface IRemoteTerminalPick extends IQuickPickItem {

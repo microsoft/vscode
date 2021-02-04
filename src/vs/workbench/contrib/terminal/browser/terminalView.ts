@@ -149,29 +149,29 @@ export class TerminalViewPane extends ViewPane {
 		this._bodyDimensions.height = height;
 		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
 		// Update orientation of split button icon
-		if (this._splitTerminalAction) {
-			this._splitTerminalAction.class = this.orientation === Orientation.HORIZONTAL ? SplitTerminalAction.HORIZONTAL_CLASS : SplitTerminalAction.VERTICAL_CLASS;
-		}
+		// if (this._splitTerminalAction) {
+		// 	this._splitTerminalAction.class = this.orientation === Orientation.HORIZONTAL ? SplitTerminalAction.HORIZONTAL_CLASS : SplitTerminalAction.VERTICAL_CLASS;
+		// }
 	}
 
-	public getActions(): IAction[] {
-		if (!this._actions) {
-			this._splitTerminalAction = this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL);
-			this._actions = [
-				this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-				this._splitTerminalAction,
-				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
-			];
-			for (const action of this._actions) {
-				if (!this._terminalService.isProcessSupportRegistered) {
-					action.enabled = false;
-				}
-				this._register(action);
-			}
-		}
-		return this._actions;
-	}
+	// public getActions(): IAction[] {
+	// 	if (!this._actions) {
+	// 		this._splitTerminalAction = this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL);
+	// 		this._actions = [
+	// 			this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
+	// 			this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
+	// 			this._splitTerminalAction,
+	// 			this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
+	// 		];
+	// 		for (const action of this._actions) {
+	// 			if (!this._terminalService.isProcessSupportRegistered) {
+	// 				action.enabled = false;
+	// 			}
+	// 			this._register(action);
+	// 		}
+	// 	}
+	// 	return this._actions;
+	// }
 
 	private _getContextMenuActions(): IAction[] {
 		if (!this._contextMenuActions || !this._copyContextMenuAction) {
@@ -189,7 +189,7 @@ export class TerminalViewPane extends ViewPane {
 
 			this._contextMenuActions = [
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
+				// this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
 				new Separator(),
 				...clipboardActions,
 				new Separator(),
