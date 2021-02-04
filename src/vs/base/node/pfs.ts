@@ -242,16 +242,16 @@ export namespace SymlinkSupport {
 
 			// Windows: workaround a node.js bug where reparse points
 			// are not supported (https://github.com/nodejs/node/issues/36790)
-			if (isWindows && error.code === 'EACCES' && lstats) {
+			if (isWindows && error.code === 'EACCES') {
 				try {
 					const stats = await fs.promises.stat(await fs.promises.readlink(path));
 
-					return { stat: stats, symbolicLink: lstats.isSymbolicLink() ? { dangling: false } : undefined };
+					return { stat: stats, symbolicLink: { dangling: false } };
 				} catch (error) {
 
 					// If the link points to a non-existing file we still want
 					// to return it as result while setting dangling: true flag
-					if (error.code === 'ENOENT') {
+					if (error.code === 'ENOENT' && lstats) {
 						return { stat: lstats, symbolicLink: { dangling: true } };
 					}
 

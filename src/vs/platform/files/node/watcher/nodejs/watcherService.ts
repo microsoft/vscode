@@ -47,6 +47,10 @@ export class FileWatcher extends Disposable {
 					pathToWatch = await realpath(pathToWatch);
 				} catch (error) {
 					this.onError(error);
+
+					if (symbolicLink.dangling) {
+						return; // give up if symbolic link is dangling
+					}
 				}
 			}
 
