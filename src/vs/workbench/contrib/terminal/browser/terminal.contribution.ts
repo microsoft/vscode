@@ -19,7 +19,7 @@ import * as panel from 'vs/workbench/browser/panel';
 import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
-import { registerTerminalActions, ClearTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, TerminalPasteAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalActions, ClearTerminalAction, SelectDefaultShellWindowsTerminalAction, SplitInActiveWorkspaceTerminalAction, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_VIEW_ID, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -118,14 +118,6 @@ function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyE
 
 // The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`.
 const CTRL_LETTER_OFFSET = 64;
-
-if (BrowserFeatures.clipboard.readText) {
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TerminalPasteAction, platform.isMacintosh && platform.isWeb ? undefined : {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
-		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
-	}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED);
-}
 
 // An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
 // shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is

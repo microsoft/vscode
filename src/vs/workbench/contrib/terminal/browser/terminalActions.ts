@@ -111,24 +111,6 @@ export class SplitInActiveWorkspaceTerminalAction extends Action {
 	}
 }
 
-export class TerminalPasteAction extends Action {
-
-	public static readonly ID = TERMINAL_COMMAND_ID.PASTE;
-	public static readonly LABEL = localize('workbench.action.terminal.paste', "Paste into Active Terminal");
-	public static readonly SHORT_LABEL = localize('workbench.action.terminal.paste.short', "Paste");
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		this._terminalService.getActiveOrCreateInstance()?.paste();
-	}
-}
-
 export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_DEFAULT_SHELL;
@@ -1370,7 +1352,8 @@ export function registerTerminalActions() {
 				}],
 				menu: {
 					id: MenuId.TerminalContext,
-					group: ContextMenuGroup.Edit
+					group: ContextMenuGroup.Edit,
+					order: 3
 				}
 			});
 		}
@@ -1475,7 +1458,7 @@ export function registerTerminalActions() {
 		group: ContextMenuGroup.Kill
 	});
 
-	// Commands might be affected by Web restrictons
+	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -1502,9 +1485,43 @@ export function registerTerminalActions() {
 			// TODO: Disable when there is no selection
 			command: {
 				id: TERMINAL_COMMAND_ID.COPY_SELECTION,
-				title: { value: localize('workbench.action.terminal.copySelection.short', "Copy"), original: 'Copy' }
+				title: localize('workbench.action.terminal.copySelection.short', "Copy")
 			},
-			group: ContextMenuGroup.Edit
+			group: ContextMenuGroup.Edit,
+			order: 1
+		});
+	}
+
+	if (BrowserFeatures.clipboard.readText) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TERMINAL_COMMAND_ID.PASTE,
+					title: { value: localize('workbench.action.terminal.paste', "Paste into Active Terminal"), original: 'Paste into Active Terminal' },
+					f1: true,
+					category,
+					precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+					keybinding: [{
+						primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
+						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(ITerminalService).getActiveInstance()?.paste();
+			}
+		});
+		MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+			// TODO: Disable when text is not in the clipboard
+			command: {
+				id: TERMINAL_COMMAND_ID.PASTE,
+				title: localize('workbench.action.terminal.paste.short', "Paste")
+			},
+			group: ContextMenuGroup.Edit,
+			order: 2
 		});
 	}
 }
