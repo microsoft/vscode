@@ -677,8 +677,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 							notificationService.prompt(
 								Severity.Info,
 								message,
-								actions,
-								{ sticky: true }
+								actions
 							);
 						}
 					});
