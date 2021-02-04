@@ -145,7 +145,6 @@ export interface ISCMRepositoryMenus {
 }
 
 export interface ISCMMenus {
-	readonly titleMenu: ISCMTitleMenu;
 	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
 }
 
