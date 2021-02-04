@@ -41,6 +41,7 @@ import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { Codicon } from 'vs/base/common/codicons';
+import { equals } from 'vs/base/common/objects';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -340,7 +341,6 @@ export class SwitchTerminalAction extends Action {
 		if (customType) {
 			return this._commands.executeCommand(customType.command);
 		}
-
 		console.warn(`Unmatched terminal item: "${item}"`);
 		return Promise.resolve();
 	}
@@ -349,7 +349,7 @@ export class SwitchTerminalAction extends Action {
 export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	public static readonly SEPARATOR = '─────────';
-
+	private _lastOptions: ISelectOptionItem[] = [];
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -376,7 +376,12 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		this.setOptions(getTerminalSelectOpenItems(this._terminalService, this._contributions), this._terminalService.activeTabIndex);
+		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
+		// only update options if they've changed
+		if (!equals(Object.values(options), Object.values(this._lastOptions))) {
+			this.setOptions(options, this._terminalService.activeTabIndex);
+			this._lastOptions = options;
+		}
 	}
 }
 
