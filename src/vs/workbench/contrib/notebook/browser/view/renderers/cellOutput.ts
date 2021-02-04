@@ -31,7 +31,7 @@ interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
 }
 
-export class OutputElement extends Disposable {
+export class CellOutputElement extends Disposable {
 	readonly resizeListener = new DisposableStore();
 	domNode!: HTMLElement;
 	renderResult?: IRenderOutput;
@@ -288,8 +288,8 @@ export class OutputElement extends Disposable {
 	}
 }
 
-export class OutputContainer extends Disposable {
-	private outputEntries = new Map<ICellOutputViewModel, OutputElement>();
+export class CellOutputContainer extends Disposable {
+	private outputEntries = new Map<ICellOutputViewModel, CellOutputElement>();
 
 	constructor(
 		private notebookEditor: INotebookEditor,
@@ -510,7 +510,7 @@ export class OutputContainer extends Disposable {
 
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputEntries.has(currOutput)) {
-			this.outputEntries.set(currOutput, new OutputElement(this.notebookEditor, this.notebookService, this.quickInputService, this.viewCell, this.templateData.outputContainer, currOutput));
+			this.outputEntries.set(currOutput, new CellOutputElement(this.notebookEditor, this.notebookService, this.quickInputService, this.viewCell, this.templateData.outputContainer, currOutput));
 		}
 
 		this.outputEntries.get(currOutput)!.render(index, beforeElement);
