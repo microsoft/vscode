@@ -22,7 +22,7 @@ import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { isString, isNumber } from 'vs/base/common/types';
+import { isString, isNumber, isEmptyObject } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -1310,18 +1310,18 @@ export namespace NotebookCellOutput {
 	export function from(output: types.NotebookCellOutput): ITransformedDisplayOutputDto {
 
 		const data = Object.create(null);
-		const metadata = Object.create(null);
+		const custom = Object.create(null);
 
 		for (let item of output.outputs) {
 			data[item.mime] = item.value;
-			metadata[item.mime] = item.metadata;
+			custom[item.mime] = item.metadata;
 		}
 
 		return {
 			outputId: output.id,
 			outputKind: CellOutputKind.Rich,
 			data,
-			metadata
+			metadata: isEmptyObject(custom) ? undefined : { custom }
 		};
 	}
 }

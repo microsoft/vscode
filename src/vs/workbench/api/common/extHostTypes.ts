@@ -674,7 +674,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		} else if (first instanceof NotebookCellOutput) {
 			newOutputs = (<NotebookCellOutput[]>outputs);
 		} else {
-			newOutputs = (<vscode.CellOutput[]>outputs).map(NotebookCellOutput._fromOld);
+			newOutputs = (<vscode.CellOutput[]>outputs).map(o => NotebookCellOutput._fromOld(o));
 		}
 		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs, newMetadata: undefined });
 	}
@@ -2830,7 +2830,7 @@ export class NotebookCellOutputItem {
 
 export class NotebookCellOutput {
 
-	static _fromOld(output: vscode.CellOutput): NotebookCellOutput {
+	static _fromOld(output: vscode.CellOutput, id?: string): NotebookCellOutput {
 		switch (output.outputKind) {
 			case CellOutputKind.Error:
 				return new NotebookCellOutput([new NotebookCellOutputItem('application/x.notebook.error-traceback', output)]);
@@ -2841,7 +2841,7 @@ export class NotebookCellOutput {
 				for (const key in output.data) {
 					items.push(new NotebookCellOutputItem(key, output.data[key], output.metadata?.custom ? output.metadata?.custom[key] : undefined));
 				}
-				return new NotebookCellOutput(items);
+				return new NotebookCellOutput(items, id);
 		}
 		throw new Error('invalid outputKind');
 	}
@@ -2850,9 +2850,7 @@ export class NotebookCellOutput {
 		return obj instanceof NotebookCellOutput;
 	}
 
-	readonly id: string = generateUuid();
-
-	constructor(readonly outputs: NotebookCellOutputItem[]) { }
+	constructor(readonly outputs: NotebookCellOutputItem[], readonly id: string = generateUuid()) { }
 }
 
 export enum CellKind {

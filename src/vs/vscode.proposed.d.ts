@@ -1082,6 +1082,7 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 		readonly language: string;
 		readonly outputs: CellOutput[];
+		readonly outputs2: readonly NotebookCellOutput[];
 		readonly metadata: NotebookCellMetadata;
 	}
 

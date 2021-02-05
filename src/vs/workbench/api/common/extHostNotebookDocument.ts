@@ -12,6 +12,7 @@ import { ISplice } from 'vs/base/common/sequence';
 import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
 import { CellEditType, IMainCellDto, IOutputDtoWithId, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
@@ -71,8 +72,7 @@ export class ExtHostCell extends Disposable {
 	private _onDidChangeOutputs = new Emitter<ISplice<IOutputDtoWithId>[]>();
 	readonly onDidChangeOutputs: Event<ISplice<IOutputDtoWithId>[]> = this._onDidChangeOutputs.event;
 
-	private _outputs: any[]; // it's `IOutputDtop[]`
-	private _outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
+	private _outputs: IOutputDtoWithId[];
 
 	private _metadata: vscode.NotebookCellMetadata;
 
@@ -94,10 +94,7 @@ export class ExtHostCell extends Disposable {
 		this.cellKind = _cellData.cellKind;
 
 		this._outputs = _cellData.outputs;
-		for (const output of this._outputs) {
-			this._outputMapping.set(output, output.outputId);
-			delete output.outputId;
-		}
+
 
 		this._metadata = _cellData.metadata ?? {};
 	}
@@ -116,10 +113,18 @@ export class ExtHostCell extends Disposable {
 				cellKind: this._cellData.cellKind,
 				document: data.document,
 				get language() { return data!.document.languageId; },
-				get outputs() { return that._outputs; },
-				set outputs(value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
+				get outputs() {
+					return that._outputs.map(ouptput => {
+						const copy: vscode.CellOutput & { outputId?: string } = { ...ouptput };
+						delete copy.outputId;
+						return copy;
+					});
+				},
+				set outputs(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
+				get outputs2() { return that._outputs.map(output => NotebookCellOutput._fromOld(output, output.outputId)); },
+				set outputs2(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
 				get metadata() { return that._metadata; },
-				set metadata(value) { throw new Error('Use WorkspaceEdit to update cell metadata.'); },
+				set metadata(_value) { throw new Error('Use WorkspaceEdit to update cell metadata.'); },
 			});
 		}
 		return this._cell;
@@ -132,11 +137,6 @@ export class ExtHostCell extends Disposable {
 
 	setOutputs(newOutputs: IOutputDtoWithId[]): void {
 		this._outputs = newOutputs;
-		this._outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
-		for (const output of this._outputs) {
-			this._outputMapping.set(output, output.outputId);
-			delete output.outputId;
-		}
 	}
 
 	setMetadata(newMetadata: vscode.NotebookCellMetadata): void {
