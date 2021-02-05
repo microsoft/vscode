@@ -72,7 +72,7 @@ export class ExtHostCell extends Disposable {
 	private _onDidChangeOutputs = new Emitter<ISplice<IOutputDtoWithId>[]>();
 	readonly onDidChangeOutputs: Event<ISplice<IOutputDtoWithId>[]> = this._onDidChangeOutputs.event;
 
-	private _outputs: any[];
+	private _outputs: any[]; // it's `IOutputDtop[]`
 	private _outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
 
 	private _metadata: vscode.NotebookCellMetadata;
@@ -124,12 +124,9 @@ export class ExtHostCell extends Disposable {
 				document: data.document,
 				get language() { return data!.document.languageId; },
 				get outputs() { return that._outputs; },
-				set outputs(value) { that._updateOutputs(value); },
+				set outputs(value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
 				get metadata() { return that._metadata; },
-				set metadata(value) {
-					that.setMetadata(value);
-					that._updateMetadata();
-				},
+				set metadata(value) { throw new Error('Use WorkspaceEdit to update cell metadata.'); },
 			});
 		}
 		return this._cell;
@@ -140,33 +137,13 @@ export class ExtHostCell extends Disposable {
 		this._onDidDispose.fire();
 	}
 
-	setOutputs(newOutputs: vscode.CellOutput[]): void {
+	setOutputs(newOutputs: IOutputDtoWithId[]): void {
 		this._outputs = newOutputs;
-	}
-
-	private _updateOutputs(newOutputs: vscode.CellOutput[]) {
-		const rawDiffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
-			return this._outputMapping.has(a);
-		});
-
-		const transformedDiffs: ISplice<IOutputDtoWithId>[] = rawDiffs.map(diff => {
-			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
-				this._outputMapping.delete(this._outputs[i]);
-			}
-
-			return {
-				deleteCount: diff.deleteCount,
-				start: diff.start,
-				toInsert: diff.toInsert.map((output): IOutputDtoWithId => {
-					const uuid = UUID.generateUuid();
-					this._outputMapping.set(output, uuid);
-					return { ...output, outputId: uuid };
-				})
-			};
-		});
-
-		this._outputs = newOutputs;
-		this._onDidChangeOutputs.fire(transformedDiffs);
+		this._outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
+		for (const output of this._outputs) {
+			this._outputMapping.set(output, output.outputId);
+			delete output.outputId;
+		}
 	}
 
 	setMetadata(newMetadata: vscode.NotebookCellMetadata): void {
@@ -390,12 +367,6 @@ export class ExtHostNotebookDocument extends Disposable {
 					this._cellDisposableMapping.set(extCell.handle, store);
 				}
 
-				const store = this._cellDisposableMapping.get(extCell.handle)!;
-
-				store.add(extCell.onDidChangeOutputs((diffs) => {
-					this.eventuallyUpdateCellOutputs(extCell, diffs);
-				}));
-
 				return extCell;
 			});
 
@@ -462,23 +433,6 @@ export class ExtHostNotebookDocument extends Disposable {
 		cell.setMetadata(newMetadata || {});
 		const event: vscode.NotebookCellMetadataChangeEvent = { document: this.notebookDocument, cell: cell.cell };
 		this._emitter.emitCellMetadataChange(event);
-	}
-
-	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<IOutputDtoWithId>[]) {
-		const outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
-			const outputs = diff.toInsert;
-			return [diff.start, diff.deleteCount, outputs];
-		});
-
-		if (!outputDtos.length) {
-			return;
-		}
-
-		await this._proxy.$spliceNotebookCellOutputs(this._viewType, this.uri, cell.handle, outputDtos);
-		this._emitter.emitCellOutputsChange({
-			document: this.notebookDocument,
-			cells: [cell.cell]
-		});
 	}
 
 	getCell(cellHandle: number): ExtHostCell | undefined {

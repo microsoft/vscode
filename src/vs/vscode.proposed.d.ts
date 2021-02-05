@@ -1081,10 +1081,8 @@ declare module 'vscode' {
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
 		readonly language: string;
-		/** @deprecated use WorkspaceEdit.replaceCellOutput */
-		outputs: CellOutput[];
-		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
-		metadata: NotebookCellMetadata;
+		readonly outputs: CellOutput[];
+		readonly metadata: NotebookCellMetadata;
 	}
 
 	export interface NotebookDocumentMetadata {

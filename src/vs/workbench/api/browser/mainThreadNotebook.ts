@@ -569,29 +569,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		textModel?.updateLanguages(languages);
 	}
 
-	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {
-		this.logService.debug('MainThreadNotebooks#spliceNotebookCellOutputs', resource.path, cellHandle);
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-
-		if (!textModel) {
-			return;
-		}
-
-		const cell = textModel.cells.find(cell => cell.handle === cellHandle);
-
-		if (!cell) {
-			return;
-		}
-
-		textModel.applyEdits(textModel.versionId, [
-			{
-				editType: CellEditType.OutputsSplice,
-				index: textModel.cells.indexOf(cell),
-				splices
-			}
-		], true, undefined, () => undefined, undefined);
-	}
-
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
 		const editor = this._notebookService.getNotebookEditor(editorId) as INotebookEditor | undefined;
 		if (editor?.isNotebookEditor) {
