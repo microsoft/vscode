@@ -400,149 +400,126 @@ import { assertNoRpc } from '../utils';
 					}));
 				});
 			});
+		});
 
-			suite('Extension pty terminals', () => {
-				test('should fire onDidOpenTerminal and onDidCloseTerminal', async () => {
-					const pty: Pseudoterminal = {
-						onDidWrite: new EventEmitter<string>().event,
-						open: () => { },
-						close: () => { }
-					};
-					const terminal = window.createTerminal({ name: 'c', pty });
-					const result = await new Promise<Terminal>(r => {
-						disposables.push(window.onDidOpenTerminal(t => {
-							if (t === terminal) {
-								r(t);
-							}
-						}));
-					});
-					equal(result, terminal);
-					await new Promise<void>(r => {
-						disposables.push(window.onDidCloseTerminal(t => {
-							if (t === terminal) {
-								deepEqual(t.exitStatus, { code: undefined });
-								r();
-							}
-						}));
-						terminal.dispose();
-					});
+		suite('Extension pty terminals', () => {
+			test('should fire onDidOpenTerminal and onDidCloseTerminal', async () => {
+				const pty: Pseudoterminal = {
+					onDidWrite: new EventEmitter<string>().event,
+					open: () => { },
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'c', pty });
+				const result = await new Promise<Terminal>(r => {
+					disposables.push(window.onDidOpenTerminal(t => {
+						if (t === terminal) {
+							r(t);
+						}
+					}));
 				});
-
-				// The below tests depend on global UI state and each other
-				// test('should not provide dimensions on start as the terminal has not been shown yet', (done) => {
-				// 	const reg1 = window.onDidOpenTerminal(term => {
-				// 		equal(terminal, term);
-				// 		reg1.dispose();
-				// 	});
-				// 	const pty: Pseudoterminal = {
-				// 		onDidWrite: new EventEmitter<string>().event,
-				// 		open: (dimensions) => {
-				// 			equal(dimensions, undefined);
-				// 			const reg3 = window.onDidCloseTerminal(() => {
-				// 				reg3.dispose();
-				// 				done();
-				// 			});
-				// 			// Show a terminal and wait a brief period before dispose, this will cause
-				// 			// the panel to init it's dimenisons and be provided to following terminals.
-				// 			// The following test depends on this.
-				// 			terminal.show();
-				// 			setTimeout(() => terminal.dispose(), 200);
-				// 		},
-				// 		close: () => {}
-				// 	};
-				// 	const terminal = window.createTerminal({ name: 'foo', pty });
-				// });
-				// test('should provide dimensions on start as the terminal has been shown', (done) => {
-				// 	const reg1 = window.onDidOpenTerminal(term => {
-				// 		equal(terminal, term);
-				// 		reg1.dispose();
-				// 	});
-				// 	const pty: Pseudoterminal = {
-				// 		onDidWrite: new EventEmitter<string>().event,
-				// 		open: (dimensions) => {
-				// 			// This test depends on Terminal.show being called some time before such
-				// 			// that the panel dimensions are initialized and cached.
-				// 			ok(dimensions!.columns > 0);
-				// 			ok(dimensions!.rows > 0);
-				// 			const reg3 = window.onDidCloseTerminal(() => {
-				// 				reg3.dispose();
-				// 				done();
-				// 			});
-				// 			terminal.dispose();
-				// 		},
-				// 		close: () => {}
-				// 	};
-				// 	const terminal = window.createTerminal({ name: 'foo', pty });
-				// });
-
-				test('should respect dimension overrides', async () => {
-					const writeEmitter = new EventEmitter<string>();
-					const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
-					const pty: Pseudoterminal = {
-						onDidWrite: writeEmitter.event,
-						onDidOverrideDimensions: overrideDimensionsEmitter.event,
-						open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
-						close: () => { }
-					};
-					const terminal = window.createTerminal({ name: 'foo', pty });
-					const result = await new Promise<Terminal>(r => {
-						disposables.push(window.onDidOpenTerminal(t => {
-							if (t === terminal) {
-								r(t);
-								t.show();
-							}
-						}));
-					});
-					equal(result, terminal);
-					equal(result.dimensions?.columns === 10, true);
-					equal(result.dimensions?.rows === 5, true);
-					await new Promise<void>(r => {
-						disposables.push(window.onDidCloseTerminal(t => {
-							if (t === terminal) {
-								r();
-							}
-						}));
-						terminal.dispose();
-					});
-				});
-
-				test('exitStatus.code should be set to the exit code (undefined)', async () => {
-					const writeEmitter = new EventEmitter<string>();
-					const closeEmitter = new EventEmitter<number | undefined>();
-					const pty: Pseudoterminal = {
-						onDidWrite: writeEmitter.event,
-						onDidClose: closeEmitter.event,
-						open: () => closeEmitter.fire(undefined),
-						close: () => { }
-					};
-					const terminal = window.createTerminal({ name: 'foo', pty });
-					const result = await new Promise<Terminal>(r => {
-						disposables.push(window.onDidOpenTerminal(t => {
-							if (t === terminal) {
-								r(t);
-							}
-						}));
-					});
-					equal(result, terminal);
-					await new Promise<void>(r => {
-						disposables.push(window.onDidCloseTerminal(t => {
-							if (t === terminal) {
-								deepEqual(t.exitStatus, { code: undefined });
-								r();
-							}
-						}));
-						terminal.dispose();
-					});
+				equal(result, terminal);
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(t => {
+						if (t === terminal) {
+							r();
+						}
+					}));
+					terminal.dispose();
 				});
 			});
 
-			test('exitStatus.code should be set to the exit code (zero)', async () => {
+			// The below tests depend on global UI state and each other
+			// test('should not provide dimensions on start as the terminal has not been shown yet', (done) => {
+			// 	const reg1 = window.onDidOpenTerminal(term => {
+			// 		equal(terminal, term);
+			// 		reg1.dispose();
+			// 	});
+			// 	const pty: Pseudoterminal = {
+			// 		onDidWrite: new EventEmitter<string>().event,
+			// 		open: (dimensions) => {
+			// 			equal(dimensions, undefined);
+			// 			const reg3 = window.onDidCloseTerminal(() => {
+			// 				reg3.dispose();
+			// 				done();
+			// 			});
+			// 			// Show a terminal and wait a brief period before dispose, this will cause
+			// 			// the panel to init it's dimenisons and be provided to following terminals.
+			// 			// The following test depends on this.
+			// 			terminal.show();
+			// 			setTimeout(() => terminal.dispose(), 200);
+			// 		},
+			// 		close: () => {}
+			// 	};
+			// 	const terminal = window.createTerminal({ name: 'foo', pty });
+			// });
+			// test('should provide dimensions on start as the terminal has been shown', (done) => {
+			// 	const reg1 = window.onDidOpenTerminal(term => {
+			// 		equal(terminal, term);
+			// 		reg1.dispose();
+			// 	});
+			// 	const pty: Pseudoterminal = {
+			// 		onDidWrite: new EventEmitter<string>().event,
+			// 		open: (dimensions) => {
+			// 			// This test depends on Terminal.show being called some time before such
+			// 			// that the panel dimensions are initialized and cached.
+			// 			ok(dimensions!.columns > 0);
+			// 			ok(dimensions!.rows > 0);
+			// 			const reg3 = window.onDidCloseTerminal(() => {
+			// 				reg3.dispose();
+			// 				done();
+			// 			});
+			// 			terminal.dispose();
+			// 		},
+			// 		close: () => {}
+			// 	};
+			// 	const terminal = window.createTerminal({ name: 'foo', pty });
+			// });
+
+			test('should respect dimension overrides', async () => {
+				const writeEmitter = new EventEmitter<string>();
+				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidOverrideDimensions: overrideDimensionsEmitter.event,
+					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+				await new Promise<Terminal>(r => {
+					disposables.push(window.onDidOpenTerminal(async t => {
+						if (t === terminal) {
+							r(t);
+						}
+					}));
+				});
+				await new Promise<void>(r => {
+					disposables.push(window.onDidChangeTerminalDimensions(e => {
+						// The default pty dimensions have a chance to appear here since override
+						// dimensions happens after the terminal is created. If so just ignore and
+						// wait for the right dimensions
+						if (e.dimensions.columns === 10 && e.dimensions.rows === 5) {
+							r();
+						}
+						e.terminal.show();
+					}));
+				});
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(t => {
+						if (t === terminal) {
+							r();
+						}
+					}));
+					terminal.dispose();
+				});
+			});
+
+			test('exitStatus.code should be set to the exit code (undefined)', async () => {
 				const writeEmitter = new EventEmitter<string>();
 				const closeEmitter = new EventEmitter<number | undefined>();
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(0),
+					open: () => closeEmitter.fire(undefined),
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
@@ -557,7 +534,7 @@ import { assertNoRpc } from '../utils';
 				await new Promise<void>(r => {
 					disposables.push(window.onDidCloseTerminal(t => {
 						if (t === terminal) {
-							deepEqual(t.exitStatus, { code: 0 });
+							deepEqual(t.exitStatus, { code: undefined });
 							r();
 						}
 					}));
@@ -565,7 +542,58 @@ import { assertNoRpc } from '../utils';
 				});
 			});
 
-			test('exitStatus.code should be set to the exit code (non-zero)', async () => {
+
+			test('exitStatus.code should be set to the exit code (zero)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: 0 });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const writeEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: writeEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => closeEmitter.fire(0),
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
+			test('exitStatus.code should be set to the exit code (non-zero)', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.exitStatus, undefined);
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							deepEqual(terminal.exitStatus, { code: 22 });
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
 				const writeEmitter = new EventEmitter<string>();
 				const closeEmitter = new EventEmitter<number | undefined>();
 				const pty: Pseudoterminal = {
@@ -580,23 +608,6 @@ import { assertNoRpc } from '../utils';
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
-				const result = await new Promise<Terminal>(r => {
-					disposables.push(window.onDidOpenTerminal(t => {
-						if (t === terminal) {
-							r(t);
-						}
-					}));
-				});
-				equal(result, terminal);
-				await new Promise<void>(r => {
-					disposables.push(window.onDidCloseTerminal(t => {
-						if (t === terminal) {
-							deepEqual(t.exitStatus, { code: 22 });
-							r();
-						}
-					}));
-					terminal.dispose();
-				});
 			});
 
 			test('creationOptions should be set and readonly for ExtensionTerminalOptions terminals', (done) => {
