@@ -1164,7 +1164,7 @@ declare module 'vscode' {
 		readonly cells: ReadonlyArray<NotebookCell>;
 		readonly contentOptions: NotebookDocumentContentOptions;
 		languages: string[];
-		metadata: NotebookDocumentMetadata;
+		readonly metadata: NotebookDocumentMetadata;
 	}
 
 	export interface NotebookCellRange {

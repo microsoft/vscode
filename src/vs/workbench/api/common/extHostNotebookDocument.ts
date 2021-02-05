@@ -10,10 +10,9 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, NotebookCellOutputsSplice, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, diff, IMainCellDto, IOutputDtoWithId, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IMainCellDto, IOutputDtoWithId, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 
@@ -76,7 +75,6 @@ export class ExtHostCell extends Disposable {
 	private _outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
 
 	private _metadata: vscode.NotebookCellMetadata;
-	private _metadataChangeListener: IDisposable;
 
 	readonly handle: number;
 	readonly uri: URI;
@@ -85,7 +83,6 @@ export class ExtHostCell extends Disposable {
 	private _cell: vscode.NotebookCell | undefined;
 
 	constructor(
-		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
 		private readonly _notebook: ExtHostNotebookDocument,
 		private readonly _extHostDocument: ExtHostDocumentsAndEditors,
 		private readonly _cellData: IMainCellDto,
@@ -102,11 +99,7 @@ export class ExtHostCell extends Disposable {
 			delete output.outputId;
 		}
 
-		const observableMetadata = getObservable(_cellData.metadata ?? {});
-		this._metadata = observableMetadata.proxy;
-		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
-			this._updateMetadata();
-		}));
+		this._metadata = _cellData.metadata ?? {};
 	}
 
 	get cell(): vscode.NotebookCell {
@@ -147,26 +140,7 @@ export class ExtHostCell extends Disposable {
 	}
 
 	setMetadata(newMetadata: vscode.NotebookCellMetadata): void {
-		// Don't apply metadata defaults here, 'undefined' means 'inherit from document metadata'
-		this._metadataChangeListener.dispose();
-		const observableMetadata = getObservable(newMetadata);
-		this._metadata = observableMetadata.proxy;
-		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
-			this._updateMetadata();
-		}));
-	}
-
-	private _updateMetadata(): Promise<boolean> {
-		const index = this._notebook.notebookDocument.cells.indexOf(this.cell);
-		const edit: IWorkspaceCellEditDto = {
-			_type: WorkspaceEditType.Cell,
-			metadata: undefined,
-			resource: this._notebook.uri,
-			notebookVersionId: this._notebook.notebookDocument.version,
-			edit: { editType: CellEditType.Metadata, index, metadata: this._metadata }
-		};
-
-		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit({ edits: [edit] });
+		this._metadata = newMetadata;
 	}
 }
 
@@ -355,7 +329,7 @@ export class ExtHostNotebookDocument extends Disposable {
 			const cellDtos = splice[2];
 			const newCells = cellDtos.map(cell => {
 
-				const extCell = new ExtHostCell(this._mainThreadBulkEdits, this, this._documentsAndEditors, cell);
+				const extCell = new ExtHostCell(this, this._documentsAndEditors, cell);
 
 				if (!initialization) {
 					addedCellDocuments.push(ExtHostCell.asModelAddData(this.notebookDocument, cell));

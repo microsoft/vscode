@@ -87,6 +87,17 @@ async function saveAllFilesAndCloseAll(resource: vscode.Uri | undefined) {
 	await documentClosed;
 }
 
+async function updateCellMetadata(uri: vscode.Uri, cell: vscode.NotebookCell, newMetadata: vscode.NotebookCellMetadata) {
+	const edit = new vscode.WorkspaceEdit();
+	edit.replaceNotebookCellMetadata(uri, cell.index, newMetadata);
+	await vscode.workspace.applyEdit(edit);
+}
+
+async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) => Promise<void>) {
+	const e = getEventOncePromise<T>(event);
+	await callback(e);
+}
+
 function assertInitalState() {
 	// no-op unless we figure out why some documents are opened after the editor is closed
 
@@ -892,14 +903,14 @@ suite('notebook workflow', () => {
 		assert.equal(cell.outputs.length, 0);
 
 		let metadataChangeEvent = getEventOncePromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
-		cell.metadata.runnable = false;
+		await updateCellMetadata(resource, cell, { ...cell.metadata, runnable: false });
 		await metadataChangeEvent;
 
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
 		metadataChangeEvent = getEventOncePromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
-		cell.metadata.runnable = true;
+		await updateCellMetadata(resource, cell, { ...cell.metadata, runnable: true });
 		await metadataChangeEvent;
 
 		await vscode.commands.executeCommand('notebook.cell.execute');
@@ -918,25 +929,33 @@ suite('notebook workflow', () => {
 
 		const cell = editor.document.cells[0];
 		assert.equal(cell.outputs.length, 0);
-		let metadataChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		editor.document.metadata.runnable = false;
-		await metadataChangeEvent;
+
+		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
+			editor.document.metadata.runnable = false;
+			await event;
+		});
 
 		await vscode.commands.executeCommand('notebook.execute');
 		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
-		metadataChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		editor.document.metadata.runnable = true;
-		await metadataChangeEvent;
+		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
+			editor.document.metadata.runnable = true;
+			await event;
+		});
 
-		await vscode.commands.executeCommand('notebook.execute');
-		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.execute');
+			await event;
+			assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+		});
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
-	test('cell execute command takes arguments', async () => {
+
+	// TODO@rebornix this is wrong, `await vscode.commands.executeCommand('notebook.execute');` doesn't wait until the workspace edit is applied
+	test.skip('cell execute command takes arguments', async () => {
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -947,23 +966,44 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.execute');
 		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
-		const metadataChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		editor.document.metadata.runnable = true;
-		await metadataChangeEvent;
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
 
-		await vscode.commands.executeCommand('notebook.execute');
-		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+	test('cell execute command takes arguments 2', async () => {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		assert.equal(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
+		const editor = vscode.window.activeNotebookEditor!;
+		const cell = editor.document.cells[0];
 
-		const clearChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
-		await vscode.commands.executeCommand('notebook.cell.clearOutputs');
-		await clearChangeEvent;
-		assert.equal(cell.outputs.length, 0, 'should clear');
+		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
+			editor.document.metadata.runnable = true;
+			await event;
+		});
+
+		await withEvent(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.execute');
+			await event;
+			assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+		});
+
+		await withEvent(vscode.notebook.onDidChangeCellOutputs, async event => {
+			await vscode.commands.executeCommand('notebook.cell.clearOutputs');
+			await event;
+			assert.equal(cell.outputs.length, 0, 'should clear');
+		});
 
 		const secondResource = await createRandomFile('', undefined, 'second', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
-		await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, resource);
-		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-		assert.equal(vscode.window.activeNotebookEditor?.document.uri.fsPath, secondResource.fsPath);
+
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, resource);
+			await event;
+			assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assert.equal(vscode.window.activeNotebookEditor?.document.uri.fsPath, secondResource.fsPath);
+		});
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -979,26 +1019,31 @@ suite('notebook workflow', () => {
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cells[0];
 
-		await vscode.commands.executeCommand('notebook.execute');
-		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
-
 		const metadataChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
 		editor.document.metadata.runnable = true;
 		await metadataChangeEvent;
+		assert.equal(editor.document.metadata.runnable, true);
 
-		await vscode.commands.executeCommand('notebook.execute');
-		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.execute');
+			await event;
+			assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+		});
 
-		const clearChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
+		const clearChangeEvent = getEventOncePromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
 		await vscode.commands.executeCommand('notebook.cell.clearOutputs');
 		await clearChangeEvent;
 		assert.equal(cell.outputs.length, 0, 'should clear');
 
 		const secondResource = await createRandomFile('', undefined, 'second', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
-		await vscode.commands.executeCommand('notebook.execute', resource);
-		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-		assert.equal(vscode.window.activeNotebookEditor?.document.uri.fsPath, secondResource.fsPath);
+
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.execute', resource);
+			await event;
+			assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assert.equal(vscode.window.activeNotebookEditor?.document.uri.fsPath, secondResource.fsPath);
+		});
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -1058,13 +1103,16 @@ suite('notebook dirty state', () => {
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.length, 3);
 		assert.equal(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(activeCell!.uri, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
-		assert.equal(vscode.window.activeNotebookEditor !== undefined, true);
-		assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
-		assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[1], vscode.window.activeNotebookEditor?.selection);
-		assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
+		await withEvent(vscode.workspace.onDidChangeTextDocument, async event => {
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(activeCell!.uri, new vscode.Position(0, 0), 'var abc = 0;');
+			await vscode.workspace.applyEdit(edit);
+			await event;
+			assert.equal(vscode.window.activeNotebookEditor !== undefined, true);
+			assert.equal(vscode.window.activeNotebookEditor?.selection !== undefined, true);
+			assert.deepEqual(vscode.window.activeNotebookEditor?.document.cells[1], vscode.window.activeNotebookEditor?.selection);
+			assert.equal(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'var abc = 0;');
+		});
 
 		await saveFileAndCloseAll(resource);
 	});
