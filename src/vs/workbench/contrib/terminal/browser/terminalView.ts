@@ -34,6 +34,7 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { equals } from 'vs/base/common/arrays';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -352,6 +353,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 
 class SwitchTerminalActionViewItem extends SelectActionViewItem {
+	private _lastOptions: ISelectOptionItem[] = [];
+
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -378,7 +381,12 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		this.setOptions(getTerminalSelectOpenItems(this._terminalService, this._contributions), this._terminalService.activeTabIndex);
+		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
+		// only update options if they've changed
+		if (!equals(Object.values(options), Object.values(this._lastOptions))) {
+			this.setOptions(options, this._terminalService.activeTabIndex);
+			this._lastOptions = options;
+		}
 	}
 }
 

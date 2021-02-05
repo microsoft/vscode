@@ -131,21 +131,30 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	// previously.
 	// This can only really happen on exotic file systems
 	// such as explained in #115645 where we get entries
-	// from `readdir` that we can later not `lstat`. 
+	// from `readdir` that we can later not `lstat`.
 	const result: IDirent[] = [];
 	const children = await readdir(path);
 	for (const child of children) {
+		let isFile = false;
+		let isDirectory = false;
+		let isSymbolicLink = false;
+
 		try {
 			const lstat = await fs.promises.lstat(join(path, child));
-			result.push({
-				name: child,
-				isFile: () => lstat.isFile(),
-				isDirectory: () => lstat.isDirectory(),
-				isSymbolicLink: () => lstat.isSymbolicLink()
-			});
+
+			isFile = lstat.isFile();
+			isDirectory = lstat.isDirectory();
+			isSymbolicLink = lstat.isSymbolicLink();
 		} catch (error) {
 			console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
 		}
+
+		result.push({
+			name: child,
+			isFile: () => isFile,
+			isDirectory: () => isDirectory,
+			isSymbolicLink: () => isSymbolicLink
+		});
 	}
 
 	return result;

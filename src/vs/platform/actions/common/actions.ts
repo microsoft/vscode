@@ -175,7 +175,7 @@ export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
-	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
+	createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;

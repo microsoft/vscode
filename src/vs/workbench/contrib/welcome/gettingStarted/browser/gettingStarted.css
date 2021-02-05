@@ -116,10 +116,6 @@
 	flex: 150px 1 1000
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-media {
-	min-height: 300px;
-}
-
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category .codicon {
 	margin-left:0;
 	font-size: 22pt;
@@ -220,6 +216,10 @@
 	padding: 0px 0 20px 44px;
 	min-width: 400px;
 	max-width: 800px;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-right img {
+	object-fit: contain;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button {

@@ -91,7 +91,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remotePort: 0,
 			description: '',
 			wideDescription: '',
-			icon: undefined
+			icon: undefined,
+			tooltip: ''
 		};
 	}
 
@@ -264,7 +265,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		const isWide = templateData.container.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.classList.contains('wide');
 		const description = isWide ? node.wideDescription : node.description;
 		const label = node.label + (description ? (' - ' + description) : '');
-		templateData.iconLabel.setLabel(node.label, description, { title: label, extraClasses: ['tunnel-view-label'] });
+		templateData.iconLabel.setLabel(node.label, description, { title: node instanceof TunnelItem ? node.tooltip : label, extraClasses: ['tunnel-view-label'] });
 
 		templateData.actionBar.context = node;
 		const contextKeyService = this._register(this.contextKeyService.createScoped());
@@ -517,6 +518,27 @@ class TunnelItem implements ITunnelItem {
 
 		}
 	}
+
+	get tooltip(): string {
+		let information: string = this.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", this.name) : '';
+		if (this.localAddress) {
+			information += nls.localize('remote.tunnel.tooltipForwarded', "Remote port {0}:{1} forwarded to local address {2}. ", this.remoteHost, this.remotePort, this.localAddress);
+		} else {
+			information += nls.localize('remote.tunnel.tooltipCandidate', "Remote port {0}:{1} not forwarded. ", this.remoteHost, this.remotePort);
+		}
+
+		if (this.privacy === TunnelPrivacy.Public) {
+			information += nls.localize('remote.tunnel.tooltipPublic', "Accessible publicly. ");
+		} else {
+			information += nls.localize('remote.tunnel.tooltipPrivate', "Only accessible from this machine. ");
+		}
+
+		if (this.runningProcess) {
+			information += nls.localize('remote.tunnel.tooltipProcess', "Process: {0} ({1})", this.runningProcess.replace(/\0/g, ' ').trim(), this.pid);
+		}
+
+		return information;
+	}
 }
 
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
@@ -615,11 +637,7 @@ export class TunnelPanel extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
 						if (item instanceof TunnelItem) {
-							if (item.localAddress) {
-								return nls.localize('remote.tunnel.ariaLabelForwarded', "Remote port {0}:{1} forwarded to local address {2}", item.remoteHost, item.remotePort, item.localAddress);
-							} else {
-								return nls.localize('remote.tunnel.ariaLabelCandidate', "Remote port {0}:{1} not forwarded", item.remoteHost, item.remotePort);
-							}
+							return item.tooltip;
 						} else {
 							return item.label;
 						}

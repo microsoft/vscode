@@ -16,6 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -147,11 +148,14 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		const disposables = new DisposableStore();
 		for (const command of commands) {
-			const tooltip = `${label} - ${command.tooltip}`;
+			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
+
+			let ariaLabel = stripIcons(command.title).trim();
+			ariaLabel = ariaLabel ? `${ariaLabel}, ${label}` : label;
 
 			disposables.add(this.statusbarService.addEntry({
 				text: command.title,
-				ariaLabel: command.tooltip || label,
+				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
 				tooltip,
 				command: command.id ? command : undefined
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));

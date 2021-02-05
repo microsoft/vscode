@@ -18,6 +18,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
+export namespace TextAreaSyntethicEvents {
+	export const Tap = '-monaco-textarea-synthetic-tap';
+}
+
 export interface ICompositionData {
 	data: string;
 }
@@ -96,7 +100,7 @@ export class InMemoryClipboardMetadataManager {
 }
 
 export interface ICompositionStartEvent {
-	moveOneCharacterLeft: boolean;
+	revealDeltaColumns: number;
 }
 
 /**
@@ -204,7 +208,6 @@ export class TextAreaInput extends Disposable {
 			}
 			this._isDoingComposition = true;
 
-			let moveOneCharacterLeft = false;
 			if (
 				platform.isMacintosh
 				&& lastKeyDown
@@ -212,17 +215,12 @@ export class TextAreaInput extends Disposable {
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
 				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
 				// Handling long press case on macOS + arrow key => pretend the character was selected
-				if (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft') {
-					if (_debugComposition) {
-						console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
-					}
-					moveOneCharacterLeft = true;
+				if (_debugComposition) {
+					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
 				}
-			}
-
-			if (moveOneCharacterLeft) {
 				this._textAreaState = new TextAreaState(
 					this._textAreaState.value,
 					this._textAreaState.selectionStart - 1,
@@ -230,11 +228,19 @@ export class TextAreaInput extends Disposable {
 					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
 					this._textAreaState.selectionEndPosition
 				);
-			} else {
-				this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
+				this._onCompositionStart.fire({ revealDeltaColumns: -1 });
+				return;
 			}
 
-			this._onCompositionStart.fire({ moveOneCharacterLeft });
+			if (browser.isAndroid) {
+				// when tapping on the editor, Android enters composition mode to edit the current word
+				// so we cannot clear the textarea on Android and we must pretend the current word was selected
+				this._onCompositionStart.fire({ revealDeltaColumns: -this._textAreaState.selectionStart });
+				return;
+			}
+
+			this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
+			this._onCompositionStart.fire({ revealDeltaColumns: 0 });
 		}));
 
 		/**
@@ -246,6 +252,12 @@ export class TextAreaInput extends Disposable {
 			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
 		};
 
+		const deduceAndroidCompositionInput = (): [TextAreaState, ITypeData] => {
+			const oldState = this._textAreaState;
+			const newState = TextAreaState.readFromTextArea(this._textArea);
+			return [newState, TextAreaState.deduceAndroidCompositionInput(oldState, newState)];
+		};
+
 		/**
 		 * Deduce the composition input from a string.
 		 */
@@ -254,7 +266,9 @@ export class TextAreaInput extends Disposable {
 			const newState = TextAreaState.selectedText(text);
 			const typeInput: ITypeData = {
 				text: newState.value,
-				replaceCharCnt: oldState.selectionEnd - oldState.selectionStart
+				replacePrevCharCnt: oldState.selectionEnd - oldState.selectionStart,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
 			};
 			return [newState, typeInput];
 		};
@@ -262,6 +276,17 @@ export class TextAreaInput extends Disposable {
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
 			if (_debugComposition) {
 				console.log(`[compositionupdate]`, e);
+			}
+			if (browser.isAndroid) {
+				// On Android, the data sent with the composition update event is unusable.
+				// For example, if the cursor is in the middle of a word like Mic|osoft
+				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
+				// This is not really usable because it doesn't tell us where the edit began and where it ended.
+				const [newState, typeInput] = deduceAndroidCompositionInput();
+				this._textAreaState = newState;
+				this._onType.fire(typeInput);
+				this._onCompositionUpdate.fire(e);
+				return;
 			}
 			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
@@ -278,6 +303,19 @@ export class TextAreaInput extends Disposable {
 			if (!this._isDoingComposition) {
 				return;
 			}
+			this._isDoingComposition = false;
+
+			if (browser.isAndroid) {
+				// On Android, the data sent with the composition update event is unusable.
+				// For example, if the cursor is in the middle of a word like Mic|osoft
+				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
+				// This is not really usable because it doesn't tell us where the edit began and where it ended.
+				const [newState, typeInput] = deduceAndroidCompositionInput();
+				this._textAreaState = newState;
+				this._onType.fire(typeInput);
+				this._onCompositionEnd.fire();
+				return;
+			}
 
 			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
@@ -289,11 +327,6 @@ export class TextAreaInput extends Disposable {
 			if (browser.isChrome || browser.isFirefox) {
 				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
-
-			if (!this._isDoingComposition) {
-				return;
-			}
-			this._isDoingComposition = false;
 
 			this._onCompositionEnd.fire();
 		}));
@@ -308,18 +341,18 @@ export class TextAreaInput extends Disposable {
 			}
 
 			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh);
-			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
+			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
 				// Ignore invalid input but keep it around for next time
 				return;
 			}
 
 			this._textAreaState = newState;
 			if (this._nextCommand === ReadFromTextArea.Type) {
-				if (typeInput.text !== '') {
+				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
 					this._onType.fire(typeInput);
 				}
 			} else {
-				if (typeInput.text !== '' || typeInput.replaceCharCnt !== 0) {
+				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
 					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
@@ -387,6 +420,21 @@ export class TextAreaInput extends Disposable {
 				this._onCompositionEnd.fire();
 			}
 			this._setHasFocus(false);
+		}));
+		this._register(dom.addDisposableListener(textArea.domNode, TextAreaSyntethicEvents.Tap, () => {
+			if (browser.isAndroid && this._isDoingComposition) {
+				// on Android, tapping does not cancel the current composition, so the
+				// textarea is stuck showing the old composition
+
+				// Clear the flag to be able to write to the textarea
+				this._isDoingComposition = false;
+
+				// Clear the textarea to avoid an unwanted cursor type
+				this.writeScreenReaderContent('tapWithoutCompositionEnd');
+
+				// Fire artificial composition end
+				this._onCompositionEnd.fire();
+			}
 		}));
 	}
 

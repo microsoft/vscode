@@ -1073,6 +1073,7 @@ declare module 'vscode' {
 		custom?: { [key: string]: any; };
 	}
 
+	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
 		readonly index: number;
 		readonly notebook: NotebookDocument;
@@ -1082,6 +1083,7 @@ declare module 'vscode' {
 		readonly language: string;
 		/** @deprecated use WorkspaceEdit.replaceCellOutput */
 		outputs: CellOutput[];
+		// readonly outputs2: NotebookCellOutput[];
 		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
 		metadata: NotebookCellMetadata;
 	}
@@ -1318,6 +1320,7 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
+	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCellData {
 		readonly cellKind: CellKind;
 		readonly source: string;
@@ -1482,9 +1485,11 @@ declare module 'vscode' {
 		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
 	}
 
-	//TODO@jrieken add id?
+	// @jrieken
+	//TODO@API add execution count to cell output?
 	export class NotebookCellOutput {
 
+		readonly id: string;
 		readonly outputs: NotebookCellOutputItem[];
 
 		constructor(outputs: NotebookCellOutputItem[]);
@@ -1501,8 +1506,14 @@ declare module 'vscode' {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+
 		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
-		appendNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
+
+		// TODO@api
+		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
+		// replaceNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
+		// appendNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {

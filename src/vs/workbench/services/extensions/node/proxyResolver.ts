@@ -415,7 +415,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 		.then(extensionPaths => {
 			const node_module = <any>require.__$__nodeRequire('module');
 			const original = node_module._load;
-			node_module._load = function load(request: string, parent: any, isMain: any) {
+			node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
 				if (request === 'tls') {
 					return lookup.tls;
 				}
