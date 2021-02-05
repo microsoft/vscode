@@ -194,7 +194,7 @@ function buildRpmPackage(arch) {
 
 	return shell.task([
 		'mkdir -p ' + destination,
-		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
+		'HOME="$(pwd)/' + destination + '" fakeroot rpmbuild -bb --define="_build_id_links none" ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
 		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/'
 	]);
 }
