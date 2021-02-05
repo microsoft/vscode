@@ -240,7 +240,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			if (resource.scheme === Schemas.untitled) {
 				const textModelResolverService = accessor.get(ITextModelService);
 				const model = await textModelResolverService.createModelReference(resource);
-				const untitledFileValue = model.object.textEditorModel.getValue();
+				const untitledModel = model.object;
+				const untitledFileValue = untitledModel.textEditorModel.getValue();
+				model.dispose();
 				return Buffer.from(untitledFileValue);
 			}
 			return;
