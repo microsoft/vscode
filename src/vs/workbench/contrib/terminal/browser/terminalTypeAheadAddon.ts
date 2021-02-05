@@ -168,33 +168,47 @@ const emitPredictionOmitted = (reader: StringReader) => {
 };
 
 const followMovement = (reader: StringReader, cursor: Cursor, endPosition: ICoordinate): MatchResult => {
+	cursor = cursor.clone();
+
 	do {
+		// Ignore things we don't care about
+		emitPredictionOmitted(reader);
+		while (reader.eatRe(CSI_STYLE_RE)) { }
+
+		// Handle movement
 		const cursorMove = reader.eatRe(CSI_CURSOR_POSITION_RE);
 		if (cursorMove) {
-			cursor = cursor.clone();
-			const x = endPosition.x;
 			// We need to follow the cursor movements
 			cursor.moveTo({
 				x: parseInt(cursorMove[2] ?? 1) - 1,
 				y: parseInt(cursorMove[1]) - 1,
 				baseY: cursor.baseY
 			});
-			while (cursor.x < x) {
-				// Ignore things we don't care about
-				while (reader.eatRe(CSI_STYLE_RE)) { }
-				emitPredictionOmitted(reader);
 
-				// See if the character at the cursor matches the reader
-				const a = cursor.getCell()?.getChars();
-				const result = reader.eatGradually(a!);
-				if (result !== MatchResult.Success) {
-					return result;
-				}
-				cursor.shift(a?.length);
-			}
+			continue;
 		}
-	} while (cursor.x !== endPosition.x && cursor.y !== endPosition.y);
 
+		if (reader.eof) {
+			return MatchResult.Buffer;
+		}
+
+		const char = cursor.getCell()?.getChars();
+		if (char) {
+			// See if the character at the cursor matches the reader
+			if (!reader.eatChar(char)) {
+				return MatchResult.Failure;
+			}
+
+			cursor.shift(char.length);
+			continue;
+		}
+
+		return MatchResult.Failure;
+	} while (endPosition.x !== cursor.x || endPosition.y !== cursor.y);
+
+	// Ignore things we don't care about
+	emitPredictionOmitted(reader);
+	while (reader.eatRe(CSI_STYLE_RE)) { }
 	return MatchResult.Success;
 };
 
