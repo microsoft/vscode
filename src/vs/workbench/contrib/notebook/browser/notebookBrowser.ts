@@ -75,14 +75,15 @@ export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 
 //#region  Output related types
 export const enum RenderOutputType {
-	None,
+	Mainframe,
 	Html,
 	Extension
 }
 
-export interface IRenderNoOutput {
-	type: RenderOutputType.None;
+export interface IRenderMainframeOutput {
+	type: RenderOutputType.Mainframe;
 	hasDynamicHeight: boolean;
+	supportAppend?: boolean;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -100,7 +101,7 @@ export interface IRenderOutputViaExtension {
 }
 
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
+export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
 
 export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
 

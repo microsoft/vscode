@@ -82,7 +82,7 @@ export class CellOutputElement extends Disposable {
 		this.domNode = this.useDedicatedDOM ? DOM.$('.output-inner-container') : this.outputContainer.lastChild as HTMLElement;
 
 		if (this.output.supportAppend()) {
-			this.domNode.classList.add('stream-output');
+			this.domNode.classList.add('support-append');
 		}
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel);
@@ -118,7 +118,7 @@ export class CellOutputElement extends Disposable {
 			this.outputContainer.appendChild(this.domNode);
 		}
 
-		if (renderResult.type !== RenderOutputType.None) {
+		if (renderResult.type !== RenderOutputType.Mainframe) {
 			this.notebookEditor.createInset(this.viewCell, renderResult, this.viewCell.getOutputOffset(index));
 			this.domNode.classList.add('background');
 		} else {
@@ -152,7 +152,7 @@ export class CellOutputElement extends Disposable {
 			elementSizeObserver.startObserving();
 			this.resizeListener.add(elementSizeObserver);
 			this.viewCell.updateOutputHeight(index, clientHeight);
-		} else if (renderResult.type === RenderOutputType.None) { // no-op if it's a webview
+		} else if (renderResult.type === RenderOutputType.Mainframe) { // no-op if it's a webview
 			if (this.useDedicatedDOM) {
 				const clientHeight = Math.ceil(this.domNode.clientHeight);
 				this.viewCell.updateOutputHeight(index, clientHeight);
@@ -164,7 +164,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	private previousDivSupportAppend() {
-		return this.outputContainer.lastChild && (<HTMLElement>this.outputContainer.lastChild).classList.contains('stream-output');
+		return this.outputContainer.lastChild && (<HTMLElement>this.outputContainer.lastChild).classList.contains('support-append');
 	}
 
 	private async attachMimetypeSwitcher(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, mimeTypes: readonly IOrderedMimeType[]) {
@@ -344,7 +344,7 @@ export class CellOutputContainer extends Disposable {
 
 			const renderedOutput = this.outputEntries.get(currOutput);
 			if (renderedOutput && renderedOutput.renderResult) {
-				if (renderedOutput.renderResult.type !== RenderOutputType.None) {
+				if (renderedOutput.renderResult.type !== RenderOutputType.Mainframe) {
 					this.notebookEditor.createInset(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
 				} else {
 					this.viewCell.updateOutputHeight(index, renderedOutput.domClientHeight);
@@ -367,7 +367,7 @@ export class CellOutputContainer extends Disposable {
 	onCellWidthChange(): void {
 		this.viewCell.outputsViewModels.forEach((o, i) => {
 			const renderedOutput = this.outputEntries.get(o);
-			if (renderedOutput && renderedOutput.renderResult && renderedOutput.renderResult.type === RenderOutputType.None && !renderedOutput.renderResult.hasDynamicHeight) {
+			if (renderedOutput && renderedOutput.renderResult && renderedOutput.renderResult.type === RenderOutputType.Mainframe && !renderedOutput.renderResult.hasDynamicHeight) {
 				this.viewCell.updateOutputHeight(i, renderedOutput.domClientHeight);
 			}
 		});

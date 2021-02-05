@@ -27,7 +27,7 @@ export class ErrorTransform {
 		}
 		container.appendChild(traceback);
 		container.classList.add('error');
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 	}
 }
 

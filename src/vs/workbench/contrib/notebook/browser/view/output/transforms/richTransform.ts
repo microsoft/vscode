@@ -67,7 +67,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 16}px`;
 
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
 }
 
@@ -140,7 +140,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 16}px`;
 
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
 }
 
@@ -165,7 +165,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		const contentNode = DOM.$('span.output-stream');
 		truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 	}
 }
 
@@ -185,7 +185,7 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const data = output.model.data['application/x.notebook.error-traceback'] as any;
 		ErrorTransform.render(data, container, this.themeService);
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 	}
 }
 
@@ -210,7 +210,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false, supportAppend: true };
 	}
 }
 
@@ -283,7 +283,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 		mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
 		container.appendChild(mdOutput);
 
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
 }
 
@@ -306,7 +306,7 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 		display.classList.add('display');
 		display.appendChild(image);
 		container.appendChild(display);
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
 }
 
@@ -329,7 +329,7 @@ class JPEGRendererContrib extends Disposable implements IOutputRendererContribut
 		display.classList.add('display');
 		display.appendChild(image);
 		container.appendChild(display);
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
 }
 

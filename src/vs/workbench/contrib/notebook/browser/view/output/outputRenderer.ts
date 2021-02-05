@@ -41,7 +41,7 @@ export class OutputRenderer {
 
 		contentNode.innerText = `No renderer could be found for output.`;
 		container.appendChild(contentNode);
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
@@ -65,7 +65,7 @@ export class OutputRenderer {
 			}
 
 			container.appendChild(contentNode);
-			return { type: RenderOutputType.None, hasDynamicHeight: false };
+			return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 		}
 
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);

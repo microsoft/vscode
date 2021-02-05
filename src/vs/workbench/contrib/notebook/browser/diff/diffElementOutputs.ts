@@ -113,7 +113,7 @@ export class OutputElement extends Disposable {
 			this._outputContainer.appendChild(outputItemDiv);
 		}
 
-		if (result.type !== RenderOutputType.None) {
+		if (result.type !== RenderOutputType.Mainframe) {
 			// this.viewCell.selfSizeMonitoring = true;
 			this._notebookEditor.createInset(
 				this._diffElementViewModel,
@@ -157,7 +157,7 @@ export class OutputElement extends Disposable {
 			elementSizeObserver.startObserving();
 			this.resizeListener.add(elementSizeObserver);
 			this.updateHeight(index, clientHeight);
-		} else if (result.type === RenderOutputType.None) { // no-op if it's a webview
+		} else if (result.type === RenderOutputType.Mainframe) { // no-op if it's a webview
 			const clientHeight = Math.ceil(outputItemDiv.clientHeight);
 			this.updateHeight(index, clientHeight);
 
