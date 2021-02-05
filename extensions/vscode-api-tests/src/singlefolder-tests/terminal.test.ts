@@ -325,7 +325,7 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', (done) => {
+			test('should listen to all future terminal data events', async () => {
 				const openEvents: string[] = [];
 				const dataEvents: { name: string, data: string }[] = [];
 				const closeEvents: string[] = [];
@@ -336,31 +336,13 @@ import { assertNoRpc } from '../utils';
 
 				disposables.push(window.onDidWriteTerminalData(e => {
 					dataEvents.push({ name: e.terminal.name, data: e.data });
-
 					resolveOnceDataWritten!();
-				}));
-
-				disposables.push(window.onDidCloseTerminal(e => {
-					closeEvents.push(e.name);
-					try {
-						if (closeEvents.length === 1) {
-							deepEqual(openEvents, ['test1']);
-							deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
-							deepEqual(closeEvents, ['test1']);
-						} else if (closeEvents.length === 2) {
-							deepEqual(openEvents, ['test1', 'test2']);
-							deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
-							deepEqual(closeEvents, ['test1', 'test2']);
-						}
-						resolveOnceClosed!();
-					} catch (e) {
-						done(e);
-					}
 				}));
 
 				const term1Write = new EventEmitter<string>();
 				const term1Close = new EventEmitter<void>();
-				window.createTerminal({
+
+				const terminal = window.createTerminal({
 					name: 'test1', pty: {
 						onDidWrite: term1Write.event,
 						onDidClose: term1Close.event,
@@ -391,8 +373,6 @@ import { assertNoRpc } from '../utils';
 
 										// Wait until the terminal is closed
 										await new Promise<void>(resolve => { resolveOnceClosed = resolve; });
-
-										done();
 									},
 									close: () => { }
 								}
@@ -401,438 +381,458 @@ import { assertNoRpc } from '../utils';
 						close: () => { }
 					}
 				});
-			});
-		});
-
-		suite('Extension pty terminals', () => {
-			test('should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(term.name, 'c');
-					} catch (e) {
-						done(e);
-						return;
-					}
-					disposables.push(window.onDidCloseTerminal(() => done()));
-					term.dispose();
-				}));
-				const pty: Pseudoterminal = {
-					onDidWrite: new EventEmitter<string>().event,
-					open: () => { },
-					close: () => { }
-				};
-				window.createTerminal({ name: 'c', pty });
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(t => {
+						if (t === terminal) {
+							closeEvents.push(t.name);
+							if (closeEvents.length === 1) {
+								deepEqual(openEvents, ['test1']);
+								deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
+								deepEqual(closeEvents, ['test1']);
+							} else if (closeEvents.length === 2) {
+								deepEqual(openEvents, ['test1', 'test2']);
+								deepEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
+								deepEqual(closeEvents, ['test1', 'test2']);
+							}
+							resolveOnceClosed!();
+							r();
+						}
+					}));
+				});
 			});
 
-			// The below tests depend on global UI state and each other
-			// test('should not provide dimensions on start as the terminal has not been shown yet', (done) => {
-			// 	const reg1 = window.onDidOpenTerminal(term => {
-			// 		equal(terminal, term);
-			// 		reg1.dispose();
-			// 	});
-			// 	const pty: Pseudoterminal = {
-			// 		onDidWrite: new EventEmitter<string>().event,
-			// 		open: (dimensions) => {
-			// 			equal(dimensions, undefined);
-			// 			const reg3 = window.onDidCloseTerminal(() => {
-			// 				reg3.dispose();
-			// 				done();
-			// 			});
-			// 			// Show a terminal and wait a brief period before dispose, this will cause
-			// 			// the panel to init it's dimenisons and be provided to following terminals.
-			// 			// The following test depends on this.
-			// 			terminal.show();
-			// 			setTimeout(() => terminal.dispose(), 200);
-			// 		},
-			// 		close: () => {}
-			// 	};
-			// 	const terminal = window.createTerminal({ name: 'foo', pty });
-			// });
-			// test('should provide dimensions on start as the terminal has been shown', (done) => {
-			// 	const reg1 = window.onDidOpenTerminal(term => {
-			// 		equal(terminal, term);
-			// 		reg1.dispose();
-			// 	});
-			// 	const pty: Pseudoterminal = {
-			// 		onDidWrite: new EventEmitter<string>().event,
-			// 		open: (dimensions) => {
-			// 			// This test depends on Terminal.show being called some time before such
-			// 			// that the panel dimensions are initialized and cached.
-			// 			ok(dimensions!.columns > 0);
-			// 			ok(dimensions!.rows > 0);
-			// 			const reg3 = window.onDidCloseTerminal(() => {
-			// 				reg3.dispose();
-			// 				done();
-			// 			});
-			// 			terminal.dispose();
-			// 		},
-			// 		close: () => {}
-			// 	};
-			// 	const terminal = window.createTerminal({ name: 'foo', pty });
-			// });
+			suite('Extension pty terminals', () => {
+				test('should fire onDidOpenTerminal and onDidCloseTerminal', async () => {
+					const pty: Pseudoterminal = {
+						onDidWrite: new EventEmitter<string>().event,
+						open: () => { },
+						close: () => { }
+					};
+					const terminal = window.createTerminal({ name: 'c', pty });
+					const result = await new Promise<Terminal>(r => {
+						disposables.push(window.onDidOpenTerminal(t => {
+							if (t === terminal) {
+								r(t);
+							}
+						}));
+					});
+					equal(result, terminal);
+					await new Promise<void>(r => {
+						disposables.push(window.onDidCloseTerminal(t => {
+							if (t === terminal) {
+								deepEqual(t.exitStatus, { code: undefined });
+								r();
+							}
+						}));
+						terminal.dispose();
+					});
+				});
 
-			test('should respect dimension overrides', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					term.show();
-					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						// The default pty dimensions have a chance to appear here since override
-						// dimensions happens after the terminal is created. If so just ignore and
-						// wait for the right dimensions
-						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
+				// The below tests depend on global UI state and each other
+				// test('should not provide dimensions on start as the terminal has not been shown yet', (done) => {
+				// 	const reg1 = window.onDidOpenTerminal(term => {
+				// 		equal(terminal, term);
+				// 		reg1.dispose();
+				// 	});
+				// 	const pty: Pseudoterminal = {
+				// 		onDidWrite: new EventEmitter<string>().event,
+				// 		open: (dimensions) => {
+				// 			equal(dimensions, undefined);
+				// 			const reg3 = window.onDidCloseTerminal(() => {
+				// 				reg3.dispose();
+				// 				done();
+				// 			});
+				// 			// Show a terminal and wait a brief period before dispose, this will cause
+				// 			// the panel to init it's dimenisons and be provided to following terminals.
+				// 			// The following test depends on this.
+				// 			terminal.show();
+				// 			setTimeout(() => terminal.dispose(), 200);
+				// 		},
+				// 		close: () => {}
+				// 	};
+				// 	const terminal = window.createTerminal({ name: 'foo', pty });
+				// });
+				// test('should provide dimensions on start as the terminal has been shown', (done) => {
+				// 	const reg1 = window.onDidOpenTerminal(term => {
+				// 		equal(terminal, term);
+				// 		reg1.dispose();
+				// 	});
+				// 	const pty: Pseudoterminal = {
+				// 		onDidWrite: new EventEmitter<string>().event,
+				// 		open: (dimensions) => {
+				// 			// This test depends on Terminal.show being called some time before such
+				// 			// that the panel dimensions are initialized and cached.
+				// 			ok(dimensions!.columns > 0);
+				// 			ok(dimensions!.rows > 0);
+				// 			const reg3 = window.onDidCloseTerminal(() => {
+				// 				reg3.dispose();
+				// 				done();
+				// 			});
+				// 			terminal.dispose();
+				// 		},
+				// 		close: () => {}
+				// 	};
+				// 	const terminal = window.createTerminal({ name: 'foo', pty });
+				// });
+
+				test('should respect dimension overrides', async () => {
+					const writeEmitter = new EventEmitter<string>();
+					const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
+					const pty: Pseudoterminal = {
+						onDidWrite: writeEmitter.event,
+						onDidOverrideDimensions: overrideDimensionsEmitter.event,
+						open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
+						close: () => { }
+					};
+					const terminal = window.createTerminal({ name: 'foo', pty });
+					const result = await new Promise<Terminal>(r => {
+						disposables.push(window.onDidOpenTerminal(t => {
+							if (t === terminal) {
+								r(t);
+								t.show();
+							}
+						}));
+					});
+					equal(result, terminal);
+					equal(result.dimensions?.columns === 10, true);
+					equal(result.dimensions?.rows === 5, true);
+					await new Promise<void>(r => {
+						disposables.push(window.onDidCloseTerminal(t => {
+							if (t === terminal) {
+								r();
+							}
+						}));
+						terminal.dispose();
+					});
+				});
+
+				test('exitStatus.code should be set to the exit code (undefined)', (done) => {
+					disposables.push(window.onDidOpenTerminal(term => {
+						try {
+							equal(terminal, term);
+							equal(terminal.exitStatus, undefined);
+						} catch (e) {
+							done(e);
+							return;
+						}
+						disposables.push(window.onDidCloseTerminal(t => {
 							try {
-								equal(e.terminal, terminal);
+								equal(terminal, t);
+								deepEqual(terminal.exitStatus, { code: undefined });
 							} catch (e) {
 								done(e);
 								return;
 							}
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
-						}
+							done();
+						}));
 					}));
-				}));
-				const writeEmitter = new EventEmitter<string>();
-				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
-					close: () => { }
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
-			});
+					const writeEmitter = new EventEmitter<string>();
+					const closeEmitter = new EventEmitter<number | undefined>();
+					const pty: Pseudoterminal = {
+						onDidWrite: writeEmitter.event,
+						onDidClose: closeEmitter.event,
+						open: () => closeEmitter.fire(undefined),
+						close: () => { }
+					};
+					const terminal = window.createTerminal({ name: 'foo', pty });
+				});
 
-			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-						equal(terminal.exitStatus, undefined);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					disposables.push(window.onDidCloseTerminal(t => {
+				test('exitStatus.code should be set to the exit code (zero)', (done) => {
+					disposables.push(window.onDidOpenTerminal(term => {
 						try {
-							equal(terminal, t);
-							deepEqual(terminal.exitStatus, { code: undefined });
+							equal(terminal, term);
+							equal(terminal.exitStatus, undefined);
 						} catch (e) {
 							done(e);
 							return;
 						}
-						done();
+						disposables.push(window.onDidCloseTerminal(t => {
+							try {
+								equal(terminal, t);
+								deepEqual(terminal.exitStatus, { code: 0 });
+							} catch (e) {
+								done(e);
+								return;
+							}
+							done();
+						}));
 					}));
-				}));
-				const writeEmitter = new EventEmitter<string>();
-				const closeEmitter = new EventEmitter<number | undefined>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(undefined),
-					close: () => { }
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
-			});
+					const writeEmitter = new EventEmitter<string>();
+					const closeEmitter = new EventEmitter<number | undefined>();
+					const pty: Pseudoterminal = {
+						onDidWrite: writeEmitter.event,
+						onDidClose: closeEmitter.event,
+						open: () => closeEmitter.fire(0),
+						close: () => { }
+					};
+					const terminal = window.createTerminal({ name: 'foo', pty });
+				});
 
-			test('exitStatus.code should be set to the exit code (zero)', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-						equal(terminal.exitStatus, undefined);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					disposables.push(window.onDidCloseTerminal(t => {
+				test('exitStatus.code should be set to the exit code (non-zero)', (done) => {
+					disposables.push(window.onDidOpenTerminal(term => {
 						try {
-							equal(terminal, t);
-							deepEqual(terminal.exitStatus, { code: 0 });
+							equal(terminal, term);
+							equal(terminal.exitStatus, undefined);
 						} catch (e) {
 							done(e);
 							return;
 						}
-						done();
+						disposables.push(window.onDidCloseTerminal(t => {
+							try {
+								equal(terminal, t);
+								deepEqual(terminal.exitStatus, { code: 22 });
+							} catch (e) {
+								done(e);
+								return;
+							}
+							done();
+						}));
 					}));
-				}));
-				const writeEmitter = new EventEmitter<string>();
-				const closeEmitter = new EventEmitter<number | undefined>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(0),
-					close: () => { }
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
-			});
+					const writeEmitter = new EventEmitter<string>();
+					const closeEmitter = new EventEmitter<number | undefined>();
+					const pty: Pseudoterminal = {
+						onDidWrite: writeEmitter.event,
+						onDidClose: closeEmitter.event,
+						open: () => {
+							// Wait 500ms as any exits that occur within 500ms of terminal launch are
+							// are counted as "exiting during launch" which triggers a notification even
+							// when showExitAlerts is true
+							setTimeout(() => closeEmitter.fire(22), 500);
+						},
+						close: () => { }
+					};
+					const terminal = window.createTerminal({ name: 'foo', pty });
+				});
 
-			test('exitStatus.code should be set to the exit code (non-zero)', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
-					try {
-						equal(terminal, term);
-						equal(terminal.exitStatus, undefined);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					disposables.push(window.onDidCloseTerminal(t => {
+				test('creationOptions should be set and readonly for ExtensionTerminalOptions terminals', (done) => {
+					disposables.push(window.onDidOpenTerminal(term => {
 						try {
-							equal(terminal, t);
-							deepEqual(terminal.exitStatus, { code: 22 });
+							equal(terminal, term);
 						} catch (e) {
 							done(e);
 							return;
 						}
-						done();
+						terminal.dispose();
+						disposables.push(window.onDidCloseTerminal(() => done()));
 					}));
-				}));
-				const writeEmitter = new EventEmitter<string>();
-				const closeEmitter = new EventEmitter<number | undefined>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					onDidClose: closeEmitter.event,
-					open: () => {
-						// Wait 500ms as any exits that occur within 500ms of terminal launch are
-						// are counted as "exiting during launch" which triggers a notification even
-						// when showExitAlerts is true
-						setTimeout(() => closeEmitter.fire(22), 500);
-					},
-					close: () => { }
-				};
-				const terminal = window.createTerminal({ name: 'foo', pty });
-			});
-
-			test('creationOptions should be set and readonly for ExtensionTerminalOptions terminals', (done) => {
-				disposables.push(window.onDidOpenTerminal(term => {
+					const writeEmitter = new EventEmitter<string>();
+					const pty: Pseudoterminal = {
+						onDidWrite: writeEmitter.event,
+						open: () => { },
+						close: () => { }
+					};
+					const options = { name: 'foo', pty };
+					const terminal = window.createTerminal(options);
 					try {
-						equal(terminal, term);
+						equal(terminal.name, 'foo');
+						const terminalOptions = terminal.creationOptions as ExtensionTerminalOptions;
+						equal(terminalOptions.name, 'foo');
+						equal(terminalOptions.pty, pty);
+						throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 					} catch (e) {
 						done(e);
-						return;
-					}
-					terminal.dispose();
-					disposables.push(window.onDidCloseTerminal(() => done()));
-				}));
-				const writeEmitter = new EventEmitter<string>();
-				const pty: Pseudoterminal = {
-					onDidWrite: writeEmitter.event,
-					open: () => { },
-					close: () => { }
-				};
-				const options = { name: 'foo', pty };
-				const terminal = window.createTerminal(options);
-				try {
-					equal(terminal.name, 'foo');
-					const terminalOptions = terminal.creationOptions as ExtensionTerminalOptions;
-					equal(terminalOptions.name, 'foo');
-					equal(terminalOptions.pty, pty);
-					throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
-				} catch (e) {
-					done(e);
-				}
-			});
-		});
-
-		suite('environmentVariableCollection', () => {
-			test('should have collection variables apply to terminals immediately after setting', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a2~',
-					'b1~b2~',
-					'~c2~c1'
-				];
-				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
-						}
-					}
-				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.append('B', '~b2~');
-				collection.prepend('C', '~c2~');
-				const terminal = window.createTerminal({
-					env: {
-						A: 'a1',
-						B: 'b1',
-						C: 'c1'
 					}
 				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
 			});
 
-			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a2~',
-					'~b2~',
-					'~c2~'
-				];
-				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+			suite('environmentVariableCollection', () => {
+				test('should have collection variables apply to terminals immediately after setting', (done) => {
+					// Text to match on before passing the test
+					const expectedText = [
+						'~a2~',
+						'b1~b2~',
+						'~c2~c1'
+					];
+					disposables.push(window.onDidWriteTerminalData(e => {
+						try {
+							equal(terminal, e.terminal);
+						} catch (e) {
+							done(e);
+							return;
 						}
-					}
-				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.append('B', '~b2~');
-				collection.prepend('C', '~c2~');
-				const terminal = window.createTerminal({
-					env: {
-						A: null,
-						B: null,
-						C: null
-					}
-				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-				terminal.sendText('$env:C');
-				terminal.sendText('echo $C');
-			});
-
-			test('should respect clearing entries', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a1~',
-					'~b1~'
-				];
-				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+						// Multiple expected could show up in the same data event
+						while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+							expectedText.shift();
+							// Check if all string are found, if so finish the test
+							if (expectedText.length === 0) {
+								disposables.push(window.onDidCloseTerminal(() => done()));
+								terminal.dispose();
+							}
 						}
-					}
-				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.replace('B', '~a2~');
-				collection.clear();
-				const terminal = window.createTerminal({
-					env: {
-						A: '~a1~',
-						B: '~b1~'
-					}
-				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-			});
-
-			test('should respect deleting entries', (done) => {
-				// Text to match on before passing the test
-				const expectedText = [
-					'~a1~',
-					'~b2~'
-				];
-				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
-						expectedText.shift();
-						// Check if all string are found, if so finish the test
-						if (expectedText.length === 0) {
-							disposables.push(window.onDidCloseTerminal(() => done()));
-							terminal.dispose();
+					}));
+					const collection = extensionContext.environmentVariableCollection;
+					disposables.push({ dispose: () => collection.clear() });
+					collection.replace('A', '~a2~');
+					collection.append('B', '~b2~');
+					collection.prepend('C', '~c2~');
+					const terminal = window.createTerminal({
+						env: {
+							A: 'a1',
+							B: 'b1',
+							C: 'c1'
 						}
-					}
-				}));
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.replace('B', '~b2~');
-				collection.delete('A');
-				const terminal = window.createTerminal({
-					env: {
-						A: '~a1~',
-						B: '~b2~'
-					}
+					});
+					// Run both PowerShell and sh commands, errors don't matter we're just looking for
+					// the correct output
+					terminal.sendText('$env:A');
+					terminal.sendText('echo $A');
+					terminal.sendText('$env:B');
+					terminal.sendText('echo $B');
+					terminal.sendText('$env:C');
+					terminal.sendText('echo $C');
 				});
-				// Run both PowerShell and sh commands, errors don't matter we're just looking for
-				// the correct output
-				terminal.sendText('$env:A');
-				terminal.sendText('echo $A');
-				terminal.sendText('$env:B');
-				terminal.sendText('echo $B');
-			});
 
-			test('get and forEach should work', () => {
-				const collection = extensionContext.environmentVariableCollection;
-				disposables.push({ dispose: () => collection.clear() });
-				collection.replace('A', '~a2~');
-				collection.append('B', '~b2~');
-				collection.prepend('C', '~c2~');
+				test('should have collection variables apply to environment variables that don\'t exist', (done) => {
+					// Text to match on before passing the test
+					const expectedText = [
+						'~a2~',
+						'~b2~',
+						'~c2~'
+					];
+					disposables.push(window.onDidWriteTerminalData(e => {
+						try {
+							equal(terminal, e.terminal);
+						} catch (e) {
+							done(e);
+							return;
+						}
+						// Multiple expected could show up in the same data event
+						while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+							expectedText.shift();
+							// Check if all string are found, if so finish the test
+							if (expectedText.length === 0) {
+								disposables.push(window.onDidCloseTerminal(() => done()));
+								terminal.dispose();
+							}
+						}
+					}));
+					const collection = extensionContext.environmentVariableCollection;
+					disposables.push({ dispose: () => collection.clear() });
+					collection.replace('A', '~a2~');
+					collection.append('B', '~b2~');
+					collection.prepend('C', '~c2~');
+					const terminal = window.createTerminal({
+						env: {
+							A: null,
+							B: null,
+							C: null
+						}
+					});
+					// Run both PowerShell and sh commands, errors don't matter we're just looking for
+					// the correct output
+					terminal.sendText('$env:A');
+					terminal.sendText('echo $A');
+					terminal.sendText('$env:B');
+					terminal.sendText('echo $B');
+					terminal.sendText('$env:C');
+					terminal.sendText('echo $C');
+				});
 
-				// Verify get
-				deepEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
-				deepEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
-				deepEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+				test('should respect clearing entries', (done) => {
+					// Text to match on before passing the test
+					const expectedText = [
+						'~a1~',
+						'~b1~'
+					];
+					disposables.push(window.onDidWriteTerminalData(e => {
+						try {
+							equal(terminal, e.terminal);
+						} catch (e) {
+							done(e);
+							return;
+						}
+						// Multiple expected could show up in the same data event
+						while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+							expectedText.shift();
+							// Check if all string are found, if so finish the test
+							if (expectedText.length === 0) {
+								disposables.push(window.onDidCloseTerminal(() => done()));
+								terminal.dispose();
+							}
+						}
+					}));
+					const collection = extensionContext.environmentVariableCollection;
+					disposables.push({ dispose: () => collection.clear() });
+					collection.replace('A', '~a2~');
+					collection.replace('B', '~a2~');
+					collection.clear();
+					const terminal = window.createTerminal({
+						env: {
+							A: '~a1~',
+							B: '~b1~'
+						}
+					});
+					// Run both PowerShell and sh commands, errors don't matter we're just looking for
+					// the correct output
+					terminal.sendText('$env:A');
+					terminal.sendText('echo $A');
+					terminal.sendText('$env:B');
+					terminal.sendText('echo $B');
+				});
 
-				// Verify forEach
-				const entries: [string, EnvironmentVariableMutator][] = [];
-				collection.forEach((v, m) => entries.push([v, m]));
-				deepEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
-				]);
+				test('should respect deleting entries', (done) => {
+					// Text to match on before passing the test
+					const expectedText = [
+						'~a1~',
+						'~b2~'
+					];
+					disposables.push(window.onDidWriteTerminalData(e => {
+						try {
+							equal(terminal, e.terminal);
+						} catch (e) {
+							done(e);
+							return;
+						}
+						// Multiple expected could show up in the same data event
+						while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+							expectedText.shift();
+							// Check if all string are found, if so finish the test
+							if (expectedText.length === 0) {
+								disposables.push(window.onDidCloseTerminal(() => done()));
+								terminal.dispose();
+							}
+						}
+					}));
+					const collection = extensionContext.environmentVariableCollection;
+					disposables.push({ dispose: () => collection.clear() });
+					collection.replace('A', '~a2~');
+					collection.replace('B', '~b2~');
+					collection.delete('A');
+					const terminal = window.createTerminal({
+						env: {
+							A: '~a1~',
+							B: '~b2~'
+						}
+					});
+					// Run both PowerShell and sh commands, errors don't matter we're just looking for
+					// the correct output
+					terminal.sendText('$env:A');
+					terminal.sendText('echo $A');
+					terminal.sendText('$env:B');
+					terminal.sendText('echo $B');
+				});
+
+				test('get and forEach should work', () => {
+					const collection = extensionContext.environmentVariableCollection;
+					disposables.push({ dispose: () => collection.clear() });
+					collection.replace('A', '~a2~');
+					collection.append('B', '~b2~');
+					collection.prepend('C', '~c2~');
+
+					// Verify get
+					deepEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
+					deepEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
+					deepEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+
+					// Verify forEach
+					const entries: [string, EnvironmentVariableMutator][] = [];
+					collection.forEach((v, m) => entries.push([v, m]));
+					deepEqual(entries, [
+						['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
+						['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
+						['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+					]);
+				});
 			});
 		});
 	});
