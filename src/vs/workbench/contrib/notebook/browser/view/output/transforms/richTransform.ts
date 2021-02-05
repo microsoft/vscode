@@ -6,7 +6,7 @@
 import { CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { ICommonNotebookEditor, IDisplayOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { isArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -23,7 +23,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ErrorTransform } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 
 class RichRenderer implements IOutputTransformContribution {
-	private _richMimeTypeRenderers = new Map<string, (output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement) => IRenderOutput>();
+	private _richMimeTypeRenderers = new Map<string, (output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement) => IRenderOutput>();
 
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
@@ -47,7 +47,7 @@ class RichRenderer implements IOutputTransformContribution {
 		this._richMimeTypeRenderers.set('application/x.notebook.stream', this._renderStream.bind(this));
 	}
 
-	render(output: IDisplayOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
+	render(output: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
 		if (!output.model.data) {
 			const contentNode = document.createElement('p');
 			contentNode.innerText = `No data could be found for output.`;
@@ -78,7 +78,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return renderer!(output, notebookUri, container);
 	}
 
-	renderJSON(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderJSON(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['application/json'];
 		const str = JSON.stringify(data, null, '\t');
 
@@ -111,7 +111,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderCode(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderCode(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['text/x-javascript'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 
@@ -144,7 +144,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderJavaScript(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderJavaScript(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['application/javascript'];
 		const str = isArray(data) ? data.join('') : data;
 		const scriptVal = `<script type="application/javascript">${str}</script>`;
@@ -156,7 +156,7 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderHTML(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderHTML(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['text/html'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -167,7 +167,7 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderSVG(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderSVG(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['image/svg+xml'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -178,7 +178,7 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderMarkdown(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderMarkdown(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['text/markdown'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
@@ -189,7 +189,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderPNG(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderPNG(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const image = document.createElement('img');
 		image.src = `data:image/png;base64,${output.model.data['image/png']}`;
 		const display = document.createElement('div');
@@ -199,7 +199,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderJPEG(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderJPEG(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const image = document.createElement('img');
 		image.src = `data:image/jpeg;base64,${output.model.data['image/jpeg']}`;
 		const display = document.createElement('div');
@@ -209,7 +209,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderPlainText(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	renderPlainText(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['text/plain'];
 		const contentNode = DOM.$('.output-plaintext');
 		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
@@ -218,15 +218,13 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
-	private _renderErrorTraceback(outputViewModel: IDisplayOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
+	private _renderErrorTraceback(outputViewModel: ICellOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const output = outputViewModel.model.data['application/x.notebook.error-traceback'] as any;
-		const transform = new ErrorTransform(this.notebookEditor, this.themeService);
-		transform.render(output, container);
-		transform.dispose();
+		ErrorTransform.render(output, container, this.themeService);
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
-	private _renderStream(outputViewModel: IDisplayOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
+	private _renderStream(outputViewModel: ICellOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = outputViewModel.model.data['application/x.notebook.stream'] as any;
 		const text = (isArray(data) ? data.join('') : data) as string;
 		const contentNode = DOM.$('span.output-stream');
@@ -238,6 +236,7 @@ class RichRenderer implements IOutputTransformContribution {
 	dispose(): void {
 	}
 }
+
 
 NotebookRegistry.registerOutputTransform('notebook.output.rich', CellOutputKind.Rich, RichRenderer);
 

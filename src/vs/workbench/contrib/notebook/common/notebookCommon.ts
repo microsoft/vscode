@@ -178,12 +178,6 @@ export interface IDisplayOutput {
 	metadata?: NotebookCellOutputMetadata;
 }
 
-export enum MimeTypeRendererResolver {
-	Core,
-	Active,
-	Lazy
-}
-
 export interface IOrderedMimeType {
 	mimeType: string;
 	rendererId: string;
@@ -204,9 +198,8 @@ export interface ITransformedErrorOutputDto extends IErrorOutput {
 
 export const addIdToOutput = (output: IOutputDto, id = UUID.generateUuid()): IOutputDtoWithId => ({ ...output, outputId: id });
 
-export type IOutputDtoWithId = ITransformedDisplayOutputDto | ITransformedStreamOutputDto | ITransformedErrorOutputDto;
-
 export type IOutputDto = IDisplayOutput | IStreamOutput | IErrorOutput;
+export type IOutputDtoWithId = ITransformedDisplayOutputDto | ITransformedStreamOutputDto | ITransformedErrorOutputDto;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;

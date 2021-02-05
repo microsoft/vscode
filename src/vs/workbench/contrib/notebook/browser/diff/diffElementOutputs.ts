@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { ICellOutputViewModel, IDisplayOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -49,55 +49,55 @@ export class OutputElement extends Disposable {
 		const outputItemDiv = document.createElement('div');
 		let result: IRenderOutput | undefined = undefined;
 
-		if (this.output.isDisplayOutput()) {
-			const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel);
-			const pickedMimeTypeRenderer = mimeTypes[pick];
-			if (mimeTypes.length > 1) {
-				outputItemDiv.style.position = 'relative';
-				const mimeTypePicker = DOM.$('.multi-mimetype-output');
-				mimeTypePicker.classList.add(...ThemeIcon.asClassNameArray(mimetypeIcon));
-				mimeTypePicker.tabIndex = 0;
-				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", mimeTypes.map(mimeType => mimeType.mimeType).join(', '));
-				outputItemDiv.appendChild(mimeTypePicker);
-				this.resizeListener.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
-					if (e.leftButton) {
-						e.preventDefault();
-						e.stopPropagation();
-						await this.pickActiveMimeTypeRenderer(this._notebookTextModel, this.output as IDisplayOutputViewModel);
-					}
-				}));
+		// if (this.output.isDisplayOutput()) {
+		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel);
+		const pickedMimeTypeRenderer = mimeTypes[pick];
+		if (mimeTypes.length > 1) {
+			outputItemDiv.style.position = 'relative';
+			const mimeTypePicker = DOM.$('.multi-mimetype-output');
+			mimeTypePicker.classList.add(...ThemeIcon.asClassNameArray(mimetypeIcon));
+			mimeTypePicker.tabIndex = 0;
+			mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", mimeTypes.map(mimeType => mimeType.mimeType).join(', '));
+			outputItemDiv.appendChild(mimeTypePicker);
+			this.resizeListener.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
+				if (e.leftButton) {
+					e.preventDefault();
+					e.stopPropagation();
+					await this.pickActiveMimeTypeRenderer(this._notebookTextModel, this.output);
+				}
+			}));
 
-				this.resizeListener.add((DOM.addDisposableListener(mimeTypePicker, DOM.EventType.KEY_DOWN, async e => {
-					const event = new StandardKeyboardEvent(e);
-					if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
-						e.preventDefault();
-						e.stopPropagation();
-						await this.pickActiveMimeTypeRenderer(this._notebookTextModel, this.output as IDisplayOutputViewModel);
-					}
-				})));
-			}
-
-			const innerContainer = DOM.$('.output-inner-container');
-			DOM.append(outputItemDiv, innerContainer);
-
-
-			if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
-				const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-				result = renderer
-					? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-					: this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri,);
-			} else {
-				result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
-			}
-
-			this.output.pickedMimeType = pick;
-		} else {
-			// for text and error, there is no mimetype
-			const innerContainer = DOM.$('.output-inner-container');
-			DOM.append(outputItemDiv, innerContainer);
-
-			result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, undefined, this._notebookTextModel.uri);
+			this.resizeListener.add((DOM.addDisposableListener(mimeTypePicker, DOM.EventType.KEY_DOWN, async e => {
+				const event = new StandardKeyboardEvent(e);
+				if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+					e.preventDefault();
+					e.stopPropagation();
+					await this.pickActiveMimeTypeRenderer(this._notebookTextModel, this.output);
+				}
+			})));
 		}
+
+		const innerContainer = DOM.$('.output-inner-container');
+		DOM.append(outputItemDiv, innerContainer);
+
+
+		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
+			const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
+			result = renderer
+				? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
+				: this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri,);
+		} else {
+			result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
+		}
+
+		this.output.pickedMimeType = pick;
+		// } else {
+		// 	// for text and error, there is no mimetype
+		// 	const innerContainer = DOM.$('.output-inner-container');
+		// 	DOM.append(outputItemDiv, innerContainer);
+
+		// 	result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, undefined, this._notebookTextModel.uri);
+		// }
 
 		this.domNode = outputItemDiv;
 		this.renderResult = result;
@@ -166,7 +166,7 @@ export class OutputElement extends Disposable {
 		}
 	}
 
-	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: IDisplayOutputViewModel) {
+	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel);
 
 		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
@@ -294,9 +294,7 @@ export class OutputContainer extends Disposable {
 				removedKeys.push(key);
 				// remove element from DOM
 				this._outputContainer.removeChild(value.domNode);
-				if (key.isDisplayOutput()) {
-					this._editor.removeInset(this._diffElementViewModel, this._nestedCellViewModel, key, this._diffSide);
-				}
+				this._editor.removeInset(this._diffElementViewModel, this._nestedCellViewModel, key, this._diffSide);
 			}
 		});
 
@@ -334,19 +332,14 @@ export class OutputContainer extends Disposable {
 	showOutputs() {
 		for (let index = 0; index < this._nestedCellViewModel.outputsViewModels.length; index++) {
 			const currOutput = this._nestedCellViewModel.outputsViewModels[index];
-
-			if (currOutput.isDisplayOutput()) {
-				// always add to the end
-				this._editor.showInset(this._diffElementViewModel, currOutput.cellViewModel, currOutput, this._diffSide);
-			}
+			// always add to the end
+			this._editor.showInset(this._diffElementViewModel, currOutput.cellViewModel, currOutput, this._diffSide);
 		}
 	}
 
 	hideOutputs() {
 		this._outputEntries.forEach((outputElement, cellOutputViewModel) => {
-			if (cellOutputViewModel.isDisplayOutput()) {
-				this._editor.hideInset(this._diffElementViewModel, this._nestedCellViewModel, cellOutputViewModel);
-			}
+			this._editor.hideInset(this._diffElementViewModel, this._nestedCellViewModel, cellOutputViewModel);
 		});
 	}
 

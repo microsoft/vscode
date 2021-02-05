@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IOutputDtoWithId, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, ITransformedDisplayOutputDto, INotebookRendererInfo, ITransformedErrorOutputDto, ITransformedStreamOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, ITransformedDisplayOutputDto, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -107,25 +107,21 @@ export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOut
 
 export interface ICellOutputViewModel {
 	cellViewModel: IGenericCellViewModel;
-	model: IOutputDtoWithId;
-	isDisplayOutput(): this is IDisplayOutputViewModel;
-	isErrorOutput(): this is IErrorOutputViewModel;
-	isStreamOutput(): this is IStreamOutputViewModel;
+	/**
+	 * When rendering an output, `model` should always be used as we convert legacy `text/error` output to `display_data` output under the hood.
+	 */
+	model: ITransformedDisplayOutputDto;
+	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	pickedMimeType: number;
+	supportAppend(): boolean;
+	toRawJSON(): any;
 }
 
 export interface IDisplayOutputViewModel extends ICellOutputViewModel {
-	model: ITransformedDisplayOutputDto;
 	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 }
 
-export interface IErrorOutputViewModel extends ICellOutputViewModel {
-	model: ITransformedErrorOutputDto;
-}
-
-export interface IStreamOutputViewModel extends ICellOutputViewModel {
-	model: ITransformedStreamOutputDto;
-}
 
 //#endregion
 
