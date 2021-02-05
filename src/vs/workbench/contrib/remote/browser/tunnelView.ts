@@ -137,7 +137,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
-			const tunnelItem = TunnelItem.createFromTunnel(tunnel);
+			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel);
 			this.addProcessInfoFromCandidate(tunnelItem);
 			return tunnelItem;
 		}).sort((a: TunnelItem, b: TunnelItem) => {
@@ -155,7 +155,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get detected(): TunnelItem[] {
 		return Array.from(this.model.detected.values()).map(tunnel => {
-			const tunnelItem = TunnelItem.createFromTunnel(tunnel, TunnelType.Detected, false);
+			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel, TunnelType.Detected, false);
 			this.addProcessInfoFromCandidate(tunnelItem);
 			return tunnelItem;
 		});
@@ -404,7 +404,7 @@ interface ITunnelGroup {
 }
 
 class TunnelItem implements ITunnelItem {
-	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
+	static createFromTunnel(remoteExplorerService: IRemoteExplorerService, tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
 		return new TunnelItem(type,
 			tunnel.remoteHost,
 			tunnel.remotePort,
@@ -415,7 +415,8 @@ class TunnelItem implements ITunnelItem {
 			tunnel.runningProcess,
 			tunnel.source,
 			tunnel.pid,
-			tunnel.privacy);
+			tunnel.privacy,
+			remoteExplorerService);
 	}
 
 	constructor(
@@ -430,6 +431,7 @@ class TunnelItem implements ITunnelItem {
 		private source?: string,
 		private pid?: number,
 		public privacy?: TunnelPrivacy,
+		private remoteExplorerService?: IRemoteExplorerService
 	) { }
 	get label(): string {
 		if (this.name) {
@@ -477,7 +479,10 @@ class TunnelItem implements ITunnelItem {
 
 		if (item.runningProcess) {
 			let processPid: string;
-			if (isWide) {
+			if (item.pid && item.remoteExplorerService?.namedProcesses.has(item.pid)) {
+				// This is a known process. Give it a friendly name.
+				processPid = item.remoteExplorerService.namedProcesses.get(item.pid)!;
+			} else if (isWide) {
 				processPid = item.runningProcess.replace(/\0/g, ' ').trim();
 			} else {
 				const nullIndex = item.runningProcess.indexOf('\0');
@@ -903,9 +908,9 @@ interface QuickPickTunnel extends IQuickPickItem {
 	tunnel?: ITunnelItem
 }
 
-function makeTunnelPicks(tunnels: Tunnel[]): QuickPickInput<QuickPickTunnel>[] {
+function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplorerService): QuickPickInput<QuickPickTunnel>[] {
 	const picks: QuickPickInput<QuickPickTunnel>[] = tunnels.map(forwarded => {
-		const item = TunnelItem.createFromTunnel(forwarded);
+		const item = TunnelItem.createFromTunnel(remoteExplorerService, forwarded);
 		return {
 			label: item.label,
 			description: item.description,
@@ -941,7 +946,7 @@ namespace ClosePortAction {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const commandService = accessor.get(ICommandService);
 
-			const picks: QuickPickInput<QuickPickTunnel>[] = makeTunnelPicks(Array.from(remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.closeable));
+			const picks: QuickPickInput<QuickPickTunnel>[] = makeTunnelPicks(Array.from(remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.closeable), remoteExplorerService);
 			const result = await quickInputService.pick(picks, { placeHolder: nls.localize('remote.tunnel.closePlaceholder', "Choose a port to stop forwarding") });
 			if (result && result.tunnel) {
 				await remoteExplorerService.close({ host: result.tunnel.remoteHost, port: result.tunnel.remotePort });
@@ -1035,12 +1040,13 @@ namespace OpenPortInBrowserCommandPaletteAction {
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
-			const model = accessor.get(IRemoteExplorerService).tunnelModel;
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const model = remoteExplorerService.tunnelModel;
 			const quickPickService = accessor.get(IQuickInputService);
 			const openerService = accessor.get(IOpenerService);
 			const commandService = accessor.get(ICommandService);
 			const options: QuickPickTunnel[] = [...model.forwarded, ...model.detected].map(value => {
-				const tunnelItem = TunnelItem.createFromTunnel(value[1]);
+				const tunnelItem = TunnelItem.createFromTunnel(remoteExplorerService, value[1]);
 				return {
 					label: tunnelItem.label,
 					description: tunnelItem.description,
@@ -1096,7 +1102,7 @@ namespace CopyAddressAction {
 			const clipboardService = accessor.get(IClipboardService);
 
 			const tunnels = Array.from(remoteExplorerService.tunnelModel.forwarded.values()).concat(Array.from(remoteExplorerService.tunnelModel.detected.values()));
-			const result = await quickInputService.pick(makeTunnelPicks(tunnels), { placeHolder: nls.localize('remote.tunnel.copyAddressPlaceholdter', "Choose a forwarded port") });
+			const result = await quickInputService.pick(makeTunnelPicks(tunnels, remoteExplorerService), { placeHolder: nls.localize('remote.tunnel.copyAddressPlaceholdter', "Choose a forwarded port") });
 			if (result && result.tunnel) {
 				await copyAddress(remoteExplorerService, clipboardService, result.tunnel);
 			} else if (result) {
