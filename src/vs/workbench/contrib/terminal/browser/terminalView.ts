@@ -318,7 +318,6 @@ export class TerminalViewPane extends ViewPane {
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			// TODO: Bring back context menu
 			getActions: () => actions,
 			getActionsContext: () => this._parentDomElement,
 			onHide: () => actionsDisposable.dispose()

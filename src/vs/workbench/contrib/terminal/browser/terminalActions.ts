@@ -1128,7 +1128,6 @@ export function registerTerminalActions() {
 					},
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
 				}],
-				// TODO: Support splitVertical icon?
 				icon: Codicon.splitHorizontal,
 				menu: [{
 					id: MenuId.ViewTitle,
@@ -1294,7 +1293,6 @@ export function registerTerminalActions() {
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
-		// TODO: Disable when there is no selection
 		command: {
 			id: TERMINAL_COMMAND_ID.KILL,
 			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
@@ -1416,7 +1414,6 @@ export function registerTerminalActions() {
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
-			// TODO: Disable when text is not in the clipboard
 			command: {
 				id: TERMINAL_COMMAND_ID.PASTE,
 				title: localize('workbench.action.terminal.paste.short', "Paste")
