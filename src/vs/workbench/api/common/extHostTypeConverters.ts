@@ -31,7 +31,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { CellEditType, CellOutputKind, ICellDto2, INotebookDecorationRenderOptions, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellOutputKind, ICellDto2, INotebookDecorationRenderOptions, IDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
@@ -1322,7 +1322,7 @@ export namespace LanguageSelector {
 export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): ICellDto2 {
-		let outputs: ITransformedDisplayOutputDto[];
+		let outputs: IDisplayOutputDto[];
 		const [first] = data.outputs;
 		if (!first) {
 			outputs = [];
@@ -1342,7 +1342,7 @@ export namespace NotebookCellData {
 }
 
 export namespace NotebookCellOutput {
-	export function from(output: types.NotebookCellOutput): ITransformedDisplayOutputDto {
+	export function from(output: types.NotebookCellOutput): IDisplayOutputDto {
 
 		const data = Object.create(null);
 		const custom = Object.create(null);

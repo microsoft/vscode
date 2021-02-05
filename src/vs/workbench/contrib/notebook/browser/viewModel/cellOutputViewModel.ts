@@ -6,13 +6,13 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellOutputKind, IOrderedMimeType, IOutputDtoWithId, ITransformedDisplayOutputDto, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IOrderedMimeType, IOutputDto, IDisplayOutputDto, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 let handle = 0;
 export class CellOutputViewModel extends Disposable implements ICellOutputViewModel {
 	outputHandle = handle++;
-	get model(): ITransformedDisplayOutputDto {
+	get model(): IDisplayOutputDto {
 		return this._outputData;
 	}
 
@@ -25,11 +25,11 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 		this._pickedMimeType = value;
 	}
 
-	private _outputData: ITransformedDisplayOutputDto;
+	private _outputData: IDisplayOutputDto;
 
 	constructor(
 		readonly cellViewModel: IGenericCellViewModel,
-		private readonly _outputRawData: IOutputDtoWithId,
+		private readonly _outputRawData: IOutputDto,
 		private readonly _notebookService: INotebookService
 	) {
 		super();
