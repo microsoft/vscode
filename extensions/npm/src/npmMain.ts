@@ -10,6 +10,7 @@ import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
 import { getPackageManager, invalidateTasksCache, NpmTaskProvider } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
+import { NpmScriptLensProvider } from './npmScriptLens';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
@@ -62,6 +63,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 		return '';
 	}));
+	context.subscriptions.push(new NpmScriptLensProvider());
 }
 
 function canRunNpmInCurrentWorkspace() {

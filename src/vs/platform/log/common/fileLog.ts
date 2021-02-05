@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService, ILoggerService, ILogger } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogger, ILoggerService, ILogger } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
@@ -15,9 +15,7 @@ import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
-export class FileLogService extends AbstractLogService implements ILogService {
-
-	declare readonly _serviceBrand: undefined;
+export class FileLogger extends AbstractLogger implements ILogger {
 
 	private readonly initializePromise: Promise<void>;
 	private readonly queue: Queue<void>;
@@ -181,7 +179,7 @@ export class FileLoggerService extends Disposable implements ILoggerService {
 		if (!logger) {
 			logger = new BufferLogService(this.logService.getLevel());
 			this.loggers.set(resource.toString(), logger);
-			whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogService, basename(resource), resource, this.logService.getLevel()));
+			whenProviderRegistered(resource, this.fileService).then(() => (<BufferLogService>logger).logger = this.instantiationService.createInstance(FileLogger, basename(resource), resource, this.logService.getLevel()));
 		}
 		return logger;
 	}

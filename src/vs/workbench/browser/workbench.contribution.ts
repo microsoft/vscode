@@ -372,32 +372,36 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'window.menuBarVisibility': {
 				'type': 'string',
-				'enum': ['default', 'visible', 'toggle', 'hidden', 'compact'],
+				'enum': ['classic', 'visible', 'toggle', 'hidden', 'compact'],
 				'markdownEnumDescriptions': [
-					nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
-					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
-					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
+					nls.localize('window.menuBarVisibility.classic', "Menu is displayed at the top of the window and only hidden in full screen mode."),
+					nls.localize('window.menuBarVisibility.visible', "Menu is always visible at the top of the window even in full screen mode."),
+					isMacintosh ?
+						nls.localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
+						nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
 					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
 					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when `#window.titleBarStyle#` is `native`.")
 				],
-				'default': isWeb ? 'compact' : 'default',
+				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
+				'markdownDescription': isMacintosh ?
+					nls.localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the sidebar.") :
+					nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the sidebar."),
 				'included': isWindows || isLinux || isWeb
 			},
 			'window.enableMenuBarMnemonics': {
 				'type': 'boolean',
-				'default': !isMacintosh,
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('enableMenuBarMnemonics', "Controls whether the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
-				'included': isWindows || isLinux || isWeb
+				'included': isWindows || isLinux
 			},
 			'window.customMenuBarAltFocus': {
 				'type': 'boolean',
-				'default': !isMacintosh,
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': nls.localize('customMenuBarAltFocus', "Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key."),
-				'included': isWindows || isLinux || isWeb
+				'included': isWindows || isLinux
 			},
 			'window.openFilesInNewWindow': {
 				'type': 'string',

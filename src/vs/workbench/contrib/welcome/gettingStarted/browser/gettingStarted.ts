@@ -16,7 +16,7 @@ import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -26,6 +26,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { URI } from 'vs/base/common/uri';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 const telemetryFrom = 'gettingStartedPage';
@@ -98,6 +99,7 @@ export class GettingStartedPage extends Disposable {
 		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -140,6 +142,8 @@ export class GettingStartedPage extends Disposable {
 			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
 			if (command) {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
+
+					this.commandService.executeCommand('workbench.action.keepEditor');
 
 					type GettingStartedActionClassification = {
 						command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -202,7 +206,7 @@ export class GettingStartedPage extends Disposable {
 	}
 
 	private selectTask(container: HTMLElement, id: string | undefined, contractIfAlreadySelected = true) {
-		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media'));
+		const mediaElement = assertIsDefined(container.querySelector('.getting-started-media') as HTMLImageElement);
 		this.taskDisposables.clear();
 		if (id) {
 			const taskElement = assertIsDefined(container.querySelector(`[data-task-id="${id}"]`));
@@ -218,9 +222,11 @@ export class GettingStartedPage extends Disposable {
 			this.editorInput.selectedTask = id;
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
 
-			mediaElement.setAttribute('src', taskToExpand.media.path.toString());
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
+			this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path);
+			this.taskDisposables.add(addDisposableListener(mediaElement, 'load', () => mediaElement.width = mediaElement.naturalWidth * 2 / 3));
 			this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
+			this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path)));
 			taskElement.classList.add('expanded');
 		} else {
 			this.editorInput.selectedTask = undefined;
@@ -229,6 +235,11 @@ export class GettingStartedPage extends Disposable {
 		}
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
+	}
+
+	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
+		const themeType = this.themeService.getColorTheme().type;
+		element.src = sources[themeType].toString();
 	}
 
 	onReady(container: HTMLElement) {
@@ -294,8 +305,11 @@ export class GettingStartedPage extends Disposable {
 			}
 			this.buildCategorySlide(container, this.editorInput.selectedCategory, this.editorInput.selectedTask);
 			categoriesSlide.classList.add('prev');
+			this.setButtonEnablement(container, 'details');
 		} else {
 			tasksSlide.classList.add('next');
+			this.focusFirstUncompletedCategory(container);
+			this.setButtonEnablement(container, 'categories');
 		}
 		setTimeout(() => assertIsDefined(container.querySelector('.gettingStartedContainer')).classList.add('animationReady'), 0);
 	}
@@ -339,6 +353,7 @@ export class GettingStartedPage extends Disposable {
 				this.buildCategorySlide(container, categoryID);
 				slides[currentSlide].classList.add('prev');
 				slides[currentSlide + 1].classList.remove('next');
+				this.setButtonEnablement(container, 'details');
 			}
 		});
 	}
@@ -418,8 +433,29 @@ export class GettingStartedPage extends Disposable {
 			if (currentSlide > 0) {
 				slides[currentSlide].classList.add('next');
 				assertIsDefined(slides[currentSlide - 1]).classList.remove('prev');
+				this.setButtonEnablement(container, 'categories');
 			}
+			this.focusFirstUncompletedCategory(container);
 		});
+	}
+
+	private focusFirstUncompletedCategory(container: HTMLElement) {
+		let toFocus!: HTMLElement;
+		container.querySelectorAll('.category-progress').forEach(progress => {
+			const progressAmount = assertIsDefined(progress.querySelector('.progress-bar-inner') as HTMLDivElement).style.width;
+			if (!toFocus && progressAmount !== '100%') { toFocus = assertIsDefined(progress.parentElement?.parentElement); }
+		});
+		(toFocus ?? assertIsDefined(container.querySelector('button.skip')) as HTMLButtonElement).focus();
+	}
+
+	private setButtonEnablement(container: HTMLElement, toEnable: 'details' | 'categories') {
+		if (toEnable === 'categories') {
+			container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
+			container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
+		} else {
+			container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
+			container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = true);
+		}
 	}
 }
 
@@ -503,6 +539,7 @@ registerThemingParticipant((theme, collector) => {
 	if (link) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer a { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .button-link { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .button-link * { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {

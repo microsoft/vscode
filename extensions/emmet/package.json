@@ -439,7 +439,7 @@
     "@emmetio/html-matcher": "^0.3.3",
     "@emmetio/math-expression": "^1.0.4",
     "image-size": "^0.5.2",
-    "vscode-emmet-helper": "2.2.4-2",
+    "vscode-emmet-helper": "2.2.4-3",
     "vscode-languageserver-textdocument": "^1.0.1"
   }
 }

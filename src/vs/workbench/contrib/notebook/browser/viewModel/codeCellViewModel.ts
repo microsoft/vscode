@@ -23,14 +23,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
-	private _selfSizeMonitoring: boolean = false;
-	set selfSizeMonitoring(newVal: boolean) {
-		this._selfSizeMonitoring = newVal;
-	}
-
-	get selfSizeMonitoring() {
-		return this._selfSizeMonitoring;
-	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
 

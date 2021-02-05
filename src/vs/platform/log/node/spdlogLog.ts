@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
+import { LogLevel, AbstractLogger, ILogger } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
@@ -43,9 +43,7 @@ function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): v
 	}
 }
 
-export class SpdLogService extends AbstractLogService implements ILogService {
-
-	declare readonly _serviceBrand: undefined;
+export class SpdLogLogger extends AbstractLogger implements ILogger {
 
 	private buffer: ILog[] = [];
 	private _loggerCreationPromise: Promise<void> | undefined = undefined;
