@@ -1504,6 +1504,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._onDidContentSizeChange.fire(e);
 					break;
 				case OutgoingViewModelEventKind.FocusChanged:
+					this._editorFocus.setValue(e.hasFocus);
 					this._editorTextFocus.setValue(e.hasFocus);
 					break;
 				case OutgoingViewModelEventKind.ScrollChanged:
