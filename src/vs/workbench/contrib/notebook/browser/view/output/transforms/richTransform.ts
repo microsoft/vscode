@@ -5,7 +5,7 @@
 
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { isArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -22,7 +22,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ErrorTransform } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import { Disposable } from 'vs/base/common/lifecycle';
 
-class JSONRenderer extends Disposable implements IOutputTransformContribution {
+class JSONRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['application/json'];
@@ -71,7 +71,7 @@ class JSONRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-class JavaScriptRenderer extends Disposable implements IOutputTransformContribution {
+class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
 	getMimetypes() {
 		return ['application/javascript'];
 	}
@@ -95,7 +95,7 @@ class JavaScriptRenderer extends Disposable implements IOutputTransformContribut
 	}
 }
 
-class CodeRenderer extends Disposable implements IOutputTransformContribution {
+class CodeRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['text/x-javascript'];
@@ -144,7 +144,7 @@ class CodeRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-class StreamRenderer extends Disposable implements IOutputTransformContribution {
+class StreamRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['application/x.notebook.stream'];
@@ -169,7 +169,7 @@ class StreamRenderer extends Disposable implements IOutputTransformContribution 
 	}
 }
 
-class ErrorRenderer extends Disposable implements IOutputTransformContribution {
+class ErrorRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['application/x.notebook.error-traceback'];
@@ -189,7 +189,7 @@ class ErrorRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-class PlainTextRenderer extends Disposable implements IOutputTransformContribution {
+class PlainTextRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['text/plain'];
@@ -214,7 +214,7 @@ class PlainTextRenderer extends Disposable implements IOutputTransformContributi
 	}
 }
 
-class HTMLRenderer extends Disposable implements IOutputTransformContribution {
+class HTMLRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['text/html'];
@@ -238,7 +238,7 @@ class HTMLRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-class SVGRenderer extends Disposable implements IOutputTransformContribution {
+class SVGRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['image/svg+xml'];
@@ -262,7 +262,7 @@ class SVGRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-class MdRenderer extends Disposable implements IOutputTransformContribution {
+class MdRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['text/markdown'];
@@ -287,7 +287,7 @@ class MdRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-class PNGRenderer extends Disposable implements IOutputTransformContribution {
+class PNGRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['image/png'];
@@ -310,7 +310,7 @@ class PNGRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-class JPEGRenderer extends Disposable implements IOutputTransformContribution {
+class JPEGRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
 		return ['image/jpeg'];
@@ -333,17 +333,17 @@ class JPEGRenderer extends Disposable implements IOutputTransformContribution {
 	}
 }
 
-NotebookRegistry.registerOutputTransform('json', JSONRenderer);
-NotebookRegistry.registerOutputTransform('javascript', JavaScriptRenderer);
-NotebookRegistry.registerOutputTransform('html', HTMLRenderer);
-NotebookRegistry.registerOutputTransform('svg', SVGRenderer);
-NotebookRegistry.registerOutputTransform('markdown', MdRenderer);
-NotebookRegistry.registerOutputTransform('png', PNGRenderer);
-NotebookRegistry.registerOutputTransform('jpeg', JPEGRenderer);
-NotebookRegistry.registerOutputTransform('plain', PlainTextRenderer);
-NotebookRegistry.registerOutputTransform('code', CodeRenderer);
-NotebookRegistry.registerOutputTransform('error-trace', ErrorRenderer);
-NotebookRegistry.registerOutputTransform('stream-text', StreamRenderer);
+NotebookRegistry.registerOutputTransform('json', JSONRendererContrib);
+NotebookRegistry.registerOutputTransform('javascript', JavaScriptRendererContrib);
+NotebookRegistry.registerOutputTransform('html', HTMLRendererContrib);
+NotebookRegistry.registerOutputTransform('svg', SVGRendererContrib);
+NotebookRegistry.registerOutputTransform('markdown', MdRendererContrib);
+NotebookRegistry.registerOutputTransform('png', PNGRendererContrib);
+NotebookRegistry.registerOutputTransform('jpeg', JPEGRendererContrib);
+NotebookRegistry.registerOutputTransform('plain', PlainTextRendererContrib);
+NotebookRegistry.registerOutputTransform('code', CodeRendererContrib);
+NotebookRegistry.registerOutputTransform('error-trace', ErrorRendererContrib);
+NotebookRegistry.registerOutputTransform('stream-text', StreamRendererContrib);
 
 export function getOutputSimpleEditorOptions(): IEditorOptions {
 	return {
