@@ -70,6 +70,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 	}
 
 	renderTemplate(container: HTMLElement): CellDiffSingleSideRenderTemplate {
+		container.classList.add('no-pointer');
 		const body = DOM.$('.cell-body');
 		DOM.append(container, body);
 		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
@@ -170,6 +171,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 	}
 
 	renderTemplate(container: HTMLElement): CellDiffSideBySideRenderTemplate {
+		container.classList.add('no-pointer');
 		const body = DOM.$('.cell-body');
 		DOM.append(container, body);
 		const diffEditorContainer = DOM.$('.cell-diff-editor-container');

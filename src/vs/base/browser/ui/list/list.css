@@ -43,6 +43,10 @@
 	touch-action: none;
 }
 
+.monaco-list.mouse-support .monaco-list-row.no-pointer {
+	cursor: default;
+}
+
 /* for OS X ballistic scrolling */
 .monaco-list-row.scrolling {
 	display: none !important;
