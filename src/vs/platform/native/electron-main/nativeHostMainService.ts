@@ -4,47 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
-import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isRootUser, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { dirExists } from 'vs/base/node/pfs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { SymlinkSupport } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 'os';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { ILogService } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
-export class NativeHostMainService implements INativeHostMainService {
+interface ChunkedPassword {
+	content: string;
+	hasNextChunk: boolean;
+}
+
+export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
+		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		this.registerListeners();
 	}
 
@@ -52,16 +60,10 @@ export class NativeHostMainService implements INativeHostMainService {
 
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
-			let colorScheme: ColorScheme;
-			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-				colorScheme = ColorScheme.HIGH_CONTRAST;
-			} else if (nativeTheme.shouldUseDarkColors) {
-				colorScheme = ColorScheme.DARK;
-			} else {
-				colorScheme = ColorScheme.LIGHT;
-			}
-
-			this._onColorSchemeChange.fire(colorScheme);
+			this._onDidChangeColorScheme.fire({
+				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
+				dark: nativeTheme.shouldUseDarkColors
+			});
 		});
 	}
 
@@ -74,21 +76,24 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	//#region Events
 
-	readonly onWindowOpen = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidOpenWindow = Event.map(this.windowsMainService.onWindowOpened, window => window.id);
 
-	readonly onWindowMaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowUnmaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onWindowBlur = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onWindowFocus = Event.any(
+	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidFocusWindow = Event.any(
 		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
 	);
 
-	readonly onOSResume = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-	private readonly _onColorSchemeChange = new Emitter<ColorScheme>();
-	readonly onColorSchemeChange = this._onColorSchemeChange.event;
+	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
+	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+
+	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	//#endregion
 
@@ -100,7 +105,6 @@ export class NativeHostMainService implements INativeHostMainService {
 		return windows.map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri,
 			title: window.win.getTitle(),
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
@@ -211,6 +215,23 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 	}
 
+	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			const [windowWidth, windowHeight] = window.win.getSize();
+			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
+			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
+			const [newWindowWidth, newWindowHeight] = [Math.max(windowWidth, newMinWindowWidth), Math.max(windowHeight, newMinWindowHeight)];
+
+			if (minWindowWidth !== newMinWindowWidth || minWindowHeight !== newMinWindowHeight) {
+				window.win.setMinimumSize(newMinWindowWidth, newMinWindowHeight);
+			}
+			if (windowWidth !== newWindowWidth || windowHeight !== newWindowHeight) {
+				window.win.setSize(newWindowWidth, newWindowHeight);
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog
@@ -240,7 +261,7 @@ export class NativeHostMainService implements INativeHostMainService {
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
 			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await dirExists(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
@@ -313,9 +334,28 @@ export class NativeHostMainService implements INativeHostMainService {
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		shell.openExternal(url);
+		if (isLinuxSnap) {
+			this.safeSnapOpenExternal(url);
+		} else {
+			shell.openExternal(url);
+		}
 
 		return true;
+	}
+
+	private safeSnapOpenExternal(url: string): void {
+
+		// Remove some environment variables before opening to avoid issues...
+		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
+		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
+		delete process.env['GDK_PIXBUF_MODULE_FILE'];
+		delete process.env['GDK_PIXBUF_MODULEDIR'];
+
+		shell.openExternal(url);
+
+		// ...but restore them after
+		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
+		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
 
 	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
@@ -327,7 +367,7 @@ export class NativeHostMainService implements INativeHostMainService {
 		if (isWindows) {
 			isAdmin = (await import('native-is-elevated'))();
 		} else {
-			isAdmin = isRootUser();
+			isAdmin = process.getuid() === 0;
 		}
 
 		return isAdmin;
@@ -513,7 +553,7 @@ export class NativeHostMainService implements INativeHostMainService {
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			return this.lifecycleMainService.reload(window, options?.disableExtensions ? { _: [], 'disable-extensions': true } : undefined);
+			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options?.disableExtensions } : undefined);
 		}
 	}
 
@@ -578,11 +618,7 @@ export class NativeHostMainService implements INativeHostMainService {
 		const window = this.windowById(windowId);
 		if (window) {
 			const contents = window.win.webContents;
-			if (isMacintosh && window.hasHiddenTitleBarStyle && !window.isFullScreen && !contents.isDevToolsOpened()) {
-				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
-			} else {
-				contents.toggleDevTools();
-			}
+			contents.toggleDevTools();
 		}
 	}
 
@@ -591,6 +627,10 @@ export class NativeHostMainService implements INativeHostMainService {
 		if (window && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
+	}
+
+	async toggleSharedProcessWindow(): Promise<void> {
+		return this.sharedProcess.toggle();
 	}
 
 	//#endregion
@@ -614,22 +654,74 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	//#region Credentials
 
+	private static readonly MAX_PASSWORD_LENGTH = 2500;
+	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
+
 	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
 		const keytar = await import('keytar');
 
-		return keytar.getPassword(service, account);
+		const password = await keytar.getPassword(service, account);
+		if (password) {
+			try {
+				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
+				if (!content || !hasNextChunk) {
+					return password;
+				}
+
+				let index = 1;
+				while (hasNextChunk) {
+					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
+					const result: ChunkedPassword = JSON.parse(nextChunk!);
+					content += result.content;
+					hasNextChunk = result.hasNextChunk;
+				}
+
+				return content;
+			} catch {
+				return password;
+			}
+		}
+
+		return password;
 	}
 
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
 		const keytar = await import('keytar');
 
-		return keytar.setPassword(service, account, password);
+		if (isWindows && password.length > NativeHostMainService.MAX_PASSWORD_LENGTH) {
+			let index = 0;
+			let chunk = 0;
+			let hasNextChunk = true;
+			while (hasNextChunk) {
+				const passwordChunk = password.substring(index, index + NativeHostMainService.PASSWORD_CHUNK_SIZE);
+				index += NativeHostMainService.PASSWORD_CHUNK_SIZE;
+				hasNextChunk = password.length - index > 0;
+
+				const content: ChunkedPassword = {
+					content: passwordChunk,
+					hasNextChunk: hasNextChunk
+				};
+
+				await keytar.setPassword(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
+				chunk++;
+			}
+
+		} else {
+			await keytar.setPassword(service, account, password);
+		}
+
+		this._onDidChangePassword.fire({ service, account });
 	}
 
 	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
 		const keytar = await import('keytar');
 
-		return keytar.deletePassword(service, account);
+		const didDelete = await keytar.deletePassword(service, account);
+		if (didDelete) {
+			this._onDidChangePassword.fire({ service, account });
+		}
+
+		return didDelete;
 	}
 
 	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {

@@ -6,7 +6,7 @@
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IUserDataSyncUtilService, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { UserDataSycnUtilServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -17,7 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CONTEXT_SYNC_STATE, SHOW_SYNC_LOG_COMMAND_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';

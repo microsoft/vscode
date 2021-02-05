@@ -4,48 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh, isLinux, isWeb, IProcessEnvironment } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { ExportData } from 'vs/base/common/performance';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { PerformanceMark } from 'vs/base/common/performance';
+
+export const WindowMinimumSize = {
+	WIDTH: 400,
+	WIDTH_WITH_VERTICAL_PANEL: 600,
+	HEIGHT: 270
+};
 
 export interface IBaseOpenWindowsOptions {
-	forceReuseWindow?: boolean;
+	readonly forceReuseWindow?: boolean;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
-	forceNewWindow?: boolean;
-	preferNewWindow?: boolean;
+	readonly forceNewWindow?: boolean;
+	readonly preferNewWindow?: boolean;
 
-	noRecentEntry?: boolean;
+	readonly noRecentEntry?: boolean;
 
-	addMode?: boolean;
+	readonly addMode?: boolean;
 
-	diffMode?: boolean;
-	gotoLineMode?: boolean;
+	readonly diffMode?: boolean;
+	readonly gotoLineMode?: boolean;
 
-	waitMarkerFileURI?: URI;
+	readonly waitMarkerFileURI?: URI;
 }
 
 export interface IAddFoldersRequest {
-	foldersToAdd: UriComponents[];
+	readonly foldersToAdd: UriComponents[];
 }
 
 export interface IOpenedWindow {
-	id: number;
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
-	title: string;
-	filename?: string;
-	dirty: boolean;
+	readonly id: number;
+	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	readonly title: string;
+	readonly filename?: string;
+	readonly dirty: boolean;
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
@@ -55,15 +58,15 @@ export interface IBaseWindowOpenable {
 }
 
 export interface IWorkspaceToOpen extends IBaseWindowOpenable {
-	workspaceUri: URI;
+	readonly workspaceUri: URI;
 }
 
 export interface IFolderToOpen extends IBaseWindowOpenable {
-	folderUri: URI;
+	readonly folderUri: URI;
 }
 
 export interface IFileToOpen extends IBaseWindowOpenable {
-	fileUri: URI;
+	readonly fileUri: URI;
 }
 
 export function isWorkspaceToOpen(uriToOpen: IWindowOpenable): uriToOpen is IWorkspaceToOpen {
@@ -78,52 +81,47 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
-export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
+export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
-export function getMenuBarVisibility(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): MenuBarVisibility {
-	const titleBarStyle = getTitleBarStyle(configurationService, environment, isExtensionDevelopment);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
+	const titleBarStyle = getTitleBarStyle(configurationService);
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (titleBarStyle === 'native' && menuBarVisibility === 'compact') {
-		return 'default';
+	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact')) {
+		return 'classic';
 	} else {
 		return menuBarVisibility;
 	}
 }
 
 export interface IWindowsConfiguration {
-	window: IWindowSettings;
+	readonly window: IWindowSettings;
 }
 
 export interface IWindowSettings {
-	openFilesInNewWindow: 'on' | 'off' | 'default';
-	openFoldersInNewWindow: 'on' | 'off' | 'default';
-	openWithoutArgumentsInNewWindow: 'on' | 'off';
-	restoreWindows: 'all' | 'folders' | 'one' | 'none';
-	restoreFullscreen: boolean;
-	zoomLevel: number;
-	titleBarStyle: 'native' | 'custom';
-	autoDetectHighContrast: boolean;
-	menuBarVisibility: MenuBarVisibility;
-	newWindowDimensions: 'default' | 'inherit' | 'offset' | 'maximized' | 'fullscreen';
-	nativeTabs: boolean;
-	nativeFullScreen: boolean;
-	enableMenuBarMnemonics: boolean;
-	closeWhenEmpty: boolean;
-	clickThroughInactive: boolean;
+	readonly openFilesInNewWindow: 'on' | 'off' | 'default';
+	readonly openFoldersInNewWindow: 'on' | 'off' | 'default';
+	readonly openWithoutArgumentsInNewWindow: 'on' | 'off';
+	readonly restoreWindows: 'preserve' | 'all' | 'folders' | 'one' | 'none';
+	readonly restoreFullscreen: boolean;
+	readonly zoomLevel: number;
+	readonly titleBarStyle: 'native' | 'custom';
+	readonly autoDetectHighContrast: boolean;
+	readonly menuBarVisibility: MenuBarVisibility;
+	readonly newWindowDimensions: 'default' | 'inherit' | 'offset' | 'maximized' | 'fullscreen';
+	readonly nativeTabs: boolean;
+	readonly nativeFullScreen: boolean;
+	readonly enableMenuBarMnemonics: boolean;
+	readonly closeWhenEmpty: boolean;
+	readonly clickThroughInactive: boolean;
 }
 
-export function getTitleBarStyle(configurationService: IConfigurationService, environment: IEnvironmentService, isExtensionDevelopment = environment.isExtensionDevelopment): 'native' | 'custom' {
+export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
 	if (isWeb) {
 		return 'custom';
 	}
 
-	const configuration = configurationService.getValue<IWindowSettings>('window');
-
-	const isDev = !environment.isBuilt || isExtensionDevelopment;
-	if (isMacintosh && isDev) {
-		return 'native'; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-	}
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
 
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
@@ -154,24 +152,24 @@ export interface IPath extends IPathData {
 export interface IPathData {
 
 	// the file path to open within the instance
-	fileUri?: UriComponents;
+	readonly fileUri?: UriComponents;
 
 	// the line number in the file path to open
-	lineNumber?: number;
+	readonly lineNumber?: number;
 
 	// the column number in the file path to open
-	columnNumber?: number;
+	readonly columnNumber?: number;
 
 	// a hint that the file exists. if true, the
 	// file exists, if false it does not. with
 	// undefined the state is unknown.
-	exists?: boolean;
+	readonly exists?: boolean;
 
 	// Specifies if the file should be only be opened if it exists
-	openOnlyIfExists?: boolean;
+	readonly openOnlyIfExists?: boolean;
 
 	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
-	overrideId?: string;
+	readonly overrideId?: string;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
@@ -180,31 +178,36 @@ export interface IPathsToWaitFor extends IPathsToWaitForData {
 }
 
 interface IPathsToWaitForData {
-	paths: IPathData[];
-	waitMarkerFileUri: UriComponents;
+	readonly paths: IPathData[];
+	readonly waitMarkerFileUri: UriComponents;
 }
 
 export interface IOpenFileRequest {
-	filesToOpenOrCreate?: IPathData[];
-	filesToDiff?: IPathData[];
+	readonly filesToOpenOrCreate?: IPathData[];
+	readonly filesToDiff?: IPathData[];
 }
 
 /**
  * Additional context for the request on native only.
  */
 export interface INativeOpenFileRequest extends IOpenFileRequest {
-	termProgram?: string;
-	filesToWait?: IPathsToWaitForData;
+	readonly termProgram?: string;
+	readonly filesToWait?: IPathsToWaitForData;
 }
 
 export interface INativeRunActionInWindowRequest {
-	id: string;
-	from: 'menu' | 'touchbar' | 'mouse';
-	args?: any[];
+	readonly id: string;
+	readonly from: 'menu' | 'touchbar' | 'mouse';
+	readonly args?: any[];
 }
 
 export interface INativeRunKeybindingInWindowRequest {
-	userSettingsLabel: string;
+	readonly userSettingsLabel: string;
+}
+
+export interface IColorScheme {
+	readonly dark: boolean;
+	readonly highContrast: boolean;
 }
 
 export interface IWindowConfiguration {
@@ -212,11 +215,15 @@ export interface IWindowConfiguration {
 
 	remoteAuthority?: string;
 
-	colorScheme: ColorScheme;
+	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+}
+
+export interface IOSConfiguration {
+	readonly release: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
@@ -232,8 +239,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	nodeCachedDataDir?: string;
 	partsSplashPath: string;
 
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
+	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
@@ -241,10 +247,12 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
-	perfEntries: ExportData;
+	perfMarks: PerformanceMark[];
 
 	userEnv: IProcessEnvironment;
 	filesToWait?: IPathsToWaitFor;
+
+	os: IOSConfiguration;
 }
 
 /**

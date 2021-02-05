@@ -5,18 +5,23 @@
 
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
-import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IReplElement, IStackFrame, IExpression, IReplElementSource, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
 
 export class SimpleReplElement implements IReplElement {
+
+	private _count = 1;
+	private _onDidChangeCount = new Emitter<void>();
+
 	constructor(
 		public session: IDebugSession,
 		private id: string,
@@ -25,13 +30,30 @@ export class SimpleReplElement implements IReplElement {
 		public sourceData?: IReplElementSource,
 	) { }
 
-	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
-		return this.value + sourceStr;
+	toString(includeSource = false): string {
+		let valueRespectCount = this.value;
+		for (let i = 1; i < this.count; i++) {
+			valueRespectCount += (valueRespectCount.endsWith('\n') ? '' : '\n') + this.value;
+		}
+		const sourceStr = (this.sourceData && includeSource) ? ` ${this.sourceData.source.name}` : '';
+		return valueRespectCount + sourceStr;
 	}
 
 	getId(): string {
 		return this.id;
+	}
+
+	set count(value: number) {
+		this._count = value;
+		this._onDidChangeCount.fire();
+	}
+
+	get count(): number {
+		return this._count;
+	}
+
+	get onDidChangeCount(): Event<void> {
+		return this._onDidChangeCount.event;
 	}
 }
 
@@ -143,8 +165,8 @@ export class ReplGroup implements IReplElement {
 		return this.id;
 	}
 
-	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
+	toString(includeSource = false): string {
+		const sourceStr = (includeSource && this.sourceData) ? ` ${this.sourceData.source.name}` : '';
 		return this.name + sourceStr;
 	}
 
@@ -180,6 +202,8 @@ export class ReplModel {
 	private readonly _onDidChangeElements = new Emitter<void>();
 	readonly onDidChangeElements = this._onDidChangeElements.event;
 
+	constructor(private readonly configurationService: IConfigurationService) { }
+
 	getReplElements(): IReplElement[] {
 		return this.replElements;
 	}
@@ -202,13 +226,22 @@ export class ReplModel {
 
 		if (typeof data === 'string') {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n')) {
-				previousElement.value += data;
-				this._onDidChangeElements.fire();
-			} else {
-				const element = new SimpleReplElement(session, `topReplElement:${topReplElementCounter++}`, data, sev, source);
-				this.addReplElement(element);
+			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev) {
+				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+				if (previousElement.value === data && config.console.collapseIdenticalLines) {
+					previousElement.count++;
+					// No need to fire an event, just the count updates and badge will adjust automatically
+					return;
+				}
+				if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
+					previousElement.value += data;
+					this._onDidChangeElements.fire();
+					return;
+				}
 			}
+
+			const element = new SimpleReplElement(session, `topReplElement:${topReplElementCounter++}`, data, sev, source);
+			this.addReplElement(element);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
 			(<any>data).severity = sev;

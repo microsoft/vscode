@@ -8,7 +8,6 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 
 export class NativeHostColorSchemeService extends Disposable implements IHostColorSchemeService {
@@ -27,9 +26,9 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	private registerListeners(): void {
 
 		// Color Scheme
-		this._register(this.nativeHostService.onColorSchemeChange(scheme => {
-			this._colorScheme = scheme;
-
+		this._register(this.nativeHostService.onDidChangeColorScheme(({ highContrast, dark }) => {
+			this.dark = dark;
+			this.highContrast = highContrast;
 			this._onDidChangeColorScheme.fire();
 		}));
 	}
@@ -37,8 +36,8 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<void>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
-	private _colorScheme: ColorScheme = this.environmentService.configuration.colorScheme;
-	get colorScheme() { return this._colorScheme; }
+	public dark: boolean = this.environmentService.configuration.colorScheme.dark;
+	public highContrast: boolean = this.environmentService.configuration.colorScheme.highContrast;
 
 }
 

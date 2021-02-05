@@ -14,9 +14,9 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, SyncIgnoredIconAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -24,6 +24,9 @@ import { isLanguagePackExtension } from 'vs/platform/extensions/common/extension
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+
+export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
 export interface IExtensionsViewState {
 	onFocus: Event<IExtension>;
@@ -46,7 +49,7 @@ export interface ITemplateData {
 }
 
 export class Delegate implements IListVirtualDelegate<IExtension> {
-	getHeight() { return 62; }
+	getHeight() { return EXTENSION_LIST_ELEMENT_HEIGHT; }
 	getTemplateId() { return 'extension'; }
 }
 
@@ -61,6 +64,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -79,6 +83,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const version = append(header, $('span.version'));
 		const installCount = append(header, $('span.install-count'));
 		const ratings = append(header, $('span.ratings'));
+		const syncIgnore = append(header, $('span.sync-ignored'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
@@ -86,8 +91,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
-				if (action.id === ManageExtensionAction.ID) {
-					return (<ManageExtensionAction>action).createActionViewItem();
+				if (action instanceof ActionWithDropDownAction) {
+					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				}
+				if (action instanceof ExtensionDropDownAction) {
+					return action.createActionViewItem();
 				}
 				return new ExtensionActionViewItem(null, action, actionOptions);
 			}
@@ -98,12 +106,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
 			this.instantiationService.createInstance(StatusLabelAction),
-			this.instantiationService.createInstance(SyncIgnoredIconAction),
 			this.instantiationService.createInstance(UpdateAction),
 			reloadAction,
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallDropdownAction),
+			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
+			this.instantiationService.createInstance(WebInstallAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, false),
 			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ManageExtensionAction)
@@ -117,6 +126,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			headerRemoteBadgeWidget,
 			tooltipWidget,
 			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
+			this.instantiationService.createInstance(SyncIgnoredWidget, syncIgnore),
 			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
 			this.instantiationService.createInstance(RatingsWidget, ratings, true)
 		];
@@ -197,19 +207,31 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.extensionViewState.onFocus(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(true));
+				data.actionbar.viewItems.forEach(item => {
+					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
+						item.setFocus(true);
+					}
+				});
 			}
 		}, this, data.extensionDisposables);
 
 		this.extensionViewState.onBlur(e => {
 			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(false));
+				data.actionbar.viewItems.forEach(item => {
+					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
+						item.setFocus(false);
+					}
+				});
 			}
 		}, this, data.extensionDisposables);
+	}
 
+	disposeElement(extension: IExtension, index: number, data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 	}
 
 	disposeTemplate(data: ITemplateData): void {
+		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.disposables = dispose(data.disposables);
 	}
 }
@@ -228,8 +250,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		const backgroundColor = theme.getColor(listActiveSelectionBackground) || WORKBENCH_BACKGROUND(theme);
 		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).focused.selected .author { color: ${authorForeground}; }`);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
 		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.focused.selected { color: ${disabledExtensionForeground}; }`);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);

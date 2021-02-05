@@ -3,19 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStringDictionary } from 'vs/base/common/collections';
-
-export interface IExtensionsConfigContent {
-	recommendations: string[];
-	unwantedRecommendations: string[];
-}
-
-export type RecommendationChangeNotification = {
-	extensionId: string,
-	isRecommended: boolean
-};
+import { Event } from 'vs/base/common/event';
 
 export type DynamicRecommendation = 'dynamic';
 export type ConfigRecommendation = 'config';
@@ -44,7 +34,9 @@ export const IExtensionRecommendationsService = createDecorator<IExtensionRecomm
 export interface IExtensionRecommendationsService {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidChangeRecommendations: Event<void>;
 	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
+
 	getImportantRecommendations(): Promise<string[]>;
 	getOtherRecommendations(): Promise<string[]>;
 	getFileBasedRecommendations(): string[];
@@ -52,8 +44,24 @@ export interface IExtensionRecommendationsService {
 	getConfigBasedRecommendations(): Promise<{ important: string[], others: string[] }>;
 	getWorkspaceRecommendations(): Promise<string[]>;
 	getKeymapRecommendations(): string[];
-
-	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
-	getIgnoredRecommendations(): ReadonlyArray<string>;
-	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
+
+export type IgnoredRecommendationChangeNotification = {
+	extensionId: string,
+	isRecommended: boolean
+};
+
+export const IExtensionIgnoredRecommendationsService = createDecorator<IExtensionIgnoredRecommendationsService>('IExtensionIgnoredRecommendationsService');
+
+export interface IExtensionIgnoredRecommendationsService {
+	readonly _serviceBrand: undefined;
+
+	onDidChangeIgnoredRecommendations: Event<void>;
+	readonly ignoredRecommendations: string[];
+
+	onDidChangeGlobalIgnoredRecommendation: Event<IgnoredRecommendationChangeNotification>;
+	readonly globalIgnoredRecommendations: string[];
+	toggleGlobalIgnoredRecommendation(extensionId: string, ignore: boolean): void;
+}
+
+

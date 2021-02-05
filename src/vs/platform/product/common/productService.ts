@@ -51,6 +51,7 @@ export interface IProductConfiguration {
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webEndpointUrl?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -79,6 +80,7 @@ export interface IProductConfiguration {
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
+	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -127,6 +129,8 @@ export interface IProductConfiguration {
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+
+	readonly darwinUniversalAssetId?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
@@ -147,6 +151,7 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
+	important?: boolean;
 	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 

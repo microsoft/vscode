@@ -25,44 +25,98 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { mixin } from 'vs/base/common/objects';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
-export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
+export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
 	export const ViewsRegistry = 'workbench.registry.view';
 }
 
-export enum ViewContainerLocation {
+export const enum ViewContainerLocation {
 	Sidebar,
 	Panel
 }
 
+export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
+	switch (viewContainerLocation) {
+		case ViewContainerLocation.Sidebar: return 'sidebar';
+		case ViewContainerLocation.Panel: return 'panel';
+	}
+}
+
+type OpenCommandActionDescriptor = {
+	readonly id: string;
+	readonly title?: string;
+	readonly mnemonicTitle?: string;
+	readonly order?: number;
+	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
+};
+
+/**
+ * View Container Contexts
+ */
+export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
+
 export interface IViewContainerDescriptor {
 
+	/**
+	 * The id of the view container
+	 */
 	readonly id: string;
 
-	readonly name: string;
+	/**
+	 * The title of the view container
+	 */
+	readonly title: string;
 
+	/**
+	 * Icon representation of the View container
+	 */
+	readonly icon?: ThemeIcon | URI;
+
+	/**
+	 * Order of the view container.
+	 */
+	readonly order?: number;
+
+	/**
+	 * IViewPaneContainer Ctor to instantiate
+	 */
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
+	/**
+	 * Descriptor for open view container command
+	 * If not provided, view container info (id, title) is used.
+	 *
+	 * Note: To prevent registering open command, use `donotRegisterOpenCommand` flag while registering the view container
+	 */
+	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+
+	/**
+	 * Storage id to use to store the view container state.
+	 * If not provided, it will be derived.
+	 */
 	readonly storageId?: string;
 
-	readonly icon?: string | URI;
+	/**
+	 * If enabled, view container is not shown if it has no active views.
+	 */
+	readonly hideIfEmpty?: boolean;
+
+	/**
+	 * Id of the extension that contributed the view container
+	 */
+	readonly extensionId?: ExtensionIdentifier;
 
 	readonly alwaysUseContainerInfo?: boolean;
 
-	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
-
 	readonly viewOrderDelegate?: ViewOrderDelegate;
 
-	readonly hideIfEmpty?: boolean;
-
-	readonly extensionId?: ExtensionIdentifier;
-
 	readonly rejectAddedViews?: boolean;
-
-	readonly order?: number;
 
 	requestedIndex?: number;
 }
@@ -92,7 +146,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, isDefault?: boolean): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -129,6 +183,11 @@ interface ViewOrderDelegate {
 
 export interface ViewContainer extends IViewContainerDescriptor { }
 
+interface RelaxedViewContainer extends ViewContainer {
+
+	openCommandActionDescriptor?: OpenCommandActionDescriptor;
+}
+
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
 
 	private readonly _onDidRegister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
@@ -144,16 +203,17 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return flatten([...this.viewContainers.values()]);
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, isDefault?: boolean): ViewContainer {
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer {
 		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
 		}
 
-		const viewContainer: ViewContainer = viewContainerDescriptor;
+		const viewContainer: RelaxedViewContainer = viewContainerDescriptor;
+		viewContainer.openCommandActionDescriptor = options?.donotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
-		if (isDefault) {
+		if (options?.isDefault) {
 			this.defaultViewContainers.push(viewContainer);
 		}
 		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
@@ -184,7 +244,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	}
 
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
-		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
+		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer?.id === container.id).length > 0)[0];
 	}
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
@@ -216,7 +276,7 @@ export interface IViewDescriptor {
 
 	readonly canMoveView?: boolean;
 
-	readonly containerIcon?: string | URI;
+	readonly containerIcon?: ThemeIcon | URI;
 
 	readonly containerTitle?: string;
 
@@ -231,6 +291,8 @@ export interface IViewDescriptor {
 	readonly group?: string;
 
 	readonly remoteAuthority?: string | string[];
+
+	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
 
 export interface IViewDescriptorRef {
@@ -251,9 +313,12 @@ export interface IAddedViewDescriptorState {
 
 export interface IViewContainerModel {
 
+	readonly viewContainer: ViewContainer;
+
 	readonly title: string;
-	readonly icon: string | URI | undefined;
-	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
+	readonly icon: ThemeIcon | URI | undefined;
+	readonly keybindingId: string | undefined;
+	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean, keybindingId?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
@@ -278,21 +343,19 @@ export interface IViewContainerModel {
 	move(from: string, to: string): void;
 }
 
-export enum ViewContentPriority {
-	Normal = 0,
-	Low = 1,
-	Lowest = 2
+export enum ViewContentGroups {
+	Open = '2_open',
+	Debug = '4_debug',
+	SCM = '5_scm',
+	More = '9_more'
 }
 
 export interface IViewContentDescriptor {
 	readonly content: string;
 	readonly when?: ContextKeyExpression | 'default';
-	readonly priority?: ViewContentPriority;
-
-	/**
-	 * ordered preconditions for each button in the content
-	 */
-	readonly preconditions?: (ContextKeyExpression | undefined)[];
+	readonly group?: string;
+	readonly order?: number;
+	readonly precondition?: ContextKeyExpression | undefined;
 }
 
 export interface IViewsRegistry {
@@ -323,15 +386,12 @@ export interface IViewsRegistry {
 }
 
 function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewContentDescriptor): number {
-	const aPriority = a.priority ?? ViewContentPriority.Normal;
-	const bPriority = b.priority ?? ViewContentPriority.Normal;
-
-	if (aPriority !== bPriority) {
-		return aPriority - bPriority;
+	const aGroup = a.group ?? ViewContentGroups.More;
+	const bGroup = b.group ?? ViewContentGroups.More;
+	if (aGroup !== bGroup) {
+		return aGroup.localeCompare(bGroup);
 	}
-
-	// No priroity, keep views sorted in the order they got registered
-	return 0;
+	return (a.order ?? 5) - (b.order ?? 5);
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -505,7 +565,7 @@ export interface IViewsService {
  * View Contexts
  */
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
-export function getVisbileViewContextKey(viewId: string): string { return `${viewId}.visible`; }
+export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
@@ -684,25 +744,49 @@ export class ResolvableTreeItem implements ITreeItem {
 	command?: Command;
 	children?: ITreeItem[];
 	accessibilityInformation?: IAccessibilityInformation;
-	resolve: () => Promise<void>;
+	resolve: (token: CancellationToken) => Promise<void>;
 	private resolved: boolean = false;
 	private _hasResolve: boolean = false;
-	constructor(treeItem: ITreeItem, resolve?: (() => Promise<ITreeItem | undefined>)) {
+	constructor(treeItem: ITreeItem, resolve?: ((token: CancellationToken) => Promise<ITreeItem | undefined>)) {
 		mixin(this, treeItem);
 		this._hasResolve = !!resolve;
-		this.resolve = async () => {
+		this.resolve = async (token: CancellationToken) => {
 			if (resolve && !this.resolved) {
-				const resolvedItem = await resolve();
+				const resolvedItem = await resolve(token);
 				if (resolvedItem) {
-					// Resolvable elements. Currently only tooltip.
-					this.tooltip = resolvedItem.tooltip;
+					// Resolvable elements. Currently tooltip and command.
+					this.tooltip = this.tooltip ?? resolvedItem.tooltip;
+					this.command = this.command ?? resolvedItem.command;
 				}
 			}
-			this.resolved = true;
+			if (!token.isCancellationRequested) {
+				this.resolved = true;
+			}
 		};
 	}
 	get hasResolve(): boolean {
 		return this._hasResolve;
+	}
+	public resetResolve() {
+		this.resolved = false;
+	}
+	public asTreeItem(): ITreeItem {
+		return {
+			handle: this.handle,
+			parentHandle: this.parentHandle,
+			collapsibleState: this.collapsibleState,
+			label: this.label,
+			description: this.description,
+			icon: this.icon,
+			iconDark: this.iconDark,
+			themeIcon: this.themeIcon,
+			resourceUri: this.resourceUri,
+			tooltip: this.tooltip,
+			contextValue: this.contextValue,
+			command: this.command,
+			children: this.children,
+			accessibilityInformation: this.accessibilityInformation
+		};
 	}
 }
 
@@ -735,5 +819,6 @@ export interface IViewPaneContainer {
 	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
+	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
 }

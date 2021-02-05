@@ -3,24 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
-import { basename } from 'vs/base/common/resources';
-import { Iterable } from 'vs/base/common/iterator';
 import { reset } from 'vs/base/browser/dom';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
-	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
+	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
 
 export function isSCMInput(element: any): element is ISCMInput {
@@ -75,10 +72,10 @@ export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: Acti
 	}, g => /^inline/.test(g));
 }
 
-export function collectContextMenuActions(menu: IMenu, contextMenuService: IContextMenuService): [IAction[], IDisposable] {
+export function collectContextMenuActions(menu: IMenu): [IAction[], IDisposable] {
 	const primary: IAction[] = [];
 	const actions: IAction[] = [];
-	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, contextMenuService, g => /^inline/.test(g));
+	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, g => /^inline/.test(g));
 	return [actions, disposable];
 }
 
@@ -97,7 +94,7 @@ export class StatusBarAction extends Action {
 	}
 }
 
-export class StatusBarActionViewItem extends ActionViewItem {
+class StatusBarActionViewItem extends ActionViewItem {
 
 	constructor(action: StatusBarAction) {
 		super(null, action, {});
@@ -105,30 +102,15 @@ export class StatusBarActionViewItem extends ActionViewItem {
 
 	updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderCodicons(this.getAction().label));
+			reset(this.label, ...renderLabelWithIcons(this.getAction().label));
 		}
 	}
 }
 
-export function getRepositoryVisibilityActions(scmService: ISCMService, scmViewService: ISCMViewService): IAction[] {
-	const visible = new Set<IAction>();
-	const actions = scmService.repositories.map(repository => {
-		const label = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
-		const action = new Action('scm.repository.toggleVisibility', label, undefined, true, async () => {
-			scmViewService.toggleVisibility(repository);
-		});
-
-		if (scmViewService.isVisible(repository)) {
-			action.checked = true;
-			visible.add(action);
-		}
-
-		return action;
-	});
-
-	if (visible.size === 1) {
-		Iterable.first(visible.values())!.enabled = false;
+export function getStatusBarActionViewItem(action: IAction): IActionViewItem | undefined {
+	if (action instanceof StatusBarAction) {
+		return new StatusBarActionViewItem(action);
 	}
 
-	return actions;
+	return undefined;
 }

@@ -7,11 +7,10 @@ import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
-import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import * as collections from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -23,9 +22,11 @@ import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService, ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { Codicon } from 'vs/base/common/codicons';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -58,7 +59,8 @@ export function startup(configuration: IssueReporterConfiguration) {
 	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts
 
-	document.body.innerHTML = BaseHtml();
+	safeInnerHtml(document.body, BaseHtml());
+
 	const issueReporter = new IssueReporter(configuration);
 	issueReporter.render();
 	document.body.style.display = 'block';
@@ -81,14 +83,12 @@ export class IssueReporter extends Disposable {
 
 		this.initServices(configuration);
 
-		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
 			issueType: configuration.data.issueType || IssueType.Bug,
 			versionInfo: {
 				vscodeVersion: `${configuration.product.nameShort} ${configuration.product.version} (${configuration.product.commit || 'Commit unknown'}, ${configuration.product.date || 'Date unknown'})`,
-				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${isSnap ? ' snap' : ''}`
+				os: `${this.configuration.os.type} ${this.configuration.os.arch} ${this.configuration.os.release}${platform.isLinuxSnap ? ' snap' : ''}`
 			},
 			extensionsDisabled: !!configuration.disableExtensions,
 			fileOnExtension: configuration.data.extensionId ? !targetExtension?.isBuiltin : undefined,
@@ -149,6 +149,7 @@ export class IssueReporter extends Disposable {
 		applyZoom(configuration.data.zoomLevel);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
+		this.updateExperimentsInfo(configuration.data.experiments);
 	}
 
 	render(): void {
@@ -265,7 +266,7 @@ export class IssueReporter extends Disposable {
 
 	private initServices(configuration: IssueReporterConfiguration): void {
 		const serviceCollection = new ServiceCollection();
-		const mainProcessService = new MainProcessService(configuration.windowId);
+		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
@@ -284,7 +285,7 @@ export class IssueReporter extends Disposable {
 			this.render();
 		});
 
-		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeSearchedExtensions', 'includeSettingsSearchDetails'] as const).forEach(elementId => {
+		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
 				this.issueReporterModel.update({ [elementId]: !this.issueReporterModel.getData()[elementId] });
@@ -440,7 +441,11 @@ export class IssueReporter extends Disposable {
 
 	private updatePreviewButtonState() {
 		if (this.isPreviewEnabled()) {
-			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			if (this.configuration.data.githubAccessToken) {
+				this.previewButton.label = localize('createOnGitHub', "Create on GitHub");
+			} else {
+				this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			}
 			this.previewButton.enabled = true;
 		} else {
 			this.previewButton.enabled = false;
@@ -596,8 +601,7 @@ export class IssueReporter extends Disposable {
 					issueState = $('span.issue-state');
 
 					const issueIcon = $('span.issue-icon');
-					const codicon = new CodiconLabel(issueIcon);
-					codicon.text = issue.state === 'open' ? '$(issue-opened)' : '$(issue-closed)';
+					issueIcon.appendChild(renderIcon(issue.state === 'open' ? Codicon.issueOpened : Codicon.issueClosed));
 
 					const issueStateLabel = $('span.issue-state.label');
 					issueStateLabel.textContent = issue.state === 'open' ? localize('open', "Open") : localize('closed', "Closed");
@@ -692,8 +696,7 @@ export class IssueReporter extends Disposable {
 		const processBlock = document.querySelector('.block-process');
 		const workspaceBlock = document.querySelector('.block-workspace');
 		const extensionsBlock = document.querySelector('.block-extensions');
-		const searchedExtensionsBlock = document.querySelector('.block-searchedExtensions');
-		const settingsSearchResultsBlock = document.querySelector('.block-settingsSearchResults');
+		const experimentsBlock = document.querySelector('.block-experiments');
 
 		const problemSource = this.getElementById('problem-source')!;
 		const descriptionTitle = this.getElementById('issue-description-label')!;
@@ -706,8 +709,7 @@ export class IssueReporter extends Disposable {
 		hide(processBlock);
 		hide(workspaceBlock);
 		hide(extensionsBlock);
-		hide(searchedExtensionsBlock);
-		hide(settingsSearchResultsBlock);
+		hide(experimentsBlock);
 		hide(problemSource);
 		hide(extensionSelector);
 
@@ -715,6 +717,7 @@ export class IssueReporter extends Disposable {
 			show(blockContainer);
 			show(systemBlock);
 			show(problemSource);
+			show(experimentsBlock);
 
 			if (fileOnExtension) {
 				show(extensionSelector);
@@ -729,6 +732,7 @@ export class IssueReporter extends Disposable {
 			show(processBlock);
 			show(workspaceBlock);
 			show(problemSource);
+			show(experimentsBlock);
 
 			if (fileOnExtension) {
 				show(extensionSelector);
@@ -776,6 +780,35 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
+	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string, repositoryName: string }): Promise<boolean> {
+		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
+		const init = {
+			method: 'POST',
+			body: JSON.stringify({
+				title: issueTitle,
+				body: issueBody
+			}),
+			headers: new Headers({
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${this.configuration.data.githubAccessToken}`
+			})
+		};
+
+		return new Promise((resolve, reject) => {
+			window.fetch(url, init).then((response) => {
+				if (response.ok) {
+					response.json().then(result => {
+						ipcRenderer.send('vscode:openExternal', result.html_url);
+						ipcRenderer.send('vscode:closeIssueReporter');
+						resolve(true);
+					});
+				} else {
+					resolve(false);
+				}
+			});
+		});
+	}
+
 	private async createIssue(): Promise<boolean> {
 		if (!this.validateInputs()) {
 			// If inputs are invalid, set focus to the first one and add listeners on them
@@ -808,8 +841,16 @@ export class IssueReporter extends Disposable {
 
 		this.hasBeenSubmitted = true;
 
-		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
+		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
+
+		const issueUrl = this.issueReporterModel.fileOnExtension() ? this.getExtensionGitHubUrl() : this.configuration.product.reportIssueUrl!;
+		const gitHubDetails = this.parseGitHubUrl(issueUrl);
+		if (this.configuration.data.githubAccessToken && gitHubDetails) {
+			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
+		}
+
+		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
@@ -837,6 +878,20 @@ export class IssueReporter extends Disposable {
 
 			ipcRenderer.send('vscode:issueReporterClipboard');
 		});
+	}
+
+	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
+		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
+		// Repository name and owner cannot contain '/'
+		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
+		if (match && match.length) {
+			return {
+				owner: match[1],
+				repositoryName: match[2]
+			};
+		}
+
+		return undefined;
 	}
 
 	private getExtensionGitHubUrl(): string {
@@ -1080,6 +1135,14 @@ export class IssueReporter extends Disposable {
 			}
 
 			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
+		}
+	}
+
+	private updateExperimentsInfo(experimentInfo: string | undefined) {
+		this.issueReporterModel.update({ experimentInfo });
+		const target = document.querySelector<HTMLElement>('.block-experiments .block-info');
+		if (target) {
+			target.textContent = experimentInfo ? experimentInfo : localize('noCurrentExperiments', "No current experiments.");
 		}
 	}
 

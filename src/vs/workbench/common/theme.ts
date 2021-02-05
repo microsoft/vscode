@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -116,11 +116,10 @@ export const TAB_BORDER = registerColor('tab.border', {
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_LAST_PINNED_BORDER = registerColor('tab.lastPinnedBorder', {
-	dark: null,
-	light: null,
+	dark: treeIndentGuidesStroke,
+	light: treeIndentGuidesStroke,
 	hc: contrastBorder
 }, nls.localize('lastPinnedTabBorder', "Border to separate pinned tabs from other tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
 
 export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
 	dark: null,
@@ -307,31 +306,31 @@ export const PANEL_SECTION_DRAG_AND_DROP_BACKGROUND = registerColor('panelSectio
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	hc: EDITOR_DRAG_AND_DROP_BACKGROUND,
-}, nls.localize('panelSectionDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
 export const PANEL_SECTION_HEADER_BACKGROUND = registerColor('panelSectionHeader.background', {
 	dark: Color.fromHex('#808080').transparent(0.2),
 	light: Color.fromHex('#808080').transparent(0.2),
 	hc: null
-}, nls.localize('panelSectionHeaderBackground', "Panel section header background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionHeaderBackground', "Panel section header background color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
 export const PANEL_SECTION_HEADER_FOREGROUND = registerColor('panelSectionHeader.foreground', {
 	dark: null,
 	light: null,
 	hc: null
-}, nls.localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
 export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.border', {
 	dark: contrastBorder,
 	light: contrastBorder,
 	hc: contrastBorder
-}, nls.localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
 export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
 	hc: PANEL_BORDER
-}, nls.localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
 
 // < --- Status --- >
@@ -340,7 +339,7 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBar.foreground', {
 	dark: '#FFFFFF',
 	light: '#FFFFFF',
 	hc: '#FFFFFF'
-}, nls.localize('statusBarForeground', "Status bar foreground color when a workspace is opened. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarForeground', "Status bar foreground color when a workspace or folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
 	dark: STATUS_BAR_FOREGROUND,
@@ -352,7 +351,7 @@ export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hc: null
-}, nls.localize('statusBarBackground', "Status bar background color when a workspace is opened. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarBackground', "Status bar background color when a workspace or folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
 	dark: '#68217A',
@@ -401,6 +400,18 @@ export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusB
 	light: Color.black.transparent(0.3),
 	hc: Color.black.transparent(0.3),
 }, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_ERROR_ITEM_BACKGROUND = registerColor('statusBarItem.errorBackground', {
+	dark: darken(errorForeground, .4),
+	light: darken(errorForeground, .4),
+	hc: null,
+}, nls.localize('statusBarErrorItemBackground', "Status bar error items background color. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_ERROR_ITEM_FOREGROUND = registerColor('statusBarItem.errorForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white,
+}, nls.localize('statusBarErrorItemForeground', "Status bar error items foreground color. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
 
 // < --- Activity Bar --- >
 
@@ -522,25 +533,25 @@ export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBack
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	hc: EDITOR_DRAG_AND_DROP_BACKGROUND,
-}, nls.localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search."));
+}, nls.localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 
 export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {
 	dark: Color.fromHex('#808080').transparent(0.2),
 	light: Color.fromHex('#808080').transparent(0.2),
 	hc: null
-}, nls.localize('sideBarSectionHeaderBackground', "Side bar section header background color. The side bar is the container for views like explorer and search."));
+}, nls.localize('sideBarSectionHeaderBackground', "Side bar section header background color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 
 export const SIDE_BAR_SECTION_HEADER_FOREGROUND = registerColor('sideBarSectionHeader.foreground', {
 	dark: SIDE_BAR_FOREGROUND,
 	light: SIDE_BAR_FOREGROUND,
 	hc: SIDE_BAR_FOREGROUND
-}, nls.localize('sideBarSectionHeaderForeground', "Side bar section header foreground color. The side bar is the container for views like explorer and search."));
+}, nls.localize('sideBarSectionHeaderForeground', "Side bar section header foreground color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 
 export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeader.border', {
 	dark: contrastBorder,
 	light: contrastBorder,
 	hc: contrastBorder
-}, nls.localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search."));
+}, nls.localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 
 
 // < --- Title Bar --- >

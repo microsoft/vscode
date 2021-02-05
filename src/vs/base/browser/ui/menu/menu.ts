@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IActionRunner, IAction, SubmenuAction, Separator, IActionViewItemProvider } from 'vs/base/common/actions';
+import { IActionRunner, IAction, SubmenuAction, Separator, IActionViewItemProvider, EmptySubmenuAction } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, addDisposableListener, append, $, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
@@ -18,17 +18,18 @@ import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event } from 'vs/base/common/event';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { formatRule } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { isFirefox } from 'vs/base/browser/browser';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
-const menuSelectionIcon = registerIcon('menu-selection', Codicon.check);
-const menuSubmenuIcon = registerIcon('menu-submenu', Codicon.chevronRight);
+const menuSelectionIcon = registerCodicon('menu-selection', Codicon.check);
+const menuSubmenuIcon = registerCodicon('menu-submenu', Codicon.chevronRight);
 
 export enum Direction {
 	Right,
@@ -85,8 +86,7 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
-			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true },
-			respectOrientationForPreviousAndNextKey: true
+			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
 		});
 
 		this.menuElement = menuElement;
@@ -449,9 +449,11 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				// In all other cases, set timout to allow context menu cancellation to trigger
 				// otherwise the action will destroy the menu and a second context menu
 				// will still trigger for right click.
-				setTimeout(() => {
-					this.onClick(e);
-				}, 0);
+				else {
+					setTimeout(() => {
+						this.onClick(e);
+					}, 0);
+				}
 			}));
 
 			this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, e => {
@@ -531,7 +533,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		if (this.options.label) {
 			clearNode(this.label);
 
-			let label = stripCodicons(this.getAction().label);
+			let label = stripIcons(this.getAction().label);
 			if (label) {
 				const cleanLabel = cleanMnemonic(label);
 				if (!this.options.enableMnemonics) {
@@ -727,6 +729,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		if (this.item) {
 			this.item.classList.add('monaco-submenu-item');
+			this.item.tabIndex = 0;
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
 			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
@@ -774,6 +777,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.parentData.parent.focus(false);
 			this.cleanupExistingSubmenu(false);
 		}));
+	}
+
+	updateEnabled(): void {
+		// override on submenu entry
+		// native menus do not observe enablement on sumbenus
+		// we mimic that behavior
 	}
 
 	open(selectFirst?: boolean): void {
@@ -853,7 +862,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.submenuContainer.style.top = '0';
 			this.submenuContainer.style.left = '0';
 
-			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions, this.submenuOptions);
+			this.parentData.submenu = new Menu(this.submenuContainer, this.submenuActions.length ? this.submenuActions : [new EmptySubmenuAction()], this.submenuOptions);
 			if (this.menuStyle) {
 				this.parentData.submenu.style(this.menuStyle);
 			}
@@ -869,7 +878,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 			const viewBox = this.submenuContainer.getBoundingClientRect();
 
-			const { top, left } = this.calculateSubmenuMenuLayout({ height: window.innerHeight, width: window.innerWidth }, viewBox, entryBoxUpdated, this.expandDirection);
+			const { top, left } = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
 			this.submenuContainer.style.left = `${left}px`;
 			this.submenuContainer.style.top = `${top}px`;
 
@@ -1188,6 +1197,7 @@ ${formatRule(menuSubmenuIcon)}
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
+	-webkit-app-region: no-drag;
 }
 
 .context-view.monaco-menu-container :focus,

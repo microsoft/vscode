@@ -9,7 +9,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { IGrammar, StackElement } from 'vscode-textmate';
 import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
@@ -18,6 +18,7 @@ import { Color } from 'vs/base/common/color';
 import { IFileService } from 'vs/platform/files/common/files';
 import { basename } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { splitLines } from 'vs/base/common/strings';
 
 interface IToken {
 	c: string;
@@ -220,7 +221,7 @@ class Snapper {
 			if (!grammar) {
 				return [];
 			}
-			let lines = content.split(/\r\n|\r|\n/);
+			let lines = splitLines(content);
 
 			let result = this._tokenize(grammar, lines);
 			return this._getThemesResult(grammar, lines).then((themesResult) => {
@@ -245,7 +246,7 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 	if (!resource) {
 		const editorService = accessor.get(IEditorService);
-		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filterByScheme: Schemas.file }) : null;
+		const file = editorService.activeEditor ? EditorResourceAccessor.getCanonicalUri(editorService.activeEditor, { filterByScheme: Schemas.file }) : null;
 		if (file) {
 			process(file).then(result => {
 				console.log(result);

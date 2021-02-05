@@ -10,10 +10,32 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IOSConfiguration } from 'vs/platform/windows/common/windows';
 
 export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
+
+	@memoize
+	get machineId() { return this.configuration.machineId; }
+
+	@memoize
+	get sessionId() { return this.configuration.sessionId; }
+
+	@memoize
+	get remoteAuthority() { return this.configuration.remoteAuthority; }
+
+	@memoize
+	get execPath() { return this.configuration.execPath; }
+
+	@memoize
+	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+
+	@memoize
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+
+	@memoize
+	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
 	@memoize
 	get webviewExternalEndpoint(): string {
@@ -29,23 +51,12 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
-
-	// Do not memoize as `backupPath` can change in configuration
-	get backupWorkspaceHome(): URI | undefined { return this.configuration.backupPath ? URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme }) : undefined; }
-
-	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
-
-	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
-
-	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
 
 	@memoize
 	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
+	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
 		if (Array.isArray(this.args['enable-proposed-api'])) {
 			return this.args['enable-proposed-api'];
@@ -58,7 +69,9 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 		return undefined;
 	}
 
-	readonly execPath = this.configuration.execPath;
+	get os(): IOSConfiguration {
+		return this.configuration.os;
+	}
 
 	constructor(
 		readonly configuration: INativeWorkbenchConfiguration,

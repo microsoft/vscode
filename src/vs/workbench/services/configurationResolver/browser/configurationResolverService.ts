@@ -7,16 +7,15 @@ import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { toResource } from 'vs/workbench/common/editor';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -28,7 +27,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
-		context: { getExecPath: () => string | undefined },
+		context: {
+			getAppRoot: () => string | undefined,
+			getExecPath: () => string | undefined
+		},
 		envVariables: IProcessEnvironment,
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
@@ -45,22 +47,38 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getWorkspaceFolderCount: (): number => {
 				return workspaceContextService.getWorkspace().folders.length;
 			},
-			getConfigurationValue: (folderUri: uri, suffix: string): string | undefined => {
+			getConfigurationValue: (folderUri: uri | undefined, suffix: string): string | undefined => {
 				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : {});
+			},
+			getAppRoot: (): string | undefined => {
+				return context.getAppRoot();
 			},
 			getExecPath: (): string | undefined => {
 				return context.getExecPath();
 			},
 			getFilePath: (): string | undefined => {
-				let activeEditor = editorService.activeEditor;
-				if (activeEditor instanceof DiffEditorInput) {
-					activeEditor = activeEditor.modifiedInput;
-				}
-				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote] });
+				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
+					supportSideBySide: SideBySideEditor.PRIMARY,
+					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+				});
 				if (!fileResource) {
 					return undefined;
 				}
 				return this.labelService.getUriLabel(fileResource, { noPrefix: true });
+			},
+			getWorkspaceFolderPathForFile: (): string | undefined => {
+				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
+					supportSideBySide: SideBySideEditor.PRIMARY,
+					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+				});
+				if (!fileResource) {
+					return undefined;
+				}
+				const wsFolder = workspaceContextService.getWorkspaceFolder(fileResource);
+				if (!wsFolder) {
+					return undefined;
+				}
+				return this.labelService.getUriLabel(wsFolder.uri, { noPrefix: true });
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorControl = editorService.activeTextEditorControl;
@@ -148,8 +166,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		// get all "inputs"
 		let inputs: ConfiguredInput[] = [];
-		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
-			let result = this.configurationService.inspect(section, { resource: folder.uri });
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
+			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
+			let result = this.configurationService.inspect(section, overrides);
 			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
 				switch (target) {
 					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
@@ -157,7 +176,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					default: inputs = (<any>result.workspaceFolderValue)?.inputs;
 				}
 			} else {
-				const valueResult = this.configurationService.getValue<any>(section, { resource: folder.uri });
+				const valueResult = this.configurationService.getValue<any>(section, overrides);
 				if (valueResult) {
 					inputs = valueResult.inputs;
 				}
@@ -351,7 +370,7 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ILabelService labelService: ILabelService
 	) {
-		super({ getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
 

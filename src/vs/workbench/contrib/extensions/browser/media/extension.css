@@ -67,7 +67,7 @@
 
 .extension-list-item > .details > .header-container > .header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
@@ -139,6 +139,15 @@
 	color: currentColor;
 }
 
+.extension-list-item > .details > .header-container > .header .sync-ignored {
+	display: flex;
+	margin-left: 6px;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
+	font-size: 100%;
+}
+
 .extension-list-item > .details > .description {
 	padding-right: 11px;
 }
@@ -169,4 +178,8 @@
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
+}
+
+.extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	margin-right: 4px;
 }

@@ -13,21 +13,26 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import {
-	configureOpenerTrustedDomainsHandler,
-	readTrustedDomains
-} from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { configureOpenerTrustedDomainsHandler, readAuthenticationTrustedDomains, readStaticTrustedDomains, readWorkspaceTrustedDomains } from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IdleValue } from 'vs/base/common/async';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
+
+	private _readWorkspaceTrustedDomainsResult: IdleValue<Promise<string[]>>;
+	private _readAuthenticationTrustedDomainsResult: IdleValue<Promise<string[]>>;
+
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -39,8 +44,26 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
+
+		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
+		this._authenticationService.onDidRegisterAuthenticationProvider(() => {
+			this._readAuthenticationTrustedDomainsResult?.dispose();
+			this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+				this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
+		});
+
+		this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+			this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
+		this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this._readWorkspaceTrustedDomainsResult?.dispose();
+			this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+				this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
+		});
 	}
 
 	async validateLink(resource: URI | string): Promise<boolean> {
@@ -48,13 +71,15 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			return true;
 		}
 
+		const originalResource = resource;
 		if (typeof resource === 'string') {
 			resource = URI.parse(resource);
 		}
 		const { scheme, authority, path, query, fragment } = resource;
 
 		const domainToOpen = `${scheme}://${authority}`;
-		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this._instantiationService.invokeFunction(readTrustedDomains);
+		const [workspaceDomains, userDomains] = await Promise.all([this._readWorkspaceTrustedDomainsResult.value, this._readAuthenticationTrustedDomainsResult.value]);
+		const { defaultTrustedDomains, trustedDomains, } = this._instantiationService.invokeFunction(readStaticTrustedDomains);
 		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
 
 		if (isURLDomainTrusted(resource, allTrustedDomains)) {
@@ -90,7 +115,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					localize('configureTrustedDomains', 'Configure Trusted Domains')
 				],
 				{
-					detail: formattedLink,
+					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
 					cancelId: 2
 				}
 			);
@@ -109,7 +134,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					'trustedDomains.dialogAction',
 					{ action: 'copy' }
 				);
-				this._clipboardService.writeText(resource.toString(true));
+				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
 			}
 			// Configure Trusted Domains
 			else if (choice === 3) {
@@ -188,76 +213,15 @@ export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
 		return true;
 	}
 
-	const domain = `${url.scheme}://${url.authority}`;
-
 	for (let i = 0; i < trustedDomains.length; i++) {
 		if (trustedDomains[i] === '*') {
 			return true;
 		}
 
-		if (trustedDomains[i] === domain) {
+		if (testUrlMatchesGlob(url.toString(), trustedDomains[i])) {
 			return true;
-		}
-
-		let parsedTrustedDomain;
-		if (/^https?:\/\//.test(trustedDomains[i])) {
-			parsedTrustedDomain = URI.parse(trustedDomains[i]);
-			if (url.scheme !== parsedTrustedDomain.scheme) {
-				continue;
-			}
-		} else {
-			parsedTrustedDomain = URI.parse('https://' + trustedDomains[i]);
-		}
-
-		if (url.authority === parsedTrustedDomain.authority) {
-			if (pathMatches(url.path, parsedTrustedDomain.path)) {
-				return true;
-			} else {
-				continue;
-			}
-		}
-
-		if (trustedDomains[i].indexOf('*') !== -1) {
-
-			let reversedAuthoritySegments = url.authority.split('.').reverse();
-			const reversedTrustedDomainAuthoritySegments = parsedTrustedDomain.authority.split('.').reverse();
-
-			if (
-				reversedTrustedDomainAuthoritySegments.length < reversedAuthoritySegments.length &&
-				reversedTrustedDomainAuthoritySegments[reversedTrustedDomainAuthoritySegments.length - 1] === '*'
-			) {
-				reversedAuthoritySegments = reversedAuthoritySegments.slice(0, reversedTrustedDomainAuthoritySegments.length);
-			}
-
-			const authorityMatches = reversedAuthoritySegments.every((val, i) => {
-				return reversedTrustedDomainAuthoritySegments[i] === '*' || val === reversedTrustedDomainAuthoritySegments[i];
-			});
-
-			if (authorityMatches && pathMatches(url.path, parsedTrustedDomain.path)) {
-				return true;
-			}
 		}
 	}
 
 	return false;
-}
-
-function pathMatches(open: string, rule: string) {
-	if (rule === '/') {
-		return true;
-	}
-
-	if (rule[rule.length - 1] === '/') {
-		rule = rule.slice(0, -1);
-	}
-
-	const openSegments = open.split('/');
-	const ruleSegments = rule.split('/');
-	for (let i = 0; i < ruleSegments.length; i++) {
-		if (ruleSegments[i] !== openSegments[i]) {
-			return false;
-		}
-	}
-
-	return true;
 }

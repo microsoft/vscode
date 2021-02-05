@@ -9,8 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewExtension, reviveWebviewOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { editorGroupToViewColumn, EditorGroupColumn, IEditorInput, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
@@ -128,10 +127,11 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	dispose() {
 		super.dispose();
 
-		for (const disposable of this._editorProviders.values()) {
-			disposable.dispose();
-		}
+		dispose(this._editorProviders.values());
 		this._editorProviders.clear();
+
+		dispose(this._revivers.values());
+		this._revivers.clear();
 	}
 
 	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
@@ -152,7 +152,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean; },
+		showOptions: { viewColumn?: EditorGroupColumn, preserveFocus?: boolean; },
 		options: WebviewInputOptions
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
@@ -184,7 +184,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		webview.setName(value);
 	}
 
-
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
 		const webview = this.getWebviewInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
@@ -202,8 +201,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		}
 	}
 
-	public $registerSerializer(viewType: string)
-		: void {
+	public $registerSerializer(viewType: string): void {
 		if (this._revivers.has(viewType)) {
 			throw new Error(`Reviver for ${viewType} already registered`);
 		}
@@ -218,7 +216,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
 					return;
 				}
-
 
 				const handle = webviewInput.id;
 

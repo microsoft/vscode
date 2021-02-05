@@ -19,7 +19,7 @@ export interface IWebviewPortMapping {
  */
 export class WebviewPortMappingManager implements IDisposable {
 
-	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
+	private readonly _tunnels = new Map<number, RemoteTunnel>();
 
 	constructor(
 		private readonly _getExtensionLocation: () => URI | undefined,
@@ -60,19 +60,19 @@ export class WebviewPortMappingManager implements IDisposable {
 		return undefined;
 	}
 
-	dispose() {
+	async dispose() {
 		for (const tunnel of this._tunnels.values()) {
-			tunnel.then(tunnel => tunnel.dispose());
+			await tunnel.dispose();
 		}
 		this._tunnels.clear();
 	}
 
-	private getOrCreateTunnel(remoteAuthority: IAddress, remotePort: number): Promise<RemoteTunnel> | undefined {
+	private async getOrCreateTunnel(remoteAuthority: IAddress, remotePort: number): Promise<RemoteTunnel | undefined> {
 		const existing = this._tunnels.get(remotePort);
 		if (existing) {
 			return existing;
 		}
-		const tunnel = this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
+		const tunnel = await this.tunnelService.openTunnel({ getAddress: async () => remoteAuthority }, undefined, remotePort);
 		if (tunnel) {
 			this._tunnels.set(remotePort, tunnel);
 		}

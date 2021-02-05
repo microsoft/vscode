@@ -22,6 +22,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
+import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 
 export class SelectColorThemeAction extends Action {
 
@@ -34,6 +35,7 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
 		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
@@ -84,6 +86,7 @@ export class SelectColorThemeAction extends Action {
 						openExtensionViewlet(this.viewletService, `category:themes ${quickpick.value}`);
 					} else {
 						selectTheme(theme, true);
+						this.gettingStartedService.progressByEvent('themeSelected');
 					}
 					isCompleted = true;
 					quickpick.hide();
@@ -195,7 +198,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		super(id, label, quickInputService, extensionGalleryService, viewletService);
 	}
 
-	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') };
+	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') };
 	protected installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
 	protected placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
 	protected marketplaceTag = 'tag:icon-theme';
@@ -227,7 +230,7 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 	}
 
 	protected builtInEntry: QuickPickInput<ThemeItem> = { id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') };
-	protected installMessage = undefined; //localize('installProductIconThemes', "Install Additional Product Icon Themes...");
+	protected installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
 	protected placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
 	protected marketplaceTag = 'tag:product-icon-theme';
 	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {
@@ -302,7 +305,7 @@ class GenerateColorThemeAction extends Action {
 		let theme = this.themeService.getColorTheme();
 		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		let colorIds = colors.map(c => c.id).sort();
-		let resultingColors: { [key: string]: string } = {};
+		let resultingColors: { [key: string]: string | null } = {};
 		let inherited: string[] = [];
 		for (let colorId of colorIds) {
 			const color = theme.getColor(colorId, false);
@@ -312,11 +315,17 @@ class GenerateColorThemeAction extends Action {
 				inherited.push(colorId);
 			}
 		}
+		const nullDefaults = [];
 		for (let id of inherited) {
 			const color = theme.getColor(id);
 			if (color) {
 				resultingColors['__' + id] = Color.Format.CSS.formatHexA(color, true);
+			} else {
+				nullDefaults.push(id);
 			}
+		}
+		for (let id of nullDefaults) {
+			resultingColors['__' + id] = null;
 		}
 		let contents = JSON.stringify({
 			'$schema': colorThemeSchemaId,
@@ -326,7 +335,7 @@ class GenerateColorThemeAction extends Action {
 		}, null, '\t');
 		contents = contents.replace(/\"__/g, '//"');
 
-		return this.editorService.openEditor({ contents, mode: 'jsonc' });
+		return this.editorService.openEditor({ contents, mode: 'jsonc', options: { pinned: true } });
 	}
 }
 
@@ -363,6 +372,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	order: 2
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize({ key: 'miSelectProductIconTheme', comment: ['&& denotes a mnemonic'] }, "&&Product Icon Theme")
+	},
+	order: 3
+});
+
+
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
@@ -379,4 +398,13 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+	group: '4_themes',
+	command: {
+		id: SelectProductIconThemeAction.ID,
+		title: localize('themes.selectProductIconTheme.label', "Product Icon Theme")
+	},
+	order: 3
 });

@@ -46,15 +46,17 @@ import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSetti
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { getDefaultIgnoredSettings, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { getDefaultIgnoredSettings, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 import { Codicon } from 'vs/base/common/codicons';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ILogService } from 'vs/platform/log/common/log';
+import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 
 const $ = DOM.$;
 
@@ -84,6 +86,10 @@ function areAllPropertiesDefined(properties: string[], itemsToDisplay: IObjectDa
 }
 
 function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
+	if (schema.anyOf) {
+		return arrays.flatten(schema.anyOf.map(getEnumOptionsFromSchema));
+	}
+
 	const enumDescriptions = schema.enumDescriptions ?? [];
 
 	return (schema.enum ?? []).map((value, idx) => {
@@ -96,6 +102,14 @@ function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 }
 
 function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
+	if (schema.anyOf) {
+		const subTypes = schema.anyOf.map(getObjectValueType);
+		if (subTypes.some(type => type === 'enum')) {
+			return 'enum';
+		}
+		return 'string';
+	}
+
 	if (schema.type === 'boolean') {
 		return 'boolean';
 	} else if (schema.type === 'string' && isDefined(schema.enum) && schema.enum.length > 0) {
@@ -257,15 +271,15 @@ function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem
 	});
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): { tree: ITOCEntry, leftoverSettings: Set<ISetting> } {
+export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>, leftoverSettings: Set<ISetting> } {
 	const allSettings = getFlatSettings(coreSettingsGroups);
 	return {
-		tree: _resolveSettingsTree(tocData, allSettings),
+		tree: _resolveSettingsTree(tocData, allSettings, logService),
 		leftoverSettings: allSettings
 	};
 }
 
-export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
+export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
 	const settingsGroupToEntry = (group: ISettingsGroup) => {
 		const flatSettings = arrays.flatten(
 			group.sections.map(section => section.settings));
@@ -288,17 +302,17 @@ export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
 	};
 }
 
-function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): ITOCEntry {
-	let children: ITOCEntry[] | undefined;
+function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry<ISetting> {
+	let children: ITOCEntry<ISetting>[] | undefined;
 	if (tocData.children) {
 		children = tocData.children
-			.map(child => _resolveSettingsTree(child, allSettings))
+			.map(child => _resolveSettingsTree(child, allSettings, logService))
 			.filter(child => (child.children && child.children.length) || (child.settings && child.settings.length));
 	}
 
 	let settings: ISetting[] | undefined;
 	if (tocData.settings) {
-		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern)));
+		settings = arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern, logService)));
 	}
 
 	if (!children && !settings) {
@@ -313,7 +327,13 @@ function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): I
 	};
 }
 
-function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISetting[] {
+const knownDynamicSettingGroups = [
+	/^settingsSync\..*/,
+	/^sync\..*/,
+	/^workbench.fontAliasing$/,
+];
+
+function getMatchingSettings(allSettings: Set<ISetting>, pattern: string, logService: ILogService): ISetting[] {
 	const result: ISetting[] = [];
 
 	allSettings.forEach(s => {
@@ -323,17 +343,20 @@ function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISett
 		}
 	});
 
+	if (!result.length && !knownDynamicSettingGroups.some(r => r.test(pattern))) {
+		logService.warn(`Settings pattern "${pattern}" doesn't match any settings`);
+	}
 
 	return result.sort((a, b) => a.key.localeCompare(b.key));
 }
 
 const settingPatternCache = new Map<string, RegExp>();
 
-function createSettingMatchRegExp(pattern: string): RegExp {
+export function createSettingMatchRegExp(pattern: string): RegExp {
 	pattern = escapeRegExpCharacters(pattern)
 		.replace(/\\\*/g, '.*');
 
-	return new RegExp(`^${pattern}`, 'i');
+	return new RegExp(`^${pattern}$`, 'i');
 }
 
 function settingMatches(s: ISetting, pattern: string): boolean {
@@ -481,17 +504,6 @@ function addChildrenToTabOrder(node: Element): void {
 	});
 }
 
-export function updateSettingTreeTabOrder(container: Element): void {
-	const allRows = [...container.querySelectorAll(AbstractSettingRenderer.ALL_ROWS_SELECTOR)];
-	const focusedRow = allRows.find(row => row.classList.contains('focused'));
-
-	allRows.forEach(removeChildrenFromTabOrder);
-
-	if (isDefined(focusedRow)) {
-		addChildrenToTabOrder(focusedRow);
-	}
-}
-
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -525,7 +537,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
 	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
 
-	// Put common injections back here
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
@@ -549,17 +560,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}));
 	}
 
-	renderTemplate(container: HTMLElement): any {
-		throw new Error('to override');
-	}
+	abstract renderTemplate(container: HTMLElement): any;
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void {
-		throw new Error('to override');
-	}
+	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void;
 
 	protected createSyncIgnoredElement(container: HTMLElement): HTMLElement {
 		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));
-		const syncIgnoredLabel = new CodiconLabel(syncIgnoredElement);
+		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = `($(sync-ignored) ${localize('extensionSyncIgnoredLabel', 'Sync: Ignored')})`;
 
 		return syncIgnoredElement;
@@ -643,20 +650,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
 		});
 		return toolbar;
-	}
-
-	private fixToolbarIcon(toolbar: ToolBar): void {
-		const button = toolbar.getElement().querySelector('.codicon-toolbar-more');
-		if (button) {
-			(<HTMLElement>button).tabIndex = 0;
-
-			// change icon from ellipsis to gear
-			(<HTMLElement>button).classList.add('codicon-gear');
-			(<HTMLElement>button).classList.remove('codicon-toolbar-more');
-		}
 	}
 
 	protected renderSettingElement(node: ITreeNode<SettingsTreeSettingElement, never>, index: number, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
@@ -666,11 +663,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const actions = this.disposableActionFactory(element.setting);
 		actions.forEach(a => template.elementDisposables?.add(a));
 		template.toolbar.setActions([], [...this.settingActions, ...actions]);
-		this.fixToolbarIcon(template.toolbar);
 
 		const setting = element.setting;
 
-		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
+		template.containerElement.classList.toggle('is-configured', element.isConfigured);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
@@ -733,7 +729,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
-		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
+		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
@@ -744,6 +740,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			update();
 		}));
+
+		this.updateSettingTabbable(element, template);
+		template.elementDisposables.add(element.onDidChangeTabbable(() => {
+			this.updateSettingTabbable(element, template);
+		}));
+	}
+
+	private updateSettingTabbable(element: SettingsTreeSettingElement, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+		if (element.tabbable) {
+			addChildrenToTabOrder(template.containerElement);
+		} else {
+			removeChildrenFromTabOrder(template.containerElement);
+		}
 	}
 
 	private renderSettingMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
@@ -869,6 +878,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
 		openSettingsButton.label = SettingComplexRenderer.EDIT_IN_JSON_LABEL;
 		openSettingsButton.element.classList.add('edit-in-settings-button');
+		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
 		common.toDispose.add(attachButtonStyler(openSettingsButton, this._themeService, {
 			buttonBackground: Color.transparent.toString(),
@@ -1316,6 +1326,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
+		const enumItemLabels = dataElement.setting.enumItemLabels;
 		const enumDescriptions = dataElement.setting.enumDescriptions;
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
@@ -1325,17 +1336,21 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const displayOptions = dataElement.setting.enum!
 			.map(String)
 			.map(escapeInvisibleChars)
-			.map((data, index) => <ISelectOptionItem>{
-				text: data,
-				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
-				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
-				descriptionMarkdownActionHandler: {
-					callback: (content) => {
-						this._openerService.open(content).catch(onUnexpectedError);
+			.map((data, index) => {
+				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				return <ISelectOptionItem>{
+					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
+					detail: enumItemLabels && enumItemLabels[index] ? data : '',
+					description,
+					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+					descriptionMarkdownActionHandler: {
+						callback: (content) => {
+							this._openerService.open(content).catch(onUnexpectedError);
+						},
+						disposeables: disposables
 					},
-					disposeables: disposables
-				},
-				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+					decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+				};
 			});
 
 		template.selectBox.setOptions(displayOptions);
@@ -1523,7 +1538,7 @@ export class SettingTreeRenderers {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IUserDataAutoSyncService private readonly _userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncEnablementService private readonly _userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 	) {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
@@ -1567,7 +1582,7 @@ export class SettingTreeRenderers {
 	}
 
 	private getActionsForSetting(setting: ISetting): IAction[] {
-		const enableSync = this._userDataAutoSyncService.isEnabled();
+		const enableSync = this._userDataAutoSyncEnablementService.isEnabled();
 		return enableSync && !setting.disallowSyncIgnore ?
 			[
 				new Separator(),
@@ -1704,7 +1719,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 
 		// Non-user scope selected
 		if (element instanceof SettingsTreeSettingElement && this.viewState.settingsTarget !== ConfigurationTarget.USER_LOCAL) {
-			const isRemote = !!this.environmentService.configuration.remoteAuthority;
+			const isRemote = !!this.environmentService.remoteAuthority;
 			if (!element.matchesScope(this.viewState.settingsTarget, isRemote)) {
 				return false;
 			}
@@ -1834,7 +1849,8 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 			const otherOverridesList = element.overriddenScopeList.join(', ');
 			const otherOverridesLabel = element.overriddenScopeList.length ? `${otherOverridesStart} ${otherOverridesList}. ` : '';
 
-			return `${element.displayCategory} ${element.displayLabel}. ${element.description}. ${modifiedText} ${otherOverridesLabel}`;
+			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
+			return `${element.displayCategory} ${element.displayLabel}. ${descriptionWithoutSettingLinks}. ${modifiedText} ${otherOverridesLabel}`;
 		} else {
 			return element.id;
 		}
@@ -1884,20 +1900,17 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		);
 
 		this.disposables.add(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(focusBorder);
-			if (activeBorderColor) {
-				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
-				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-list:focus .monaco-list-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
-			}
-
 			const foregroundColor = theme.getColor(foreground);
 			if (foregroundColor) {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
-
 				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
+
+				// Hack for subpixel antialiasing
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
+					.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);

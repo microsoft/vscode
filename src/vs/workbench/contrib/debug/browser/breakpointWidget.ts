@@ -98,7 +98,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
 		this.toDispose = [];
 		const model = this.editor.getModel();
@@ -221,6 +221,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
+		if (this.editor.hasModel()) {
+			model.setMode(this.editor.getModel().getLanguageIdentifier());
+		}
 		this.input.setModel(model);
 		this.toDispose.push(model);
 		const setDecorations = () => {

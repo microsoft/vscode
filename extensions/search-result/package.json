@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
+  "enableProposedApi": true,
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -14,7 +15,7 @@
   "main": "./out/extension.js",
   "browser": "./dist/extension.js",
   "activationEvents": [
-    "*"
+    "onLanguage:search-result"
   ],
   "scripts": {
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
@@ -44,5 +45,9 @@
         "path": "./syntaxes/searchResult.tmLanguage.json"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

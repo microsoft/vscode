@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, app, BrowserWindow } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -12,7 +12,7 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { Promises, Barrier, timeout } from 'vs/base/common/async';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
@@ -274,7 +274,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promise.all(joiners).then(() => undefined, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = Promises.settled(joiners).then(() => undefined, err => this.logService.error(err));
 
 		return this.pendingWillShutdownPromise;
 	}
@@ -371,7 +371,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// Only reload when the window has not vetoed this
 		const veto = await this.unload(window, UnloadReason.RELOAD);
 		if (!veto) {
-			window.reload(undefined, cli);
+			window.reload(cli);
 		}
 	}
 
@@ -379,7 +379,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		this.logService.trace(`Lifecycle#unload() - window ID ${window.id}`);
@@ -432,17 +432,17 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
-		return new Promise<boolean>(c => {
+		return new Promise<boolean>(resolve => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
 			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
 
-			ipc.once(okChannel, () => {
-				c(false); // no veto
+			ipcMain.once(okChannel, () => {
+				resolve(false); // no veto
 			});
 
-			ipc.once(cancelChannel, () => {
-				c(true); // veto
+			ipcMain.once(cancelChannel, () => {
+				resolve(true); // veto
 			});
 
 			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });
@@ -468,7 +468,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const replyChannel = `vscode:reply${oneTimeEventToken}`;
 
-			ipc.once(replyChannel, () => resolve());
+			ipcMain.once(replyChannel, () => resolve());
 
 			window.send('vscode:onWillUnload', { replyChannel, reason });
 		});
@@ -576,7 +576,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 					if (window && !window.isDestroyed()) {
 						let whenWindowClosed: Promise<void>;
 						if (window.webContents && !window.webContents.isDestroyed()) {
-							whenWindowClosed = new Promise(c => window.once('closed', c));
+							whenWindowClosed = new Promise(resolve => window.once('closed', resolve));
 						} else {
 							whenWindowClosed = Promise.resolve();
 						}

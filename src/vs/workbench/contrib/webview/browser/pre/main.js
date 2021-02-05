@@ -58,6 +58,10 @@
 	};
 
 	const defaultCssRules = `
+	html {
+		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+	}
+
 	body {
 		background-color: transparent;
 		color: var(--vscode-editor-foreground);
@@ -143,7 +147,7 @@
 	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
-			const acquireVsCodeApi = (function() {
+			globalThis.acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent.postMessage.bind(window.parent);
 				const targetOrigin = '*';
 				let acquired = false;
@@ -315,7 +319,8 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['c', 'v', 'x'].includes(e.key);
+			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
+			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
 		}
 
 		/**
@@ -324,7 +329,7 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key);
+			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
 		}
 
 		let isHandlingScroll = false;
@@ -393,7 +398,7 @@
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-			defaultStyles.innerHTML = defaultCssRules;
+			defaultStyles.textContent = defaultCssRules;
 			newDocument.head.prepend(defaultStyles);
 
 			applyStyles(newDocument, newDocument.body);
@@ -439,10 +444,18 @@
 
 			// propagate focus
 			host.onMessage('focus', () => {
-				const target = getActiveFrame();
-				if (target) {
-					target.contentWindow.focus();
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					return;
 				}
+
+				if (document.activeElement === activeFrame) {
+					// We are already focused on the iframe (or one of its children) so no need
+					// to refocus.
+					return;
+				}
+
+				activeFrame.contentWindow.focus();
 			});
 
 			// update iframe-contents
@@ -492,7 +505,7 @@
 				const newFrame = document.createElement('iframe');
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
-				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock' : 'allow-same-origin allow-pointer-lock');
+				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
 				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.

@@ -14,7 +14,7 @@ import { ConfigurationScope, IConfigurationRegistry, Extensions as Configuration
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isEqualAuthority, extUri } from 'vs/base/common/resources';
+import { isEqual, isEqualAuthority } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,6 +26,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+
+const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -52,8 +54,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: this.fileDialogService.defaultWorkspacePath(),
-			availableFileSystems: this.environmentService.configuration.remoteAuthority ? [Schemas.vscodeRemote] : undefined
+			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME)
 		});
 
 		if (!workspacePath) {
@@ -132,7 +133,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			// https://github.com/microsoft/vscode/issues/94191
 			foldersToAdd = foldersToAdd.filter(f => f.uri.scheme !== Schemas.file && (f.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(f.uri.authority, remoteAuthority)));
@@ -198,7 +199,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			return;
 		}
 
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this.environmentService.remoteAuthority;
 		const untitledWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
 		if (path) {
 			try {
@@ -220,7 +221,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		// Allow to save the workspace of the current window
-		if (extUri.isEqual(workspaceIdentifier.configPath, path)) {
+		// if we have an identical match on the path
+		if (isEqual(workspaceIdentifier.configPath, path)) {
 			return this.saveWorkspace(workspaceIdentifier);
 		}
 
@@ -250,8 +252,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 		// Read the contents of the workspace file, update it to new location and save it.
 		const raw = await this.fileService.readFile(configPathURI);
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI);
-		await this.textFileService.create(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI, this.uriIdentityService.extUri);
+		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -272,8 +274,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 		// Finally, we need to re-create the file as it was deleted
 		const newWorkspace: IStoredWorkspace = { folders: [] };
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(JSON.stringify(newWorkspace, null, '\t'), configPathURI, false, configPathURI);
-		await this.textFileService.create(configPathURI, newRawWorkspaceContents);
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(JSON.stringify(newWorkspace, null, '\t'), configPathURI, false, configPathURI, this.uriIdentityService.extUri);
+		await this.textFileService.create([{ resource: configPathURI, value: newRawWorkspaceContents }]);
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): void {

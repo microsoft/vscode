@@ -19,6 +19,11 @@ export interface IComposite {
 	readonly onDidBlur: Event<void>;
 
 	/**
+	 * Returns true if the composite has focus.
+	 */
+	hasFocus(): boolean;
+
+	/**
 	 * Returns the unique identifier of this composite.
 	 */
 	getId(): string;

@@ -40,6 +40,7 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 //#region --- workbench parts
 
+import 'vs/workbench/browser/parts/editor/editor.contribution';
 import 'vs/workbench/browser/parts/editor/editorPart';
 import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import 'vs/workbench/browser/parts/panel/panelPart';
@@ -53,10 +54,10 @@ import 'vs/workbench/browser/parts/views/viewsService';
 //#region --- workbench services
 
 import 'vs/platform/undoRedo/common/undoRedoService';
-import 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
+import 'vs/workbench/services/dialogs/common/dialogService';
 import 'vs/workbench/services/progress/browser/progressService';
 import 'vs/workbench/services/editor/browser/codeEditorService';
 import 'vs/workbench/services/preferences/browser/preferencesService';
@@ -73,8 +74,9 @@ import 'vs/workbench/services/commands/common/commandService';
 import 'vs/workbench/services/themes/browser/workbenchThemeService';
 import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/webExtensionsScannerService';
-import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
+import 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
+import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRecommendationsService';
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
@@ -88,6 +90,7 @@ import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService'
 import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/hover/browser/hoverService';
 import 'vs/workbench/services/experiment/common/experimentService';
+import 'vs/workbench/services/outline/browser/outlineService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -114,8 +117,15 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
+import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
+import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
+registerSingleton(IUserDataSyncResourceEnablementService, UserDataSyncResourceEnablementService);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
+registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
 registerSingleton(IContextViewService, ContextViewService, true);
 registerSingleton(IListService, ListService, true);
@@ -147,6 +157,9 @@ import 'vs/workbench/contrib/performance/browser/performance.contribution';
 
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+
+// Testing
+import 'vs/workbench/contrib/testing/browser/testing.contribution';
 
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
@@ -202,6 +215,9 @@ import 'vs/workbench/contrib/webviewPanel/browser/webviewPanel.contribution';
 import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
 import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 
+// External Uri Opener
+import 'vs/workbench/contrib/externalUriOpener/common/externalUriOpener.contribution';
+
 // Extensions Management
 import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
@@ -215,6 +231,7 @@ import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
 import 'vs/workbench/contrib/terminal/common/terminalExtensionPoints.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalView';
+import 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';
@@ -264,12 +281,14 @@ import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 // Welcome
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
+import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 
 // Call Hierarchy
 import 'vs/workbench/contrib/callHierarchy/browser/callHierarchy.contribution';
 
 // Outline
+import 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline';
 import 'vs/workbench/contrib/outline/browser/outline.contribution';
 
 // Experiments
@@ -289,5 +308,8 @@ import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
+
+// Workspaces
+import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';
 
 //#endregion

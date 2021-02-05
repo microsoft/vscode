@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -131,7 +132,7 @@ export class MirrorTextModel {
 			// Nothing to insert
 			return;
 		}
-		let insertLines = insertText.split(/\r\n|\r|\n/);
+		let insertLines = splitLines(insertText);
 		if (insertLines.length === 1) {
 			// Inserting text on one line
 			this._setLineText(position.lineNumber - 1,

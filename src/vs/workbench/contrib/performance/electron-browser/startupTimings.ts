@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendFile } from 'fs';
+import { promises } from 'fs';
 import { timeout } from 'vs/base/common/async';
-import { promisify } from 'util';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -55,10 +54,10 @@ export class StartupTimings implements IWorkbenchContribution {
 		const { sessionId } = await this._telemetryService.getTelemetryInfo();
 
 		Promise.all([
-			this._timerService.startupMetrics,
+			this._timerService.whenReady(),
 			timeout(15000), // wait: cached data creation, telemetry sending
-		]).then(([startupMetrics]) => {
-			return promisify(appendFile)(appendTo, `${startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
+		]).then(() => {
+			return promises.appendFile(appendTo, `${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
 		}).then(() => {
 			this._nativeHostService.quit();
 		}).catch(err => {

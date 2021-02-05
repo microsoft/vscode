@@ -101,6 +101,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
 		...process.env
 	};
+	const args = ['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
@@ -111,7 +112,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	}
 	server = spawn(
 		serverLocation,
-		['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath],
+		args,
 		{ env }
 	);
 	server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));

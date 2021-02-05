@@ -9,6 +9,7 @@ import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbe
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { assertType } from 'vs/base/common/types';
 
 suite('NotebookTextModel', () => {
 	const instantiationService = setupInstantiationService();
@@ -32,7 +33,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells.length, 6);
 
@@ -57,7 +58,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells.length, 6);
 
@@ -82,7 +83,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
 				assert.equal(textModel.cells[1].getValue(), 'var c = 3;');
@@ -105,7 +106,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells.length, 4);
 
@@ -130,7 +131,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells.length, 4);
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
@@ -154,7 +155,7 @@ suite('NotebookTextModel', () => {
 			(editor, viewModel, textModel) => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells.length, 4);
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
@@ -180,7 +181,7 @@ suite('NotebookTextModel', () => {
 						index: Number.MAX_VALUE,
 						editType: CellEditType.Output,
 						outputs: []
-					}], true, undefined, () => undefined);
+					}], true, undefined, () => undefined, undefined);
 				});
 
 				// invalid index 2
@@ -189,7 +190,7 @@ suite('NotebookTextModel', () => {
 						index: -1,
 						editType: CellEditType.Output,
 						outputs: []
-					}], true, undefined, () => undefined);
+					}], true, undefined, () => undefined, undefined);
 				});
 
 				textModel.applyEdits(textModel.versionId, [{
@@ -200,11 +201,48 @@ suite('NotebookTextModel', () => {
 						outputId: 'someId',
 						data: { 'text/markdown': '_Hello_' }
 					}]
-				}], true, undefined, () => undefined);
+				}], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 1);
-				assert.equal(textModel.cells[0].outputs.length, 1);
-				assert.equal(textModel.cells[0].outputs[0].outputKind, CellOutputKind.Rich);
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs[0].outputKind, CellOutputKind.Rich);
+
+				// append
+				textModel.applyEdits(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Output,
+					append: true,
+					outputs: [{
+						outputKind: CellOutputKind.Rich,
+						outputId: 'someId2',
+						data: { 'text/markdown': '_Hello2_' }
+					}]
+				}], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 2);
+				let [first, second] = textModel.cells[0].outputs;
+				assertType(first.outputKind === CellOutputKind.Rich);
+				assertType(second.outputKind === CellOutputKind.Rich);
+				assert.strictEqual(first.outputId, 'someId');
+				assert.strictEqual(second.outputId, 'someId2');
+
+				// replace all
+				textModel.applyEdits(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Output,
+					outputs: [{
+						outputKind: CellOutputKind.Rich,
+						outputId: 'someId3',
+						data: { 'text/plain': 'Last, replaced output' }
+					}]
+				}], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1);
+				[first] = textModel.cells[0].outputs;
+				assertType(first.outputKind === CellOutputKind.Rich);
+				assert.strictEqual(first.outputId, 'someId3');
 			}
 		);
 	});
@@ -225,7 +263,7 @@ suite('NotebookTextModel', () => {
 						index: Number.MAX_VALUE,
 						editType: CellEditType.Metadata,
 						metadata: { editable: false }
-					}], true, undefined, () => undefined);
+					}], true, undefined, () => undefined, undefined);
 				});
 
 				// invalid index 2
@@ -234,14 +272,14 @@ suite('NotebookTextModel', () => {
 						index: -1,
 						editType: CellEditType.Metadata,
 						metadata: { editable: false }
-					}], true, undefined, () => undefined);
+					}], true, undefined, () => undefined, undefined);
 				});
 
 				textModel.applyEdits(textModel.versionId, [{
 					index: 0,
 					editType: CellEditType.Metadata,
 					metadata: { editable: false },
-				}], true, undefined, () => undefined);
+				}], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells.length, 1);
 				assert.equal(textModel.cells[0].metadata?.editable, false);
@@ -270,7 +308,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => [0]);
+				], true, undefined, () => [0], undefined);
 
 				assert.equal(textModel.cells.length, 4);
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
@@ -311,7 +349,7 @@ suite('NotebookTextModel', () => {
 						editType: CellEditType.Metadata,
 						metadata: { editable: false },
 					}
-				], true, undefined, () => [0]);
+				], true, undefined, () => [0], undefined);
 
 				assert.notEqual(changeEvent, undefined);
 				assert.equal(changeEvent!.rawEvents.length, 2);

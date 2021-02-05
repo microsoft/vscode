@@ -1188,7 +1188,7 @@ interface I18nPack {
 	};
 }
 
-const i18nPackVersion = "1.0.0";
+const i18nPackVersion = '1.0.0';
 
 export interface TranslationPath {
 	id: string;

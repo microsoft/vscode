@@ -57,6 +57,8 @@ export class ProgressBar extends Disposable {
 	private create(container: HTMLElement): void {
 		this.element = document.createElement('div');
 		this.element.classList.add('monaco-progress-container');
+		this.element.setAttribute('role', 'progressbar');
+		this.element.setAttribute('aria-valuemin', '0');
 		container.appendChild(this.element);
 
 		this.bit = document.createElement('div');
@@ -136,6 +138,7 @@ export class ProgressBar extends Disposable {
 	total(value: number): ProgressBar {
 		this.workedVal = 0;
 		this.totalWork = value;
+		this.element.setAttribute('aria-valuemax', value.toString());
 
 		return this;
 	}
@@ -173,6 +176,7 @@ export class ProgressBar extends Disposable {
 
 		this.element.classList.remove(CSS_INFINITE, CSS_DONE);
 		this.element.classList.add(CSS_ACTIVE, CSS_DISCRETE);
+		this.element.setAttribute('aria-valuenow', value.toString());
 
 		this.bit.style.width = 100 * (this.workedVal / (totalWork)) + '%';
 

@@ -10,81 +10,26 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { Schemas, FileAccess, RemoteAuthorities } from 'vs/base/common/network';
+import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.removeChild(node.firstChild);
+		node.firstChild.remove();
 	}
 }
 
+/**
+ * @deprecated Use node.isConnected directly
+ */
 export function isInDOM(node: Node | null): boolean {
-	while (node) {
-		if (node === document.body) {
-			return true;
-		}
-		node = node.parentNode || (node as ShadowRoot).host;
-	}
-	return false;
+	return node?.isConnected ?? false;
 }
-
-interface IDomClassList {
-	hasClass(node: HTMLElement | SVGElement, className: string): boolean;
-	addClass(node: HTMLElement | SVGElement, className: string): void;
-	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
-	removeClass(node: HTMLElement | SVGElement, className: string): void;
-	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
-	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
-}
-
-const _classList: IDomClassList = new class implements IDomClassList {
-	hasClass(node: HTMLElement, className: string): boolean {
-		return Boolean(className) && node.classList && node.classList.contains(className);
-	}
-
-	addClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
-	}
-
-	addClass(node: HTMLElement, className: string): void {
-		if (className && node.classList) {
-			node.classList.add(className);
-		}
-	}
-
-	removeClass(node: HTMLElement, className: string): void {
-		if (className && node.classList) {
-			node.classList.remove(className);
-		}
-	}
-
-	removeClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
-	}
-
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		if (node.classList) {
-			node.classList.toggle(className, shouldHaveIt);
-		}
-	}
-};
-
-/** @deprecated ES6 - use classList*/
-export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
-/** @deprecated ES6 - use classList*/
-export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
-/** @deprecated ES6 - use classList*/
-export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
-/** @deprecated ES6 - use classList*/
-export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
 
 class DomListener implements IDisposable {
 
@@ -339,7 +284,7 @@ export function modify(callback: () => void): IDisposable {
 }
 
 /**
- * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ * Add a throttled listener. `handler` is fired at most every 8.33333ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
@@ -350,7 +295,7 @@ export interface DOMEvent {
 	stopPropagation(): void;
 }
 
-const MINIMUM_TIME_MS = 16;
+const MINIMUM_TIME_MS = 8;
 const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
@@ -503,10 +448,32 @@ export interface IDimension {
 
 export class Dimension implements IDimension {
 
+	static readonly None = new Dimension(0, 0);
+
 	constructor(
 		public readonly width: number,
 		public readonly height: number,
 	) { }
+
+	with(width: number = this.width, height: number = this.height): Dimension {
+		if (width !== this.width || height !== this.height) {
+			return new Dimension(width, height);
+		} else {
+			return this;
+		}
+	}
+
+	static is(obj: unknown): obj is IDimension {
+		return typeof obj === 'object' && typeof (<IDimension>obj).height === 'number' && typeof (<IDimension>obj).width === 'number';
+	}
+
+	static lift(obj: IDimension): Dimension {
+		if (obj instanceof Dimension) {
+			return obj;
+		} else {
+			return new Dimension(obj.width, obj.height);
+		}
+	}
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -693,6 +660,48 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 	return false;
 }
 
+const parentFlowToDataKey = 'parentFlowToElementId';
+
+/**
+ * Set an explicit parent to use for nodes that are not part of the
+ * regular dom structure.
+ */
+export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: Element): void {
+	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
+}
+
+function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
+	const flowToParentId = node.dataset[parentFlowToDataKey];
+	if (typeof flowToParentId === 'string') {
+		return document.getElementById(flowToParentId);
+	}
+	return null;
+}
+
+/**
+ * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
+ * parents set by `setParentFlowTo`.
+ */
+export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
+	let node: Node | null = testChild;
+	while (node) {
+		if (node === testAncestor) {
+			return true;
+		}
+
+		if (node instanceof HTMLElement) {
+			const flowToParentElement = getParentFlowToElement(node);
+			if (flowToParentElement) {
+				node = flowToParentElement;
+				continue;
+			}
+		}
+		node = node.parentNode;
+	}
+
+	return false;
+}
+
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (node.classList.contains(clazz)) {
@@ -832,7 +841,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
-	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
+	MOUSE_WHEEL: browser.isEdgeLegacy ? 'mousewheel' : 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',
@@ -992,9 +1001,13 @@ export function after<T extends Node>(sibling: HTMLElement, child: T): T {
 	return child;
 }
 
-export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
-	children.forEach(child => parent.appendChild(child));
-	return children[children.length - 1];
+export function append<T extends Node>(parent: HTMLElement, child: T): T;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
+export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
+	parent.append(...children);
+	if (children.length === 1 && typeof children[0] !== 'string') {
+		return <T>children[0];
+	}
 }
 
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
@@ -1002,19 +1015,12 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-
 /**
  * Removes all children from `parent` and appends `children`
  */
-export function reset(parent: HTMLElement, ...children: Array<Node | string>) {
+export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
 	parent.innerText = '';
-	for (const child of children) {
-		if (child instanceof Node) {
-			parent.appendChild(child);
-		} else if (typeof child === 'string') {
-			parent.appendChild(document.createTextNode(child));
-		}
-	}
+	append(parent, ...children);
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
@@ -1068,13 +1074,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	for (const child of children) {
-		if (child instanceof Node) {
-			result.appendChild(child);
-		} else if (typeof child === 'string') {
-			result.appendChild(document.createTextNode(child));
-		}
-	}
+	result.append(...children);
 
 	return result as T;
 }
@@ -1194,9 +1194,10 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if (platform.isNative || browser.isEdgeWebView) {
+	if (browser.isElectron || browser.isEdgeLegacyWebView) {
 		// In VSCode, window.open() always returns null...
 		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
+		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
 		window.open(url);
 	} else {
 		let newTab = window.open();
@@ -1219,18 +1220,6 @@ export function animate(fn: () => void): IDisposable {
 
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
-export function asDomUri(uri: URI): URI {
-	if (!uri) {
-		return uri;
-	}
-
-	if (uri.scheme === Schemas.vscodeRemote) {
-		return RemoteAuthorities.rewrite(uri);
-	}
-
-	return FileAccess.asBrowserUri(uri);
-}
-
 /**
  * returns url('...')
  */
@@ -1238,14 +1227,17 @@ export function asCSSUrl(uri: URI): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
+export function asCSSPropertyValue(value: string) {
+	return `'${value.replace(/'/g, '%27')}'`;
+}
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
 	// If the data is provided as Buffer, we create a
-	// blog URL out of it to produce a valid link
+	// blob URL out of it to produce a valid link
 	let url: string;
 	if (URI.isUri(dataOrUri)) {
 		url = dataOrUri.toString(true);
@@ -1294,7 +1286,7 @@ export interface IDetectedFullscreen {
 	mode: DetectedFullscreenMode;
 
 	/**
-	 * Wether we know for sure that we are in fullscreen mode or
+	 * Whether we know for sure that we are in fullscreen mode or
 	 * it is a guess.
 	 */
 	guess: boolean;
@@ -1332,4 +1324,278 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	// Not in fullscreen
 	return null;
+}
+
+// -- sanitize and trusted html
+
+function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
+
+	let allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
+
+	if (opts.allowedTags) {
+		for (let tag of opts.allowedTags) {
+			let array = allowedAttributes[tag];
+			if (!array) {
+				array = allowedAttributesForAll;
+			} else {
+				array = array.concat(allowedAttributesForAll);
+			}
+			allowedAttributes[tag] = array;
+		}
+	}
+
+	return { ...opts, allowedAttributes };
+}
+
+const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
+	createHTML(value, options: InsaneOptions) {
+		return insane(value, options);
+	}
+});
+
+/**
+ * Sanitizes the given `value` and reset the given `node` with it.
+ */
+export function safeInnerHtml(node: HTMLElement, value: string): void {
+
+	const options = _extInsaneOptions({
+		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+		allowedAttributes: {
+			'a': ['href', 'x-dispatch'],
+			'button': ['data-href', 'x-dispatch'],
+			'input': ['type', 'placeholder', 'checked', 'required'],
+			'label': ['for'],
+			'select': ['required'],
+			'span': ['data-command', 'role'],
+			'textarea': ['name', 'placeholder', 'required'],
+		},
+		allowedSchemes: ['http', 'https', 'command']
+	}, ['class', 'id', 'role', 'tabindex']);
+
+	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
+	node.innerHTML = html as string;
+}
+
+/**
+ * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
+ *
+ * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
+ */
+function toBinary(str: string): string {
+	const codeUnits = new Uint16Array(str.length);
+	for (let i = 0; i < codeUnits.length; i++) {
+		codeUnits[i] = str.charCodeAt(i);
+	}
+	let binary = '';
+	const uint8array = new Uint8Array(codeUnits.buffer);
+	for (let i = 0; i < uint8array.length; i++) {
+		binary += String.fromCharCode(uint8array[i]);
+	}
+	return binary;
+}
+
+/**
+ * Version of the global `btoa` function that handles multi-byte characters instead
+ * of throwing an exception.
+ */
+export function multibyteAwareBtoa(str: string): string {
+	return btoa(toBinary(str));
+}
+
+/**
+ * Typings for the https://wicg.github.io/file-system-access
+ *
+ * Use `supported(window)` to find out if the browser supports this kind of API.
+ */
+export namespace WebFileSystemAccess {
+
+	// https://wicg.github.io/file-system-access/#dom-window-showdirectorypicker
+	export interface FileSystemAccess {
+		showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemdirectoryhandle
+	export interface FileSystemDirectoryHandle {
+		readonly kind: 'directory',
+		readonly name: string,
+
+		getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
+		getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemfilehandle
+	export interface FileSystemFileHandle {
+		readonly kind: 'file',
+		readonly name: string,
+
+		createWritable: (options?: { keepExistingData?: boolean }) => Promise<FileSystemWritableFileStream>;
+	}
+
+	// https://wicg.github.io/file-system-access/#api-filesystemwritablefilestream
+	export interface FileSystemWritableFileStream {
+		write: (buffer: Uint8Array) => Promise<void>;
+		close: () => Promise<void>;
+	}
+
+	export function supported(obj: any & Window): obj is FileSystemAccess {
+		const candidate = obj as FileSystemAccess | undefined;
+		if (typeof candidate?.showDirectoryPicker === 'function') {
+			return true;
+		}
+
+		return false;
+	}
+}
+
+type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
+
+export interface IModifierKeyStatus {
+	altKey: boolean;
+	shiftKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	lastKeyPressed?: ModifierKey;
+	lastKeyReleased?: ModifierKey;
+	event?: KeyboardEvent;
+}
+
+export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
+
+	private readonly _subscriptions = new DisposableStore();
+	private _keyStatus: IModifierKeyStatus;
+	private static instance: ModifierKeyEmitter;
+
+	private constructor() {
+		super();
+
+		this._keyStatus = {
+			altKey: false,
+			shiftKey: false,
+			ctrlKey: false,
+			metaKey: false
+		};
+
+		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
+			// if keydown event is repeated, ignore it #112347
+			if (e.repeat) {
+				return;
+			}
+
+			const event = new StandardKeyboardEvent(e);
+
+			if (e.altKey && !this._keyStatus.altKey) {
+				this._keyStatus.lastKeyPressed = 'alt';
+			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyPressed = 'ctrl';
+			} else if (e.metaKey && !this._keyStatus.metaKey) {
+				this._keyStatus.lastKeyPressed = 'meta';
+			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyPressed = 'shift';
+			} else if (event.keyCode !== KeyCode.Alt) {
+				this._keyStatus.lastKeyPressed = undefined;
+			} else {
+				return;
+			}
+
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.metaKey = e.metaKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyPressed) {
+				this._keyStatus.event = e;
+				this.fire(this._keyStatus);
+			}
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'keyup', true)(e => {
+			if (!e.altKey && this._keyStatus.altKey) {
+				this._keyStatus.lastKeyReleased = 'alt';
+			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
+				this._keyStatus.lastKeyReleased = 'ctrl';
+			} else if (!e.metaKey && this._keyStatus.metaKey) {
+				this._keyStatus.lastKeyReleased = 'meta';
+			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
+				this._keyStatus.lastKeyReleased = 'shift';
+			} else {
+				this._keyStatus.lastKeyReleased = undefined;
+			}
+
+			if (this._keyStatus.lastKeyPressed !== this._keyStatus.lastKeyReleased) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+
+			this._keyStatus.altKey = e.altKey;
+			this._keyStatus.ctrlKey = e.ctrlKey;
+			this._keyStatus.metaKey = e.metaKey;
+			this._keyStatus.shiftKey = e.shiftKey;
+
+			if (this._keyStatus.lastKeyReleased) {
+				this._keyStatus.event = e;
+				this.fire(this._keyStatus);
+			}
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
+			this._keyStatus.lastKeyPressed = undefined;
+		}));
+
+		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
+			if (e.buttons) {
+				this._keyStatus.lastKeyPressed = undefined;
+			}
+		}));
+
+		this._subscriptions.add(domEvent(window, 'blur')(e => {
+			this.resetKeyStatus();
+		}));
+	}
+
+	get keyStatus(): IModifierKeyStatus {
+		return this._keyStatus;
+	}
+
+	get isModifierPressed(): boolean {
+		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+	}
+
+	/**
+	 * Allows to explicitly reset the key status based on more knowledge (#109062)
+	 */
+	resetKeyStatus(): void {
+		this.doResetKeyStatus();
+		this.fire(this._keyStatus);
+	}
+
+	private doResetKeyStatus(): void {
+		this._keyStatus = {
+			altKey: false,
+			shiftKey: false,
+			ctrlKey: false,
+			metaKey: false
+		};
+	}
+
+	static getInstance() {
+		if (!ModifierKeyEmitter.instance) {
+			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
+		}
+
+		return ModifierKeyEmitter.instance;
+	}
+
+	dispose() {
+		super.dispose();
+		this._subscriptions.dispose();
+	}
+}
+
+export function getCookieValue(name: string): string | undefined {
+	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+	return match ? match.pop() : undefined;
 }

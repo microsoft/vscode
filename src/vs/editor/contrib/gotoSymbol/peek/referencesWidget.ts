@@ -209,7 +209,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private _previewNotAvailableMessage!: TextModel;
 	private _previewContainer!: HTMLElement;
 	private _messageContainer!: HTMLElement;
-	private _dim: dom.Dimension = { height: 0, width: 0 };
+	private _dim = new dom.Dimension(0, 0);
 
 	constructor(
 		editor: ICodeEditor,
@@ -406,7 +406,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		super._doLayoutBody(heightInPixel, widthInPixel);
-		this._dim = { height: heightInPixel, width: widthInPixel };
+		this._dim = new dom.Dimension(widthInPixel, heightInPixel);
 		this.layoutData.heightInLines = this._viewZone ? this._viewZone.heightInLines : this.layoutData.heightInLines;
 		this._splitView.layout(widthInPixel);
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);

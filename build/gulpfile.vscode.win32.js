@@ -54,7 +54,13 @@ function packageInnoSetup(iss, options, cb) {
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
 		.on('error', cb)
-		.on('exit', () => cb(null));
+		.on('exit', code => {
+			if (code === 0) {
+				cb(null);
+			} else {
+				cb(new Error(`InnoSetup returned exit code: ${code}`));
+			}
+		});
 }
 
 function buildWin32Setup(arch, target) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -21,6 +21,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
 import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { Promises } from 'vs/base/common/async';
 
 export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
@@ -45,19 +46,19 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		return local;
 	}
 
-	async installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
-		const local = await this.doInstallFromGallery(extension);
+	async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	private async doInstallFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {
+	private async doInstallFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		if (this.configurationService.getValue<boolean>('remote.downloadExtensionsLocally')) {
 			this.logService.trace(`Download '${extension.identifier.id}' extension locally and install`);
 			return this.downloadCompatibleAndInstall(extension);
 		}
 		try {
-			const local = await super.installFromGallery(extension);
+			const local = await super.installFromGallery(extension, installOptions);
 			return local;
 		} catch (error) {
 			try {
@@ -82,7 +83,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		const manifest = await this.galleryService.getManifest(compatible, CancellationToken.None);
 		if (manifest) {
 			const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(manifest, CancellationToken.None);
-			await Promise.all(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
+			await Promises.settled(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
 		}
 		return this.downloadAndInstall(extension, installed);
 	}
@@ -97,7 +98,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		const uiExtensions = await this.getAllUIDependenciesAndPackedExtensions(local.manifest, CancellationToken.None);
 		const installed = await this.localExtensionManagementService.getInstalled();
 		const toInstall = uiExtensions.filter(e => installed.every(i => !areSameExtensions(i.identifier, e.identifier)));
-		await Promise.all(toInstall.map(d => this.localExtensionManagementService.installFromGallery(d)));
+		await Promises.settled(toInstall.map(d => this.localExtensionManagementService.installFromGallery(d)));
 	}
 
 	private async getAllUIDependenciesAndPackedExtensions(manifest: IExtensionManifest, token: CancellationToken): Promise<IGalleryExtension[]> {

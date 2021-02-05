@@ -12,18 +12,18 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import product from 'vs/platform/product/common/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { checksum } from 'vs/base/node/crypto';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
-import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -56,17 +56,18 @@ export class Win32UpdateService extends AbstractUpdateService {
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
-		return pfs.mkdirp(result, undefined).then(() => result);
+		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService environmentService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 	}
@@ -145,7 +146,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
-								.then(() => pfs.rename(downloadPath, updatePackagePath))
+								.then(() => fs.promises.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
@@ -177,7 +178,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		if (state.update.url) {
-			shell.openExternal(state.update.url);
+			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
 		this.setState(State.Idle(getUpdateType()));
 	}
@@ -195,7 +196,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
-				await pfs.unlink(path.join(cachePath, one));
+				await fs.promises.unlink(path.join(cachePath, one));
 			} catch (err) {
 				// ignore
 			}

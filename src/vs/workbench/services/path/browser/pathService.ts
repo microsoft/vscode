@@ -20,21 +20,26 @@ export class BrowserPathService extends AbstractPathService {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
-		super(URI.from({ scheme: defaultUriScheme(environmentService, contextService), authority: environmentService.configuration.remoteAuthority, path: '/' }), remoteAgentService);
+		super(URI.from({ scheme: defaultUriScheme(environmentService, contextService), authority: environmentService.remoteAuthority, path: '/' }), remoteAgentService);
 	}
 }
 
 function defaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
-	if (environmentService.configuration.remoteAuthority) {
+	if (environmentService.remoteAuthority) {
 		return Schemas.vscodeRemote;
 	}
 
 	const firstFolder = contextService.getWorkspace().folders[0];
-	if (!firstFolder) {
-		throw new Error('Empty workspace is not supported in browser when there is no remote connection.');
+	if (firstFolder) {
+		return firstFolder.uri.scheme;
 	}
 
-	return firstFolder.uri.scheme;
+	const configuration = contextService.getWorkspace().configuration;
+	if (configuration) {
+		return configuration.scheme;
+	}
+
+	throw new Error('Empty workspace is not supported in browser when there is no remote connection.');
 }
 
 registerSingleton(IPathService, BrowserPathService, true);

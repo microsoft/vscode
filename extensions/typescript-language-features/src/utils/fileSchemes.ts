@@ -13,6 +13,7 @@ export const walkThroughSnippet = 'walkThroughSnippet';
 export const semanticSupportedSchemes = [
 	file,
 	untitled,
+	walkThroughSnippet,
 ];
 
 /**

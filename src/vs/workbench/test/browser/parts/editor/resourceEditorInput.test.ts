@@ -31,7 +31,7 @@ suite('Resource text editors', () => {
 		const model = await input.resolve();
 
 		assert.ok(model);
-		assert.equal(snapshotToString(((model as ResourceEditorModel).createSnapshot()!)), 'function test() {}');
+		assert.strictEqual(snapshotToString(((model as ResourceEditorModel).createSnapshot()!)), 'function test() {}');
 	});
 
 	test('custom mode', async () => {
@@ -46,9 +46,9 @@ suite('Resource text editors', () => {
 
 		const model = await input.resolve();
 		assert.ok(model);
-		assert.equal(model.textEditorModel.getModeId(), 'resource-input-test');
+		assert.strictEqual(model.textEditorModel.getModeId(), 'resource-input-test');
 
 		input.setMode('text');
-		assert.equal(model.textEditorModel.getModeId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel.getModeId(), PLAINTEXT_MODE_ID);
 	});
 });

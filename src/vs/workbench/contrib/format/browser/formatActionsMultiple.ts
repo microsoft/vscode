@@ -19,7 +19,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,6 +29,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { mergeSort } from 'vs/base/common/arrays';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
@@ -44,6 +46,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IModeService private readonly _modeService: IModeService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -55,7 +58,20 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async _updateConfigValues(): Promise<void> {
-		const extensions = await this._extensionService.getExtensions();
+		let extensions = await this._extensionService.getExtensions();
+
+		extensions = mergeSort(extensions, (a, b) => {
+			let boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+			let boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+
+			if (boostA && !boostB) {
+				return -1;
+			} else if (!boostA && boostB) {
+				return 1;
+			} else {
+				return a.name.localeCompare(b.name);
+			}
+		});
 
 		DefaultFormatter.extensionIds.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
@@ -105,25 +121,32 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		}
 
 		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
-		const silent = mode === FormattingMode.Silent;
 		const message = !defaultFormatterId
 			? nls.localize('config.needed', "There are multiple formatters for '{0}' files. Select a default formatter to continue.", DefaultFormatter._maybeQuotes(langName))
 			: nls.localize('config.bad', "Extension '{0}' is configured as formatter but not available. Select a different default formatter to continue.", defaultFormatterId);
 
-		return new Promise<T | undefined>((resolve, reject) => {
+		if (mode !== FormattingMode.Silent) {
+			// running from a user action -> show modal dialog so that users configure
+			// a default formatter
+			const result = await this._dialogService.confirm({
+				message,
+				primaryButton: nls.localize('do.config', "Configure..."),
+				secondaryButton: nls.localize('cancel', "Cancel")
+			});
+			if (result.confirmed) {
+				return this._pickAndPersistDefaultFormatter(formatter, document);
+			}
+
+		} else {
+			// no user action -> show a silent notification and proceed
 			this._notificationService.prompt(
 				Severity.Info,
 				message,
-				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document).then(resolve, reject) }],
-				{ silent, onCancel: () => resolve(undefined) }
+				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
+				{ silent: true }
 			);
-
-			if (silent) {
-				// don't wait when formatting happens without interaction
-				// but pick some formatter...
-				resolve(undefined);
-			}
-		});
+		}
+		return undefined;
 	}
 
 	private async _pickAndPersistDefaultFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel): Promise<T | undefined> {

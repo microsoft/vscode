@@ -5,10 +5,9 @@
 
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { URI } from 'vs/base/common/uri';
 
 export interface ICPUProperties {
@@ -38,17 +37,19 @@ export interface ICommonNativeHostService {
 	readonly windowId: number;
 
 	// Events
-	readonly onWindowOpen: Event<number>;
+	readonly onDidOpenWindow: Event<number>;
 
-	readonly onWindowMaximize: Event<number>;
-	readonly onWindowUnmaximize: Event<number>;
+	readonly onDidMaximizeWindow: Event<number>;
+	readonly onDidUnmaximizeWindow: Event<number>;
 
-	readonly onWindowFocus: Event<number>;
-	readonly onWindowBlur: Event<number>;
+	readonly onDidFocusWindow: Event<number>;
+	readonly onDidBlurWindow: Event<number>;
 
-	readonly onOSResume: Event<unknown>;
+	readonly onDidResumeOS: Event<unknown>;
 
-	readonly onColorSchemeChange: Event<ColorScheme>;
+	readonly onDidChangeColorScheme: Event<IColorScheme>;
+
+	readonly onDidChangePassword: Event<{ service: string, account: string }>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -66,6 +67,8 @@ export interface ICommonNativeHostService {
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
+
+	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	/**
 	 * Make the window focused.
@@ -134,6 +137,7 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
+	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
 	// Connectivity

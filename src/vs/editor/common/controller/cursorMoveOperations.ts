@@ -8,6 +8,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
+import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
 
 export class CursorPosition {
 	_cursorPositionBrand: void;
@@ -35,8 +36,20 @@ export class MoveOperations {
 		return new Position(lineNumber, column);
 	}
 
+	public static leftPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number): Position {
+		const minColumn = model.getLineMinColumn(lineNumber);
+		const lineContent = model.getLineContent(lineNumber);
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Left);
+		if (newPosition === -1 || newPosition + 1 < minColumn) {
+			return this.leftPosition(model, lineNumber, column);
+		}
+		return new Position(lineNumber, newPosition + 1);
+	}
+
 	public static left(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
-		const pos = MoveOperations.leftPosition(model, lineNumber, column);
+		const pos = config.stickyTabStops
+			? MoveOperations.leftPositionAtomicSoftTabs(model, lineNumber, column, config.tabSize)
+			: MoveOperations.leftPosition(model, lineNumber, column);
 		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 
@@ -67,8 +80,19 @@ export class MoveOperations {
 		return new Position(lineNumber, column);
 	}
 
+	public static rightPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
+		const lineContent = model.getLineContent(lineNumber);
+		const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
+		if (newPosition === -1) {
+			return this.rightPosition(model, lineNumber, column);
+		}
+		return new Position(lineNumber, newPosition + 1);
+	}
+
 	public static right(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
-		const pos = MoveOperations.rightPosition(model, lineNumber, column);
+		const pos = config.stickyTabStops
+			? MoveOperations.rightPositionAtomicSoftTabs(model, lineNumber, column, config.tabSize, config.indentSize)
+			: MoveOperations.rightPosition(model, lineNumber, column);
 		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 
@@ -203,6 +227,47 @@ export class MoveOperations {
 			new Position(position.lineNumber, position.column),
 			position.leftoverVisibleColumns
 		);
+	}
+
+	private static _isBlankLine(model: ICursorSimpleModel, lineNumber: number): boolean {
+		if (model.getLineFirstNonWhitespaceColumn(lineNumber) === 0) {
+			// empty or contains only whitespace
+			return true;
+		}
+		return false;
+	}
+
+	public static moveToPrevBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
+		let lineNumber = cursor.position.lineNumber;
+
+		// If our current line is blank, move to the previous non-blank line
+		while (lineNumber > 1 && this._isBlankLine(model, lineNumber)) {
+			lineNumber--;
+		}
+
+		// Find the previous blank line
+		while (lineNumber > 1 && !this._isBlankLine(model, lineNumber)) {
+			lineNumber--;
+		}
+
+		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
+	}
+
+	public static moveToNextBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
+		const lineCount = model.getLineCount();
+		let lineNumber = cursor.position.lineNumber;
+
+		// If our current line is blank, move to the next non-blank line
+		while (lineNumber < lineCount && this._isBlankLine(model, lineNumber)) {
+			lineNumber++;
+		}
+
+		// Find the next blank line
+		while (lineNumber < lineCount && !this._isBlankLine(model, lineNumber)) {
+			lineNumber++;
+		}
+
+		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
 	}
 
 	public static moveToBeginningOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {

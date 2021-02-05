@@ -19,7 +19,7 @@ import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationReg
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { iconRegistry, Codicon } from 'vs/base/common/codicons';
-
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 /**
  * Open ended enum at runtime
  * @internal
@@ -211,9 +211,9 @@ export interface ITokenizationSupport {
 	getInitialState(): IState;
 
 	// add offsetDelta to each of the returned indices
-	tokenize(line: string, state: IState, offsetDelta: number): TokenizationResult;
+	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult;
 
-	tokenize2(line: string, state: IState, offsetDelta: number): TokenizationResult2;
+	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
 }
 
 /**
@@ -553,6 +553,11 @@ export interface CompletionList {
 	suggestions: CompletionItem[];
 	incomplete?: boolean;
 	dispose?(): void;
+
+	/**
+	 * @internal
+	 */
+	duration?: number;
 }
 
 /**
@@ -814,17 +819,32 @@ export interface DocumentHighlightProvider {
 }
 
 /**
- * The rename provider interface defines the contract between extensions and
- * the live-rename feature.
+ * The linked editing range provider interface defines the contract between extensions and
+ * the linked editing feature.
  */
-export interface OnTypeRenameProvider {
-
-	wordPattern?: RegExp;
+export interface LinkedEditingRangeProvider {
 
 	/**
-	 * Provide a list of ranges that can be live-renamed together.
+	 * Provide a list of ranges that can be edited together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<{ ranges: IRange[]; wordPattern?: RegExp; }>;
+	provideLinkedEditingRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
+}
+
+/**
+ * Represents a list of ranges that can be edited together along with a word pattern to describe valid contents.
+ */
+export interface LinkedEditingRanges {
+	/**
+	 * A list of ranges that can be edited together. The ranges must have
+	 * identical length and text content. The ranges cannot overlap
+	 */
+	ranges: IRange[];
+
+	/**
+	 * An optional word pattern that describes valid contents for the given ranges.
+	 * If no pattern is provided, the language configuration's word pattern will be used.
+	 */
+	wordPattern?: RegExp;
 }
 
 /**
@@ -1293,6 +1313,12 @@ export interface FoldingContext {
  * A provider of folding ranges for editor models.
  */
 export interface FoldingRangeProvider {
+
+	/**
+	 * An optional event to signal that the folding ranges from this provider have changed.
+	 */
+	onDidChange?: Event<this>;
+
 	/**
 	 * Provides the folding ranges for a specific model.
 	 */
@@ -1348,7 +1374,10 @@ export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
 	label: string;
 	description?: string;
-	iconPath?: { id: string } | URI | { light: URI, dark: URI };
+	/**
+	 * @internal
+	 */
+	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1356,6 +1385,10 @@ export interface WorkspaceFileEditOptions {
 	ignoreIfNotExists?: boolean;
 	ignoreIfExists?: boolean;
 	recursive?: boolean;
+	copy?: boolean;
+	folder?: boolean;
+	skipTrashBin?: boolean;
+	maxSize?: number;
 }
 
 export interface WorkspaceFileEdit {
@@ -1495,11 +1528,13 @@ export interface CommentThread {
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 }
 
@@ -1624,6 +1659,19 @@ export interface CodeLensProvider {
 	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 }
 
+export interface InlineHint {
+	text: string;
+	range: IRange;
+	description?: string | IMarkdownString;
+	whitespaceBefore?: boolean;
+	whitespaceAfter?: boolean;
+}
+
+export interface InlineHintsProvider {
+	onDidChangeInlineHints?: Event<void> | undefined;
+	provideInlineHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlineHint[]>;
+}
+
 export interface SemanticTokensLegend {
 	readonly tokenTypes: string[];
 	readonly tokenModifiers: string[];
@@ -1702,7 +1750,7 @@ export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<Doc
 /**
  * @internal
  */
-export const OnTypeRenameProviderRegistry = new LanguageFeatureRegistry<OnTypeRenameProvider>();
+export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
 
 /**
  * @internal
@@ -1728,6 +1776,11 @@ export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDe
  * @internal
  */
 export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
+
+/**
+ * @internal
+ */
+export const InlineHintsProviderRegistry = new LanguageFeatureRegistry<InlineHintsProvider>();
 
 /**
  * @internal
@@ -1841,3 +1894,14 @@ export interface ITokenizationRegistry {
  * @internal
  */
 export const TokenizationRegistry = new TokenizationRegistryImpl();
+
+
+/**
+ * @internal
+ */
+export enum ExternalUriOpenerPriority {
+	None = 0,
+	Option = 1,
+	Default = 2,
+	Preferred = 3,
+}

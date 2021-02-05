@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join, basename } from 'vs/base/common/path';
-import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { promises } from 'fs';
 import { localize } from 'vs/nls';
+import { dirname, join, basename } from 'vs/base/common/path';
+import { exists, readdir, rimraf } from 'vs/base/node/pfs';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -52,7 +53,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 		const prefix = basename(profileFilenamePrefix);
 
 		const removeArgs: string[] = ['--prof-startup'];
-		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
+		const markerFile = promises.readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
 			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
 			.then(() => new Promise<void>(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
@@ -77,8 +78,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-				primaryButton: localize('prof.restartAndFileIssue', "Create Issue and Restart"),
-				secondaryButton: localize('prof.restart', "Restart")
+				primaryButton: localize('prof.restartAndFileIssue', "&&Create Issue and Restart"),
+				secondaryButton: localize('prof.restart', "&&Restart")
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
@@ -90,7 +91,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._productService.nameLong),
-							primaryButton: localize('prof.restart', "Restart"),
+							primaryButton: localize('prof.restart.button', "&&Restart"),
 							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart

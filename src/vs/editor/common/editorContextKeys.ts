@@ -24,6 +24,7 @@ export namespace EditorContextKeys {
 	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false);
 
 	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
+	export const inDiffEditor = new RawContextKey<boolean>('inDiffEditor', false);
 	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false);
 	export const writable = readOnly.toNegated();
 	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
@@ -60,6 +61,7 @@ export namespace EditorContextKeys {
 	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', false);
 	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', false);
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', false);
+	export const hasInlineHintsProvider = new RawContextKey<boolean>('editorHasInlineHintsProvider', false);
 
 	// -- mode context keys: formatting
 	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', false);

@@ -7,13 +7,12 @@ import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import type * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -32,7 +31,8 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IDisplayOutput, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -220,7 +220,7 @@ export namespace DiagnosticSeverity {
 }
 
 export namespace ViewColumn {
-	export function from(column?: vscode.ViewColumn): EditorViewColumn {
+	export function from(column?: vscode.ViewColumn): EditorGroupColumn {
 		if (typeof column === 'number' && column >= types.ViewColumn.One) {
 			return column - 1; // adjust zero index (ViewColumn.ONE => 0)
 		}
@@ -232,12 +232,12 @@ export namespace ViewColumn {
 		return ACTIVE_GROUP; // default is always the active group
 	}
 
-	export function to(position: EditorViewColumn): vscode.ViewColumn {
+	export function to(position: EditorGroupColumn): vscode.ViewColumn {
 		if (typeof position === 'number' && position >= 0) {
 			return position + 1; // adjust to index (ViewColumn.ONE => 1)
 		}
 
-		throw new Error(`invalid 'EditorViewColumn'`);
+		throw new Error(`invalid 'EditorGroupColumn'`);
 	}
 }
 
@@ -274,8 +274,8 @@ export namespace MarkdownString {
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
 			res = { value: '```' + language + '\n' + value + '\n```\n' };
-		} else if (htmlContent.isMarkdownString(markup)) {
-			res = markup;
+		} else if (types.MarkdownString.isMarkdownString(markup)) {
+			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons };
 		} else if (typeof markup === 'string') {
 			res = { value: markup };
 		} else {
@@ -338,10 +338,12 @@ export namespace MarkdownString {
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		return new htmlContent.MarkdownString(value.value, { isTrusted: value.isTrusted, supportThemeIcons: value.supportThemeIcons });
+		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
+		result.isTrusted = value.isTrusted;
+		return result;
 	}
 
-	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+	export function fromStrict(value: string | vscode.MarkdownString): undefined | string | htmlContent.IMarkdownString {
 		if (!value) {
 			return undefined;
 		}
@@ -1013,6 +1015,29 @@ export namespace SignatureHelp {
 	}
 }
 
+export namespace InlineHint {
+
+	export function from(hint: vscode.InlineHint): modes.InlineHint {
+		return {
+			text: hint.text,
+			range: Range.from(hint.range),
+			description: hint.description && MarkdownString.fromStrict(hint.description),
+			whitespaceBefore: hint.whitespaceBefore,
+			whitespaceAfter: hint.whitespaceAfter
+		};
+	}
+
+	export function to(hint: modes.InlineHint): vscode.InlineHint {
+		return new types.InlineHint(
+			hint.text,
+			Range.to(hint.range),
+			htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description,
+			hint.whitespaceBefore,
+			hint.whitespaceAfter
+		);
+	}
+}
+
 export namespace DocumentLink {
 
 	export function from(link: vscode.DocumentLink): modes.ILink {
@@ -1181,6 +1206,7 @@ export namespace FoldingRangeKind {
 
 export interface TextEditorOpenOptions extends vscode.TextDocumentShowOptions {
 	background?: boolean;
+	override?: boolean;
 }
 
 export namespace TextEditorOpenOptions {
@@ -1192,6 +1218,7 @@ export namespace TextEditorOpenOptions {
 				inactive: options.background,
 				preserveFocus: options.preserveFocus,
 				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+				override: typeof options.override === 'boolean' ? false : undefined
 			};
 		}
 
@@ -1251,47 +1278,19 @@ export namespace LanguageSelector {
 	}
 }
 
-export namespace LogLevel {
-	export function from(extLevel: types.LogLevel): _MainLogLevel {
-		switch (extLevel) {
-			case types.LogLevel.Trace:
-				return _MainLogLevel.Trace;
-			case types.LogLevel.Debug:
-				return _MainLogLevel.Debug;
-			case types.LogLevel.Info:
-				return _MainLogLevel.Info;
-			case types.LogLevel.Warning:
-				return _MainLogLevel.Warning;
-			case types.LogLevel.Error:
-				return _MainLogLevel.Error;
-			case types.LogLevel.Critical:
-				return _MainLogLevel.Critical;
-			case types.LogLevel.Off:
-				return _MainLogLevel.Off;
-			default:
-				return _MainLogLevel.Info;
-		}
+export namespace NotebookCellOutput {
+	export function from(output: types.NotebookCellOutput): IDisplayOutput {
+		return output.toJSON();
 	}
+}
 
-	export function to(mainLevel: _MainLogLevel): types.LogLevel {
-		switch (mainLevel) {
-			case _MainLogLevel.Trace:
-				return types.LogLevel.Trace;
-			case _MainLogLevel.Debug:
-				return types.LogLevel.Debug;
-			case _MainLogLevel.Info:
-				return types.LogLevel.Info;
-			case _MainLogLevel.Warning:
-				return types.LogLevel.Warning;
-			case _MainLogLevel.Error:
-				return types.LogLevel.Error;
-			case _MainLogLevel.Critical:
-				return types.LogLevel.Critical;
-			case _MainLogLevel.Off:
-				return types.LogLevel.Off;
-			default:
-				return types.LogLevel.Info;
-		}
+export namespace NotebookCellOutputItem {
+	export function from(output: types.NotebookCellOutputItem): IDisplayOutput {
+		return {
+			outputKind: CellOutputKind.Rich,
+			data: { [output.mime]: output.value },
+			metadata: output.metadata && { custom: output.metadata }
+		};
 	}
 }
 
@@ -1374,6 +1373,69 @@ export namespace NotebookDecorationRenderOptions {
 			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
 			borderColor: <string | types.ThemeColor>options.borderColor,
 			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+		};
+	}
+}
+
+export namespace TestState {
+	export function from(item: vscode.TestState): ITestState {
+		return {
+			runState: item.runState,
+			duration: item.duration,
+			messages: item.messages.map(message => ({
+				message: MarkdownString.fromStrict(message.message) || '',
+				severity: message.severity,
+				expectedOutput: message.expectedOutput,
+				actualOutput: message.actualOutput,
+				location: message.location ? location.from(message.location) : undefined,
+			})),
+		};
+	}
+
+	export function to(item: ITestState): vscode.TestState {
+		return new types.TestState(
+			item.runState,
+			item.messages.map(message => ({
+				message: typeof message.message === 'string' ? message.message : MarkdownString.to(message.message),
+				severity: message.severity,
+				expectedOutput: message.expectedOutput,
+				actualOutput: message.actualOutput,
+				location: message.location && location.to({
+					range: message.location.range,
+					uri: URI.revive(message.location.uri)
+				}),
+			})),
+			item.duration,
+		);
+	}
+}
+
+
+export namespace TestItem {
+	export function from(item: vscode.TestItem, parentExtId?: string): ITestItem {
+		return {
+			extId: item.id ?? (parentExtId ? `${parentExtId}\0${item.label}` : item.label),
+			label: item.label,
+			location: item.location ? location.from(item.location) : undefined,
+			debuggable: item.debuggable ?? false,
+			description: item.description,
+			runnable: item.runnable ?? true,
+			state: TestState.from(item.state),
+		};
+	}
+
+	export function toShallow(item: ITestItem): Omit<vscode.RequiredTestItem, 'children'> {
+		return {
+			id: item.extId,
+			label: item.label,
+			location: item.location && location.to({
+				range: item.location.range,
+				uri: URI.revive(item.location.uri)
+			}),
+			debuggable: item.debuggable,
+			description: item.description,
+			runnable: item.runnable,
+			state: TestState.to(item.state),
 		};
 	}
 }

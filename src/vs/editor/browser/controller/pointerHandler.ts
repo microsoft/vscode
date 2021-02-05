@@ -13,6 +13,7 @@ import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/e
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -182,7 +183,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	public _onMouseDown(e: EditorMouseEvent): void {
-		if (e.target && this.viewHelper.linesContentDomNode.contains(e.target) && this._lastPointerType === 'touch') {
+		if ((e.browserEvent as any).pointerType === 'touch') {
 			return;
 		}
 
@@ -210,6 +211,11 @@ class TouchHandler extends MouseHandler {
 		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
+			// Send the tap event also to the <textarea> (for input purposes)
+			const event = document.createEvent('CustomEvent');
+			event.initEvent(TextAreaSyntethicEvents.Tap, false, true);
+			this.viewHelper.dispatchTextAreaEvent(event);
+
 			this.viewController.moveTo(target.position);
 		}
 	}

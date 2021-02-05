@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { isNumber } from 'vs/base/common/types';
-import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
 
@@ -30,7 +30,6 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
 
 	constructor(
-		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -38,7 +37,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
-		super(promptedExtensionRecommendations);
+		super();
 	}
 
 	protected async doActivate(): Promise<void> {
@@ -82,7 +81,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 			const workspaceTip = workspacesTips.filter(workspaceTip => isNonEmptyArray(workspaceTip.remoteSet) && workspaceTip.remoteSet.indexOf(hashedRemote) > -1)[0];
 			if (workspaceTip) {
 				this._recommendations = workspaceTip.recommendations.map(id => this.toExtensionRecommendation(id, folder));
-				this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations: workspaceTip.recommendations, timestamp: Date.now() }), StorageScope.WORKSPACE);
+				this.storageService.store(dynamicWorkspaceRecommendationsStorageKey, JSON.stringify(<IStoredDynamicWorkspaceRecommendations>{ recommendations: workspaceTip.recommendations, timestamp: Date.now() }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				this.telemetryService.publicLog2<{ count: number, cache: number }, DynamicWorkspaceRecommendationsClassification>('dynamicWorkspaceRecommendations', { count: this._recommendations.length, cache: 0 });
 				return;
 			}

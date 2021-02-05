@@ -29,7 +29,7 @@ const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 interface ISelectListTemplateData {
 	root: HTMLElement;
 	text: HTMLElement;
-	itemDescription: HTMLElement;
+	detail: HTMLElement;
 	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
 }
@@ -43,28 +43,24 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
+		data.detail = dom.append(container, $('.option-detail'));
 		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
-		data.itemDescription = dom.append(container, $('.option-text-description'));
-		data.itemDescription.classList.add('visually-hidden');
 
 		return data;
 	}
 
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data: ISelectListTemplateData = templateData;
+
 		const text = element.text;
+		const detail = element.detail;
 		const decoratorRight = element.decoratorRight;
+
 		const isDisabled = element.isDisabled;
 
 		data.text.textContent = text;
-		data.decoratorRight.innerText = (!!decoratorRight ? decoratorRight : '');
-
-		if (typeof element.description === 'string') {
-			const itemDescriptionId = (text.replace(/ /g, '_').toLowerCase() + '_description_' + data.root.id);
-			data.text.setAttribute('aria-describedby', itemDescriptionId);
-			data.itemDescription.id = itemDescriptionId;
-			data.itemDescription.innerText = element.description;
-		}
+		data.detail.textContent = !!detail ? detail : '';
+		data.decoratorRight.innerText = !!decoratorRight ? decoratorRight : '';
 
 		// pseudo-select disabled option
 		if (isDisabled) {
@@ -232,7 +228,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			if (showDropDown) {
 				this.showSelectDropDown();
-				dom.EventHelper.stop(e);
+				dom.EventHelper.stop(e, true);
 			}
 		}));
 	}
@@ -672,7 +668,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			let longestLength = 0;
 
 			this.options.forEach((option, index) => {
-				const len = option.text.length + (!!option.decoratorRight ? option.decoratorRight.length : 0);
+				const detailLength = !!option.detail ? option.detail.length : 0;
+				const rightDecoratorLength = !!option.decoratorRight ? option.decoratorRight.length : 0;
+
+				const len = option.text.length + detailLength + rightDecoratorLength;
 				if (len > longestLength) {
 					longest = index;
 					longestLength = len;
@@ -705,7 +704,22 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			keyboardSupport: false,
 			mouseSupport: false,
 			accessibilityProvider: {
-				getAriaLabel: (element) => element.text,
+				getAriaLabel: element => {
+					let label = element.text;
+					if (element.detail) {
+						label += `. ${element.detail}`;
+					}
+
+					if (element.decoratorRight) {
+						label += `. ${element.decoratorRight}`;
+					}
+
+					if (element.description) {
+						label += `. ${element.description}`;
+					}
+
+					return label;
+				},
 				getWidgetAriaLabel: () => localize({ key: 'selectBox', comment: ['Behave like native select dropdown element.'] }, "Select Box"),
 				getRole: () => 'option',
 				getWidgetRole: () => 'listbox'

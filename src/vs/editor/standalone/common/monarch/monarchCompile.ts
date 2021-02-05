@@ -81,12 +81,21 @@ function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): 
 /**
  * Compiles a regular expression string, adding the 'i' flag if 'ignoreCase' is set, and the 'u' flag if 'unicode' is set.
  * Also replaces @\w+ or sequences with the content of the specified attribute
+ * @\w+ replacement can be avoided by escaping `@` signs with another `@` sign.
+ * @example /@attr/ will be replaced with the value of lexer[attr]
+ * @example /@@text/ will not be replaced and will become /@text/.
  */
 function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
 	let n = 0;
-	while (str.indexOf('@') >= 0 && n < 5) { // at most 5 expansions
-		n++;
-		str = str.replace(/@(\w+)/g, function (s, attr?) {
+	let hadExpansion: boolean;
+	do {
+		hadExpansion = false;
+		str = str.replace(/(.|^)@(\w+)/g, function (s, charBeforeAtSign, attr?) {
+			if (charBeforeAtSign === '@') {
+				// do not expand @@
+				return s;
+			}
+			hadExpansion = true;
 			let sub = '';
 			if (typeof (lexer[attr]) === 'string') {
 				sub = lexer[attr];
@@ -99,9 +108,13 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
 					throw monarchCommon.createError(lexer, 'attribute reference \'' + attr + '\' must be a string, used at: ' + str);
 				}
 			}
-			return (monarchCommon.empty(sub) ? '' : '(?:' + sub + ')');
+			return charBeforeAtSign + (monarchCommon.empty(sub) ? '' : '(?:' + sub + ')');
 		});
-	}
+		n++;
+	} while (hadExpansion && n < 5);
+
+	// handle escaped @@
+	str = str.replace(/@@/g, '@');
 
 	let flags = (lexer.ignoreCase ? 'i' : '') + (lexer.unicode ? 'u' : '');
 	return new RegExp(str, flags);
@@ -395,6 +408,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	// Create our lexer
 	let lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
 	lexer.languageId = languageId;
+	lexer.includeLF = bool(json.includeLF, false);
 	lexer.noThrow = false; // raise exceptions during compilation
 	lexer.maxStack = 100;
 
@@ -411,6 +425,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	// For calling compileAction later on
 	let lexerMin: monarchCommon.ILexerMin = <any>json;
 	lexerMin.languageId = languageId;
+	lexerMin.includeLF = lexer.includeLF;
 	lexerMin.ignoreCase = lexer.ignoreCase;
 	lexerMin.unicode = lexer.unicode;
 	lexerMin.noThrow = lexer.noThrow;

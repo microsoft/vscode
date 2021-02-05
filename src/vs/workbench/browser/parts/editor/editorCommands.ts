@@ -7,22 +7,25 @@ import * as nls from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, viewColumnToEditorGroup, EditorGroupColumn } from 'vs/workbench/common/editor';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -36,6 +39,7 @@ export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOt
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
+export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
@@ -44,6 +48,9 @@ export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
 export const TOGGLE_DIFF_SIDE_BY_SIDE = 'toggle.diff.renderSideBySide';
 export const GOTO_NEXT_CHANGE = 'workbench.action.compareEditor.nextChange';
 export const GOTO_PREVIOUS_CHANGE = 'workbench.action.compareEditor.previousChange';
+export const DIFF_FOCUS_PRIMARY_SIDE = 'workbench.action.compareEditor.focusPrimarySide';
+export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSecondarySide';
+export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
@@ -51,7 +58,16 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
+export const FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusLeftGroupWithoutWrap';
+export const FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusRightGroupWithoutWrap';
+export const FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusAboveGroupWithoutWrap';
+export const FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusBelowGroupWithoutWrap';
+
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
+
+export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
+export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
+export const API_OPEN_WITH_EDITOR_COMMAND_ID = '_workbench.openWith';
 
 export interface ActiveEditorMoveArguments {
 	to: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
@@ -222,13 +238,45 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IVisi
 }
 
 function registerEditorGroupsLayoutCommand(): void {
-	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, args: EditorGroupLayout) => {
-		if (!args || typeof args !== 'object') {
+
+	function applyEditorLayout(accessor: ServicesAccessor, layout: EditorGroupLayout): void {
+		if (!layout || typeof layout !== 'object') {
 			return;
 		}
 
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		editorGroupService.applyLayout(args);
+		editorGroupService.applyLayout(layout);
+	}
+
+	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, args: EditorGroupLayout) => {
+		applyEditorLayout(accessor, args);
+	});
+
+	// API Command
+	CommandsRegistry.registerCommand({
+		id: 'vscode.setEditorLayout',
+		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
+		description: {
+			description: 'Set Editor Layout',
+			args: [{
+				name: 'args',
+				schema: {
+					'type': 'object',
+					'required': ['groups'],
+					'properties': {
+						'orientation': {
+							'type': 'number',
+							'default': 0,
+							'enum': [0, 1]
+						},
+						'groups': {
+							'$ref': '#/definitions/editorGroupsSchema',
+							'default': [{}, {}]
+						}
+					}
+				}
+			}]
+		}
 	});
 }
 
@@ -260,14 +308,52 @@ function registerDiffEditorCommands(): void {
 		handler: accessor => navigateInDiffEditor(accessor, false)
 	});
 
-	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+	function getActiveTextDiffEditor(accessor: ServicesAccessor): TextDiffEditor | undefined {
 		const editorService = accessor.get(IEditorService);
-		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(editor => editor instanceof TextDiffEditor);
 
-		if (candidates.length > 0) {
-			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
+		for (const editor of [editorService.activeEditorPane, ...editorService.visibleEditorPanes]) {
+			if (editor instanceof TextDiffEditor) {
+				return editor;
+			}
+		}
+
+		return undefined;
+	}
+
+	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
+
+		if (activeTextDiffEditor) {
+			const navigator = activeTextDiffEditor.getDiffNavigator();
 			if (navigator) {
 				next ? navigator.next() : navigator.previous();
+			}
+		}
+	}
+
+	enum FocusTextDiffEditorMode {
+		Original,
+		Modified,
+		Toggle
+	}
+
+	function focusInDiffEditor(accessor: ServicesAccessor, mode: FocusTextDiffEditorMode): void {
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor);
+
+		if (activeTextDiffEditor) {
+			switch (mode) {
+				case FocusTextDiffEditorMode.Original:
+					activeTextDiffEditor.getControl()?.getOriginalEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Modified:
+					activeTextDiffEditor.getControl()?.getModifiedEditor().focus();
+					break;
+				case FocusTextDiffEditorMode.Toggle:
+					if (activeTextDiffEditor.getControl()?.getModifiedEditor().hasWidgetFocus()) {
+						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original);
+					} else {
+						return focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified);
+					}
 			}
 		}
 	}
@@ -276,14 +362,14 @@ function registerDiffEditorCommands(): void {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
-		configurationService.updateValue('diffEditor.renderSideBySide', newValue, ConfigurationTarget.USER);
+		configurationService.updateValue('diffEditor.renderSideBySide', newValue);
 	}
 
 	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const newValue = !configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
-		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue, ConfigurationTarget.USER);
+		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
 	}
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -292,6 +378,30 @@ function registerDiffEditorCommands(): void {
 		when: undefined,
 		primary: undefined,
 		handler: accessor => toggleDiffSideBySide(accessor)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_PRIMARY_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Modified)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_SECONDARY_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Original)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_FOCUS_OTHER_SIDE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Toggle)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -312,6 +422,87 @@ function registerDiffEditorCommands(): void {
 		when: undefined,
 		primary: undefined,
 		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
+	});
+}
+
+function registerOpenEditorAPICommands(): void {
+
+	function mixinContext(context: IOpenEvent<unknown> | undefined, options: ITextEditorOptions | undefined, column: EditorGroupColumn | undefined): [ITextEditorOptions | undefined, EditorGroupColumn | undefined] {
+		if (!context) {
+			return [options, column];
+		}
+
+		return [
+			{ ...context.editorOptions, ...(options ?? Object.create(null)) },
+			context.sideBySide ? SIDE_GROUP : column
+		];
+	}
+
+	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], label?: string, context?: IOpenEvent<unknown>) {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const openerService = accessor.get(IOpenerService);
+
+		const resource = URI.revive(resourceArg);
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
+
+		// use editor options or editor view column as a hint to use the editor service for opening
+		if (optionsArg || typeof columnArg === 'number') {
+			const [options, column] = mixinContext(context, optionsArg, columnArg);
+
+			await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, column));
+		}
+
+		// do not allow to execute commands from here
+		else if (resource.scheme === 'command') {
+			return;
+		}
+
+		// finally, delegate to opener service
+		else {
+			await openerService.open(resource, { openToSide: context?.sideBySide, editorOptions: context?.editorOptions });
+		}
+	});
+
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, leftResource: UriComponents, rightResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
+		const [options, column] = mixinContext(context, optionsArg, columnArg);
+
+		await editorService.openEditor({
+			leftResource: URI.revive(leftResource),
+			rightResource: URI.revive(rightResource),
+			label,
+			options
+		}, viewColumnToEditorGroup(editorGroupService, column));
+	});
+
+	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?]) => {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const [columnArg, optionsArg] = columnAndOptions ?? [];
+		let group: IEditorGroup | undefined = undefined;
+
+		if (columnArg === SIDE_GROUP) {
+			const direction = preferredSideBySideGroupDirection(configurationService);
+
+			let neighbourGroup = editorGroupsService.findGroup({ direction });
+			if (!neighbourGroup) {
+				neighbourGroup = editorGroupsService.addGroup(editorGroupsService.activeGroup, direction);
+			}
+			group = neighbourGroup;
+		} else {
+			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+		}
+
+		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
+
+		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
+		return openEditorWith(accessor, input, id, textOptions, group);
 	});
 }
 
@@ -655,6 +846,39 @@ function registerCloseEditorCommands() {
 	});
 }
 
+function registerFocusEditorGroupWihoutWrapCommands(): void {
+
+	const commands = [
+		{
+			id: FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.LEFT
+		},
+		{
+			id: FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.RIGHT
+		},
+		{
+			id: FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.UP,
+		},
+		{
+			id: FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.DOWN
+		}
+	];
+
+	for (const command of commands) {
+		CommandsRegistry.registerCommand(command.id, async (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const group = editorGroupService.findGroup({ direction: command.direction }, editorGroupService.activeGroup, false);
+			if (group) {
+				group.focus();
+			}
+		});
+	}
+}
+
 function registerOtherEditorCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -669,6 +893,17 @@ function registerOtherEditorCommands(): void {
 			if (group && editor) {
 				return group.pinEditor(editor);
 			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: TOGGLE_KEEP_EDITORS_COMMAND_ID,
+		handler: accessor => {
+			const configurationService = accessor.get(IConfigurationService);
+
+			const currentSetting = configurationService.getValue<boolean>('workbench.editor.enablePreview');
+			const newSetting = currentSetting === true ? false : true;
+			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
 		}
 	});
 
@@ -839,9 +1074,11 @@ export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerEditorGroupsLayoutCommand();
 	registerDiffEditorCommands();
+	registerOpenEditorAPICommands();
 	registerOpenEditorAtIndexCommands();
 	registerCloseEditorCommands();
 	registerOtherEditorCommands();
 	registerFocusEditorGroupAtIndexCommands();
 	registerSplitEditorCommands();
+	registerFocusEditorGroupWihoutWrapCommands();
 }
