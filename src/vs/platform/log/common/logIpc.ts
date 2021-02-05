@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService, LogService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
 
 export class LoggerChannel implements IServerChannel {
@@ -72,7 +72,7 @@ export class LoggerChannelClient {
 	}
 }
 
-export class FollowerLogService extends DelegatedLogService implements ILogService {
+export class FollowerLogService extends LogService implements ILogService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(private parent: LoggerChannelClient, logService: ILogService) {
