@@ -115,14 +115,16 @@ import { assertNoRpc } from '../utils';
 		});
 
 		test('processId immediately after createTerminal should fetch the pid', async () => {
-
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(r));
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+						t.processId.then(id => id && id > 0);
+					}
+				}));
 			});
 			equal(result, terminal);
-			const idExists = await terminal.processId.then(id => id && id > 0);
-			equal(idExists, true);
 
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
@@ -137,10 +139,14 @@ import { assertNoRpc } from '../utils';
 		test('name in constructor should set terminal.name', async () => {
 			const terminal = window.createTerminal('a');
 			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(r));
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+						equal(t.name, 'a');
+					}
+				}));
 			});
 			equal(result, terminal);
-			equal(terminal.name, 'a');
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
@@ -157,11 +163,17 @@ import { assertNoRpc } from '../utils';
 				hideFromUser: true
 			};
 			const terminal = window.createTerminal(options);
+			const terminalOptions = terminal.creationOptions as TerminalOptions;
 			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(r));
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+						equal(t.name, terminalOptions.name);
+						equal(t.hide, terminalOptions.hideFromUser);
+					}
+				}));
 			});
 			equal(result, terminal);
-
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
@@ -171,10 +183,6 @@ import { assertNoRpc } from '../utils';
 				terminal.dispose();
 			});
 
-			equal(terminal.name, 'foo');
-			const terminalOptions = terminal.creationOptions as TerminalOptions;
-			equal(terminalOptions.name, 'foo');
-			equal(terminalOptions.hideFromUser, true);
 			throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 		});
 
