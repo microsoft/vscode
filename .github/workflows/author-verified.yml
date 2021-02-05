@@ -1,9 +1,5 @@
 name: Author Verified
 on:
-  repository_dispatch:
-    types: [trigger-author-verified]
-  schedule:
-    - cron: 20 14 * * * # 4:20pm Zurich
   issues:
     types: [closed]
 
