@@ -1324,7 +1324,7 @@ declare module 'vscode' {
 		readonly source: string;
 		readonly language: string;
 		// todo@API maybe use a separate data type?
-		readonly outputs: CellOutput[];
+		readonly outputs: (CellOutput | NotebookCellOutput)[];
 		readonly metadata: NotebookCellMetadata | undefined;
 	}
 

@@ -31,7 +31,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { CellEditType, CellOutputKind, INotebookDecorationRenderOptions, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellOutputKind, ICellDto2, INotebookDecorationRenderOptions, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
@@ -574,6 +574,19 @@ export namespace WorkspaceEdit {
 							}
 						});
 					}
+				} else if (entry._type === types.FileEditType.CellReplace) {
+					result.edits.push({
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
+						resource: entry.uri,
+						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version,
+						edit: {
+							editType: CellEditType.Replace,
+							index: entry.index,
+							count: entry.count,
+							cells: entry.cells.map(NotebookCellData.from)
+						}
+					});
 				}
 			}
 		}
@@ -1303,6 +1316,28 @@ export namespace LanguageSelector {
 				exclusive: selector.exclusive
 			};
 		}
+	}
+}
+
+export namespace NotebookCellData {
+
+	export function from(data: vscode.NotebookCellData): ICellDto2 {
+		let outputs: ITransformedDisplayOutputDto[];
+		const [first] = data.outputs;
+		if (!first) {
+			outputs = [];
+		} if (first instanceof types.NotebookCellOutput) {
+			outputs = (<vscode.NotebookCellOutput[]>data.outputs).map(NotebookCellOutput.from);
+		} else {
+			outputs = (<vscode.CellOutput[]>data.outputs).map(o => NotebookCellOutput.from(types.NotebookCellOutput._fromOld(o)));
+		}
+		return {
+			cellKind: data.cellKind,
+			language: data.language,
+			source: data.source,
+			metadata: data.metadata,
+			outputs
+		};
 	}
 }
 

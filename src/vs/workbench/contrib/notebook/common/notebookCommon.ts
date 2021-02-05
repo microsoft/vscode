@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import * as UUID from 'vs/base/common/uuid';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -195,8 +194,6 @@ export interface ITransformedStreamOutputDto extends IStreamOutput {
 export interface ITransformedErrorOutputDto extends IErrorOutput {
 	outputId: string;
 }
-
-export const addIdToOutput = (output: IOutputDto, id = UUID.generateUuid()): IOutputDtoWithId => ({ ...output, outputId: id });
 
 export type IOutputDto = IDisplayOutput | IStreamOutput | IErrorOutput;
 export type IOutputDtoWithId = ITransformedDisplayOutputDto | ITransformedStreamOutputDto | ITransformedErrorOutputDto;
