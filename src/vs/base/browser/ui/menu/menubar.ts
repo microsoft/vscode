@@ -839,6 +839,10 @@ export class MenuBar extends Disposable {
 	}
 
 	private get shouldAltKeyFocus(): boolean {
+		if (isMacintosh) {
+			return false;
+		}
+
 		if (!this.options.disableAltFocus) {
 			return true;
 		}
