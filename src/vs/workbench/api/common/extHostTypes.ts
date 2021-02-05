@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { addIdToOutput, CellEditType, ICellEditOperation, ICellOutputEdit, ITransformedDisplayOutputDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, ICellEditOperation, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -585,7 +585,8 @@ export interface IFileOperationOptions {
 export const enum FileEditType {
 	File = 1,
 	Text = 2,
-	Cell = 3
+	Cell = 3,
+	CellOutput = 4,
 }
 
 export interface IFileOperation {
@@ -611,13 +612,23 @@ export interface IFileCellEdit {
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
+export interface ICellOutputEdit {
+	_type: FileEditType.CellOutput;
+	uri: URI;
+	index: number;
+	append: boolean;
+	newOutputs?: NotebookCellOutput[];
+	newMetadata?: vscode.NotebookCellMetadata;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private readonly _edits = new Array<IFileOperation | IFileTextEdit | IFileCellEdit>();
+	private readonly _edits = new Array<IFileOperation | IFileTextEdit | IFileCellEdit | ICellOutputEdit>();
 
 
-	_allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation | IFileCellEdit> {
+	_allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation | IFileCellEdit | ICellOutputEdit> {
 		return this._edits;
 	}
 
@@ -656,19 +667,16 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		const edit: ICellOutputEdit = {
-			editType: CellEditType.Output,
-			index,
-			append,
-			outputs: outputs.map(output => {
-				if (NotebookCellOutput.isNotebookCellOutput(output)) {
-					return output.toJSON();
-				} else {
-					return addIdToOutput(output);
-				}
-			})
-		};
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit });
+		let newOutputs: NotebookCellOutput[];
+		const [first] = outputs;
+		if (!first) {
+			newOutputs = [];
+		} else if (first instanceof NotebookCellOutput) {
+			newOutputs = (<NotebookCellOutput[]>outputs);
+		} else {
+			newOutputs = (<vscode.CellOutput[]>outputs).map(NotebookCellOutput._fromOld);
+		}
+		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs, newMetadata: undefined });
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -2816,11 +2824,27 @@ export class NotebookCellOutputItem {
 	constructor(
 		readonly mime: string,
 		readonly value: unknown, // JSON'able
-		readonly metadata?: Record<string, string | number | boolean>
+		readonly metadata?: any
 	) { }
 }
 
 export class NotebookCellOutput {
+
+	static _fromOld(output: vscode.CellOutput): NotebookCellOutput {
+		switch (output.outputKind) {
+			case CellOutputKind.Error:
+				return new NotebookCellOutput([new NotebookCellOutputItem('application/x.notebook.error-traceback', output)]);
+			case CellOutputKind.Text:
+				return new NotebookCellOutput([new NotebookCellOutputItem('application/x.notebook.stream', output.text)]);
+			case CellOutputKind.Rich:
+				const items: NotebookCellOutputItem[] = [];
+				for (const key in output.data) {
+					items.push(new NotebookCellOutputItem(key, output.data[key], output.metadata?.custom ? output.metadata?.custom[key] : undefined));
+				}
+				return new NotebookCellOutput(items);
+		}
+		throw new Error('invalid outputKind');
+	}
 
 	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
 		return obj instanceof NotebookCellOutput;
@@ -2829,26 +2853,6 @@ export class NotebookCellOutput {
 	readonly id: string = generateUuid();
 
 	constructor(readonly outputs: NotebookCellOutputItem[]) { }
-
-	toJSON(): ITransformedDisplayOutputDto {
-		let data: { [key: string]: unknown; } = {};
-		let custom: { [key: string]: unknown; } = {};
-		let hasMetadata = false;
-
-		for (let item of this.outputs) {
-			data[item.mime] = item.value;
-			if (item.metadata) {
-				custom[item.mime] = item.metadata;
-				hasMetadata = true;
-			}
-		}
-		return {
-			outputId: this.id,
-			outputKind: CellOutputKind.Rich,
-			data,
-			metadata: hasMetadata ? { custom } : undefined
-		};
-	}
 }
 
 export enum CellKind {

@@ -31,7 +31,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { CellOutputKind, IDisplayOutput, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellOutputKind, INotebookDecorationRenderOptions, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
@@ -546,6 +546,34 @@ export namespace WorkspaceEdit {
 						notebookMetadata: entry.notebookMetadata,
 						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
+
+				} else if (entry._type === types.FileEditType.CellOutput) {
+					if (entry.newOutputs) {
+						result.edits.push({
+							_type: extHostProtocol.WorkspaceEditType.Cell,
+							metadata: entry.metadata,
+							resource: entry.uri,
+							edit: {
+								editType: CellEditType.Output,
+								index: entry.index,
+								append: entry.append,
+								outputs: entry.newOutputs.map(NotebookCellOutput.from)
+							}
+						});
+					}
+					// todo@joh merge metadata and output edit?
+					if (entry.newMetadata) {
+						result.edits.push({
+							_type: extHostProtocol.WorkspaceEditType.Cell,
+							metadata: entry.metadata,
+							resource: entry.uri,
+							edit: {
+								editType: CellEditType.Metadata,
+								index: entry.index,
+								metadata: entry.newMetadata
+							}
+						});
+					}
 				}
 			}
 		}
@@ -1279,20 +1307,25 @@ export namespace LanguageSelector {
 }
 
 export namespace NotebookCellOutput {
-	export function from(output: types.NotebookCellOutput): IDisplayOutput {
-		return output.toJSON();
-	}
-}
+	export function from(output: types.NotebookCellOutput): ITransformedDisplayOutputDto {
 
-export namespace NotebookCellOutputItem {
-	export function from(output: types.NotebookCellOutputItem): IDisplayOutput {
+		const data = Object.create(null);
+		const metadata = Object.create(null);
+
+		for (let item of output.outputs) {
+			data[item.mime] = item.value;
+			metadata[item.mime] = item.metadata;
+		}
+
 		return {
+			outputId: output.id,
 			outputKind: CellOutputKind.Rich,
-			data: { [output.mime]: output.value },
-			metadata: output.metadata && { custom: output.metadata }
+			data,
+			metadata
 		};
 	}
 }
+
 
 export namespace NotebookExclusiveDocumentPattern {
 	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };

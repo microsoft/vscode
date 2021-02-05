@@ -1473,6 +1473,9 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	// code specific mime types
+	// application/x.notebook.error-traceback
+	// application/x.notebook.stream
 	export class NotebookCellOutputItem {
 
 		readonly mime: string;
@@ -1485,14 +1488,9 @@ declare module 'vscode' {
 	// @jrieken
 	//TODO@API add execution count to cell output?
 	export class NotebookCellOutput {
-
 		readonly id: string;
 		readonly outputs: NotebookCellOutputItem[];
-
 		constructor(outputs: NotebookCellOutputItem[]);
-
-		//TODO@jrieken HACK to workaround dependency issues...
-		toJSON(): any;
 	}
 
 	//#endregion
