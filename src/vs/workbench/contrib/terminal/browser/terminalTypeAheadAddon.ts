@@ -23,6 +23,7 @@ const DELETE_CHAR = `${CSI}X`;
 const DELETE_REST_OF_LINE = `${CSI}K`;
 const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
 const CSI_MOVE_RE = /^\x1b\[?([0-9]*)(;[35])?O?([DC])/;
+const CSI_CURSOR_POSITION_RE = /^\x1b\[(\d+);?(\d*)H/;
 const NOT_WORD_RE = /[^a-z0-9]/i;
 
 const statsBufferSize = 24;
@@ -36,6 +37,7 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  * insted omitted directly:
  *  - cursor hide/show
  *  - mode set/reset
+ *  - cursor position get
  */
 const PREDICTION_OMIT_RE = /^((\x1b\[\??25[hl])|(\x1b\[6n)|(\x1b\[\??12[hl]))+/;
 
@@ -153,6 +155,47 @@ const moveToWordBoundary = (b: IBuffer, cursor: Cursor, direction: -1 | 1) => {
 	if (direction < 0) {
 		cursor.shift(1); // we want to place the cursor after the whitespace starting the word
 	}
+};
+
+const emitPredictionOmitted = (reader: StringReader) => {
+	let output = '';
+	let omit = reader.eatRe(PREDICTION_OMIT_RE);
+	while (omit) {
+		output += omit[0];
+		omit = reader.eatRe(PREDICTION_OMIT_RE);
+	}
+	return output;
+};
+
+const followMovement = (reader: StringReader, cursor: Cursor, endPosition: ICoordinate): MatchResult => {
+	do {
+		const cursorMove = reader.eatRe(CSI_CURSOR_POSITION_RE);
+		if (cursorMove) {
+			cursor = cursor.clone();
+			const x = endPosition.x;
+			// We need to follow the cursor movements
+			cursor.moveTo({
+				x: parseInt(cursorMove[2] ?? 1) - 1,
+				y: parseInt(cursorMove[1]) - 1,
+				baseY: cursor.baseY
+			});
+			while (cursor.x < x) {
+				// Ignore things we don't care about
+				while (reader.eatRe(CSI_STYLE_RE)) { }
+				emitPredictionOmitted(reader);
+
+				// See if the character at the cursor matches the reader
+				const a = cursor.getCell()?.getChars();
+				const result = reader.eatGradually(a!);
+				if (result !== MatchResult.Success) {
+					return result;
+				}
+				cursor.shift(a?.length);
+			}
+		}
+	} while (cursor.x !== endPosition.x && cursor.y !== endPosition.y);
+
+	return MatchResult.Success;
 };
 
 const enum MatchResult {
@@ -402,21 +445,9 @@ class CharacterPrediction implements IPrediction {
 	public matches(input: StringReader, lookBehind?: IPrediction, cursor?: Cursor) {
 		let startIndex = input.index;
 
-		const cursorMove = input.eatRe(/^\x1b\[(\d+);(\d+)H/);
-		if (cursorMove) {
-			const x = this.appliedAt!.pos.x;
-			// We need to follow the cursor movements
-			cursor!.moveTo({
-				x: parseInt(cursorMove[2]) - 1,
-				y: parseInt(cursorMove[1]) - 1,
-				baseY: cursor!.baseY
-			});
-			while (cursor!.x < x) {
-				while (input.eatRe(CSI_STYLE_RE)) { }
-				const a = cursor!.getCell()?.getChars();
-				input.eatChar(a!);
-				cursor!.shift(a?.length);
-			}
+		const result = followMovement(input, cursor!, this.appliedAt!.pos);
+		if (result !== MatchResult.Success) {
+			return result;
 		}
 
 		// remove any styling CSI before checking the char
@@ -834,15 +865,8 @@ export class PredictionTimeline {
 
 		const reader = new StringReader(input);
 		const startingGen = this.expected[0].gen;
-		const emitPredictionOmitted = () => {
-			let omit = reader.eatRe(PREDICTION_OMIT_RE);
-			if (omit) {
-				output += omit[0];
-				omit = reader.eatRe(PREDICTION_OMIT_RE);
-			}
-		};
 
-		emitPredictionOmitted();
+		output += emitPredictionOmitted(reader);
 		ReadLoop: while (this.expected.length && reader.remaining > 0) {
 
 			const { p: prediction, gen } = this.expected[0];
