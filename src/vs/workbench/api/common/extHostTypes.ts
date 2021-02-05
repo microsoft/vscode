@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { CellEditType, ICellEditOperation, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, IOutputDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -2842,6 +2842,36 @@ export class NotebookCellOutputItem {
 }
 
 export class NotebookCellOutput {
+
+	static _toOld(output: IOutputDto): vscode.CellOutput {
+		if (output.data['application/x.notebook.stream']) {
+			return {
+				outputKind: CellOutputKind.Text,
+				text: output.data['application/x.notebook.stream'] as string
+			};
+		} else if (output.data['application/x.notebook.error-traceback']) {
+			return {
+				outputKind: CellOutputKind.Error,
+				ename: (output.data['application/x.notebook.error-traceback'] as any)['ename'],
+				evalue: (output.data['application/x.notebook.error-traceback'] as any)['evalue'],
+				traceback: (output.data['application/x.notebook.error-traceback'] as any)['traceback'],
+			};
+		} else {
+			return {
+				outputKind: CellOutputKind.Rich,
+				data: output.data,
+				metadata: output.metadata
+			};
+		}
+	}
+
+	static _fromDto(output: IOutputDto, id?: string) {
+		const items: NotebookCellOutputItem[] = [];
+		for (const key in output.data) {
+			items.push(new NotebookCellOutputItem(key, output.data[key], output.metadata?.custom ? output.metadata?.custom[key] : undefined));
+		}
+		return new NotebookCellOutput(items, id);
+	}
 
 	static _fromOld(output: vscode.CellOutput, id?: string): NotebookCellOutput {
 		switch (output.outputKind) {

@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
-import { CellEditType, IMainCellDto, IDisplayOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IMainCellDto, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 
@@ -69,10 +69,10 @@ export class ExtHostCell extends Disposable {
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _onDidChangeOutputs = new Emitter<ISplice<IDisplayOutputDto>[]>();
-	readonly onDidChangeOutputs: Event<ISplice<IDisplayOutputDto>[]> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<ISplice<IOutputDto>[]>();
+	readonly onDidChangeOutputs: Event<ISplice<IOutputDto>[]> = this._onDidChangeOutputs.event;
 
-	private _outputs: IDisplayOutputDto[];
+	private _outputs: IOutputDto[];
 
 	private _metadata: vscode.NotebookCellMetadata;
 
@@ -114,14 +114,10 @@ export class ExtHostCell extends Disposable {
 				document: data.document,
 				get language() { return data!.document.languageId; },
 				get outputs() {
-					return that._outputs.map(ouptput => {
-						const copy: vscode.CellOutput & { outputId?: string } = { ...ouptput };
-						delete copy.outputId;
-						return copy;
-					});
+					return that._outputs.map(output => NotebookCellOutput._toOld(output));
 				},
 				set outputs(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
-				get outputs2() { return that._outputs.map(output => NotebookCellOutput._fromOld(output, output.outputId)); },
+				get outputs2() { return that._outputs.map(output => NotebookCellOutput._fromDto(output, output.outputId)); },
 				set outputs2(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
 				get metadata() { return that._metadata; },
 				set metadata(_value) { throw new Error('Use WorkspaceEdit to update cell metadata.'); },
@@ -135,7 +131,7 @@ export class ExtHostCell extends Disposable {
 		this._onDidDispose.fire();
 	}
 
-	setOutputs(newOutputs: IDisplayOutputDto[]): void {
+	setOutputs(newOutputs: IOutputDto[]): void {
 		this._outputs = newOutputs;
 	}
 
@@ -390,7 +386,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		});
 	}
 
-	private _setCellOutputs(index: number, outputs: IDisplayOutputDto[]): void {
+	private _setCellOutputs(index: number, outputs: IOutputDto[]): void {
 		const cell = this._cells[index];
 		cell.setOutputs(outputs);
 		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });

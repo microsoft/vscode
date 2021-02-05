@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
-import { CellOutputKind, INotebookRendererInfo, IDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
@@ -87,7 +87,7 @@ export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; output: IDisplayOutputDto; mimeType: string };
+	| { type: RenderOutputType.Extension; output: IOutputDto; mimeType: string };
 	cellId: string;
 	outputId: string;
 	top: number;
@@ -683,7 +683,6 @@ var requirejs = (function() {
 					type: RenderOutputType.Extension,
 					mimeType: content.mimeType,
 					output: {
-						outputKind: CellOutputKind.Rich,
 						metadata: output.metadata,
 						data: output.data,
 						outputId: output.outputId

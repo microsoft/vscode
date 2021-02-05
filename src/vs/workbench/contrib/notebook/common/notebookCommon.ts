@@ -29,12 +29,6 @@ export enum CellKind {
 	Code = 2
 }
 
-export enum CellOutputKind {
-	Text = 1,
-	Error = 2,
-	Rich = 3
-}
-
 export const NOTEBOOK_DISPLAY_ORDER = [
 	'application/json',
 	'application/javascript',
@@ -152,8 +146,7 @@ export interface IOrderedMimeType {
 	isTrusted: boolean;
 }
 
-export interface IDisplayOutputDto {
-	outputKind: CellOutputKind.Rich;
+export interface IOutputDto {
 	/**
 	 * { mime_type: value }
 	 */
@@ -169,7 +162,7 @@ export interface ICell {
 	handle: number;
 	language: string;
 	cellKind: CellKind;
-	outputs: IDisplayOutputDto[];
+	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
@@ -203,7 +196,7 @@ export type NotebookCellTextModelSplice<T> = [
 export type NotebookCellOutputsSplice = [
 	start: number /* start */,
 	deleteCount: number /* delete count */,
-	newOutputs: IDisplayOutputDto[]
+	newOutputs: IOutputDto[]
 ];
 
 export interface IMainCellDto {
@@ -213,7 +206,7 @@ export interface IMainCellDto {
 	eol: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IDisplayOutputDto[];
+	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -262,7 +255,7 @@ export interface NotebookCellsModelMoveEvent<T> {
 export interface NotebookOutputChangedEvent {
 	readonly kind: NotebookCellsChangeType.Output;
 	readonly index: number;
-	readonly outputs: IDisplayOutputDto[];
+	readonly outputs: IOutputDto[];
 }
 
 export interface NotebookCellsChangeLanguageEvent {
@@ -317,7 +310,7 @@ export interface ICellDto2 {
 	source: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IDisplayOutputDto[];
+	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -331,7 +324,7 @@ export interface ICellReplaceEdit {
 export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
-	outputs: IDisplayOutputDto[];
+	outputs: IOutputDto[];
 	append?: boolean
 }
 

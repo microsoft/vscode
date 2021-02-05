@@ -11,14 +11,14 @@ import { URI } from 'vs/base/common/uri';
 
 export class OutputRenderer {
 	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
-	protected readonly _mimeTypeMapping: { [key: number]: IOutputTransformContribution; };
+	protected readonly _renderers: IOutputTransformContribution[];
 
 	constructor(
 		notebookEditor: ICommonNotebookEditor,
 		private readonly instantiationService: IInstantiationService
 	) {
 		this._contributions = {};
-		this._mimeTypeMapping = {};
+		this._renderers = [];
 
 		const contributions = NotebookRegistry.getOutputTransformContributions();
 
@@ -26,7 +26,7 @@ export class OutputRenderer {
 			try {
 				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
 				this._contributions[desc.id] = contribution;
-				this._mimeTypeMapping[desc.kind] = contribution;
+				this._renderers.push(contribution);
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -34,17 +34,15 @@ export class OutputRenderer {
 	}
 
 	renderNoop(viewModel: ICellOutputViewModel, container: HTMLElement): IRenderOutput {
-		const output = viewModel.model;
 		const contentNode = document.createElement('p');
 
-		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.outputKind}`;
+		contentNode.innerText = `No renderer could be found for output.`;
 		container.appendChild(contentNode);
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
-		const output = viewModel.model;
-		const transform = this._mimeTypeMapping[output.outputKind];
+		const transform = this._renderers[0];
 
 		if (transform) {
 			return transform.render(viewModel, container, preferredMimeType, notebookUri);
