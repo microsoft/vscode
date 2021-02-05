@@ -147,7 +147,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
 		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
-			this._proxy.$setCandidateFinder();
+			this._proxy.$setRemoteTunnelService(process.pid);
 		}
 	}
 
