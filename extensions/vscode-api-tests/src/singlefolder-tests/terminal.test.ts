@@ -475,7 +475,31 @@ import { assertNoRpc } from '../utils';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			test('should respect dimension overrides', async () => {
+			test('should respect dimension overrides', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+					} catch (e) {
+						done(e);
+						return;
+					}
+					term.show();
+					disposables.push(window.onDidChangeTerminalDimensions(e => {
+						// The default pty dimensions have a chance to appear here since override
+						// dimensions happens after the terminal is created. If so just ignore and
+						// wait for the right dimensions
+						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
+							try {
+								equal(e.terminal, terminal);
+							} catch (e) {
+								done(e);
+								return;
+							}
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}));
+				}));
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
 				const pty: Pseudoterminal = {
@@ -485,32 +509,6 @@ import { assertNoRpc } from '../utils';
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
-				await new Promise<Terminal>(r => {
-					disposables.push(window.onDidOpenTerminal(async t => {
-						if (t === terminal) {
-							r(t);
-						}
-					}));
-				});
-				await new Promise<void>(r => {
-					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						// The default pty dimensions have a chance to appear here since override
-						// dimensions happens after the terminal is created. If so just ignore and
-						// wait for the right dimensions
-						if (e.dimensions.columns === 10 && e.dimensions.rows === 5) {
-							r();
-						}
-						e.terminal.show();
-					}));
-				});
-				await new Promise<void>(r => {
-					disposables.push(window.onDidCloseTerminal(t => {
-						if (t === terminal) {
-							r();
-						}
-					}));
-					terminal.dispose();
-				});
 			});
 
 			test('exitStatus.code should be set to the exit code (undefined)', async () => {
