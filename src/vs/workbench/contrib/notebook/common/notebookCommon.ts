@@ -189,14 +189,6 @@ export interface IErrorOutputDto {
 
 export type IOutputDto = IDisplayOutputDto | IStreamOutputDto | IErrorOutputDto;
 
-export interface IOutputRenderResponseOutputInfo {
-	index: number;
-	outputId: string;
-	mimeType: string;
-	handlerId: string;
-	transformedOutput: string;
-}
-
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
