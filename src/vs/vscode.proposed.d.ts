@@ -1083,6 +1083,7 @@ declare module 'vscode' {
 		readonly language: string;
 		/** @deprecated use WorkspaceEdit.replaceCellOutput */
 		outputs: CellOutput[];
+		// readonly outputs2: NotebookCellOutput[];
 		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
 		metadata: NotebookCellMetadata;
 	}
@@ -1505,12 +1506,14 @@ declare module 'vscode' {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+
 		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
-		appendNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
 
 		// TODO@api
 		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
-		// updateNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		// replaceNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
+		// appendNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
