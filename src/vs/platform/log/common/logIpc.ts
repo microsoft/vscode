@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { LogLevel, ILogService, LogService } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService, LogService, ILoggerService, ILogger, AbstractMessageLogger } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export class LoggerChannel implements IServerChannel {
 
 	onDidChangeLogLevel: Event<LogLevel>;
 
-	constructor(private service: ILogService) {
+	constructor(
+		private service: ILogService,
+		private readonly loggerService: ILoggerService,
+	) {
 		this.onDidChangeLogLevel = Event.buffer(service.onDidChangeLogLevel, true);
 	}
 
@@ -23,10 +27,12 @@ export class LoggerChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	async call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'setLevel': this.service.setLevel(arg); return Promise.resolve();
-			case 'consoleLog': this.consoleLog(arg[0], arg[1]); return Promise.resolve();
+			case 'setLevel': return this.service.setLevel(arg);
+			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
+			case 'initLogger': this.getLogger(URI.revive(arg[0])); return;
+			case 'log': return this.log(URI.revive(arg[0]), arg[1], arg[2]);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -49,6 +55,23 @@ export class LoggerChannel implements IServerChannel {
 
 		consoleFn.call(console, ...args);
 	}
+
+	private getLogger(file: URI): ILogger {
+		return this.loggerService.getLogger(file);
+	}
+
+	private log(file: URI, level: LogLevel, message: string): void {
+		const logger = this.getLogger(file);
+		switch (level) {
+			case LogLevel.Trace: logger.trace(message); break;
+			case LogLevel.Debug: logger.debug(message); break;
+			case LogLevel.Info: logger.info(message); break;
+			case LogLevel.Warning: logger.warn(message); break;
+			case LogLevel.Error: logger.error(message); break;
+			case LogLevel.Critical: logger.critical(message); break;
+			default: throw new Error('Invalid log level');
+		}
+	}
 }
 
 export class LoggerChannelClient {
@@ -69,6 +92,16 @@ export class LoggerChannelClient {
 
 	consoleLog(severity: string, args: string[]): void {
 		this.channel.call('consoleLog', [severity, args]);
+	}
+
+	getLogger(file: URI): ILogger {
+		this.channel.call('initLogger', [file]);
+		const that = this;
+		return new class extends AbstractMessageLogger {
+			protected log(level: LogLevel, message: string) {
+				that.channel.call('log', [file, level, message]);
+			}
+		};
 	}
 }
 

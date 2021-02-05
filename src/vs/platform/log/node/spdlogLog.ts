@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { LogLevel, AbstractLogger, ILogger } from 'vs/platform/log/common/log';
+import { LogLevel, ILogger, AbstractMessageLogger } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 
@@ -43,7 +43,7 @@ function log(logger: spdlog.RotatingLogger, level: LogLevel, message: string): v
 	}
 }
 
-export class SpdLogLogger extends AbstractLogger implements ILogger {
+export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 
 	private buffer: ILog[] = [];
 	private _loggerCreationPromise: Promise<void> | undefined = undefined;
@@ -77,54 +77,11 @@ export class SpdLogLogger extends AbstractLogger implements ILogger {
 		return this._loggerCreationPromise;
 	}
 
-	private _log(level: LogLevel, message: string): void {
+	protected log(level: LogLevel, message: string): void {
 		if (this._logger) {
 			log(this._logger, level, message);
 		} else if (this.getLevel() <= level) {
 			this.buffer.push({ level, message });
-		}
-	}
-
-	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this._log(LogLevel.Trace, this.format([message, ...args]));
-		}
-	}
-
-	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this._log(LogLevel.Debug, this.format([message, ...args]));
-		}
-	}
-
-	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this._log(LogLevel.Info, this.format([message, ...args]));
-		}
-	}
-
-	warn(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this._log(LogLevel.Warning, this.format([message, ...args]));
-		}
-	}
-
-	error(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
-
-			if (message instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
-				array[0] = message.stack;
-				this._log(LogLevel.Error, this.format(array));
-			} else {
-				this._log(LogLevel.Error, this.format([message, ...args]));
-			}
-		}
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this._log(LogLevel.Critical, this.format([message, ...args]));
 		}
 	}
 
@@ -150,23 +107,5 @@ export class SpdLogLogger extends AbstractLogger implements ILogger {
 			this._logger.drop();
 			this._logger = undefined;
 		}
-	}
-
-	private format(args: any): string {
-		let result = '';
-
-		for (let i = 0; i < args.length; i++) {
-			let a = args[i];
-
-			if (typeof a === 'object') {
-				try {
-					a = JSON.stringify(a);
-				} catch (e) { }
-			}
-
-			result += (i > 0 ? ' ' : '') + a;
-		}
-
-		return result;
 	}
 }

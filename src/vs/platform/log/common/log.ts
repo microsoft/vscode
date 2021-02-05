@@ -78,6 +78,75 @@ export abstract class AbstractLogger extends Disposable {
 
 }
 
+export abstract class AbstractMessageLogger extends AbstractLogger implements ILogger {
+
+	protected abstract log(level: LogLevel, message: string): void;
+
+	trace(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Trace) {
+			this.log(LogLevel.Trace, this.format([message, ...args]));
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Debug) {
+			this.log(LogLevel.Debug, this.format([message, ...args]));
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Info) {
+			this.log(LogLevel.Info, this.format([message, ...args]));
+		}
+	}
+
+	warn(message: string, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Warning) {
+			this.log(LogLevel.Warning, this.format([message, ...args]));
+		}
+	}
+
+	error(message: string | Error, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Error) {
+
+			if (message instanceof Error) {
+				const array = Array.prototype.slice.call(arguments) as any[];
+				array[0] = message.stack;
+				this.log(LogLevel.Error, this.format(array));
+			} else {
+				this.log(LogLevel.Error, this.format([message, ...args]));
+			}
+		}
+	}
+
+	critical(message: string | Error, ...args: any[]): void {
+		if (this.getLevel() <= LogLevel.Critical) {
+			this.log(LogLevel.Critical, this.format([message, ...args]));
+		}
+	}
+
+	flush(): void { }
+
+	private format(args: any): string {
+		let result = '';
+
+		for (let i = 0; i < args.length; i++) {
+			let a = args[i];
+
+			if (typeof a === 'object') {
+				try {
+					a = JSON.stringify(a);
+				} catch (e) { }
+			}
+
+			result += (i > 0 ? ' ' : '') + a;
+		}
+
+		return result;
+	}
+}
+
+
 export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 
 	private useColors: boolean;

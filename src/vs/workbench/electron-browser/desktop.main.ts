@@ -44,7 +44,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
+import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -164,7 +164,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IProductService, this.productService);
 
 		// Log
-		const logService = this._register(new NativeLogService(this.configuration.windowId, mainProcessService, this.environmentService));
+		const logService = this._register(new NativeLogService(mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote

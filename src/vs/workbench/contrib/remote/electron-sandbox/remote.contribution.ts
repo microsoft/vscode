@@ -16,7 +16,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -34,13 +34,14 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService logService: ILogService,
+		@ILogService loggerService: ILoggerService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IDownloadService downloadService: IDownloadService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LoggerChannel(logService));
+			connection.registerChannel('logger', new LoggerChannel(logService, loggerService));
 		}
 	}
 }
