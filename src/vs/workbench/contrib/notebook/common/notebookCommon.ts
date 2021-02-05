@@ -139,12 +139,38 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string): boolean;
 }
 
-export interface IStreamOutput {
-	outputKind: CellOutputKind.Text;
-	text: string;
+export interface NotebookCellOutputMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: unknown };
 }
 
-export interface IErrorOutput {
+export interface IOrderedMimeType {
+	mimeType: string;
+	rendererId: string;
+	isTrusted: boolean;
+}
+
+export interface ITransformedDisplayOutputDto {
+	outputKind: CellOutputKind.Rich;
+	/**
+	 * { mime_type: value }
+	 */
+	data: { [key: string]: unknown; }
+
+	metadata?: NotebookCellOutputMetadata;
+
+	outputId: string;
+}
+
+export interface ITransformedStreamOutputDto {
+	outputKind: CellOutputKind.Text;
+	text: string;
+	outputId: string;
+}
+
+export interface ITransformedErrorOutputDto {
 	outputKind: CellOutputKind.Error;
 	/**
 	 * Exception Name
@@ -158,62 +184,10 @@ export interface IErrorOutput {
 	 * Exception call stacks
 	 */
 	traceback: string[];
-}
-
-export interface NotebookCellOutputMetadata {
-	/**
-	 * Additional attributes of a cell metadata.
-	 */
-	custom?: { [key: string]: unknown };
-}
-
-export interface IDisplayOutput {
-	outputKind: CellOutputKind.Rich;
-	/**
-	 * { mime_type: value }
-	 */
-	data: { [key: string]: unknown; }
-
-	metadata?: NotebookCellOutputMetadata;
-}
-
-export interface IOrderedMimeType {
-	mimeType: string;
-	rendererId: string;
-	isTrusted: boolean;
-}
-
-export interface ITransformedDisplayOutputDto extends IDisplayOutput {
 	outputId: string;
 }
 
-export interface ITransformedStreamOutputDto extends IStreamOutput {
-	outputId: string;
-}
-
-export interface ITransformedErrorOutputDto extends IErrorOutput {
-	outputId: string;
-}
-
-export type IOutputDto = IDisplayOutput | IStreamOutput | IErrorOutput;
 export type IOutputDtoWithId = ITransformedDisplayOutputDto | ITransformedStreamOutputDto | ITransformedErrorOutputDto;
-
-export interface IOutputRenderRequestOutputInfo {
-	index: number;
-	outputId: string;
-	handlerId: string;
-	mimeType: string;
-	output?: IOutputDto;
-}
-
-export interface IOutputRenderRequestCellInfo<T> {
-	key: T;
-	outputs: IOutputRenderRequestOutputInfo[];
-}
-
-export interface IOutputRenderRequest<T> {
-	items: IOutputRenderRequestCellInfo<T>[];
-}
 
 export interface IOutputRenderResponseOutputInfo {
 	index: number;
@@ -222,17 +196,6 @@ export interface IOutputRenderResponseOutputInfo {
 	handlerId: string;
 	transformedOutput: string;
 }
-
-export interface IOutputRenderResponseCellInfo<T> {
-	key: T;
-	outputs: IOutputRenderResponseOutputInfo[];
-}
-
-
-export interface IOutputRenderResponse<T> {
-	items: IOutputRenderResponseCellInfo<T>[];
-}
-
 
 export interface ICell {
 	readonly uri: URI;
