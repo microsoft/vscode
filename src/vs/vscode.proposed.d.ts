@@ -1164,10 +1164,15 @@ declare module 'vscode' {
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
 		readonly contentOptions: NotebookDocumentContentOptions;
+		// todo@API
+		// make readonly
+		// languages comes from the kernel
 		languages: string[];
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
+	// todo@API maybe have a NotebookCellPosition sibling
+	// todo@API should be a class
 	export interface NotebookCellRange {
 		readonly start: number;
 		/**
@@ -1239,18 +1244,6 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 	}
 
-	// todo@API stale?
-	export interface NotebookOutputSelector {
-		mimeTypes?: string[];
-	}
-
-	// todo@API stale?
-	export interface NotebookRenderRequest {
-		output: CellDisplayOutput;
-		mimeType: string;
-		outputId: string;
-	}
-
 	export interface NotebookDocumentMetadataChangeEvent {
 		readonly document: NotebookDocument;
 	}
@@ -1269,17 +1262,6 @@ declare module 'vscode' {
 		 */
 		readonly document: NotebookDocument;
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
-	}
-
-	// todo@API stale?
-	export interface NotebookCellMoveEvent {
-
-		/**
-		 * The affected document.
-		 */
-		readonly document: NotebookDocument;
-		readonly index: number;
-		readonly newIndex: number;
 	}
 
 	export interface NotebookCellOutputsChangeEvent {
@@ -1414,17 +1396,20 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookCellOutput
 
+	/** @deprecated */
 	export enum CellOutputKind {
 		Text = 1,
 		Error = 2,
 		Rich = 3
 	}
 
+	/** @deprecated */
 	export interface CellStreamOutput {
 		outputKind: CellOutputKind.Text;
 		text: string;
 	}
 
+	/** @deprecated */
 	export interface CellErrorOutput {
 		outputKind: CellOutputKind.Error;
 		/**
@@ -1441,6 +1426,7 @@ declare module 'vscode' {
 		traceback: string[];
 	}
 
+	/** @deprecated */
 	export interface NotebookCellOutputMetadata {
 		/**
 		 * Additional attributes of a cell metadata.
@@ -1448,6 +1434,7 @@ declare module 'vscode' {
 		custom?: { [key: string]: any; };
 	}
 
+	/** @deprecated */
 	export interface CellDisplayOutput {
 		outputKind: CellOutputKind.Rich;
 		/**
@@ -1472,12 +1459,18 @@ declare module 'vscode' {
 		readonly metadata?: NotebookCellOutputMetadata;
 	}
 
+	/** @deprecated */
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
 	// code specific mime types
 	// application/x.notebook.error-traceback
 	// application/x.notebook.stream
 	export class NotebookCellOutputItem {
+
+		// todo@API
+		// add factory functions for common mime types
+		// static textplain(value:string): NotebookCellOutputItem;
+		// static errortrace(value:any): NotebookCellOutputItem;
 
 		readonly mime: string;
 		readonly value: unknown;
@@ -1500,6 +1493,8 @@ declare module 'vscode' {
 
 	export interface WorkspaceEdit {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
+
+		// todo@API use NotebookCellRange
 		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
