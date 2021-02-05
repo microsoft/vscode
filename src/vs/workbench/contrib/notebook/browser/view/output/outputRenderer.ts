@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 export class OutputRenderer {
 	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
 	protected readonly _renderers: IOutputTransformContribution[];
+	private _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
 		notebookEditor: ICommonNotebookEditor,
@@ -26,7 +27,9 @@ export class OutputRenderer {
 			try {
 				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
 				this._contributions[desc.id] = contribution;
-				this._renderers.push(contribution);
+				contribution.getMimetypes().forEach(mimetype => {
+					this._richMimeTypeRenderers.set(mimetype, contribution);
+				});
 			} catch (err) {
 				onUnexpectedError(err);
 			}
@@ -42,10 +45,33 @@ export class OutputRenderer {
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
-		const transform = this._renderers[0];
+		if (!viewModel.model.data) {
+			return this.renderNoop(viewModel, container);
+		}
 
-		if (transform) {
-			return transform.render(viewModel, container, preferredMimeType, notebookUri);
+		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
+			const contentNode = document.createElement('p');
+			const mimeTypes = [];
+			for (const property in viewModel.model.data) {
+				mimeTypes.push(property);
+			}
+
+			const mimeTypesMessage = mimeTypes.join(', ');
+
+			if (preferredMimeType) {
+				contentNode.innerText = `No renderer could be found for MIME type: ${preferredMimeType}`;
+			} else {
+				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
+			}
+
+			container.appendChild(contentNode);
+			return { type: RenderOutputType.None, hasDynamicHeight: false };
+		}
+
+		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
+
+		if (renderer) {
+			return renderer.render(viewModel, container, notebookUri);
 		} else {
 			return this.renderNoop(viewModel, container);
 		}

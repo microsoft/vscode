@@ -20,64 +20,24 @@ import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/vi
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ErrorTransform } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-class RichRenderer implements IOutputTransformContribution {
-	private _richMimeTypeRenderers = new Map<string, (output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement) => IRenderOutput>();
+class JSONRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['application/json'];
+	}
 
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ITextFileService readonly textFileService: ITextFileService,
 	) {
-		this._richMimeTypeRenderers.set('application/json', this.renderJSON.bind(this));
-		this._richMimeTypeRenderers.set('application/javascript', this.renderJavaScript.bind(this));
-		this._richMimeTypeRenderers.set('text/html', this.renderHTML.bind(this));
-		this._richMimeTypeRenderers.set('image/svg+xml', this.renderSVG.bind(this));
-		this._richMimeTypeRenderers.set('text/markdown', this.renderMarkdown.bind(this));
-		this._richMimeTypeRenderers.set('image/png', this.renderPNG.bind(this));
-		this._richMimeTypeRenderers.set('image/jpeg', this.renderJPEG.bind(this));
-		this._richMimeTypeRenderers.set('text/plain', this.renderPlainText.bind(this));
-		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
-		this._richMimeTypeRenderers.set('application/x.notebook.error-traceback', this._renderErrorTraceback.bind(this));
-		this._richMimeTypeRenderers.set('application/x.notebook.stream', this._renderStream.bind(this));
+		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
-		if (!output.model.data) {
-			const contentNode = document.createElement('p');
-			contentNode.innerText = `No data could be found for output.`;
-			container.appendChild(contentNode);
-			return { type: RenderOutputType.None, hasDynamicHeight: false };
-		}
-
-		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
-			const contentNode = document.createElement('p');
-			const mimeTypes = [];
-			for (const property in output.model.data) {
-				mimeTypes.push(property);
-			}
-
-			const mimeTypesMessage = mimeTypes.join(', ');
-
-			if (preferredMimeType) {
-				contentNode.innerText = `No renderer could be found for MIME type: ${preferredMimeType}`;
-			} else {
-				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
-			}
-
-			container.appendChild(contentNode);
-			return { type: RenderOutputType.None, hasDynamicHeight: false };
-		}
-
-		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
-		return renderer!(output, notebookUri, container);
-	}
-
-	renderJSON(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const data = output.model.data['application/json'];
 		const str = JSON.stringify(data, null, '\t');
 
@@ -109,8 +69,48 @@ class RichRenderer implements IOutputTransformContribution {
 
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
+}
 
-	renderCode(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+class JavaScriptRenderer extends Disposable implements IOutputTransformContribution {
+	getMimetypes() {
+		return ['application/javascript'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = output.model.data['application/javascript'];
+		const str = isArray(data) ? data.join('') : data;
+		const scriptVal = `<script type="application/javascript">${str}</script>`;
+		return {
+			type: RenderOutputType.Html,
+			source: output,
+			htmlContent: scriptVal,
+			hasDynamicHeight: false
+		};
+	}
+}
+
+class CodeRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['text/x-javascript'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IModelService private readonly modelService: IModelService,
+		@IModeService private readonly modeService: IModeService,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const data = output.model.data['text/x-javascript'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 
@@ -142,20 +142,91 @@ class RichRenderer implements IOutputTransformContribution {
 
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
+}
 
-	renderJavaScript(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.model.data['application/javascript'];
-		const str = isArray(data) ? data.join('') : data;
-		const scriptVal = `<script type="application/javascript">${str}</script>`;
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: scriptVal,
-			hasDynamicHeight: false
-		};
+class StreamRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['application/x.notebook.stream'];
 	}
 
-	renderHTML(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ITextFileService private readonly textFileService: ITextFileService
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = output.model.data['application/x.notebook.stream'] as any;
+		const text = (isArray(data) ? data.join('') : data) as string;
+		const contentNode = DOM.$('span.output-stream');
+		truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
+		container.appendChild(contentNode);
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
+	}
+}
+
+class ErrorRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['application/x.notebook.error-traceback'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IThemeService private readonly themeService: IThemeService
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = output.model.data['application/x.notebook.error-traceback'] as any;
+		ErrorTransform.render(data, container, this.themeService);
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
+	}
+}
+
+class PlainTextRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['text/plain'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ITextFileService private readonly textFileService: ITextFileService
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = output.model.data['text/plain'];
+		const contentNode = DOM.$('.output-plaintext');
+		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
+		container.appendChild(contentNode);
+
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
+	}
+}
+
+class HTMLRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['text/html'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const data = output.model.data['text/html'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -165,8 +236,21 @@ class RichRenderer implements IOutputTransformContribution {
 			hasDynamicHeight: false
 		};
 	}
+}
 
-	renderSVG(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+class SVGRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['image/svg+xml'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const data = output.model.data['image/svg+xml'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -176,8 +260,22 @@ class RichRenderer implements IOutputTransformContribution {
 			hasDynamicHeight: false
 		};
 	}
+}
 
-	renderMarkdown(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+class MdRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['text/markdown'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const data = output.model.data['text/markdown'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
@@ -187,8 +285,21 @@ class RichRenderer implements IOutputTransformContribution {
 
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
+}
 
-	renderPNG(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+class PNGRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['image/png'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const image = document.createElement('img');
 		image.src = `data:image/png;base64,${output.model.data['image/png']}`;
 		const display = document.createElement('div');
@@ -197,8 +308,21 @@ class RichRenderer implements IOutputTransformContribution {
 		container.appendChild(display);
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
+}
 
-	renderJPEG(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
+class JPEGRenderer extends Disposable implements IOutputTransformContribution {
+
+	getMimetypes() {
+		return ['image/jpeg'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const image = document.createElement('img');
 		image.src = `data:image/jpeg;base64,${output.model.data['image/jpeg']}`;
 		const display = document.createElement('div');
@@ -207,38 +331,19 @@ class RichRenderer implements IOutputTransformContribution {
 		container.appendChild(display);
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
-
-	renderPlainText(output: ICellOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.model.data['text/plain'];
-		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
-		container.appendChild(contentNode);
-
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
-	}
-
-	private _renderErrorTraceback(outputViewModel: ICellOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const output = outputViewModel.model.data['application/x.notebook.error-traceback'] as any;
-		ErrorTransform.render(output, container, this.themeService);
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
-	}
-
-	private _renderStream(outputViewModel: ICellOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = outputViewModel.model.data['application/x.notebook.stream'] as any;
-		const text = (isArray(data) ? data.join('') : data) as string;
-		const contentNode = DOM.$('span.output-stream');
-		truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
-		container.appendChild(contentNode);
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
-	}
-
-	dispose(): void {
-	}
 }
 
-
-NotebookRegistry.registerOutputTransform('notebook.output.rich', RichRenderer);
-
+NotebookRegistry.registerOutputTransform('json', JSONRenderer);
+NotebookRegistry.registerOutputTransform('javascript', JavaScriptRenderer);
+NotebookRegistry.registerOutputTransform('html', HTMLRenderer);
+NotebookRegistry.registerOutputTransform('svg', SVGRenderer);
+NotebookRegistry.registerOutputTransform('markdown', MdRenderer);
+NotebookRegistry.registerOutputTransform('png', PNGRenderer);
+NotebookRegistry.registerOutputTransform('jpeg', JPEGRenderer);
+NotebookRegistry.registerOutputTransform('plain', PlainTextRenderer);
+NotebookRegistry.registerOutputTransform('code', CodeRenderer);
+NotebookRegistry.registerOutputTransform('error-trace', ErrorRenderer);
+NotebookRegistry.registerOutputTransform('stream-text', StreamRenderer);
 
 export function getOutputSimpleEditorOptions(): IEditorOptions {
 	return {
