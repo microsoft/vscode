@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
-import { CellEditType, IMainCellDto, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IMainCellDto, IDisplayOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 
@@ -69,10 +69,10 @@ export class ExtHostCell extends Disposable {
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _onDidChangeOutputs = new Emitter<ISplice<IOutputDto>[]>();
-	readonly onDidChangeOutputs: Event<ISplice<IOutputDto>[]> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<ISplice<IDisplayOutputDto>[]>();
+	readonly onDidChangeOutputs: Event<ISplice<IDisplayOutputDto>[]> = this._onDidChangeOutputs.event;
 
-	private _outputs: IOutputDto[];
+	private _outputs: IDisplayOutputDto[];
 
 	private _metadata: vscode.NotebookCellMetadata;
 
@@ -135,7 +135,7 @@ export class ExtHostCell extends Disposable {
 		this._onDidDispose.fire();
 	}
 
-	setOutputs(newOutputs: IOutputDto[]): void {
+	setOutputs(newOutputs: IDisplayOutputDto[]): void {
 		this._outputs = newOutputs;
 	}
 
@@ -390,7 +390,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		});
 	}
 
-	private _setCellOutputs(index: number, outputs: IOutputDto[]): void {
+	private _setCellOutputs(index: number, outputs: IDisplayOutputDto[]): void {
 		const cell = this._cells[index];
 		cell.setOutputs(outputs);
 		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });

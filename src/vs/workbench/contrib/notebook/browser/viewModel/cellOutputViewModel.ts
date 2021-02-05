@@ -6,14 +6,14 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellOutputKind, IOrderedMimeType, IOutputDto, IDisplayOutputDto, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOrderedMimeType, IDisplayOutputDto, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 let handle = 0;
 export class CellOutputViewModel extends Disposable implements ICellOutputViewModel {
 	outputHandle = handle++;
 	get model(): IDisplayOutputDto {
-		return this._outputData;
+		return this._outputRawData;
 	}
 
 	private _pickedMimeType: number = -1;
@@ -25,47 +25,16 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 		this._pickedMimeType = value;
 	}
 
-	private _outputData: IDisplayOutputDto;
-
 	constructor(
 		readonly cellViewModel: IGenericCellViewModel,
-		private readonly _outputRawData: IOutputDto,
+		private readonly _outputRawData: IDisplayOutputDto,
 		private readonly _notebookService: INotebookService
 	) {
 		super();
-
-		// We convert every output to rich output
-		switch (this._outputRawData.outputKind) {
-			case CellOutputKind.Text:
-				this._outputData = {
-					outputKind: CellOutputKind.Rich,
-					data: {
-						'application/x.notebook.stream': this._outputRawData.text
-					},
-					outputId: this._outputRawData.outputId
-				};
-				break;
-			case CellOutputKind.Error:
-				this._outputData = {
-					outputKind: CellOutputKind.Rich,
-					data: {
-						'application/x.notebook.error-traceback': {
-							ename: this._outputRawData.ename,
-							evalue: this._outputRawData.evalue,
-							traceback: this._outputRawData.traceback
-						}
-					},
-					outputId: this._outputRawData.outputId
-				};
-				break;
-			default:
-				this._outputData = this._outputRawData;
-				break;
-		}
 	}
 
 	supportAppend() {
-		return this._outputRawData.outputKind === CellOutputKind.Text;
+		return !!this._outputRawData.data['application/x.notebook.stream'];
 	}
 
 	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number] {
@@ -79,24 +48,9 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	}
 
 	toRawJSON() {
-		switch (this._outputRawData.outputKind) {
-			case CellOutputKind.Text:
-				return {
-					outputKind: 'text',
-					text: this._outputRawData.text
-				};
-			case CellOutputKind.Error:
-				return {
-					outputKind: 'error',
-					ename: this._outputRawData.ename,
-					evalue: this._outputRawData.evalue,
-					traceback: this._outputRawData.traceback
-				};
-			case CellOutputKind.Rich:
-				return {
-					data: this._outputRawData.data,
-					metadata: this._outputRawData.metadata
-				};
-		}
+		return {
+			data: this._outputRawData.data,
+			metadata: this._outputRawData.metadata
+		};
 	}
 }

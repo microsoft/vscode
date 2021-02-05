@@ -164,37 +164,12 @@ export interface IDisplayOutputDto {
 	outputId: string;
 }
 
-export interface IStreamOutputDto {
-	outputKind: CellOutputKind.Text;
-	text: string;
-	outputId: string;
-}
-
-export interface IErrorOutputDto {
-	outputKind: CellOutputKind.Error;
-	/**
-	 * Exception Name
-	 */
-	ename: string;
-	/**
-	 * Exception Value
-	 */
-	evalue: string;
-	/**
-	 * Exception call stacks
-	 */
-	traceback: string[];
-	outputId: string;
-}
-
-export type IOutputDto = IDisplayOutputDto | IStreamOutputDto | IErrorOutputDto;
-
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutputDto[];
+	outputs: IDisplayOutputDto[];
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
@@ -228,7 +203,7 @@ export type NotebookCellTextModelSplice<T> = [
 export type NotebookCellOutputsSplice = [
 	start: number /* start */,
 	deleteCount: number /* delete count */,
-	newOutputs: IOutputDto[]
+	newOutputs: IDisplayOutputDto[]
 ];
 
 export interface IMainCellDto {
@@ -238,7 +213,7 @@ export interface IMainCellDto {
 	eol: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutputDto[];
+	outputs: IDisplayOutputDto[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -287,7 +262,7 @@ export interface NotebookCellsModelMoveEvent<T> {
 export interface NotebookOutputChangedEvent {
 	readonly kind: NotebookCellsChangeType.Output;
 	readonly index: number;
-	readonly outputs: IOutputDto[];
+	readonly outputs: IDisplayOutputDto[];
 }
 
 export interface NotebookCellsChangeLanguageEvent {
@@ -342,7 +317,7 @@ export interface ICellDto2 {
 	source: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutputDto[];
+	outputs: IDisplayOutputDto[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -356,7 +331,7 @@ export interface ICellReplaceEdit {
 export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
-	outputs: IOutputDto[];
+	outputs: IDisplayOutputDto[];
 	append?: boolean
 }
 
