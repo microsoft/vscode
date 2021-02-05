@@ -187,16 +187,8 @@ export interface ITransformedDisplayOutputDto extends IDisplayOutput {
 	outputId: string;
 }
 
-export interface ITransformedStreamOutputDto extends IStreamOutput {
-	outputId: string;
-}
-
-export interface ITransformedErrorOutputDto extends IErrorOutput {
-	outputId: string;
-}
-
 export type IOutputDto = IDisplayOutput | IStreamOutput | IErrorOutput;
-export type IOutputDtoWithId = ITransformedDisplayOutputDto | ITransformedStreamOutputDto | ITransformedErrorOutputDto;
+export type IOutputDtoWithId = ITransformedDisplayOutputDto;
 
 export interface IOutputRenderRequestOutputInfo {
 	index: number;
