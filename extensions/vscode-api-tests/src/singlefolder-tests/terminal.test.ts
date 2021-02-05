@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions, Terminal } from 'vscode';
-import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
+import { doesNotThrow, equal, deepEqual, throws } from 'assert';
 import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
@@ -39,7 +39,11 @@ import { assertNoRpc } from '../utils';
 		test('sendText immediately after createTerminal should not throw', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(r));
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
 			});
 			equal(result, terminal);
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
@@ -101,7 +105,11 @@ import { assertNoRpc } from '../utils';
 		test('onDidCloseTerminal event fires when terminal is disposed', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(r));
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
 			});
 			equal(result, terminal);
 			await new Promise<void>(r => {
@@ -120,12 +128,12 @@ import { assertNoRpc } from '../utils';
 				disposables.push(window.onDidOpenTerminal(t => {
 					if (t === terminal) {
 						r(t);
-						t.processId.then(id => id && id > 0);
 					}
 				}));
 			});
 			equal(result, terminal);
-
+			let pid = await result.processId;
+			equal(true, pid && pid > 0);
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
@@ -142,7 +150,6 @@ import { assertNoRpc } from '../utils';
 				disposables.push(window.onDidOpenTerminal(t => {
 					if (t === terminal) {
 						r(t);
-						equal(t.name, 'a');
 					}
 				}));
 			});
@@ -168,8 +175,6 @@ import { assertNoRpc } from '../utils';
 				disposables.push(window.onDidOpenTerminal(t => {
 					if (t === terminal) {
 						r(t);
-						equal(t.name, terminalOptions.name);
-						equal(t.hide, terminalOptions.hideFromUser);
 					}
 				}));
 			});
@@ -182,17 +187,19 @@ import { assertNoRpc } from '../utils';
 				}));
 				terminal.dispose();
 			});
-
 			throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 		});
 
 		test('onDidOpenTerminal should fire when a terminal is created', async () => {
 			const terminal = window.createTerminal('b');
 			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(r));
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
 			});
 			equal(result, terminal);
-
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
@@ -206,15 +213,18 @@ import { assertNoRpc } from '../utils';
 		test('exitStatus.code should be set to undefined after a terminal is disposed', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
-				disposables.push(window.onDidOpenTerminal(r));
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
 			});
 			equal(result, terminal);
-
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
-						r();
 						deepEqual(t.exitStatus, { code: undefined });
+						r();
 					}
 				}));
 				terminal.dispose();
@@ -292,23 +302,25 @@ import { assertNoRpc } from '../utils';
 		// });
 
 		suite('hideFromUser', () => {
-			test('should be available to terminals API', done => {
+			test('should be available to terminals API', async () => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-				disposables.push(window.onDidOpenTerminal(t => {
-					try {
-						equal(t, terminal);
-						equal(t.name, 'bg');
-						ok(window.terminals.indexOf(terminal) !== -1);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					disposables.push(window.onDidCloseTerminal(() => {
-						// reg3.dispose();
-						done();
+				const result = await new Promise<Terminal>(r => {
+					disposables.push(window.onDidOpenTerminal(t => {
+						if (t === terminal) {
+							r(t);
+						}
+					}));
+				});
+				equal(result, terminal);
+				equal(true, window.terminals.indexOf(terminal) !== -1);
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(t => {
+						if (t === terminal) {
+							r();
+						}
 					}));
 					terminal.dispose();
-				}));
+				});
 			});
 		});
 
