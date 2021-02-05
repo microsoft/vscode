@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
@@ -243,7 +244,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				const untitledModel = model.object;
 				const untitledFileValue = untitledModel.textEditorModel.getValue();
 				model.dispose();
-				return Buffer.from(untitledFileValue);
+				return VSBuffer.fromString(untitledFileValue).buffer;
 			}
 			return;
 		});
