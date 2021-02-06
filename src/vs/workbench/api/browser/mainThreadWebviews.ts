@@ -15,6 +15,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { serializeMessage } from 'vs/workbench/api/common/extHostWebview';
+import { deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
@@ -62,23 +63,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 	public async $postMessage(handle: extHostProtocol.WebviewHandle, jsonMessage: string, ...buffers: VSBuffer[]): Promise<boolean> {
 		const webview = this.getWebview(handle);
-
-		const arrayBuffers: ArrayBuffer[] = buffers.map(buffer => {
-			const arrayBuffer = new ArrayBuffer(buffer.byteLength);
-			const uint8Array = new Uint8Array(arrayBuffer);
-			uint8Array.set(buffer.buffer);
-			return arrayBuffer;
-		});
-
-		const reviver = !buffers.length ? undefined : (_key: string, value: any) => {
-			if (typeof value === 'object' && (value as extHostProtocol.WebviewMessageArrayBufferReference).$$vscode_array_buffer_reference$$) {
-				const { index } = value;
-				return arrayBuffers[index];
-			}
-			return value;
-		};
-
-		const message = JSON.parse(jsonMessage, reviver);
+		const { message, arrayBuffers } = deserializeWebviewMessage(jsonMessage, buffers);
 		webview.postMessage(message, arrayBuffers);
 		return true;
 	}

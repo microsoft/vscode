@@ -10,6 +10,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import type * as vscode from 'vscode';
@@ -186,23 +187,8 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 	): void {
 		const webview = this.getWebview(handle);
 		if (webview) {
-			const arrayBuffers: ArrayBuffer[] = buffers.map(buffer => {
-				const newBuffer = new ArrayBuffer(buffer.byteLength);
-				const uint8buffer = new Uint8Array(newBuffer);
-				uint8buffer.set(buffer.buffer);
-				return newBuffer;
-			});
-
-			const reviver = !buffers.length ? undefined : (_key: string, value: any) => {
-				if (typeof value === 'object' && (value as extHostProtocol.WebviewMessageArrayBufferReference).$$vscode_array_buffer_reference$$) {
-					const { index } = (value as extHostProtocol.WebviewMessageArrayBufferReference);
-					return arrayBuffers[index];
-				}
-				return value;
-			};
-
-			const revivedMessage = JSON.parse(jsonMessage, reviver);
-			webview._onMessageEmitter.fire(revivedMessage);
+			const { message } = deserializeWebviewMessage(jsonMessage, buffers);
+			webview._onMessageEmitter.fire(message);
 		}
 	}
 

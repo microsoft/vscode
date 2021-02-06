@@ -671,10 +671,33 @@ export interface CustomTextEditorCapabilities {
 	readonly supportsMove?: boolean;
 }
 
+export const enum WebviewMessageArrayBufferViewType {
+	Int8Array = 1,
+	Uint8Array = 2,
+	Uint8ClampedArray = 3,
+	Int16Array = 4,
+	Uint16Array = 5,
+	Int32Array = 6,
+	Uint32Array = 7,
+	Float32Array = 8,
+	Float64Array = 9,
+	BigInt64Array = 10,
+	BigUint64Array = 11,
+}
+
 export interface WebviewMessageArrayBufferReference {
 	readonly $$vscode_array_buffer_reference$$: true,
 
 	readonly index: number;
+
+	/**
+	 * Tracks if the reference is to a view instead of directly to an ArrayBuffer.
+	 */
+	readonly view?: {
+		readonly type: WebviewMessageArrayBufferViewType;
+		readonly byteLength: number;
+		readonly byteOffset: number;
+	};
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
