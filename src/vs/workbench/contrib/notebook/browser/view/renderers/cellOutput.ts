@@ -55,6 +55,10 @@ export class CellOutputElement extends Disposable {
 		readonly output: ICellOutputViewModel
 	) {
 		super();
+
+		this._register(this.output.model.onDidChangeData(() => {
+			this.updateOutputRendering();
+		}));
 	}
 
 	detach() {
@@ -65,6 +69,22 @@ export class CellOutputElement extends Disposable {
 		if (this.useDedicatedDOM) {
 			this.domNode.style.top = `${top}px`;
 		}
+	}
+
+	updateOutputRendering() {
+		// user chooses another mimetype
+		const index = this.viewCell.outputsViewModels.indexOf(this.output);
+		const nextElement = this.domNode.nextElementSibling;
+		this.resizeListener.clear();
+		const element = this.domNode;
+		if (element) {
+			element.parentElement?.removeChild(element);
+			this.notebookEditor.removeInset(this.output);
+		}
+
+		// this.output.pickedMimeType = pick;
+		this.render(index, nextElement as HTMLElement);
+		this.relayoutCell();
 	}
 
 

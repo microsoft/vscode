@@ -157,12 +157,21 @@ export interface IOutputDto {
 	outputId: string;
 }
 
+export interface ICellOutput {
+	data: { [key: string]: unknown; }
+	metadata?: NotebookCellOutputMetadata;
+	outputId: string;
+	onDidChangeData: Event<void>;
+	replaceData(data: { [key: string]: unknown; }): void;
+	appendData(data: { [key: string]: unknown; }): void;
+}
+
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutputDto[];
+	outputs: ICellOutput[];
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
@@ -196,7 +205,7 @@ export type NotebookCellTextModelSplice<T> = [
 export type NotebookCellOutputsSplice = [
 	start: number /* start */,
 	deleteCount: number /* delete count */,
-	newOutputs: IOutputDto[]
+	newOutputs: ICellOutput[]
 ];
 
 export interface IMainCellDto {

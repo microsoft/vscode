@@ -596,7 +596,8 @@ export namespace WorkspaceEdit {
 							editType: CellEditType.OutputItems,
 							index: entry.index,
 							outputId: entry.outputId,
-							data: entry.newOutputItems ? entry.newOutputItems.reduce((a, x) => ({ ...a, [x.mime]: x.value }), {}) : []
+							data: entry.newOutputItems ? entry.newOutputItems.reduce((a, x) => ({ ...a, [x.mime]: x.value }), {}) : [],
+							append: entry.append
 						}
 					});
 				}

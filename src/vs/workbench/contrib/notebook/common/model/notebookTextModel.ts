@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
@@ -15,6 +15,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
+import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 
 export class NotebookTextModelSnapshot implements ITextSnapshot {
 
@@ -340,9 +341,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._assertIndex(edit.index);
 					const cell = this._cells[edit.index];
 					if (edit.append) {
-						this._spliceNotebookCellOutputs(cell.handle, [[cell.outputs.length, 0, edit.outputs]], computeUndoRedo);
+						this._spliceNotebookCellOutputs(cell.handle, [[cell.outputs.length, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
 					} else {
-						this._spliceNotebookCellOutputs2(cell.handle, edit.outputs, computeUndoRedo);
+						this._spliceNotebookCellOutputs2(cell.handle, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
 					}
 					break;
 				case CellEditType.OutputItems:
@@ -660,7 +661,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }, true);
 	}
 
-	private _spliceNotebookCellOutputs2(cellHandle: number, outputs: IOutputDto[], computeUndoRedo: boolean): void {
+	private _spliceNotebookCellOutputs2(cellHandle: number, outputs: ICellOutput[], computeUndoRedo: boolean): void {
 		const cell = this._mapping.get(cellHandle);
 		if (!cell) {
 			return;
@@ -699,8 +700,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		const output = cell.outputs[outputIndex];
-		output.data = data;
-		cell.spliceNotebookCellOutputs([[outputIndex, 1, [output]]]);
+		output.appendData(data);
 	}
 
 	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, data: { [key: string]: any }) {
@@ -716,8 +716,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		const output = cell.outputs[outputIndex];
-		output.data = data;
-		cell.spliceNotebookCellOutputs([[outputIndex, 1, [output]]]);
+		output.replaceData(data);
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
