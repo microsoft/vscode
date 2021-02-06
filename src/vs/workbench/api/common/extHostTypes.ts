@@ -588,6 +588,7 @@ export const enum FileEditType {
 	Cell = 3,
 	CellOutput = 4,
 	CellReplace = 5,
+	CellOutputItem = 6
 }
 
 export interface IFileOperation {
@@ -632,8 +633,18 @@ export interface ICellOutputEdit {
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
+export interface ICellOutputItemsEdit {
+	_type: FileEditType.CellOutputItem;
+	uri: URI;
+	index: number;
+	outputId: string;
+	append: boolean;
+	newOutputItems?: NotebookCellOutputItem[];
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
 
-type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit | ICellOutputEdit;
+
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit | ICellOutputEdit | ICellOutputItemsEdit;
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
@@ -677,6 +688,18 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	appendNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._editNotebookCellOutput(uri, index, true, outputs, metadata);
+	}
+
+	replaceNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._editNotebookCellOutputItems(uri, index, outputId, false, items, metadata);
+	}
+
+	appendNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._editNotebookCellOutputItems(uri, index, outputId, true, items, metadata);
+	}
+
+	private _editNotebookCellOutputItems(uri: URI, index: number, id: string, append: boolean, items: vscode.NotebookCellOutputItem[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
+		this._edits.push({ _type: FileEditType.CellOutputItem, metadata, uri, index, outputId: id, append, newOutputItems: items });
 	}
 
 	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {

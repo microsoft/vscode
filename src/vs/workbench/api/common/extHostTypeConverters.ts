@@ -587,6 +587,18 @@ export namespace WorkspaceEdit {
 							cells: entry.cells.map(NotebookCellData.from)
 						}
 					});
+				} else if (entry._type === types.FileEditType.CellOutputItem) {
+					result.edits.push({
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
+						resource: entry.uri,
+						edit: {
+							editType: CellEditType.OutputItems,
+							index: entry.index,
+							outputId: entry.outputId,
+							data: entry.newOutputItems ? entry.newOutputItems.reduce((a, x) => ({ ...a, [x.mime]: x.value }), {}) : []
+						}
+					});
 				}
 			}
 		}

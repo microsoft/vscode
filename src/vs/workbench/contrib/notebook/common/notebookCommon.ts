@@ -303,7 +303,8 @@ export const enum CellEditType {
 	OutputsSplice = 6,
 	Move = 7,
 	Unknown = 8,
-	CellContent = 9
+	CellContent = 9,
+	OutputItems = 10
 }
 
 export interface ICellDto2 {
@@ -326,6 +327,14 @@ export interface ICellOutputEdit {
 	index: number;
 	outputs: IOutputDto[];
 	append?: boolean
+}
+
+export interface ICellOutputItemEdit {
+	editType: CellEditType.OutputItems;
+	index: number;
+	outputId: string;
+	data: { [key: string]: unknown; }
+	append?: boolean;
 }
 
 export interface ICellMetadataEdit {
@@ -359,7 +368,7 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | ICellOutputItemEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;

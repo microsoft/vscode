@@ -345,6 +345,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						this._spliceNotebookCellOutputs2(cell.handle, edit.outputs, computeUndoRedo);
 					}
 					break;
+				case CellEditType.OutputItems:
+					{
+						this._assertIndex(edit.index);
+						const cell = this._cells[edit.index];
+						if (edit.append) {
+							this._appendNotebookCellOutputItems(cell.handle, edit.outputId, edit.data);
+						} else {
+							this._replaceNotebookCellOutputItems(cell.handle, edit.outputId, edit.data);
+						}
+					}
+					break;
 				case CellEditType.OutputsSplice:
 					{
 						//TODO@jrieken,@rebornix no event, no undo stop (?)
@@ -673,6 +684,40 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				transient: this.transientOptions.transientOutputs,
 			}, true);
 		}
+	}
+
+	private _appendNotebookCellOutputItems(cellHandle: number, outputId: string, data: { [key: string]: any }) {
+		const cell = this._mapping.get(cellHandle);
+		if (!cell) {
+			return;
+		}
+
+		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return;
+		}
+
+		const output = cell.outputs[outputIndex];
+		output.data = data;
+		cell.spliceNotebookCellOutputs([[outputIndex, 1, [output]]]);
+	}
+
+	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, data: { [key: string]: any }) {
+		const cell = this._mapping.get(cellHandle);
+		if (!cell) {
+			return;
+		}
+
+		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return;
+		}
+
+		const output = cell.outputs[outputIndex];
+		output.data = data;
+		cell.spliceNotebookCellOutputs([[outputIndex, 1, [output]]]);
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {

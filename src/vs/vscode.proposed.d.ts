@@ -1502,8 +1502,8 @@ declare module 'vscode' {
 
 		// TODO@api
 		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
-		// replaceNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
-		// appendNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
