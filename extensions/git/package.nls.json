@@ -25,6 +25,7 @@
 	"command.unstage": "Unstage Changes",
 	"command.unstageAll": "Unstage All Changes",
 	"command.unstageSelectedRanges": "Unstage Selected Ranges",
+	"command.unstageSelectedHunk": "Unstage Selected Hunk",
 	"command.rename": "Rename",
 	"command.clean": "Discard Changes",
 	"command.cleanAll": "Discard All Changes",

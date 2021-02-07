@@ -168,6 +168,11 @@
         "category": "Git"
       },
       {
+        "command": "git.unstageSelectedHunk",
+        "title": "%command.unstageSelectedHunk%",
+        "category": "Git"
+      },
+      {
         "command": "git.clean",
         "title": "%command.clean%",
         "category": "Git",
@@ -622,6 +627,10 @@
         },
         {
           "command": "git.unstageSelectedRanges",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.unstageSelectedHunk",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1327,6 +1336,11 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
+          "command": "git.unstageSelectedHunk",
+          "group": "2_git@2",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
@@ -1345,6 +1359,11 @@
         },
         {
           "command": "git.unstageSelectedRanges",
+          "group": "2_git@2",
+          "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.unstageSelectedHunk",
           "group": "2_git@2",
           "when": "isInDiffRightEditor && !isInEmbeddedDiffEditor && config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
