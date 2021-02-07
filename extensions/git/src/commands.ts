@@ -1014,6 +1014,29 @@ export class CommandCenter {
 		await this._stageChanges(textEditor, selectedChanges);
 	}
 
+	@command('git.stageSelectedHunk', { diff: true })
+	async stageSelectedHunk(changes: LineChange[]): Promise<void> {
+		const textEditor = window.activeTextEditor;
+
+		if (!textEditor) {
+			return;
+		}
+
+		const modifiedDocument = textEditor.document;
+		const selections = textEditor.selections;
+		const selectedChanges = changes.filter(change => {
+			const modifiedRange = getModifiedRange(modifiedDocument, change);
+			return selections.every(selection => selection.intersection(modifiedRange));
+		});
+
+		if (!selectedChanges.length) {
+			this.outputChannel.appendLine('Cannot stage hunk. No hunk selected.');
+			return;
+		}
+
+		await this._stageChanges(textEditor, selectedChanges);
+	}
+
 	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
