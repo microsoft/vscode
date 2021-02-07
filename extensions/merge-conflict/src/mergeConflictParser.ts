@@ -8,7 +8,7 @@ import { DocumentMergeConflict } from './documentMergeConflict';
 
 const startHeaderMarker = '<<<<<<<';
 const commonAncestorsMarker = '|||||||';
-const splitterMarkerRegex = '^=======$';
+const splitterMarker = '=======';
 const endFooterMarker = '>>>>>>>';
 
 interface IScanMergedConflict {
@@ -58,7 +58,7 @@ export class MergeConflictParser {
 				currentConflict.commonAncestors.push(line);
 			}
 			// Are we within a conflict block and is this a splitter? =======
-			else if (currentConflict && !currentConflict.splitter && line.text.match(splitterMarkerRegex)) {
+			else if (currentConflict && !currentConflict.splitter && line.text.startsWith(splitterMarker)) {
 				currentConflict.splitter = line;
 			}
 			// Are we within a conflict block and is this a footer? >>>>>>>
