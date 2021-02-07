@@ -19,7 +19,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { Schemas } from 'vs/base/common/network';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
@@ -51,6 +51,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { LoggerService } from 'vs/workbench/services/log/electron-sandbox/loggerService';
 
 class DesktopMain extends Disposable {
 
@@ -163,8 +164,12 @@ class DesktopMain extends Disposable {
 		// Product
 		serviceCollection.set(IProductService, this.productService);
 
+		// Logger
+		const loggerService = new LoggerService(mainProcessService);
+		serviceCollection.set(ILoggerService, loggerService);
+
 		// Log
-		const logService = this._register(new NativeLogService(mainProcessService, this.environmentService));
+		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, loggerService, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote

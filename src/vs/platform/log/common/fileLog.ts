@@ -174,7 +174,7 @@ export class FileLoggerService extends Disposable implements ILoggerService {
 		this._register(logService.onDidChangeLogLevel(level => this.loggers.forEach(logger => logger.setLevel(level))));
 	}
 
-	getLogger(resource: URI): ILogger {
+	createLogger(resource: URI): ILogger {
 		let logger = this.loggers.get(resource.toString());
 		if (!logger) {
 			logger = new BufferLogService(this.logService.getLevel());

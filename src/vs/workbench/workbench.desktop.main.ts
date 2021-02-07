@@ -111,7 +111,7 @@ registerSingleton(ISharedProcessService, SharedProcessService, true);
 //#region --- workbench contributions
 
 // Output
-import 'vs/workbench/contrib/output/electron-browser/outputChannelModelService';
+import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
 
 // Tags
 import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';

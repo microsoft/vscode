@@ -8,7 +8,6 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
@@ -53,10 +52,36 @@ export interface ILogService extends ILogger {
 	readonly _serviceBrand: undefined;
 }
 
+export interface ILoggerOptions {
+
+	/**
+	 * Name of the logger.
+	 */
+	name?: string;
+
+	/**
+	 * Do not create rotating files if max size exceeds.
+	 */
+	donotRotate?: boolean;
+
+	/**
+	 * Do not use formatters.
+	 */
+	donotUseFormatters?: boolean;
+
+	/**
+	 * If set, logger logs the message always.
+	 */
+	always?: boolean;
+}
+
 export interface ILoggerService {
 	readonly _serviceBrand: undefined;
 
-	getLogger(file: URI): ILogger;
+	/**
+	 * Creates a logger
+	 */
+	createLogger(file: URI, options?: ILoggerOptions): ILogger;
 }
 
 export abstract class AbstractLogger extends Disposable {
@@ -336,13 +361,6 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 
 	flush(): void {
 		// noop
-	}
-}
-
-export class ConsoleLogInMainService extends AdapterLogger implements ILogger {
-
-	constructor(client: LoggerChannelClient, logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super({ log: (type, args) => client.consoleLog(type, args) }, logLevel);
 	}
 }
 

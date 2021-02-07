@@ -13,9 +13,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IOutputChannelModel, AbstractFileOutputChannelModel, IOutputChannelModelService, AbstractOutputChannelModelService, BufferredOutputChannel } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalISOString } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -25,7 +24,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
-	private appender: OutputAppender;
+	private logger: ILogger;
 	private appendedMessage: string;
 	private loadingFromFileInProgress: boolean;
 	private resettingDelayer: ThrottledDelayer<void>;
@@ -39,14 +38,14 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService
+		@ILoggerService loggerService: ILoggerService
 	) {
 		super(modelUri, mimeType, file, fileService, modelService, modeService);
 		this.appendedMessage = '';
 		this.loadingFromFileInProgress = false;
 
-		// Use one rotating file to check for main file reset
-		this.appender = new OutputAppender(id, this.file.fsPath);
+		// Donot rotate to check for the file reset
+		this.logger = loggerService.createLogger(this.file, { always: true, donotRotate: true, donotUseFormatters: true });
 
 		const rotatingFilePathDirectory = resources.dirname(this.file);
 		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
@@ -130,11 +129,11 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 	}
 
 	private write(content: string): void {
-		this.appender.append(content);
+		this.logger.info(content);
 	}
 
 	private flush(): void {
-		this.appender.flush();
+		this.logger.flush();
 	}
 }
 
@@ -155,6 +154,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 		outputDir: Promise<URI>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@IFileService private readonly fileService: IFileService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -166,6 +166,8 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 		try {
 			const outputDir = await outputDirPromise;
 			const file = resources.joinPath(outputDir, `${id}.log`);
+			// Make sure file exists before creating the channel
+			await this.fileService.createFile(file);
 			outputChannelModel = this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file);
 		} catch (e) {
 			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/microsoft/vscode/issues/47883)

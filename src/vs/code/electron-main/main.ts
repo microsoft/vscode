@@ -49,7 +49,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
 import { isNumber } from 'vs/base/common/types';
 import { rtrim, trim } from 'vs/base/common/strings';
-import { basename, resolve } from 'vs/base/common/path';
+import { basename, join, resolve } from 'vs/base/common/path';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -134,7 +134,7 @@ class CodeMain {
 
 				const mainIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, true);
 
-				bufferLogService.logger = new SpdLogLogger('main', environmentService.logsPath, bufferLogService.getLevel());
+				bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, 'main.log'), true, bufferLogService.getLevel());
 				once(lifecycleMainService.onWillShutdown)(() => {
 					fileService.dispose();
 					(configurationService as ConfigurationService).dispose();

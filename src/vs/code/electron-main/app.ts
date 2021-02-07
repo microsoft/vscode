@@ -45,7 +45,7 @@ import { Win32UpdateService } from 'vs/platform/update/electron-main/updateServi
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IssueMainService, IIssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { LoggerChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
@@ -660,9 +660,12 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
-		const loggerChannel = new LoggerChannel(accessor.get(ILogService), accessor.get(ILoggerService));
+		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
+		electronIpcServer.registerChannel('logLevel', logLevelChannel);
+		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
+
+		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
 		electronIpcServer.registerChannel('logger', loggerChannel);
-		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		fileProtocolHandler.injectWindowsMainService(windowsMainService);
