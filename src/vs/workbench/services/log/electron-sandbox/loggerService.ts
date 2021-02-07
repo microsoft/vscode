@@ -39,7 +39,7 @@ class Logger extends AbstractMessageLogger {
 		private readonly file?: URI,
 		loggerOptions?: ILoggerOptions,
 	) {
-		super();
+		super(loggerOptions?.always);
 		(this.file ? this.channel.call('createLogger', [file, loggerOptions]) : this.channel.call('createConsoleMainLogger', [file, loggerOptions]))
 			.then(() => {
 				this._log(this.buffer);

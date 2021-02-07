@@ -107,32 +107,40 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 
 	protected abstract log(level: LogLevel, message: string): void;
 
+	constructor(private readonly logAlways?: boolean) {
+		super();
+	}
+
+	private checkLogLevel(level: LogLevel): boolean {
+		return this.logAlways || this.getLevel() <= level;
+	}
+
 	trace(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
+		if (this.checkLogLevel(LogLevel.Trace)) {
 			this.log(LogLevel.Trace, this.format([message, ...args]));
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
+		if (this.checkLogLevel(LogLevel.Debug)) {
 			this.log(LogLevel.Debug, this.format([message, ...args]));
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
+		if (this.checkLogLevel(LogLevel.Info)) {
 			this.log(LogLevel.Info, this.format([message, ...args]));
 		}
 	}
 
 	warn(message: string, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
+		if (this.checkLogLevel(LogLevel.Warning)) {
 			this.log(LogLevel.Warning, this.format([message, ...args]));
 		}
 	}
 
 	error(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
+		if (this.checkLogLevel(LogLevel.Error)) {
 
 			if (message instanceof Error) {
 				const array = Array.prototype.slice.call(arguments) as any[];
@@ -145,7 +153,7 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 	}
 
 	critical(message: string | Error, ...args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
+		if (this.checkLogLevel(LogLevel.Critical)) {
 			this.log(LogLevel.Critical, this.format([message, ...args]));
 		}
 	}
