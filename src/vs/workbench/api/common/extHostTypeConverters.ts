@@ -1371,6 +1371,14 @@ export namespace NotebookCellOutput {
 			metadata: isEmptyObject(custom) ? undefined : { custom }
 		};
 	}
+
+	export function to(output: IOutputDto): vscode.NotebookCellOutput {
+		const items: types.NotebookCellOutputItem[] = [];
+		for (const key in output.data) {
+			items.push(new types.NotebookCellOutputItem(key, output.data[key], output.metadata?.custom ? output.metadata?.custom[key] : undefined));
+		}
+		return new types.NotebookCellOutput(items, output.outputId);
+	}
 }
 
 

@@ -2888,14 +2888,6 @@ export class NotebookCellOutput {
 		}
 	}
 
-	static _fromDto(output: IOutputDto, id?: string) {
-		const items: NotebookCellOutputItem[] = [];
-		for (const key in output.data) {
-			items.push(new NotebookCellOutputItem(key, output.data[key], output.metadata?.custom ? output.metadata?.custom[key] : undefined));
-		}
-		return new NotebookCellOutput(items, id);
-	}
-
 	static _fromOld(output: vscode.CellOutput, id?: string): NotebookCellOutput {
 		switch (output.outputKind) {
 			case CellOutputKind.Error:
