@@ -149,13 +149,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
 			canToggleVisibility: false,
-			openCommandActionDescriptor: {
-				id: VIEW_CONTAINER.id,
-				title: localize('explore', "Explorer"),
-				mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
-				keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E },
-				order: 0
-			},
 			focusCommand: {
 				id: 'workbench.explorer.fileView.focus'
 			}
@@ -283,7 +276,14 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	icon: explorerViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 0,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true, isDefault: true });
+	openCommandActionDescriptor: {
+		id: VIEWLET_ID,
+		title: localize('explore', "Explorer"),
+		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E },
+		order: 0
+	},
+}, ViewContainerLocation.Sidebar, { isDefault: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {

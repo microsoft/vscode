@@ -324,8 +324,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			Object.keys(accessRequests).forEach(extensionId => {
 				this.removeAccessRequest(id, extensionId);
 			});
-
-			this.updateBadgeCount();
 		}
 
 		if (!this._authenticationProviders.size) {
@@ -424,6 +422,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (providerRequests[extensionId]) {
 			providerRequests[extensionId].disposables.forEach(d => d.dispose());
 			delete providerRequests[extensionId];
+			this.updateBadgeCount();
 		}
 	}
 
@@ -457,9 +456,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (allow) {
 			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-			this.removeAccessRequest(providerId, extensionId);
 		}
 
+		this.removeAccessRequest(providerId, extensionId);
 		return allow;
 	}
 
@@ -505,9 +504,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				if (!allowList.find(allowed => allowed.id === extensionId)) {
 					allowList.push({ id: extensionId, name: extensionName });
 					this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-					this.removeAccessRequest(providerId, extensionId);
 				}
 
+				this.removeAccessRequest(providerId, extensionId);
 				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 				quickPick.dispose();

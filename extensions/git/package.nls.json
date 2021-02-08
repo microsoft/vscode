@@ -198,6 +198,7 @@
 	"colors.stageModified": "Color for modified resources which have been staged.",
 	"colors.stageDeleted": "Color for deleted resources which have been staged.",
 	"colors.deleted": "Color for deleted resources.",
+	"colors.renamed": "Color for renamed or copied resources.",
 	"colors.untracked": "Color for untracked resources.",
 	"colors.ignored": "Color for ignored resources.",
 	"colors.conflict": "Color for resources with conflicts.",

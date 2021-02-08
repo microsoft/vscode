@@ -1770,43 +1770,25 @@ export class SCMViewPane extends ViewPane {
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
 
-	private scmService: ISCMService;
-	private scmViewService: ISCMViewService;
-	private storageService: IStorageService;
-	private commandService: ICommandService;
-	private editorService: IEditorService;
-	private menuService: IMenuService;
-
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMService scmService: ISCMService,
-		@ISCMViewService scmViewService: ISCMViewService,
+		@ISCMService private scmService: ISCMService,
+		@ISCMViewService private scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ICommandService commandService: ICommandService,
-		@IEditorService editorService: IEditorService,
-		@IInstantiationService _instantiationService: IInstantiationService,
+		@ICommandService private commandService: ICommandService,
+		@IEditorService private editorService: IEditorService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IStorageService storageService: IStorageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService private menuService: IMenuService,
+		@IStorageService private storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		const contextKeyService = _contextKeyService.createScoped();
-		const services = new ServiceCollection([IContextKeyService, contextKeyService]);
-		const instantiationService = _instantiationService.createChild(services);
-
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-
-		this.scmService = scmService;
-		this.scmViewService = scmViewService;
-		this.storageService = storageService;
-		this.commandService = commandService;
-		this.editorService = editorService;
-		this.menuService = menuService;
 
 		this._onDidLayout = new Emitter<void>();
 		this.layoutCache = {
@@ -1816,7 +1798,6 @@ export class SCMViewPane extends ViewPane {
 		};
 
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
-		// this._register(this.scmViewService.menus.titleMenu.onDidChangeTitle(this.updateActions, this));
 	}
 
 	protected renderBody(container: HTMLElement): void {

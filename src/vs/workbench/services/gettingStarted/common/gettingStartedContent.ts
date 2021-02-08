@@ -23,7 +23,7 @@ type GettingStartedItem = {
 	| { title: string, command: string, link?: never },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
-	media: { type: 'image', path: string, altText: string },
+	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
 };
 
 type GettingStartedCategory = {
@@ -228,7 +228,13 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.openSettings'
 					},
 					doneOn: { commandExecuted: 'workbench.action.openSettings' },
-					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.png' },
+					media: {
+						type: 'image', altText: 'VS Code Settings', path: {
+							dark: 'dark/settings.png',
+							light: 'light/settings.png',
+							hc: 'hc/settings.png',
+						}
+					},
 				},
 				{
 					id: 'videoTutorial',

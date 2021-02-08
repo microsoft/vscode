@@ -1931,6 +1931,7 @@ registerOverwritableCommand(Handler.Type, {
 	}]
 });
 registerOverwritableCommand(Handler.ReplacePreviousChar);
+registerOverwritableCommand(Handler.CompositionType);
 registerOverwritableCommand(Handler.CompositionStart);
 registerOverwritableCommand(Handler.CompositionEnd);
 registerOverwritableCommand(Handler.Paste);

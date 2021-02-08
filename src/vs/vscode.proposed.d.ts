@@ -1084,6 +1084,11 @@ declare module 'vscode' {
 		readonly outputs: CellOutput[];
 		readonly outputs2: readonly NotebookCellOutput[];
 		readonly metadata: NotebookCellMetadata;
+		/** @deprecated use WorkspaceEdit.replaceCellOutput */
+		// outputs: CellOutput[];
+		// readonly outputs2: NotebookCellOutput[];
+		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
+		// metadata: NotebookCellMetadata;
 	}
 
 	export interface NotebookDocumentMetadata {
@@ -1497,13 +1502,16 @@ declare module 'vscode' {
 		// todo@API use NotebookCellRange
 		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+
 		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
-		appendNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
 
 		// TODO@api
 		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
 		replaceNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 		appendNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
+		// replaceNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
+		// appendNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
@@ -1971,6 +1979,10 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/16221
+
+	// todo@API rename to InlayHint
+	// todo@API add InlayHintKind with type, argument, etc
+	// todo@API add "mini-markdown" for links and styles
 
 	export namespace languages {
 		/**
@@ -2602,6 +2614,62 @@ declare module 'vscode' {
 
 		// todo@API proper event type
 		export const onDidChangeOpenEditors: Event<void>;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106488
+
+	export enum WorkspaceTrustState {
+		/**
+		 * The workspace is untrusted, and it will have limited functionality.
+		 */
+		Untrusted = 0,
+
+		/**
+		 * The workspace is trusted, and all functionality will be available.
+		 */
+		Trusted = 1,
+
+		/**
+		 * The initial state of the workspace.
+		 *
+		 * If trust will be required, users will be prompted to make a choice.
+		 */
+		Unknown = 2
+	}
+
+	/**
+	 * The event data that is fired when the trust state of the workspace changes
+	 */
+	export interface WorkspaceTrustStateChangeEvent {
+		/**
+		 * Previous trust state of the workspace
+		 */
+		previousTrustState: WorkspaceTrustState;
+
+		/**
+		 * Current trust state of the workspace
+		 */
+		currentTrustState: WorkspaceTrustState;
+	}
+
+	export namespace workspace {
+		/**
+		 * The trust state of the current workspace
+		 */
+		export const trustState: WorkspaceTrustState;
+
+		/**
+		 * Prompt the user to chose whether to trust the current workspace
+		 * @param message Optional message which would be displayed in the prompt
+		 */
+		export function requireWorkspaceTrust(message?: string): Thenable<WorkspaceTrustState>;
+
+		/**
+		 * Event that fires when the trust state of the current workspace changes
+		 */
+		export const onDidChangeWorkspaceTrustState: Event<WorkspaceTrustStateChangeEvent>;
 	}
 
 	//#endregion

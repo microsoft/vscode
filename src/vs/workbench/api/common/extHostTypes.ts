@@ -3061,3 +3061,9 @@ export enum ExternalUriOpenerPriority {
 	Default = 2,
 	Preferred = 3,
 }
+
+export enum WorkspaceTrustState {
+	Untrusted = 0,
+	Trusted = 1,
+	Unknown = 2
+}

@@ -83,12 +83,6 @@ export function activate(context: vscode.ExtensionContext) {
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
 
-			const remoteExtension = process.env['TESTRESOLVER_REMOTE_EXTENSION'];
-			if (remoteExtension) {
-				commandArgs.push('--install-extension', remoteExtension);
-				commandArgs.push('--start-server');
-			}
-
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
@@ -98,6 +92,11 @@ export function activate(context: vscode.ExtensionContext) {
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
+				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];
+				if (extensionToInstall) {
+					commandArgs.push('--install-builtin-extension', extensionToInstall);
+					commandArgs.push('--start-server');
+				}
 				const serverCommand = process.platform === 'win32' ? 'server.cmd' : 'server.sh';
 				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment variable to specify location of server on disk
 				if (!serverLocation) {

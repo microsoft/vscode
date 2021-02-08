@@ -27,7 +27,9 @@ export interface ISimpleModel {
 
 export interface ITypeData {
 	text: string;
-	replaceCharCnt: number;
+	replacePrevCharCnt: number;
+	replaceNextCharCnt: number;
+	positionDelta: number;
 }
 
 export class TextAreaState {
@@ -105,7 +107,9 @@ export class TextAreaState {
 			// This is the EMPTY state
 			return {
 				text: '',
-				replaceCharCnt: 0
+				replacePrevCharCnt: 0,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
 			};
 		}
 
@@ -178,7 +182,9 @@ export class TextAreaState {
 				if (/\uFE0F/.test(potentialEmojiInput) || strings.containsEmoji(potentialEmojiInput)) {
 					return {
 						text: potentialEmojiInput,
-						replaceCharCnt: 0
+						replacePrevCharCnt: 0,
+						replaceNextCharCnt: 0,
+						positionDelta: 0
 					};
 				}
 			}
@@ -197,7 +203,9 @@ export class TextAreaState {
 				if (strings.containsFullWidthCharacter(currentValue)) {
 					return {
 						text: '',
-						replaceCharCnt: 0
+						replacePrevCharCnt: 0,
+						replaceNextCharCnt: 0,
+						positionDelta: 0
 					};
 				}
 			}
@@ -210,7 +218,9 @@ export class TextAreaState {
 
 			return {
 				text: currentValue,
-				replaceCharCnt: replacePreviousCharacters
+				replacePrevCharCnt: replacePreviousCharacters,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
 			};
 		}
 
@@ -218,7 +228,57 @@ export class TextAreaState {
 		const replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
 		return {
 			text: currentValue,
-			replaceCharCnt: replacePreviousCharacters
+			replacePrevCharCnt: replacePreviousCharacters,
+			replaceNextCharCnt: 0,
+			positionDelta: 0
+		};
+	}
+
+	public static deduceAndroidCompositionInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
+		if (!previousState) {
+			// This is the EMPTY state
+			return {
+				text: '',
+				replacePrevCharCnt: 0,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
+			};
+		}
+
+		if (_debugComposition) {
+			console.log('------------------------deduceAndroidCompositionInput');
+			console.log('PREVIOUS STATE: ' + previousState.toString());
+			console.log('CURRENT STATE: ' + currentState.toString());
+		}
+
+		if (previousState.value === currentState.value) {
+			return {
+				text: '',
+				replacePrevCharCnt: 0,
+				replaceNextCharCnt: 0,
+				positionDelta: currentState.selectionEnd - previousState.selectionEnd
+			};
+		}
+
+		const prefixLength = Math.min(strings.commonPrefixLength(previousState.value, currentState.value), previousState.selectionEnd);
+		const suffixLength = Math.min(strings.commonSuffixLength(previousState.value, currentState.value), previousState.value.length - previousState.selectionEnd);
+		const previousValue = previousState.value.substring(prefixLength, previousState.value.length - suffixLength);
+		const currentValue = currentState.value.substring(prefixLength, currentState.value.length - suffixLength);
+		const previousSelectionStart = previousState.selectionStart - prefixLength;
+		const previousSelectionEnd = previousState.selectionEnd - prefixLength;
+		const currentSelectionStart = currentState.selectionStart - prefixLength;
+		const currentSelectionEnd = currentState.selectionEnd - prefixLength;
+
+		if (_debugComposition) {
+			console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
+			console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+		}
+
+		return {
+			text: currentValue,
+			replacePrevCharCnt: previousSelectionEnd,
+			replaceNextCharCnt: previousValue.length - previousSelectionEnd,
+			positionDelta: currentSelectionEnd - currentValue.length
 		};
 	}
 }

@@ -6,7 +6,7 @@
 /* eslint-disable code-no-standalone-editor */
 /* eslint-disable code-import-patterns */
 
-import { ConsoleLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -197,7 +197,13 @@ export class SimpleConfigurationService extends BaseSimpleConfigurationService i
 
 //#region Logger
 
-export class SimpleLogService extends ConsoleLogService { }
+export class SimpleLogService extends LogService {
+
+	constructor() {
+		super(new ConsoleLogger());
+	}
+
+}
 
 export class SimpleSignService implements ISignService {
 

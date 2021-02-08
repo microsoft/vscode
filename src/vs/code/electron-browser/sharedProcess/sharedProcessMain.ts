@@ -29,7 +29,7 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetry
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogger } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -41,7 +41,7 @@ import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedPr
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService, MessagePortMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -144,8 +144,8 @@ class SharedProcessMain extends Disposable {
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
 		const loggerClient = new LoggerChannelClient(this.server.getChannel('logger', mainRouter)); // we only use this for log levels
 		const multiplexLogger = this._register(new MultiplexLogService([
-			this._register(new ConsoleLogService(this.configuration.logLevel)),
-			this._register(new SpdLogService('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
+			this._register(new ConsoleLogger(this.configuration.logLevel)),
+			this._register(new SpdLogLogger('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
 		]));
 
 		const logService = this._register(new FollowerLogService(loggerClient, multiplexLogger));

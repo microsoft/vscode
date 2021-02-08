@@ -55,11 +55,12 @@ import { INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, 
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { DebugConfigurationProviderTriggerKind, WorkspaceTrustState } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { InternalTestItem, InternalTestResults, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -830,6 +831,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
+	$requireWorkspaceTrust(message?: string): Promise<WorkspaceTrustState>
 }
 
 export interface IFileChangeDto {
@@ -994,7 +996,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
 	$setTunnelProvider(features: TunnelProviderFeatures): Promise<void>;
-	$setCandidateFinder(): Promise<void>;
+	$setRemoteTunnelService(processId: number): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
 }
@@ -1092,9 +1094,10 @@ export interface ExtHostTreeViewsShape {
 }
 
 export interface ExtHostWorkspaceShape {
-	$initializeWorkspace(workspace: IWorkspaceData | null): void;
+	$initializeWorkspace(workspace: IWorkspaceData | null, trustState: WorkspaceTrustState): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
+	$onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void;
 }
 
 export interface ExtHostFileSystemInfoShape {

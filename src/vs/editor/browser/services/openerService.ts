@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
@@ -106,6 +107,7 @@ export class OpenerService implements IOpenerService {
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
+		@ILogService private logService: ILogService
 	) {
 		// Default external opener is going through window.open()
 		this._defaultExternalOpener = {
@@ -166,7 +168,8 @@ export class OpenerService implements IOpenerService {
 		// check with contributed validators
 		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
 		// validate against the original URI that this URI resolves to, if one exists
-		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target;
+		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? targetURI;
+		this.logService.trace(`OpenerService#open: ${targetURI.authority} validating via ${validationTarget.authority}`);
 		for (const validator of this._validators) {
 			if (!(await validator.shouldOpen(validationTarget))) {
 				return false;
@@ -188,7 +191,10 @@ export class OpenerService implements IOpenerService {
 		for (const resolver of this._resolvers) {
 			const result = await resolver.resolveExternalUri(resource, options);
 			if (result) {
-				this._resolvedUriTargets.set(result.resolved, resource);
+				if (!this._resolvedUriTargets.has(result.resolved)) {
+					this.logService.trace(`OpenerService#resolveExternalUri: ${resource.authority} resolved to ${result.resolved.authority}`);
+					this._resolvedUriTargets.set(result.resolved, resource);
+				}
 				return result;
 			}
 		}

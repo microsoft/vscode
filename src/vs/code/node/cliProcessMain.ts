@@ -30,9 +30,9 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IStateService } from 'vs/platform/state/node/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { ILogService, getLogLevel, LogLevel, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ILogService, getLogLevel, LogLevel, ConsoleLogger, MultiplexLogService, ILogger } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -104,10 +104,10 @@ class CliMain extends Disposable {
 
 		// Log
 		const logLevel = getLogLevel(environmentService);
-		const loggers: ILogService[] = [];
-		loggers.push(new SpdLogService('cli', environmentService.logsPath, logLevel));
+		const loggers: ILogger[] = [];
+		loggers.push(new SpdLogLogger('cli', environmentService.logsPath, logLevel));
 		if (logLevel === LogLevel.Trace) {
-			loggers.push(new ConsoleLogService(logLevel));
+			loggers.push(new ConsoleLogger(logLevel));
 		}
 
 		const logService = this._register(new MultiplexLogService(loggers));
