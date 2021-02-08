@@ -564,19 +564,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		let anchor: { x: number, y: number; } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [...this.getContextMenuActions2()]
+			getActions: () => [...this.getContextMenuActions()]
 		});
 	}
 
-	getContextMenuActions2(): ReadonlyArray<IAction> {
+	getContextMenuActions(): ReadonlyArray<IAction> {
 		return this.menuActions.getContextMenuActions();
 	}
 
-	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
-		return [];
-	}
-
-	getActions2(): IAction[] {
+	getActions(): IAction[] {
 		const result = [];
 		result.push(...this.menuActions.getPrimaryActions());
 		if (this.isViewMergedWithContainer()) {
@@ -585,11 +581,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return result;
 	}
 
-	getActions(): IAction[] {
-		return [];
-	}
-
-	getSecondaryActions2(): IAction[] {
+	getSecondaryActions(): IAction[] {
 		const viewPaneActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
 		let menuActions = this.menuActions.getSecondaryActions();
 
@@ -617,10 +609,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 
 		return menuActions.length ? menuActions : viewPaneActions;
-	}
-
-	getSecondaryActions(): IAction[] {
-		return [];
 	}
 
 	getActionsContext(): unknown {

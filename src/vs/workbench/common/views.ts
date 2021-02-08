@@ -814,8 +814,6 @@ export interface IViewPaneContainer {
 	setVisible(visible: boolean): void;
 	isVisible(): boolean;
 	focus(): void;
-	getActions(): IAction[];
-	getSecondaryActions(): IAction[];
 	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;

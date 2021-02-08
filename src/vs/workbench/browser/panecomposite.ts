@@ -15,7 +15,7 @@ import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 
 export class PaneComposite extends Composite implements IPaneComposite {
 
@@ -64,37 +64,15 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	}
 
 	getContextMenuActions(): ReadonlyArray<IAction> {
-		const result = [];
-		result.push(...this.viewPaneContainer.getContextMenuActions2());
-
-		const otherActions = this.viewPaneContainer.getContextMenuActions();
-
-		if (otherActions.length) {
-			result.push(new Separator());
-			result.push(...otherActions);
-		}
-
-		return result;
+		return this.viewPaneContainer.getContextMenuActions();
 	}
 
 	getActions(): ReadonlyArray<IAction> {
-		const result = [];
-		result.push(...this.viewPaneContainer.getActions2());
-		result.push(...this.viewPaneContainer.getActions());
-		return result;
+		return this.viewPaneContainer.getActions();
 	}
 
 	getSecondaryActions(): ReadonlyArray<IAction> {
-		const menuActions = this.viewPaneContainer.getSecondaryActions2();
-		const viewPaneContainerActions = this.viewPaneContainer.getSecondaryActions();
-		if (menuActions.length && viewPaneContainerActions.length) {
-			return [
-				...menuActions,
-				new Separator(),
-				...viewPaneContainerActions
-			];
-		}
-		return menuActions.length ? menuActions : viewPaneContainerActions;
+		return this.viewPaneContainer.getSecondaryActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
