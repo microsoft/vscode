@@ -364,12 +364,6 @@ export interface IDocumentMetadataEdit {
 	metadata: NotebookDocumentMetadata;
 }
 
-export interface ICellOutputsSpliceEdit {
-	editType: CellEditType.OutputsSplice;
-	index: number;
-	splices: NotebookCellOutputsSplice[];
-}
-
 export interface ICellMoveEdit {
 	editType: CellEditType.Move;
 	index: number;
@@ -377,7 +371,7 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | ICellOutputItemEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
