@@ -25,6 +25,7 @@ import Severity from 'vs/base/common/severity';
 import { canceled } from 'vs/base/common/errors';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
+import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensioManagementService {
 
@@ -46,6 +47,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
@@ -131,7 +133,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
 		const server = this.getServer(extension);
 		if (server) {
-			return server.extensionManagementService.reinstallFromGallery(extension);
+			return this.promptForTrustIfNeededAndInstall(extension.manifest, () => {
+				return server.extensionManagementService.reinstallFromGallery(extension);
+			});
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
@@ -191,8 +195,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject('No Servers to Install');
 	}
 
-	protected installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
-		return server.extensionManagementService.install(vsix);
+	protected async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
+		const manifest = await this.getManifest(vsix);
+		if (manifest) {
+			return this.promptForTrustIfNeededAndInstall(manifest, () => {
+				return server.extensionManagementService.install(vsix);
+			});
+		}
+		return Promise.reject();
 	}
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
@@ -269,7 +279,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 				}
 			}
-			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
+			return this.promptForTrustIfNeededAndInstall(manifest, () => {
+				return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
+			});
 		}
 
 		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", gallery.displayName || gallery.name));
@@ -345,5 +357,17 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
 		return this.extensionManagementServerService.getExtensionManagementServer(extension);
+	}
+
+	protected async promptForTrustIfNeededAndInstall<T>(manifest: IExtensionManifest, installTask: () => Promise<T>): Promise<T> {
+		if (manifest.requiresWorkspaceTrust === 'onStart') {
+			const trustState = await this.workspaceTrustService.requireWorkspaceTrust(
+				{
+					immediate: true,
+					message: 'Installing this extension requires you to trust the contents of this workspace.'
+				});
+			return trustState === WorkspaceTrustState.Trusted ? installTask() : Promise.reject();
+		}
+		return installTask();
 	}
 }
