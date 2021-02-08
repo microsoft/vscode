@@ -14,7 +14,7 @@ export interface ILocalPtyMainService extends ICommonLocalPtyService { }
 export class LocalPtyMainService implements ICommonLocalPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<void> {
-		console.log('PtyMainService#test');
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<void> {
+		console.log('PtyMainService#test', cwd, cols, rows);
 	}
 }

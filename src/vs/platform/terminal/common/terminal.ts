@@ -9,7 +9,16 @@ import { URI } from 'vs/base/common/uri';
 export interface ICommonLocalPtyService {
 	readonly _serviceBrand: undefined;
 
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<void>;
+	createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		env: IProcessEnvironment,
+		// TODO: Is executableEnv required? Can the main processes' environment be used instead?
+		executableEnv: IProcessEnvironment,
+		windowsEnableConpty: boolean
+	): Promise<void>;
 }
 
 export interface IShellLaunchConfig {
