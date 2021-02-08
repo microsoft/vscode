@@ -89,6 +89,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
+import { IPtyMainService, PtyMainService } from 'vs/platform/terminal/electron-main/ptyMainService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -527,6 +528,7 @@ export class CodeApplication extends Disposable {
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
+		services.set(IPtyMainService, new SyncDescriptor(PtyMainService));
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
@@ -613,6 +615,10 @@ export class CodeApplication extends Disposable {
 		const updateService = accessor.get(IUpdateService);
 		const updateChannel = new UpdateChannel(updateService);
 		electronIpcServer.registerChannel('update', updateChannel);
+
+		const ptyMainService = accessor.get(IPtyMainService);
+		const ptyChannel = createChannelReceiver(ptyMainService);
+		electronIpcServer.registerChannel('pty', ptyChannel);
 
 		const issueMainService = accessor.get(IIssueMainService);
 		const issueChannel = createChannelReceiver(issueMainService);
