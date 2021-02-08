@@ -10,7 +10,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -306,5 +305,3 @@ function reviveIShellLaunchConfig(dto: IShellLaunchConfigDto): IShellLaunchConfi
 		hideFromUser: dto.hideFromUser
 	};
 }
-
-registerSingleton(IRemoteTerminalService, RemoteTerminalService);
