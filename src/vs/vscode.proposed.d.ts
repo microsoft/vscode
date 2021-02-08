@@ -1982,6 +1982,10 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/16221
 
+	// todo@API rename to InlayHint
+	// todo@API add InlayHintKind with type, argument, etc
+	// todo@API add "mini-markdown" for links and styles
+
 	export namespace languages {
 		/**
 		 * Register a inline hints provider.
