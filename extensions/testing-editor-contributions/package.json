@@ -17,9 +17,9 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-	"dependencies": {
-		"vscode-nls": "^5.0.0"
-	},
+  "dependencies": {
+    "vscode-nls": "^5.0.0"
+  },
   "contributes": {
     "configuration": {
       "title": "Testing",
@@ -44,5 +44,9 @@
     "printWidth": 100,
     "singleQuote": true,
     "trailingComma": "all"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

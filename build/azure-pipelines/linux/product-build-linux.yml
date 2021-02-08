@@ -75,6 +75,7 @@ steps:
   - script: |
       set -e
       export npm_config_arch=$(NPM_ARCH)
+      export npm_config_build_from_source=true
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         export CC=$(which gcc-5)
@@ -95,6 +96,10 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+
+      # remove once https://github.com/prebuild/prebuild-install/pull/140 is merged and found in keytar
+      cd ./node_modules/keytar
+      npx node-gyp rebuild
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -167,7 +172,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |

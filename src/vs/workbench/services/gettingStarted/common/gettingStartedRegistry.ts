@@ -28,7 +28,7 @@ export interface IGettingStartedTask {
 	| { title: string, command?: never, link: string }
 	| { title: string, command: string, link?: never },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
-	media: { type: 'image', path: URI, altText: string },
+	media: { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string },
 }
 
 export interface IGettingStartedCategoryDescriptor {
@@ -131,6 +131,22 @@ content.forEach(category => {
 	});
 
 	if (category.content.type === 'items') {
+		const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+			const convertPath = (path: string) => path.startsWith('https://')
+				? URI.parse(path, true)
+				: FileAccess.asFileUri('vs/workbench/services/gettingStarted/common/media/' + path, require);
+			if (typeof path === 'string') {
+				const converted = convertPath(path);
+				return { hc: converted, dark: converted, light: converted };
+			} else {
+				return {
+					hc: convertPath(path.hc),
+					light: convertPath(path.light),
+					dark: convertPath(path.dark)
+				};
+			}
+		};
+
 		category.content.items.forEach((item, index) => {
 			registryImpl.registerTask({
 				...item,
@@ -140,9 +156,7 @@ content.forEach(category => {
 				media: {
 					type: item.media.type,
 					altText: item.media.altText,
-					path: item.media.path.startsWith('https://')
-						? URI.parse(item.media.path, true)
-						: FileAccess.asFileUri('vs/workbench/services/gettingStarted/common/media/' + item.media.path, require)
+					path: convertPaths(item.media.path)
 				}
 			});
 		});

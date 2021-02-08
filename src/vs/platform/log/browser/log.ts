@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, DEFAULT_LOG_LEVEL, LogLevel, LogServiceAdapter } from 'vs/platform/log/common/log';
+import { DEFAULT_LOG_LEVEL, LogLevel, AdapterLogger, ILogger } from 'vs/platform/log/common/log';
 
 interface IAutomatedWindow {
 	codeAutomationLog(type: string, args: any[]): void;
@@ -14,14 +14,12 @@ interface IAutomatedWindow {
  * an automation such as playwright. We expect a global codeAutomationLog
  * to be defined that we can use to log to.
  */
-export class ConsoleLogInAutomationService extends LogServiceAdapter implements ILogService {
+export class ConsoleLogInAutomationLogger extends AdapterLogger implements ILogger {
 
 	declare codeAutomationLog: any;
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super({ consoleLog: (type, args) => this.consoleLog(type, args) }, logLevel);
+		super({ log: (type, args) => this.consoleLog(type, args) }, logLevel);
 	}
 
 	private consoleLog(type: string, args: any[]): void {

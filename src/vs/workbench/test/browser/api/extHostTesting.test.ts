@@ -17,6 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 const simplify = (item: TestItem) => {
 	if ('toJSON' in item) {
 		item = (item as any).toJSON();
+		delete (item as any).id;
 		delete (item as any).providerId;
 		delete (item as any).testId;
 	}
@@ -70,10 +71,10 @@ suite('ExtHost Testing', () => {
 			single.addRoot(tests, 'pid');
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, { id: '0', providerId: 'pid', parent: null, item: convert.TestItem.from(stubTest('root')) }],
-				[TestDiffOpType.Add, { id: '1', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('a')) }],
-				[TestDiffOpType.Add, { id: '2', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('aa')) }],
-				[TestDiffOpType.Add, { id: '3', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('ab')) }],
-				[TestDiffOpType.Add, { id: '4', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('b')) }],
+				[TestDiffOpType.Add, { id: '1', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('a'), 'root') }],
+				[TestDiffOpType.Add, { id: '2', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('aa'), 'root\0a') }],
+				[TestDiffOpType.Add, { id: '3', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('ab'), 'root\0a') }],
+				[TestDiffOpType.Add, { id: '4', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('b'), 'root') }],
 			]);
 		});
 
@@ -91,7 +92,7 @@ suite('ExtHost Testing', () => {
 			tests.children![0].description = 'Hello world'; /* item a */
 			single.onItemChange(tests, 'pid');
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Update, { id: '1', parent: '0', providerId: 'pid', item: convert.TestItem.from({ ...stubTest('a'), description: 'Hello world' }) }],
+				[TestDiffOpType.Update, { id: '1', parent: '0', providerId: 'pid', item: convert.TestItem.from({ ...stubTest('a'), description: 'Hello world' }, 'root') }],
 			]);
 
 			single.onItemChange(tests, 'pid');
@@ -121,7 +122,7 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Add, { id: '5', providerId: 'pid', parent: '1', item: convert.TestItem.from(child) }],
+				[TestDiffOpType.Add, { id: '5', providerId: 'pid', parent: '1', item: convert.TestItem.from(child, 'root\0a') }],
 			]);
 			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['0', '1', '2', '3', '4', '5']);
 			assert.strictEqual(single.itemToInternal.size, 6);

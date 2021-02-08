@@ -186,7 +186,7 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
-interface ICustomEditorInputFactory {
+export interface ICustomEditorInputFactory {
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
@@ -1334,7 +1334,9 @@ class EditorResourceAccessorImpl {
 	/**
 	 * The original URI of an editor is the URI that was used originally to open
 	 * the editor and should be used whenever the URI is presented to the user,
-	 * e.g. as a label.
+	 * e.g. as a label together with utility methods such as `ResourceLabel` or
+	 * `ILabelService` that can turn this original URI into the best form for
+	 * presenting.
 	 *
 	 * In contrast, the canonical URI (#getCanonicalUri) may be different and should
 	 * be used whenever the URI is used to e.g. compare with other editors or when
@@ -1583,7 +1585,7 @@ export function computeEditorAriaLabel(input: IEditorInput, index: number | unde
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
 	}
 
-	if (group && group.isSticky(index ?? input)) {
+	if (group?.isSticky(index ?? input)) {
 		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
 	}
 

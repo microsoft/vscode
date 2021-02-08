@@ -23,7 +23,7 @@ type GettingStartedItem = {
 	| { title: string, command: string, link?: never },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
-	media: { type: 'image', path: string, altText: string },
+	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
 };
 
 type GettingStartedCategory = {
@@ -42,7 +42,7 @@ type GettingStartedContent = GettingStartedCategory[];
 export const content: GettingStartedContent = [
 	{
 		id: 'Codespaces',
-		title: localize('gettingStarted.codespaces.title', "Primer on GitHub Codespaces"),
+		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),
 		icon: codespacesIcon,
 		when: 'remoteName == codespaces',
 		description: localize('gettingStarted.codespaces.description', "Get up and running with your instant code environment."),
@@ -52,9 +52,9 @@ export const content: GettingStartedContent = [
 				{
 					id: 'runProjectTask',
 					title: localize('gettingStarted.runProject.title', "Build & run your app"),
-					description: localize('gettingStarted.runProject.description', "Build, run & debug your code right from the browser."),
+					description: localize('gettingStarted.runProject.description', "Build, run & debug your code in the cloud, right from the browser."),
 					button: {
-						title: localize('gettingStarted.runProject.button', "Run Code"),
+						title: localize('gettingStarted.runProject.button', "Start Debugging (F5)"),
 						command: 'workbench.action.debug.selectandstart'
 					},
 					doneOn: { commandExecuted: 'workbench.action.debug.selectandstart' },
@@ -114,6 +114,7 @@ export const content: GettingStartedContent = [
 		title: localize('gettingStarted.setup.title', "Quick Setup"),
 		description: localize('gettingStarted.setup.description', "Extend and customize VS Code to make it yours."),
 		icon: setupIcon,
+		when: 'remoteName != codespaces',
 		content: {
 			type: 'items',
 			items: [
@@ -199,6 +200,7 @@ export const content: GettingStartedContent = [
 					id: 'terminal',
 					title: localize('gettingStarted.terminal.title', "Run tasks in the integrated terminal"),
 					description: localize('gettingStarted.terminal.description', "Quickly run shell commands and monitor build output, right next to your code."),
+					when: 'remoteName != codespaces',
 					button: {
 						title: localize('gettingStarted.terminal.button', "Open Terminal"),
 						command: 'workbench.action.terminal.toggleTerminal'
@@ -226,12 +228,18 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.openSettings'
 					},
 					doneOn: { commandExecuted: 'workbench.action.openSettings' },
-					media: { type: 'image', altText: 'VS Code Settings', path: 'settings.png' },
+					media: {
+						type: 'image', altText: 'VS Code Settings', path: {
+							dark: 'dark/settings.png',
+							light: 'light/settings.png',
+							hc: 'hc/settings.png',
+						}
+					},
 				},
 				{
 					id: 'videoTutorial',
-					title: localize('gettingStarted.videoTutorial.title', "Watch the Tutorial"),
-					description: localize('gettingStarted.videoTutorial.description', "First in a series of video tutorials that gets you started with VS Code's core functionality."),
+					title: localize('gettingStarted.videoTutorial.title', "Lean back and learn"),
+					description: localize('gettingStarted.videoTutorial.description', "Watch the first in a series of short & practical video tutorials for VS Code's key features."),
 					button: {
 						title: localize('gettingStarted.videoTutorial.button', "Watch Tutorial"),
 						link: 'https://aka.ms/vscode-getting-started-video'

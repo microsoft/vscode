@@ -8,8 +8,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { basename, extname, dirname } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { FileLogService } from 'vs/platform/log/common/fileLogService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { FileLogger } from 'vs/platform/log/common/fileLog';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { IFileService } from 'vs/platform/files/common/files';
 
 export class LoggerService extends Disposable implements ILoggerService {
@@ -32,9 +32,9 @@ export class LoggerService extends Disposable implements ILoggerService {
 			if (resource.scheme === Schemas.file) {
 				const baseName = basename(resource);
 				const ext = extname(resource);
-				logger = new SpdLogService(baseName.substring(0, baseName.length - ext.length), dirname(resource).fsPath, this.logService.getLevel());
+				logger = new SpdLogLogger(baseName.substring(0, baseName.length - ext.length), dirname(resource).fsPath, this.logService.getLevel());
 			} else {
-				logger = new FileLogService(basename(resource), resource, this.logService.getLevel(), this.fileService);
+				logger = new FileLogger(basename(resource), resource, this.logService.getLevel(), this.fileService);
 			}
 			this.loggers.set(resource.toString(), logger);
 		}

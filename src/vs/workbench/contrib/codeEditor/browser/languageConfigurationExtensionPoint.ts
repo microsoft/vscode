@@ -398,7 +398,7 @@ export class LanguageConfigurationFileHandler {
 			richEditConfig.onEnterRules = onEnterRules;
 		}
 
-		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
+		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig, 50);
 	}
 
 	private _parseRegex(languageIdentifier: LanguageIdentifier, confPath: string, value: string | IRegExp) {
@@ -700,6 +700,7 @@ const schema: IJSONSchema = {
 		},
 		onEnterRules: {
 			type: 'array',
+			description: nls.localize('schema.onEnterRules', 'The language\'s rules to be evaluated when pressing Enter.'),
 			items: {
 				type: 'object',
 				description: nls.localize('schema.onEnterRules', 'The language\'s rules to be evaluated when pressing Enter.'),

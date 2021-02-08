@@ -79,6 +79,7 @@
 	width: 330px;
 	min-height: 80px;
 	font-size: 13px;
+	line-height: normal;
 	margin: 12px;
 	text-align: left;
 	display: flex;
@@ -115,10 +116,6 @@
 	flex: 150px 1 1000
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-media {
-	min-height: 300px;
-}
-
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category .codicon {
 	margin-left:0;
 	font-size: 22pt;
@@ -127,8 +124,8 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-columns {
 	display: flex;
 	justify-content: flex-start;
-	padding: 20px 20px 0;
-	max-height: calc(100% - 20px);
+	padding: 40px 40px 0;
+	max-height: calc(100% - 40px);
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task {
@@ -136,7 +133,7 @@
 	width: 100%;
 	overflow: hidden;
 	transition: max-height .1s linear;
-	max-height: 150px;
+	max-height: 180px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) {
@@ -160,7 +157,6 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description {
 	padding-top: 8px;
-	font-size: 12px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .actions {
@@ -172,6 +168,7 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-next {
 	margin-left: auto;
 	margin-right: 10px;
+	padding: 6px 12px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.hidden {
@@ -180,13 +177,11 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon {
 	margin-right: 8px;
-	font-size: 13px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task-action {
 	padding: 6px 12px;
 	font-size: 13px;
-	min-width: 100px;
 	margin-bottom: 0;
 }
 
@@ -223,11 +218,17 @@
 	max-width: 800px;
 }
 
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-right img {
+	object-fit: contain;
+}
+
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button {
 	border: none;
 	color: inherit;
 	text-align: left;
 	padding: 16px;
+	margin: 1px 0; /* makes room for focus border */
+	font-family: inherit;
 }
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button:hover {
 	cursor: pointer;
@@ -237,11 +238,11 @@
 	outline-style: solid;
 }
 
-.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button {
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button.button-link {
 	position: absolute;
-	left: -2px;
-	top: -10px;
-	font-size: 12pt;
+	left: 40px;
+	top: 5px;
+	padding: 0 2px 2px;
 	margin: 10px;
 	z-index: 1;
 }
@@ -252,13 +253,14 @@
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .prev-button .codicon {
 	position: relative;
-	top: 2px;
+	top: 3px;
+	left: -4px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide .skip {
 	display: block;
-	width: 150px;
-	margin: 0 auto;
+	margin: 2px auto;
+	width: fit-content;
 	text-align: center;
 }
 
@@ -296,4 +298,16 @@
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.prev {
 	left: -100%;
 	opacity: 0;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .button-link {
+	padding: 0;
+	background: transparent;
+	margin: 2px;
+	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .button-link:hover {
+	text-decoration: underline;
+	background: transparent;
 }

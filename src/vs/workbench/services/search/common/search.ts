@@ -597,7 +597,6 @@ export function resolvePatternsForProvider(globalPattern: glob.IExpression | und
 		});
 }
 
-const ALL_FORWARD_SLASHES = /\//g;
 export class QueryGlobTester {
 
 	private _excludeExpression: glob.IExpression;
@@ -634,8 +633,6 @@ export class QueryGlobTester {
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
 	includedInQuerySync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
-		testPath = paths.sep !== paths.posix.sep ? testPath.replace(ALL_FORWARD_SLASHES, paths.sep) : testPath;
-
 		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
 			return false;
 		}
@@ -651,8 +648,6 @@ export class QueryGlobTester {
 	 * Guaranteed async.
 	 */
 	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
-		testPath = paths.sep !== paths.posix.sep ? testPath.replace(ALL_FORWARD_SLASHES, paths.sep) : testPath;
-
 		const excludeP = Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result);
 
 		return excludeP.then(excluded => {

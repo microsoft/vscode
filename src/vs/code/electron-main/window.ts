@@ -649,7 +649,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
-		if (this.openedWorkspace && this.openedWorkspace.id === workspace.id && this.currentConfig) {
+		if (this.openedWorkspace?.id === workspace.id && this.currentConfig) {
 			this.currentConfig.workspace = undefined;
 		}
 	}
@@ -1192,7 +1192,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private getMenuBarVisibility(): MenuBarVisibility {
 		let menuBarVisibility = getMenuBarVisibility(this.configurationService);
 		if (['visible', 'toggle', 'hidden'].indexOf(menuBarVisibility) < 0) {
-			menuBarVisibility = 'default';
+			menuBarVisibility = 'classic';
 		}
 
 		return menuBarVisibility;
@@ -1227,7 +1227,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const isFullscreen = this.isFullScreen;
 
 		switch (visibility) {
-			case ('default'):
+			case ('classic'):
 				this._win.setMenuBarVisibility(!isFullscreen);
 				this._win.autoHideMenuBar = isFullscreen;
 				break;

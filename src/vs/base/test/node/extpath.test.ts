@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf } from 'vs/base/node/pfs';
+import { promises } from 'fs';
+import { rimraf } from 'vs/base/node/pfs';
 import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
@@ -15,7 +16,7 @@ flakySuite('Extpath', () => {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
 
-		return mkdirp(testDir, 493);
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {
@@ -48,12 +49,8 @@ flakySuite('Extpath', () => {
 		assert.ok(realpathVal);
 	});
 
-	test('realpathSync', async () => {
-		try {
-			const realpath = realpathSync(testDir);
-			assert.ok(realpath);
-		} catch (error) {
-			assert.fail(error);
-		}
+	test('realpathSync', () => {
+		const realpath = realpathSync(testDir);
+		assert.ok(realpath);
 	});
 });

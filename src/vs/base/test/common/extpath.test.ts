@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as extpath from 'vs/base/common/extpath';
-import * as platform from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 
 suite('Paths', () => {
@@ -32,7 +32,7 @@ suite('Paths', () => {
 		assert.strictEqual(extpath.getRoot('file://foo'), '');
 	});
 
-	(!platform.isWindows ? test.skip : test)('isUNC', () => {
+	(!isWindows ? test.skip : test)('isUNC', () => {
 		assert.ok(!extpath.isUNC('foo'));
 		assert.ok(!extpath.isUNC('/foo'));
 		assert.ok(!extpath.isUNC('\\foo'));
@@ -51,7 +51,7 @@ suite('Paths', () => {
 		assert.ok(!extpath.isValidBasename('/test.txt'));
 		assert.ok(!extpath.isValidBasename('\\test.txt'));
 
-		if (platform.isWindows) {
+		if (isWindows) {
 			assert.ok(!extpath.isValidBasename('aux'));
 			assert.ok(!extpath.isValidBasename('Aux'));
 			assert.ok(!extpath.isValidBasename('LPT0'));
@@ -72,7 +72,7 @@ suite('Paths', () => {
 	});
 
 	test('sanitizeFilePath', () => {
-		if (platform.isWindows) {
+		if (isWindows) {
 			assert.strictEqual(extpath.sanitizeFilePath('.', 'C:\\the\\cwd'), 'C:\\the\\cwd');
 			assert.strictEqual(extpath.sanitizeFilePath('', 'C:\\the\\cwd'), 'C:\\the\\cwd');
 
@@ -108,7 +108,7 @@ suite('Paths', () => {
 	});
 
 	test('isRootOrDriveLetter', () => {
-		if (platform.isWindows) {
+		if (isWindows) {
 			assert.ok(extpath.isRootOrDriveLetter('c:'));
 			assert.ok(extpath.isRootOrDriveLetter('D:'));
 			assert.ok(extpath.isRootOrDriveLetter('D:/'));
@@ -122,7 +122,7 @@ suite('Paths', () => {
 	});
 
 	test('hasDriveLetter', () => {
-		if (platform.isWindows) {
+		if (isWindows) {
 			assert.ok(extpath.hasDriveLetter('c:'));
 			assert.ok(extpath.hasDriveLetter('D:'));
 			assert.ok(extpath.hasDriveLetter('D:/'));
@@ -136,7 +136,7 @@ suite('Paths', () => {
 	});
 
 	test('getDriveLetter', () => {
-		if (platform.isWindows) {
+		if (isWindows) {
 			assert.strictEqual(extpath.getDriveLetter('c:'), 'c');
 			assert.strictEqual(extpath.getDriveLetter('D:'), 'D');
 			assert.strictEqual(extpath.getDriveLetter('D:/'), 'D');

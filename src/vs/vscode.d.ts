@@ -9273,7 +9273,7 @@ declare module 'vscode' {
 		 * Implement to handle when the number of rows and columns that fit into the terminal panel
 		 * changes, for example when font size changes or when the panel is resized. The initial
 		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
-		 * as the size of a terminal isn't know until it shows up in the user interface.
+		 * as the size of a terminal isn't known until it shows up in the user interface.
 		 *
 		 * When dimensions are overridden by
 		 * [onDidOverrideDimensions](#Pseudoterminal.onDidOverrideDimensions), `setDimensions` will
@@ -12286,6 +12286,9 @@ declare module 'vscode' {
 		 * If true, a modal dialog will be shown asking the user to sign in. If false, a numbered badge will be shown
 		 * on the accounts activity bar icon. An entry for the extension will be added under the menu to sign in. This
 		 * allows quietly prompting the user to sign in.
+		 *
+		 * If there is a matching session but the extension has not been granted access to it, setting this to true
+		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
 		 *
 		 * Defaults to false.
 		 */

@@ -23,8 +23,8 @@ import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget 
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, IViewsService, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
+import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -119,6 +119,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private readonly location = ViewContainerLocation.Sidebar;
 	private hasExtensionsRegistered: boolean = false;
+
+	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -340,7 +342,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (viewContainer) {
 
 			// Update the composite bar by adding
-			this.compositeBar.addComposite(viewContainer);
+			this.addComposite(viewContainer);
 			this.compositeBar.activateComposite(viewContainer.id);
 
 			if (this.shouldBeHidden(viewContainer)) {
@@ -669,8 +671,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainer, viewContainerModel)),
-					pinnedAction: new ToggleCompositePinnedAction(viewContainer, this.compositeBar)
+					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel)),
+					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar)
 				};
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
@@ -688,7 +690,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private onDidRegisterViewContainers(viewContainers: ReadonlyArray<ViewContainer>): void {
 		for (const viewContainer of viewContainers) {
-			this.compositeBar.addComposite(viewContainer);
+			this.addComposite(viewContainer);
 
 			// Pin it by default if it is new
 			const cachedViewContainer = this.cachedViewContainers.filter(({ id }) => id === viewContainer.id)[0];
@@ -725,7 +727,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		const activity: IActivity = this.toActivity(viewContainer, viewContainerModel);
+		const activity: IActivity = this.toActivity(viewContainerModel);
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
 		activityAction.updateActivity(activity);
 
@@ -736,8 +738,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.saveCachedViewContainers();
 	}
 
-	private toActivity({ id, focusCommand }: ViewContainer, { icon, title: name }: IViewContainerModel): IActivity {
-		return ActivitybarPart.toActivity(id, name, icon, focusCommand?.id || id);
+	private toActivity(viewContainerModel: IViewContainerModel): IActivity {
+		return ActivitybarPart.toActivity(viewContainerModel.viewContainer.id, viewContainerModel.title, viewContainerModel.icon, viewContainerModel.keybindingId);
 	}
 
 	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
@@ -764,10 +766,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private showOrHideViewContainer(viewContainer: ViewContainer): void {
+		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+		if (!contextKey) {
+			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
+			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+		}
 		if (this.shouldBeHidden(viewContainer)) {
+			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
 		} else {
-			this.compositeBar.addComposite(viewContainer);
+			contextKey.set(true);
+			this.addComposite(viewContainer);
 		}
 	}
 
@@ -800,6 +809,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		return true;
+	}
+
+	private addComposite(viewContainer: ViewContainer): void {
+		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 	}
 
 	private hideComposite(compositeId: string): void {

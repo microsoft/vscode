@@ -68,7 +68,8 @@ BUILD_TARGETS.forEach(({ platform, arch }) => {
 	}));
 });
 
-const defaultNodeTask = gulp.task(`node-${process.platform}-${process.arch}`);
+const arch = process.platform === 'darwin' ? 'x64' : process.arch;
+const defaultNodeTask = gulp.task(`node-${process.platform}-${arch}`);
 
 if (defaultNodeTask) {
 	gulp.task(task.define('node', defaultNodeTask));
