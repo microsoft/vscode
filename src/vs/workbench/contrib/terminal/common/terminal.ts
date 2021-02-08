@@ -140,6 +140,7 @@ export interface ITerminalConfiguration {
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	serverSpawn: boolean;
+	mainSpawn: boolean;
 	enablePersistentSessions: boolean;
 	flowControl: boolean;
 }
