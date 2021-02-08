@@ -11,7 +11,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { joinPath } from 'vs/base/common/resources';
-import { writeFile } from 'vs/base/node/pfs';
 import { IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
@@ -22,6 +21,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -36,7 +37,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
@@ -139,8 +141,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 
 		// print message to log
-		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`).fsPath;
-		await writeFile(path, JSON.stringify(profile.data));
+		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
+		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
 		this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
 
 

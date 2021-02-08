@@ -899,6 +899,12 @@ declare namespace monaco.editor {
 	}): IMarker[];
 
 	/**
+	 * Emitted when markers change for a model.
+	 * @event
+	 */
+	export function onDidChangeMarkers(listener: (e: readonly Uri[]) => void): IDisposable;
+
+	/**
 	 * Get the model that has `uri` if it exists.
 	 */
 	export function getModel(uri: Uri): ITextModel | null;
@@ -6499,6 +6505,10 @@ declare namespace monaco.languages {
 		 * Defaults to false
 		 */
 		includeLF?: boolean;
+		/**
+		 * Other keys that can be referred to by the tokenizer.
+		 */
+		[key: string]: any;
 	}
 
 	/**

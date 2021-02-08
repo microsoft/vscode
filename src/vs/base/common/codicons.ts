@@ -71,21 +71,25 @@ export interface CSSIcon {
 	readonly id: string;
 }
 
+
 export namespace CSSIcon {
-	export const iconIdRegex = /^(codicon\/)?([a-z\-]+)(?:~([a-z\-]+))?$/i;
+	export const iconNameExpression = '[A-Za-z0-9\\-]+';
+	export const iconModifierExpression = '~[A-Za-z]+';
+
+	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
 
 	export function asClassNameArray(icon: CSSIcon): string[] {
 		if (icon instanceof Codicon) {
 			return ['codicon', 'codicon-' + icon.id];
 		}
-		const match = iconIdRegex.exec(icon.id);
+		const match = cssIconIdRegex.exec(icon.id);
 		if (!match) {
 			return asClassNameArray(Codicon.error);
 		}
-		let [, , id, modifier] = match;
+		let [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier);
+			classNames.push('codicon-modifier-' + modifier.substr(1));
 		}
 		return classNames;
 	}
@@ -533,6 +537,12 @@ export namespace Codicon {
 	export const circleLargeOutline = new Codicon('circle-large-outline', { character: '\\ebb5' });
 	export const combine = new Codicon('combine', { character: '\\ebb6' });
 	export const gather = new Codicon('gather', { character: '\\ebb6' });
+	export const table = new Codicon('table', { character: '\\ebb7' });
+	export const variableGroup = new Codicon('variable-group', { character: '\\ebb8' });
+	export const typeHierarchy = new Codicon('type-hierarchy', { character: '\\ebb9' });
+	export const typeHierarchySub = new Codicon('type-hierarchy-sub', { character: '\\ebba' });
+	export const typeHierarchySuper = new Codicon('type-hierarchy-super', { character: '\\ebbb' });
+	export const gitPullRequestCreate = new Codicon('git-pull-request-create', { character: '\\ebbc' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

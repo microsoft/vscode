@@ -23,88 +23,37 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 
-export class TestDialogMainService implements IDialogMainService {
-	declare readonly _serviceBrand: undefined;
-
-	pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickFile(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	pickWorkspace(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> {
-		throw new Error('Method not implemented.');
-	}
-
-	showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> {
-		throw new Error('Method not implemented.');
-	}
-
-	showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> {
-		throw new Error('Method not implemented.');
-	}
-}
-
-export class TestBackupMainService implements IBackupMainService {
-
-	declare readonly _serviceBrand: undefined;
-
-	isHotExitEnabled(): boolean {
-		throw new Error('Method not implemented.');
-	}
-
-	getWorkspaceBackups(): IWorkspaceBackupInfo[] {
-		throw new Error('Method not implemented.');
-	}
-
-	getFolderBackupPaths(): URI[] {
-		throw new Error('Method not implemented.');
-	}
-
-	getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] {
-		throw new Error('Method not implemented.');
-	}
-
-	registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string {
-		throw new Error('Method not implemented.');
-	}
-
-	registerFolderBackupSync(folderUri: URI): string {
-		throw new Error('Method not implemented.');
-	}
-
-	registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string {
-		throw new Error('Method not implemented.');
-	}
-
-	unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void {
-		throw new Error('Method not implemented.');
-	}
-
-	unregisterFolderBackupSync(folderUri: URI): void {
-		throw new Error('Method not implemented.');
-	}
-
-	unregisterEmptyWindowBackupSync(backupFolder: string): void {
-		throw new Error('Method not implemented.');
-	}
-
-	async getDirtyWorkspaces(): Promise<(IWorkspaceIdentifier | URI)[]> {
-		return [];
-	}
-}
-
 suite('WorkspacesManagementMainService', () => {
+
+	class TestDialogMainService implements IDialogMainService {
+
+		declare readonly _serviceBrand: undefined;
+
+		pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		pickFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		pickFile(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		pickWorkspace(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> { throw new Error('Method not implemented.'); }
+		showMessageBox(options: Electron.MessageBoxOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
+		showSaveDialog(options: Electron.SaveDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
+		showOpenDialog(options: Electron.OpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+	}
+
+	class TestBackupMainService implements IBackupMainService {
+
+		declare readonly _serviceBrand: undefined;
+
+		isHotExitEnabled(): boolean { throw new Error('Method not implemented.'); }
+		getWorkspaceBackups(): IWorkspaceBackupInfo[] { throw new Error('Method not implemented.'); }
+		getFolderBackupPaths(): URI[] { throw new Error('Method not implemented.'); }
+		getEmptyWindowBackupPaths(): IEmptyWindowBackupInfo[] { throw new Error('Method not implemented.'); }
+		registerWorkspaceBackupSync(workspace: IWorkspaceBackupInfo, migrateFrom?: string | undefined): string { throw new Error('Method not implemented.'); }
+		registerFolderBackupSync(folderUri: URI): string { throw new Error('Method not implemented.'); }
+		registerEmptyWindowBackupSync(backupFolder?: string | undefined, remoteAuthority?: string | undefined): string { throw new Error('Method not implemented.'); }
+		unregisterWorkspaceBackupSync(workspace: IWorkspaceIdentifier): void { throw new Error('Method not implemented.'); }
+		unregisterFolderBackupSync(folderUri: URI): void { throw new Error('Method not implemented.'); }
+		unregisterEmptyWindowBackupSync(backupFolder: string): void { throw new Error('Method not implemented.'); }
+		async getDirtyWorkspaces(): Promise<(IWorkspaceIdentifier | URI)[]> { return []; }
+	}
 
 	function createUntitledWorkspace(folders: string[], names?: string[]) {
 		return service.createUntitledWorkspace(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
@@ -150,10 +99,12 @@ suite('WorkspacesManagementMainService', () => {
 
 		service = new WorkspacesManagementMainService(environmentService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService());
 
-		return pfs.mkdirp(untitledWorkspacesHomePath);
+		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});
 
 	teardown(() => {
+		service.dispose();
+
 		return pfs.rimraf(testDir);
 	});
 

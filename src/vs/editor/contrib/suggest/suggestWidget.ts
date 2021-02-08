@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/suggest';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -102,7 +103,7 @@ export class SuggestWidget implements IDisposable {
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
 	private _completionModel?: CompletionModel;
-	private _cappedHeight?: { wanted: number, capped: number };
+	private _cappedHeight?: { wanted: number; capped: number; };
 	private _explainMode: boolean = false;
 
 	readonly element: ResizableHTMLElement;
@@ -216,6 +217,7 @@ export class SuggestWidget implements IDisposable {
 			getHeight: (_element: CompletionItem): number => this.getLayoutInfo().itemHeight,
 			getTemplateId: (_element: CompletionItem): string => 'suggestion'
 		}, [renderer], {
+			alwaysConsumeMouseWheel: true,
 			useShadows: false,
 			mouseSupport: false,
 			accessibilityProvider: {

@@ -13,7 +13,7 @@ import { ITextMateService } from 'vs/workbench/services/textMate/common/textMate
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
-import { createRotatingLogger } from 'vs/platform/log/node/spdlogService';
+import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITextModel } from 'vs/editor/common/model';

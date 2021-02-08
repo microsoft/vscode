@@ -164,5 +164,4 @@ suite('Files - TextFileService', () => {
 		let suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1');
 		assert.strictEqual(suggested, 'plumbus');
 	});
-
 });

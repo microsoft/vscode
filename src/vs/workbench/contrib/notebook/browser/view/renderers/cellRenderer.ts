@@ -561,7 +561,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 class EditorTextRenderer {
 
-	private _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
+	private static _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
 		createHTML(input) { return input; }
 	});
 
@@ -615,9 +615,7 @@ class EditorTextRenderer {
 			}
 		}
 
-		return this._ttPolicy
-			? this._ttPolicy.createHTML(result)
-			: result;
+		return EditorTextRenderer._ttPolicy?.createHTML(result) ?? result;
 	}
 
 	private getDefaultColorMap(): string[] {

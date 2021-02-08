@@ -700,6 +700,7 @@ export const enum Handler {
 	CompositionEnd = 'compositionEnd',
 	Type = 'type',
 	ReplacePreviousChar = 'replacePreviousChar',
+	CompositionType = 'compositionType',
 	Paste = 'paste',
 	Cut = 'cut',
 }
@@ -717,6 +718,16 @@ export interface TypePayload {
 export interface ReplacePreviousCharPayload {
 	text: string;
 	replaceCharCnt: number;
+}
+
+/**
+ * @internal
+ */
+export interface CompositionTypePayload {
+	text: string;
+	replacePrevCharCnt: number;
+	replaceNextCharCnt: number;
+	positionDelta: number;
 }
 
 /**

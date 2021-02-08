@@ -18,7 +18,6 @@ import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHos
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { promisify } from 'util';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -148,7 +147,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
 		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
-			this._proxy.$setCandidateFinder();
+			this._proxy.$setRemoteTunnelService(process.pid);
 		}
 	}
 
@@ -267,8 +266,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = await pfs.readFile('/proc/net/tcp', 'utf8');
-			tcp6 = await pfs.readFile('/proc/net/tcp6', 'utf8');
+			tcp = await fs.promises.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await fs.promises.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -286,10 +285,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = await pfs.stat(childUri.fsPath);
+				const childStat = await fs.promises.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await promisify(fs.readlink)(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = await pfs.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await fs.promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await fs.promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

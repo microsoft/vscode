@@ -707,6 +707,8 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 	}
 }
 
+type CountSummary = ReturnType<typeof collectCounts>;
+
 const collectCounts = (count: TestStateCount) => {
 	const failed = count[TestRunState.Errored] + count[TestRunState.Failed];
 	const passed = count[TestRunState.Passed];
@@ -721,12 +723,17 @@ const collectCounts = (count: TestStateCount) => {
 	};
 };
 
-const getProgressText = ({ passed, runSoFar, skipped }: { passed: number, runSoFar: number, skipped: number }) => {
-	const percent = (passed / runSoFar * 100).toFixed(0);
+const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) => {
+	let percent = passed / runSoFar * 100;
+	if (failed > 0) {
+		// fix: prevent from rounding to 100 if there's any failed test
+		percent = Math.min(percent, 99.9);
+	}
+
 	if (skipped === 0) {
-		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent);
+		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
 	} else {
-		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent, skipped);
+		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
 	}
 };
 

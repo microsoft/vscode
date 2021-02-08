@@ -43,6 +43,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { splitLines } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -56,7 +57,7 @@ function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, o
 	}
 
 	if (!services.has(IOpenerService)) {
-		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
+		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService), services.get(ILogService)));
 	}
 
 	let result = callback(services);
@@ -180,6 +181,14 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
 	return StaticServices.markerService.get().read(filter);
+}
+
+/**
+ * Emitted when markers change for a model.
+ * @event
+ */
+export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisposable {
+	return StaticServices.markerService.get().onMarkerChanged(listener);
 }
 
 /**
@@ -339,6 +348,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		setModelLanguage: <any>setModelLanguage,
 		setModelMarkers: <any>setModelMarkers,
 		getModelMarkers: <any>getModelMarkers,
+		onDidChangeMarkers: <any>onDidChangeMarkers,
 		getModels: <any>getModels,
 		getModel: <any>getModel,
 		onDidCreateModel: <any>onDidCreateModel,

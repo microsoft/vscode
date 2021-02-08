@@ -252,7 +252,6 @@ export class OutlinePane extends ViewPane {
 				this._domNode.classList.remove('message');
 				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
 				tree.setInput(newOutline, state);
-				tree.expandAll();
 
 			} else {
 				// update: refresh tree

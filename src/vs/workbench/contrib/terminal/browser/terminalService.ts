@@ -637,6 +637,7 @@ export class TerminalService implements ITerminalService {
 			}
 
 			const hasSpace = originalPath.indexOf(' ') !== -1;
+			const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
 
 			const pathBasename = basename(executable, '.exe');
 			const isPowerShell = pathBasename === 'pwsh' ||
@@ -646,6 +647,11 @@ export class TerminalService implements ITerminalService {
 
 			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
 				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
+				return;
+			}
+
+			if (hasParens && isPowerShell) {
+				c(`& '${originalPath}'`);
 				return;
 			}
 

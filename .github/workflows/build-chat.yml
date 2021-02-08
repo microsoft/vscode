@@ -14,23 +14,22 @@ jobs:
   main:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-
-    - name: Setup Node.js 12.x
-      uses: actions/setup-node@v1.4.4
-      with:
-          node-version: "12.x"
-
-    - name: Build
-      run: yarn install && yarn run build
-      working-directory: .github/actions/build-chat
-
-    - name: Build Chat
-      uses: ./.github/actions/build-chat
-      with:
-        workflow_run_url: ${{ github.event.workflow_run.url }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
-        BUILD_CHAT_STORAGE_CONNECTION_STRING: ${{ secrets.BUILD_CHAT_STORAGE_CONNECTION_STRING }}
+      - name: Checkout Actions
+        uses: actions/checkout@v2
+        with:
+          repository: "microsoft/vscode-github-triage-actions"
+          path: ./actions
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
+      - name: Install Additional Dependencies
+        # Pulls in a bunch of other packages that arent needed for the rest of the actions
+        run: npm install @azure/storage-blob@12.1.1
+      - name: Build Chat
+        uses: ./actions/build-chat
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          slack_token: ${{ secrets.SLACK_TOKEN }}
+          storage_connection_string: ${{ secrets.BUILD_CHAT_STORAGE_CONNECTION_STRING }}
+          workflow_run_url: ${{ github.event.workflow_run.url }}
+          notification_channel: build
+          log_channel: bot-log

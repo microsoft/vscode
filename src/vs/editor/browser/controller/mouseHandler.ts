@@ -42,6 +42,7 @@ export interface IPointerHandlerHelper {
 	linesContentDomNode: HTMLElement;
 
 	focusTextArea(): void;
+	dispatchTextAreaEvent(event: CustomEvent): void;
 
 	/**
 	 * Get the last rendered information for cursors & textarea.

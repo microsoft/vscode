@@ -12,7 +12,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
-import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
@@ -26,8 +26,7 @@ import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/mar
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
@@ -108,22 +107,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 const markersViewIcon = registerIcon('markers-view-icon', Codicon.warning, localize('markersViewIcon', 'View icon of the markers view.'));
 
 // markers view container
-const TOGGLE_MARKERS_VIEW_ACTION_ID = 'workbench.actions.view.problems';
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Constants.MARKERS_CONTAINER_ID,
-	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	title: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	icon: markersViewIcon,
 	hideIfEmpty: true,
 	order: 0,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: Constants.MARKERS_VIEW_STORAGE_ID,
-	focusCommand: {
-		id: TOGGLE_MARKERS_VIEW_ACTION_ID,
-		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
-		}
-	}
-}, ViewContainerLocation.Panel);
+}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Constants.MARKERS_VIEW_ID,
@@ -132,6 +124,12 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	canToggleVisibility: false,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),
+	openCommandActionDescriptor: {
+		id: 'workbench.actions.view.problems',
+		mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
+		order: 0,
+	}
 }], VIEW_CONTAINER);
 
 // workbench
@@ -139,32 +137,6 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);
 
 // actions
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TOGGLE_MARKERS_VIEW_ACTION_ID,
-			title: { value: Messages.MARKERS_PANEL_TOGGLE_LABEL, original: 'Toggle Problems (Errors, Warnings, Infos)' },
-			category: CATEGORIES.View.value,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
-			}
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IInstantiationService).createInstance(ToggleViewAction, TOGGLE_MARKERS_VIEW_ACTION_ID, 'Toggle Problems (Errors, Warnings, Infos)', Constants.MARKERS_VIEW_ID).run();
-	}
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '4_panels',
-	command: {
-		id: TOGGLE_MARKERS_VIEW_ACTION_ID,
-		title: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems")
-	},
-	order: 4
-});
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

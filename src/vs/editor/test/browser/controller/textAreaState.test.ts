@@ -134,8 +134,12 @@ suite('TextAreaState', () => {
 		let newState = TextAreaState.readFromTextArea(textArea);
 		let actual = TextAreaState.deduceInput(prevState, newState, couldBeEmojiInput);
 
-		assert.strictEqual(actual.text, expected);
-		assert.strictEqual(actual.replaceCharCnt, expectedCharReplaceCnt);
+		assert.deepStrictEqual(actual, {
+			text: expected,
+			replacePrevCharCnt: expectedCharReplaceCnt,
+			replaceNextCharCnt: 0,
+			positionDelta: 0,
+		});
 
 		textArea.dispose();
 	}
@@ -500,6 +504,82 @@ suite('TextAreaState', () => {
 			'some⌨️1  text',
 			6, 6, true,
 			'⌨️', 0
+		);
+	});
+
+	function testDeduceAndroidCompositionInput(
+		prevState: TextAreaState | null,
+		value: string, selectionStart: number, selectionEnd: number,
+		expected: string, expectedReplacePrevCharCnt: number, expectedReplaceNextCharCnt: number, expectedPositionDelta: number): void {
+		prevState = prevState || TextAreaState.EMPTY;
+
+		let textArea = new MockTextAreaWrapper();
+		textArea._value = value;
+		textArea._selectionStart = selectionStart;
+		textArea._selectionEnd = selectionEnd;
+
+		let newState = TextAreaState.readFromTextArea(textArea);
+		let actual = TextAreaState.deduceAndroidCompositionInput(prevState, newState);
+
+		assert.deepStrictEqual(actual, {
+			text: expected,
+			replacePrevCharCnt: expectedReplacePrevCharCnt,
+			replaceNextCharCnt: expectedReplaceNextCharCnt,
+			positionDelta: expectedPositionDelta,
+		});
+
+		textArea.dispose();
+	}
+
+	test('Android composition input 1', () => {
+		testDeduceAndroidCompositionInput(
+			new TextAreaState(
+				'Microsoft',
+				4, 4,
+				null, null
+			),
+			'Microsoft',
+			4, 4,
+			'', 0, 0, 0,
+		);
+	});
+
+	test('Android composition input 2', () => {
+		testDeduceAndroidCompositionInput(
+			new TextAreaState(
+				'Microsoft',
+				4, 4,
+				null, null
+			),
+			'Microsoft',
+			0, 9,
+			'', 0, 0, 5,
+		);
+	});
+
+	test('Android composition input 3', () => {
+		testDeduceAndroidCompositionInput(
+			new TextAreaState(
+				'Microsoft',
+				0, 9,
+				null, null
+			),
+			'Microsoft\'s',
+			11, 11,
+			'\'s', 0, 0, 0,
+		);
+	});
+
+	test('Android backspace', () => {
+		testDeduceAndroidCompositionInput(
+			new TextAreaState(
+				'undefinedVariable',
+				2, 2,
+				null, null
+			),
+			'udefinedVariable',
+			1, 1,
+			'', 1, 0, 0,
 		);
 	});
 

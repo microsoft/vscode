@@ -19,8 +19,8 @@
   "activationEvents": [
     "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
-    "onUriOpen:http",
-    "onUriOpen:https"
+    "onOpenExternalUri:http",
+    "onOpenExternalUri:https"
   ],
   "contributes": {
     "commands": [
@@ -65,5 +65,9 @@
     "typescript": "^3.7.3",
     "webpack": "^4.41.2",
     "webpack-cli": "^3.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

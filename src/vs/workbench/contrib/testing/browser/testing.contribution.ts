@@ -13,7 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
@@ -38,7 +38,7 @@ registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionServic
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
-	name: localize('test', "Test"),
+	title: localize('test', "Test"),
 	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
@@ -86,7 +86,6 @@ registerAction2(Action.DebugSelectedAction);
 registerAction2(Action.TestingGroupByLocationAction);
 registerAction2(Action.TestingGroupByStatusAction);
 registerAction2(Action.RefreshTestsAction);
-registerAction2(Action.ShowTestView);
 registerAction2(Action.CollapseAllAction);
 registerAction2(Action.RunAllAction);
 registerAction2(Action.DebugAllAction);
@@ -118,6 +117,6 @@ CommandsRegistry.registerCommand({
 	id: 'vscode.revealTestInExplorer',
 	handler: async (accessor: ServicesAccessor, path: string[]) => {
 		accessor.get(ITestExplorerFilterState).reveal = path;
-		await new Action.ShowTestView().run(accessor);
+		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
 	}
 });

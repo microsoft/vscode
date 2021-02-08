@@ -61,6 +61,18 @@
             "default": true,
             "description": "%css.validate.desc%"
           },
+          "css.hover.documentation": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.hover.documentation%"
+          },
+          "css.hover.references": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.hover.references%"
+          },
           "css.lint.compatibleVendorPrefixes": {
             "type": "string",
             "scope": "resource",
@@ -316,6 +328,18 @@
             "default": true,
             "description": "%scss.validate.desc%"
           },
+          "scss.hover.documentation": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.hover.documentation%"
+          },
+          "scss.hover.references": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.hover.references%"
+          },
           "scss.lint.compatibleVendorPrefixes": {
             "type": "string",
             "scope": "resource",
@@ -560,6 +584,18 @@
             "scope": "resource",
             "default": true,
             "description": "%less.validate.desc%"
+          },
+          "less.hover.documentation": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.hover.documentation%"
+          },
+          "less.hover.references": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.hover.references%"
           },
           "less.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -812,5 +848,9 @@
   },
   "devDependencies": {
     "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

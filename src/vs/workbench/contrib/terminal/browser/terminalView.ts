@@ -6,41 +6,46 @@
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import { Action, IAction, Separator, IActionViewItem } from 'vs/base/common/actions';
+import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { KillTerminalAction, SwitchTerminalAction, SwitchTerminalActionViewItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction, SelectAllTerminalAction, CreateNewTerminalAction, SplitTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { configureTerminalSettingsTitle, selectDefaultShellTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import { equals } from 'vs/base/common/arrays';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalViewPane extends ViewPane {
+	private _menu: IMenu;
 	private _actions: IAction[] | undefined;
-	private _copyContextMenuAction: IAction | undefined;
-	private _contextMenuActions: IAction[] | undefined;
 	private _cancelContextMenu: boolean = false;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
-	private _splitTerminalAction: IAction | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 
@@ -57,8 +62,10 @@ export class TerminalViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		this._menu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 		this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
@@ -148,67 +155,10 @@ export class TerminalViewPane extends ViewPane {
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
 		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
-		// Update orientation of split button icon
-		if (this._splitTerminalAction) {
-			this._splitTerminalAction.class = this.orientation === Orientation.HORIZONTAL ? SplitTerminalAction.HORIZONTAL_CLASS : SplitTerminalAction.VERTICAL_CLASS;
-		}
-	}
-
-	public getActions(): IAction[] {
-		if (!this._actions) {
-			this._splitTerminalAction = this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL);
-			this._actions = [
-				this._instantiationService.createInstance(SwitchTerminalAction, SwitchTerminalAction.ID, SwitchTerminalAction.LABEL),
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-				this._splitTerminalAction,
-				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
-			];
-			for (const action of this._actions) {
-				if (!this._terminalService.isProcessSupportRegistered) {
-					action.enabled = false;
-				}
-				this._register(action);
-			}
-		}
-		return this._actions;
-	}
-
-	private _getContextMenuActions(): IAction[] {
-		if (!this._contextMenuActions || !this._copyContextMenuAction) {
-			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.SHORT_LABEL);
-
-			const clipboardActions = [];
-			if (BrowserFeatures.clipboard.writeText) {
-				clipboardActions.push(this._copyContextMenuAction);
-			}
-			if (BrowserFeatures.clipboard.readText) {
-				clipboardActions.push(this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.SHORT_LABEL));
-			}
-
-			clipboardActions.push(this._instantiationService.createInstance(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL));
-
-			this._contextMenuActions = [
-				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.SHORT_LABEL),
-				this._instantiationService.createInstance(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.SHORT_LABEL),
-				new Separator(),
-				...clipboardActions,
-				new Separator(),
-				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL),
-				new Separator(),
-				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
-
-			];
-			this._contextMenuActions.forEach(a => {
-				this._register(a);
-			});
-		}
-		const activeInstance = this._terminalService.getActiveInstance();
-		this._copyContextMenuAction.enabled = !!activeInstance && activeInstance.hasSelection();
-		return this._contextMenuActions;
 	}
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
-		if (action.id === SwitchTerminalAction.ID) {
+		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		}
 
@@ -362,10 +312,15 @@ export class TerminalViewPane extends ViewPane {
 	private _openContextMenu(event: MouseEvent): void {
 		const standardEvent = new StandardMouseEvent(event);
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this._menu, undefined, actions);
+
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this._getContextMenuActions(),
-			getActionsContext: () => this._parentDomElement
+			getActions: () => actions,
+			getActionsContext: () => this._parentDomElement,
+			onHide: () => actionsDisposable.dispose()
 		});
 	}
 
@@ -394,3 +349,59 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child) { border-color: ${borderColor.toString()}; }`);
 	}
 });
+
+
+class SwitchTerminalActionViewItem extends SelectActionViewItem {
+	private _lastOptions: ISelectOptionItem[] = [];
+	private _lastActiveTab: number = 0;
+	constructor(
+		action: IAction,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
+		@IContextViewService contextViewService: IContextViewService,
+	) {
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+
+		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
+		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
+		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
+		this._register(_terminalService.onTabDisposed(this._updateItems, this));
+		this._register(_terminalService.onDidChangeConnectionState(this._updateItems, this));
+		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('switch-terminal');
+		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+		}));
+	}
+
+	private _updateItems(): void {
+		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
+		// only update options if they've changed
+		if (!equals(Object.values(options), Object.values(this._lastOptions)) || this._lastActiveTab !== this._terminalService.activeTabIndex) {
+			this.setOptions(options, this._terminalService.activeTabIndex);
+			this._lastOptions = options;
+			this._lastActiveTab = this._terminalService.activeTabIndex;
+		}
+	}
+}
+
+function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
+	const items = terminalService.connectionState === TerminalConnectionState.Connected ?
+		terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }) :
+		[{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
+
+	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
+
+	for (const contributed of contributions.terminalTypes) {
+		items.push({ text: contributed.title });
+	}
+
+	items.push({ text: selectDefaultShellTitle });
+	items.push({ text: configureTerminalSettingsTitle });
+	return items;
+}
