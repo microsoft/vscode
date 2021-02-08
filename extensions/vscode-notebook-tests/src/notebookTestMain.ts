@@ -62,12 +62,10 @@ export function activate(context: vscode.ExtensionContext): any {
 		isPreferred: true,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCellOutput(_document.uri, 0, [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/plain': ['my output']
-				}
-			}]);
+
+			edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+			])]);
 			return vscode.workspace.applyEdit(edit);
 		},
 		cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
@@ -78,24 +76,18 @@ export function activate(context: vscode.ExtensionContext): any {
 
 			if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
 				const edit = new vscode.WorkspaceEdit();
-				edit.replaceNotebookCellOutput(document.uri, cell.index, [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/custom': 'test'
-					}
-				}]);
+				edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
+				])]);
 
 				return vscode.workspace.applyEdit(edit);
 			}
 
 			const edit = new vscode.WorkspaceEdit();
 			// const previousOutputs = cell.outputs;
-			edit.replaceNotebookCellOutput(document.uri, cell.index, [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/plain': ['my output']
-				}
-			}]);
+			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+			])]);
 
 			return vscode.workspace.applyEdit(edit);
 		},
@@ -108,12 +100,10 @@ export function activate(context: vscode.ExtensionContext): any {
 		isPreferred: false,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCellOutput(_document.uri, 0, [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/plain': ['my second output']
-				}
-			}]);
+			edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+			])]);
+
 			return vscode.workspace.applyEdit(edit);
 		},
 		cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
@@ -125,19 +115,13 @@ export function activate(context: vscode.ExtensionContext): any {
 			const edit = new vscode.WorkspaceEdit();
 
 			if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-				edit.replaceNotebookCellOutput(document.uri, cell.index, [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/custom': 'test 2'
-					}
-				}]);
+				edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/custom', ['test 2'], undefined)
+				])]);
 			} else {
-				edit.replaceNotebookCellOutput(document.uri, cell.index, [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/plain': ['my second output']
-					}
-				}]);
+				edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+				])]);
 			}
 
 			return vscode.workspace.applyEdit(edit);

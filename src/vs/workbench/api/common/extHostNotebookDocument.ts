@@ -12,7 +12,6 @@ import { ISplice } from 'vs/base/common/sequence';
 import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IMainCellDto, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
@@ -92,10 +91,10 @@ export class ExtHostCell extends Disposable {
 				cellKind: this._cellData.cellKind,
 				document: data.document,
 				get language() { return data!.document.languageId; },
-				get outputs() {
-					return that._outputs.map(output => NotebookCellOutput._toOld(output));
-				},
-				set outputs(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
+				// get outputs() {
+				// 	return that._outputs.map(output => NotebookCellOutput._toOld(output));
+				// },
+				// set outputs(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
 				get outputs2() { return that._outputs.map(extHostTypeConverters.NotebookCellOutput.to); },
 				set outputs2(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
 				get metadata() { return that._metadata; },

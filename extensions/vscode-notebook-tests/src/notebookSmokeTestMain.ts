@@ -72,12 +72,9 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			const edit = new vscode.WorkspaceEdit();
 			for (let i = 0; i < _document.cells.length; i++) {
-				edit.replaceNotebookCellOutput(_document.uri, i, [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/html': ['test output']
-					}
-				}]);
+				edit.replaceNotebookCellOutput(_document.uri, i, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+				])]);
 			}
 
 			await vscode.workspace.applyEdit(edit);
@@ -89,12 +86,9 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 			}
 
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCellOutput(_document.uri, _cell.index, [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/html': ['test output']
-				}
-			}]);
+			edit.replaceNotebookCellOutput(_document.uri, _cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+			])]);
 			await vscode.workspace.applyEdit(edit);
 			return;
 		},

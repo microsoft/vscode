@@ -1342,7 +1342,7 @@ export namespace NotebookCellData {
 		} if (first instanceof types.NotebookCellOutput) {
 			outputs = (<vscode.NotebookCellOutput[]>data.outputs).map(NotebookCellOutput.from);
 		} else {
-			outputs = (<vscode.CellOutput[]>data.outputs).map(o => NotebookCellOutput.from(types.NotebookCellOutput._fromOld(o)));
+			outputs = [];
 		}
 		return {
 			cellKind: data.cellKind,
