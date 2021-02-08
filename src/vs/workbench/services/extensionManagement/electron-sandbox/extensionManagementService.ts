@@ -49,7 +49,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 			});
 		}
 
-		return Promise.reject();
+		return Promise.reject('Unable to get the extension manifest.');
 	}
 }
 
