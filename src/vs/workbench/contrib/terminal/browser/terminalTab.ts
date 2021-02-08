@@ -101,7 +101,6 @@ class SplitPaneContainer extends Disposable {
 	}
 
 	public resizePanes(relativeSizes: number[]): void {
-		console.log(relativeSizes);
 		if (this._children.length <= 1) {
 			return;
 		}
