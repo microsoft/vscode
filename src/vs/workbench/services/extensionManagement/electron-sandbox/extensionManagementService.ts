@@ -44,9 +44,8 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		}
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
-			return this.promptForTrustIfNeededAndInstall(manifest, () => {
-				return server.extensionManagementService.install(vsix);
-			});
+			await this.checkForWorkspaceTrust(manifest);
+			return server.extensionManagementService.install(vsix);
 		}
 
 		return Promise.reject('Unable to get the extension manifest.');

@@ -130,12 +130,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
 		const server = this.getServer(extension);
 		if (server) {
-			return this.promptForTrustIfNeededAndInstall(extension.manifest, () => {
-				return server.extensionManagementService.reinstallFromGallery(extension);
-			});
+			await this.checkForWorkspaceTrust(extension.manifest);
+			return server.extensionManagementService.reinstallFromGallery(extension);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
@@ -198,9 +197,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	protected async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
-			return this.promptForTrustIfNeededAndInstall(manifest, () => {
-				return server.extensionManagementService.install(vsix);
-			});
+			await this.checkForWorkspaceTrust(manifest);
+			return server.extensionManagementService.install(vsix);
 		}
 		return Promise.reject('Unable to get the extension manifest.');
 	}
@@ -279,9 +277,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 				}
 			}
-			return this.promptForTrustIfNeededAndInstall(manifest, () => {
-				return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
-			});
+			await this.checkForWorkspaceTrust(manifest);
+			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
 		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", gallery.displayName || gallery.name));
@@ -359,15 +356,15 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return this.extensionManagementServerService.getExtensionManagementServer(extension);
 	}
 
-	protected async promptForTrustIfNeededAndInstall<T>(manifest: IExtensionManifest, installTask: () => Promise<T>): Promise<T> {
+	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
 		if (manifest.requiresWorkspaceTrust === 'onStart') {
 			const trustState = await this.workspaceTrustService.requireWorkspaceTrust(
 				{
 					immediate: true,
 					message: 'Installing this extension requires you to trust the contents of this workspace.'
 				});
-			return trustState === WorkspaceTrustState.Trusted ? installTask() : Promise.reject(canceled());
+			return trustState === WorkspaceTrustState.Trusted ? Promise.resolve() : Promise.reject(canceled());
 		}
-		return installTask();
+		return Promise.resolve();
 	}
 }
