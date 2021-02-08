@@ -24,10 +24,10 @@ typescript@^4.2.0-dev.20210201:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20210201.tgz#3d8ae7214cd4b23d3ae400f84d1afe5679f3e2f0"
   integrity sha512-By8G30ZYs+b/8084cSnjP7ILd8ExUBC4Qi9FY2iRlBApHu/A08ExLlCRnYkHN1PgxcNs4rTaozJsgXHJ6cg92g==
 
-vscode-grammar-updater@^1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/vscode-grammar-updater/-/vscode-grammar-updater-1.0.2.tgz#ad4eba5f69c02ec8bf8143517d736a587e059657"
-  integrity sha512-gzJ9QQhtcYznm7WaY473hU/wWq7mWhEJJdcJPLZNwL3v0+FlWwXU/oIe7Z/k/DFR8g5dFOhqgQAiX22cneG5VA==
+vscode-grammar-updater@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/vscode-grammar-updater/-/vscode-grammar-updater-1.0.3.tgz#695ccaf0567c6a000005a969cd87ecc3b5c25018"
+  integrity sha512-V/OnMGyAk7Ldv5NC2p+NovidsAghdfbFFnimEzQ7F/TYIqDLJCVe28RcvaU2gywCSCtxNfS5MYe0egiaRIWNEw==
   dependencies:
     cson-parser "^1.3.3"
     fast-plist "0.1.2"
