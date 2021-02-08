@@ -153,7 +153,7 @@
     is-absolute "^1.0.0"
     is-negated-glob "^1.0.0"
 
-"@electron/get@^1.0.1", "@electron/get@^1.12.3":
+"@electron/get@^1.0.1":
   version "1.12.3"
   resolved "https://registry.yarnpkg.com/@electron/get/-/get-1.12.3.tgz#fa2723385c4b565a34c4c82f46087aa2a5fbf6d0"
   integrity sha512-NFwSnVZQK7dhOYF1NQCt+HGqgL1aNdj0LUSx75uCqnZJqyiWCVdAMFV4b4/kC8HjUJAnsvdSEmjEt4G2qNQ9+Q==
@@ -161,6 +161,22 @@
     debug "^4.1.1"
     env-paths "^2.2.0"
     filenamify "^4.1.0"
+    fs-extra "^8.1.0"
+    got "^9.6.0"
+    progress "^2.0.3"
+    semver "^6.2.0"
+    sumchecker "^3.0.1"
+  optionalDependencies:
+    global-agent "^2.0.2"
+    global-tunnel-ng "^2.7.1"
+
+"@electron/get@^1.12.4":
+  version "1.12.4"
+  resolved "https://registry.yarnpkg.com/@electron/get/-/get-1.12.4.tgz#a5971113fc1bf8fa12a8789dc20152a7359f06ab"
+  integrity sha512-6nr9DbJPUR9Xujw6zD3y+rS95TyItEVM0NVjt1EehY2vUWfIgPiIPVHxCvaTS0xr2B+DRxovYVKbuOWqC35kjg==
+  dependencies:
+    debug "^4.1.1"
+    env-paths "^2.2.0"
     fs-extra "^8.1.0"
     got "^9.6.0"
     progress "^2.0.3"
@@ -4404,12 +4420,12 @@ growl@1.10.5:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.10.5.tgz#f2735dc2283674fa67478b10181059355c369e5e"
   integrity sha512-qBr4OuELkhPenW6goKVXiv47US3clb3/IbuWF9KNKEijAy9oeHxU9IgzjvJhHkUzhaj7rOUD7+YGWqUjLp5oSA==
 
-gulp-atom-electron@^1.29.0:
-  version "1.29.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.29.0.tgz#5f16dbac1e15c888af6b1b0c5ce433b78d6d80d7"
-  integrity sha512-q+YR41eA6mhiwNaRXeEETsFSDuOjhXfTiXJn74/brjR2/H6BmbbocaFbKSnkKv3N4f6MJuH1mWKCZqPggaHiAg==
+gulp-atom-electron@^1.30.0:
+  version "1.30.0"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.30.0.tgz#e2dc4ca565c39e9c146e0592c24930f0e579edea"
+  integrity sha512-vlH1spnlMyEOfrGPgdRXRccmeus+oYAt10UnPp+DKcSGUvm3ZNdD+st+IRZsiCkKEjnZ2aS8Ms++VNxfGzS4/Q==
   dependencies:
-    "@electron/get" "^1.12.3"
+    "@electron/get" "^1.12.4"
     "@octokit/rest" "^18.0.14"
     event-stream "3.3.4"
     gulp-filter "^5.1.0"
