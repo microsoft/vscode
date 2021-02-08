@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, UninstallOptions
+	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, UninstallOptions, INSTALL_CANCEL
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -366,7 +366,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 					immediate: true,
 					message: 'Installing this extension requires you to trust the contents of this workspace.'
 				});
-			return trustState === WorkspaceTrustState.Trusted ? installTask() : Promise.reject();
+			return trustState === WorkspaceTrustState.Trusted ? installTask() : Promise.reject(canceled());
 		}
 		return installTask();
 	}
