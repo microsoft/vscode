@@ -235,13 +235,13 @@ export class TerminalService implements ITerminalService {
 						this.splitInstance(terminalInstance);
 					}
 				}
-				// TODO@meganrogge: use processId instead of id?
+				// TODO@meganrogge: use processId instead of id eventually
 				const activeInstance = this.terminalInstances.find(t => t.id === layout.activeTerminalProcessId);
 				if (activeInstance) {
 					this.setActiveInstance(activeInstance);
 				}
 				// TODO@meganrogge: get relative sizes to persist
-				tab?.resizePanes(layout.terminals.map((terminal: { relativeSize: any; }) => terminal.relativeSize));
+				tab?.resizePanes(layout.terminals.map((terminal: { relativeSize: number; }) => terminal.relativeSize));
 			}
 			if (layoutInfo.tabs.length) {
 				this.setActiveTabByIndex(activeTab ? this.terminalTabs.indexOf(activeTab) : 0);
