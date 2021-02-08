@@ -327,6 +327,12 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private readonly _onDidChangeViewVisibility = this._register(new Emitter<IView>());
 	readonly onDidChangeViewVisibility = this._onDidChangeViewVisibility.event;
 
+	private readonly _onDidFocusView = this._register(new Emitter<IView>());
+	readonly onDidFocusView = this._onDidFocusView.event;
+
+	private readonly _onDidBlurView = this._register(new Emitter<IView>());
+	readonly onDidBlurView = this._onDidBlurView.event;
+
 	get onDidSashChange(): Event<number> {
 		return assertIsDefined(this.paneview).onDidSashChange;
 	}
@@ -835,7 +841,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
-		const onDidFocus = pane.onDidFocus(() => this.lastFocusedPane = pane);
+		const onDidFocus = pane.onDidFocus(() => {
+			this._onDidFocusView.fire(pane);
+			this.lastFocusedPane = pane;
+		});
+		const onDidBlur = pane.onDidBlur(() => this._onDidBlurView.fire(pane));
 		const onDidChangeTitleArea = pane.onDidChangeTitleArea(() => {
 			if (this.isViewMergedWithContainer()) {
 				this.updateTitleArea();
@@ -857,7 +867,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			dropBackground: isPanel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND,
 			leftBorder: isPanel ? PANEL_SECTION_BORDER : undefined
 		}, pane);
-		const disposable = combinedDisposable(pane, onDidFocus, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
+		const disposable = combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
 		const paneItem: IViewPaneItem = { pane, disposable };
 
 		this.paneItems.splice(index, 0, paneItem);
