@@ -58,7 +58,7 @@
     "build-preview-production": "webpack --mode production",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose",
-    "postinstall": "cp node_modules/vscode-codicons/dist/codicon.css media/ ; cp node_modules/vscode-codicons/dist/codicon.ttf media/"
+    "postinstall": "node ./build/copy"
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
