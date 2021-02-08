@@ -22,7 +22,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getSystemShell } from 'vs/base/node/shell';
-import { IPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -40,7 +40,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ILogService private readonly _logService: ILogService,
-		@IPtyService private readonly _ptyService: IPtyService,
+		@ILocalPtyService private readonly _localPtyService: ILocalPtyService,
 	) {
 	}
 
@@ -77,7 +77,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	}
 
 	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		this._ptyService.test();
+		this._localPtyService.test();
 		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
 	}
 

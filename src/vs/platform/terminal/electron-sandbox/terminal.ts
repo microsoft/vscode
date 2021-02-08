@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonPtyService } from 'vs/platform/terminal/common/terminal';
+import { ICommonLocalPtyService } from 'vs/platform/terminal/common/terminal';
 
-export const IPtyService = createDecorator<IPtyService>('ptyService');
+export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
 
-export interface IPtyService extends ICommonPtyService { }
+export interface ILocalPtyService extends ICommonLocalPtyService { }

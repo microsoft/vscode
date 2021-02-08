@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ICommonPtyService {
+export interface ICommonLocalPtyService {
 	readonly _serviceBrand: undefined;
 
 	test(): Promise<void>;

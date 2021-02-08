@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonPtyService } from 'vs/platform/terminal/common/terminal';
+import { ICommonLocalPtyService } from 'vs/platform/terminal/common/terminal';
 
-export const IPtyMainService = createDecorator<IPtyMainService>('ptyMainService');
+export const ILocalPtyMainService = createDecorator<ILocalPtyMainService>('localPtyMainService');
 
-export interface IPtyMainService extends ICommonPtyService { }
+export interface ILocalPtyMainService extends ICommonLocalPtyService { }
 
-export class PtyMainService implements ICommonPtyService {
+export class LocalPtyMainService implements ICommonLocalPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	// TODO: Remove test function

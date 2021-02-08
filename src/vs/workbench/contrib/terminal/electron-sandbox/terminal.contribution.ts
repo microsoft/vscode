@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { PtyService } from 'vs/workbench/contrib/terminal/electron-sandbox/ptyService';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { LocalPtyService } from 'vs/workbench/contrib/terminal/electron-sandbox/localPtyService';
 
-registerSingleton(IPtyService, PtyService, true);
+registerSingleton(ILocalPtyService, LocalPtyService, true);
