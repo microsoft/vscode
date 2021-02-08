@@ -178,14 +178,6 @@ export interface ICell {
 	onDidChangeMetadata: Event<void>;
 }
 
-export interface LanguageInfo {
-	file_extension: string;
-}
-
-export interface IMetadata {
-	language_info: LanguageInfo;
-}
-
 export interface INotebookTextModel {
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata
