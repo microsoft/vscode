@@ -210,12 +210,13 @@ export class TerminalService implements ITerminalService {
 		const defaultLayoutInfo = JSON.stringify({ tabs: [{ terminals: [], isActive: true }] });
 		const result = this._storageService.get('localTerminalLayoutInfo', StorageScope.WORKSPACE, defaultLayoutInfo);
 		const layoutInfo = JSON.parse(result);
+
 		if (layoutInfo.tabs.length === 0) {
 			this.createTerminal();
 			this.attachListeners(false);
 			return;
 		}
-		let tabIndex = 0;
+
 		let activeTab: ITerminalTab | undefined;
 		if (layoutInfo) {
 			for (const layout of layoutInfo.tabs) {
@@ -225,19 +226,22 @@ export class TerminalService implements ITerminalService {
 					if (!terminalInstance) {
 						// create tab and terminal
 						terminalInstance = this.createTerminal();
-						// TODO@meganrogge: use this._getTabForInstance() instead of tabIndex
-						tab = this._terminalTabs[tabIndex];
+						tab = this._getTabForInstance(terminalInstance);
 						if (layout.isActive) {
 							activeTab = tab;
 						}
 					} else {
-						// add split terminals to this tab
+						// add split terminal to this tab
 						this.splitInstance(terminalInstance);
 					}
 				}
+				// TODO@meganrogge: use processId instead of id?
+				const activeInstance = this.terminalInstances.find(t => t.id === layout.activeTerminalProcessId);
+				if (activeInstance) {
+					this.setActiveInstance(activeInstance);
+				}
 				// TODO@meganrogge: get relative sizes to persist
 				tab?.resizePanes(layout.terminals.map((terminal: { relativeSize: any; }) => terminal.relativeSize));
-				tabIndex++;
 			}
 			if (layoutInfo.tabs.length) {
 				this.setActiveTabByIndex(activeTab ? this.terminalTabs.indexOf(activeTab) : 0);
