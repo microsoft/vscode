@@ -16,6 +16,11 @@
   "categories": [
     "Other"
   ],
+  "extensionKind": [
+    "ui",
+    "workspace",
+    "web"
+  ],
   "activationEvents": [
     "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
