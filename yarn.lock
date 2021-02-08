@@ -4410,10 +4410,10 @@ growl@1.10.5:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.10.5.tgz#f2735dc2283674fa67478b10181059355c369e5e"
   integrity sha512-qBr4OuELkhPenW6goKVXiv47US3clb3/IbuWF9KNKEijAy9oeHxU9IgzjvJhHkUzhaj7rOUD7+YGWqUjLp5oSA==
 
-gulp-atom-electron@^1.30.0:
-  version "1.30.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.30.0.tgz#e2dc4ca565c39e9c146e0592c24930f0e579edea"
-  integrity sha512-vlH1spnlMyEOfrGPgdRXRccmeus+oYAt10UnPp+DKcSGUvm3ZNdD+st+IRZsiCkKEjnZ2aS8Ms++VNxfGzS4/Q==
+gulp-atom-electron@^1.30.1:
+  version "1.30.1"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.30.1.tgz#d29516d63fa7f0c7841e664a60c6a00c14c6090d"
+  integrity sha512-lOpvkdS6QwwqtH3CfnoI/uwOc2u1OL9OeH67ZzjfO9cra2dW1GJ6xQl62Pot8fc0kMx+N7qrbGo/+N0hdxfHXg==
   dependencies:
     "@electron/get" "^1.12.4"
     "@octokit/rest" "^18.0.14"
