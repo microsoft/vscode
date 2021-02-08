@@ -240,7 +240,6 @@ export class TerminalService implements ITerminalService {
 				if (activeInstance) {
 					this.setActiveInstance(activeInstance);
 				}
-				// TODO@meganrogge: get relative sizes to persist
 				tab?.resizePanes(layout.terminals.map((terminal: { relativeSize: number; }) => terminal.relativeSize));
 			}
 			if (layoutInfo.tabs.length) {
