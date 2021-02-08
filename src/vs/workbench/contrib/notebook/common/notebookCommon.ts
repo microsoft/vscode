@@ -365,11 +365,6 @@ export interface ICellMoveEdit {
 
 export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit;
 
-export interface INotebookEditData {
-	documentVersionId: number;
-	cellEdits: ICellEditOperation[];
-}
-
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
 	readonly languages: string[];

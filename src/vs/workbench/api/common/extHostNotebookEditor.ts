@@ -9,9 +9,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
+
+interface INotebookEditData {
+	documentVersionId: number;
+	cellEdits: ICellEditOperation[];
+}
 
 class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
