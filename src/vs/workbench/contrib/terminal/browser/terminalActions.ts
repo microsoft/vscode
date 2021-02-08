@@ -1214,6 +1214,12 @@ export function registerTerminalActions() {
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 				icon: Codicon.plus,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
+					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK },
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+				},
 				menu: {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
