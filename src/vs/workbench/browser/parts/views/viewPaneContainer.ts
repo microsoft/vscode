@@ -28,7 +28,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { registerAction2, Action2, IAction2Options, IMenuService, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IAction2Options, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -293,22 +293,6 @@ class ViewPaneDropOverlay extends Themable {
 	}
 }
 
-class ViewContainerMenuActions extends CompositeMenuActions {
-	constructor(
-		viewContainer: ViewContainer,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-	) {
-		const scopedContextKeyService = contextKeyService.createScoped();
-		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
-		const viewContainerLocationKey = scopedContextKeyService.createKey('viewContainerLocation', ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!));
-		super(MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
-		this._register(scopedContextKeyService);
-		this._register(Event.filter(viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === viewContainer)(() => viewContainerLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!))));
-	}
-}
-
 export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
@@ -359,7 +343,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.length;
 	}
 
-	private readonly menuActions: ViewContainerMenuActions;
+	private readonly menuActions: CompositeMenuActions;
 
 	constructor(
 		id: string,
@@ -390,7 +374,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 		this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
 
-		this.menuActions = this._register(instantiationService.createInstance(ViewContainerMenuActions, container));
+		this.menuActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true }));
 		this._register(this.menuActions.onDidChange(() => this.updateTitleArea()));
 	}
 
