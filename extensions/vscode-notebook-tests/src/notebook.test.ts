@@ -93,6 +93,12 @@ async function updateCellMetadata(uri: vscode.Uri, cell: vscode.NotebookCell, ne
 	await vscode.workspace.applyEdit(edit);
 }
 
+async function updateNotebookMetadata(uri: vscode.Uri, newMetadata: vscode.NotebookDocumentMetadata) {
+	const edit = new vscode.WorkspaceEdit();
+	edit.replaceNotebookMetadata(uri, newMetadata);
+	await vscode.workspace.applyEdit(edit);
+}
+
 async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) => Promise<void>) {
 	const e = getEventOncePromise<T>(event);
 	await callback(e);
@@ -931,7 +937,7 @@ suite('notebook workflow', () => {
 		assert.strictEqual(cell.outputs.length, 0);
 
 		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			editor.document.metadata.runnable = false;
+			updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: false });
 			await event;
 		});
 
@@ -939,7 +945,7 @@ suite('notebook workflow', () => {
 		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
 		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			editor.document.metadata.runnable = true;
+			updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
 			await event;
 		});
 
@@ -979,7 +985,7 @@ suite('notebook workflow', () => {
 		const cell = editor.document.cells[0];
 
 		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			editor.document.metadata.runnable = true;
+			updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
 			await event;
 		});
 
@@ -1020,7 +1026,7 @@ suite('notebook workflow', () => {
 		const cell = editor.document.cells[0];
 
 		const metadataChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		editor.document.metadata.runnable = true;
+		updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
 		await metadataChangeEvent;
 		assert.strictEqual(editor.document.metadata.runnable, true);
 
@@ -1060,7 +1066,7 @@ suite('notebook workflow', () => {
 		const cell = editor.document.cells[0];
 
 		const metadataChangeEvent = getEventOncePromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		editor.document.metadata.runnable = true;
+		updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
 		await metadataChangeEvent;
 
 		await vscode.commands.executeCommand('notebook.cell.execute');
