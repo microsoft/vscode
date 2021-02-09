@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
@@ -18,7 +19,23 @@ export interface ICommonLocalPtyService {
 		// TODO: Is executableEnv required? Can the main processes' environment be used instead?
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean
-	): Promise<void>;
+	): Promise<number>;
+
+	start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined>;
+
+	shutdown(id: number, immediate: boolean): Promise<void>;
+
+	input(id: number, data: string): Promise<void>;
+
+	resize(id: number, cols: number, rows: number): Promise<void>;
+
+	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+
+	getInitialCwd(id: number): Promise<string>;
+
+	getCwd(id: number): Promise<string>;
+
+	getLatency(id: number): Promise<number>;
 }
 
 export interface IShellLaunchConfig {
@@ -115,4 +132,99 @@ export interface IShellLaunchConfig {
 
 export interface ITerminalEnvironment {
 	[key: string]: string | null;
+}
+
+export interface ITerminalLaunchError {
+	message: string;
+	code?: number;
+}
+
+/**
+ * An interface representing a raw terminal child process, this contains a subset of the
+ * child_process.ChildProcess node.js interface.
+ */
+export interface ITerminalChildProcess {
+	onProcessData: Event<IProcessDataEvent | string>;
+	onProcessExit: Event<number | undefined>;
+	onProcessReady: Event<{ pid: number, cwd: string }>;
+	onProcessTitleChanged: Event<string>;
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
+
+	/**
+	 * Starts the process.
+	 *
+	 * @returns undefined when the process was successfully started, otherwise an object containing
+	 * information on what went wrong.
+	 */
+	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined>;
+
+	/**
+	 * Shutdown the terminal process.
+	 *
+	 * @param immediate When true the process will be killed immediately, otherwise the process will
+	 * be given some time to make sure no additional data comes through.
+	 */
+	shutdown(immediate: boolean): void;
+	input(data: string): void;
+	resize(cols: number, rows: number): void;
+
+	/**
+	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
+	 * control to ensure remote processes to not get too far ahead of the client and flood the
+	 * connection.
+	 * @param charCount The number of characters being acknowledged.
+	 */
+	acknowledgeDataEvent(charCount: number): void;
+
+	getInitialCwd(): Promise<string>;
+	getCwd(): Promise<string>;
+	getLatency(): Promise<number>;
+}
+
+export const enum FlowControlConstants {
+	/**
+	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for
+	 * the client to catch up.
+	 */
+	HighWatermarkChars = 100000,
+	/**
+	 * After flow control pauses the pty for the client the catch up, this is the number of
+	 * _unacknowledged_ chars to have been caught up to on the client before resuming the pty again.
+	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
+	 * paused the number of unacknowledged chars would always be greater than 0 or the client will
+	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
+	 * will likely pause as latency grows, not flooding the connection is the important thing as
+	 * it's shared with other core functionality.
+	 */
+	LowWatermarkChars = 5000,
+	/**
+	 * The number characters that are accumulated on the client side before sending an ack event.
+	 * This must be less than or equal to LowWatermarkChars or the terminal max never unpause.
+	 */
+	CharCountAckSize = 5000
+}
+
+export interface IProcessDataEvent {
+	data: string;
+	sync: boolean;
+}
+
+export interface ITerminalDimensions {
+	/**
+	 * The columns of the terminal.
+	 */
+	readonly cols: number;
+
+	/**
+	 * The rows of the terminal.
+	 */
+	readonly rows: number;
+}
+
+export interface ITerminalDimensionsOverride extends ITerminalDimensions {
+	/**
+	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
+	 */
+	forceExactSize?: boolean;
 }

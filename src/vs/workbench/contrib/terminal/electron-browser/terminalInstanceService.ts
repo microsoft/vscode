@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWindowsShellHelper, ITerminalChildProcess, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/electron-browser/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
-import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -23,7 +22,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILogService } from 'vs/platform/log/common/log';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
+import { TerminalProcessMainProxy } from 'vs/workbench/contrib/terminal/electron-browser/terminalProcessMainProxy';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -77,9 +77,11 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return new WindowsShellHelper(shellProcessId, xterm);
 	}
 
-	public createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess {
-		this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
-		return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
+	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<ITerminalChildProcess> {
+		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
+		console.log('local pty id ' + id);
+		return this._instantiationService.createInstance(TerminalProcessMainProxy, id);
+		// return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -223,25 +223,6 @@ export interface IShellDefinition {
 	path: string;
 }
 
-export interface ITerminalDimensions {
-	/**
-	 * The columns of the terminal.
-	 */
-	readonly cols: number;
-
-	/**
-	 * The rows of the terminal.
-	 */
-	readonly rows: number;
-}
-
-export interface ITerminalDimensionsOverride extends ITerminalDimensions {
-	/**
-	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
-	 */
-	forceExactSize?: boolean;
-}
-
 export interface ICommandTracker {
 	scrollToPreviousCommand(): void;
 	scrollToNextCommand(): void;
@@ -263,11 +244,6 @@ export interface IBeforeProcessDataEvent {
 	 * to the terminal.
 	 */
 	data: string;
-}
-
-export interface IProcessDataEvent {
-	data: string;
-	sync: boolean;
 }
 
 export interface ITerminalProcessManager extends IDisposable {
@@ -388,77 +364,6 @@ export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChange: Event<string>;
 
 	getShellName(): Promise<string>;
-}
-
-export interface ITerminalLaunchError {
-	message: string;
-	code?: number;
-}
-
-/**
- * An interface representing a raw terminal child process, this contains a subset of the
- * child_process.ChildProcess node.js interface.
- */
-export interface ITerminalChildProcess {
-	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessExit: Event<number | undefined>;
-	onProcessReady: Event<{ pid: number, cwd: string }>;
-	onProcessTitleChanged: Event<string>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-
-	/**
-	 * Starts the process.
-	 *
-	 * @returns undefined when the process was successfully started, otherwise an object containing
-	 * information on what went wrong.
-	 */
-	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined>;
-
-	/**
-	 * Shutdown the terminal process.
-	 *
-	 * @param immediate When true the process will be killed immediately, otherwise the process will
-	 * be given some time to make sure no additional data comes through.
-	 */
-	shutdown(immediate: boolean): void;
-	input(data: string): void;
-	resize(cols: number, rows: number): void;
-
-	/**
-	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
-	 * control to ensure remote processes to not get too far ahead of the client and flood the
-	 * connection.
-	 * @param charCount The number of characters being acknowledged.
-	 */
-	acknowledgeDataEvent(charCount: number): void;
-
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
-}
-
-export const enum FlowControlConstants {
-	/**
-	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for
-	 * the client to catch up.
-	 */
-	HighWatermarkChars = 100000,
-	/**
-	 * After flow control pauses the pty for the client the catch up, this is the number of
-	 * _unacknowledged_ chars to have been caught up to on the client before resuming the pty again.
-	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
-	 * paused the number of unacknowledged chars would always be greater than 0 or the client will
-	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
-	 * will likely pause as latency grows, not flooding the connection is the important thing as
-	 * it's shared with other core functionality.
-	 */
-	LowWatermarkChars = 5000,
-	/**
-	 * The number characters that are accumulated on the client side before sending an ack event.
-	 * This must be less than or equal to LowWatermarkChars or the terminal max never unpause.
-	 */
-	CharCountAckSize = 5000
 }
 
 export const enum TERMINAL_COMMAND_ID {
