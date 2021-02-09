@@ -7,7 +7,7 @@ import { Application, Quality } from '../../../../automation';
 
 export function setup() {
 	describe('Extensions', () => {
-		it.skip(`install and activate vscode-smoketest-check extension`, async function () {
+		it(`install and activate vscode-smoketest-check extension`, async function () {
 			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {

@@ -53,7 +53,7 @@ export function setup(isWeb) {
 			await app.workbench.quickinput.closeQuickInput();
 		});
 
-		it.skip(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
+		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
 			const app = this.app as Application;
 
 			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
