@@ -1383,20 +1383,26 @@ export enum SignatureHelpTriggerKind {
 	ContentChange = 3,
 }
 
+
+export enum InlineHintKind {
+	Other = 0,
+	Type = 1,
+	Parameter = 2,
+}
+
 @es5ClassCompat
 export class InlineHint {
 	text: string;
 	range: Range;
+	kind?: vscode.InlineHintKind;
 	description?: string | vscode.MarkdownString;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 
-	constructor(text: string, range: Range, description?: string | vscode.MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean) {
+	constructor(text: string, range: Range, kind?: vscode.InlineHintKind) {
 		this.text = text;
 		this.range = range;
-		this.description = description;
-		this.whitespaceBefore = whitespaceBefore;
-		this.whitespaceAfter = whitespaceAfter;
+		this.kind = kind;
 	}
 }
 

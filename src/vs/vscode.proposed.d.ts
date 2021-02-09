@@ -1983,8 +1983,9 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/16221
 
 	// todo@API rename to InlayHint
-	// todo@API add InlayHintKind with type, argument, etc
 	// todo@API add "mini-markdown" for links and styles
+	// todo@API remove description
+	// (done:)  add InlayHintKind with type, argument, etc
 
 	export namespace languages {
 		/**
@@ -2001,6 +2002,12 @@ declare module 'vscode' {
 		export function registerInlineHintsProvider(selector: DocumentSelector, provider: InlineHintsProvider): Disposable;
 	}
 
+	export enum InlineHintKind {
+		Other = 0,
+		Type = 1,
+		Parameter = 2,
+	}
+
 	/**
 	 * Inline hint information.
 	 */
@@ -2013,9 +2020,10 @@ declare module 'vscode' {
 		 * The range of the hint.
 		 */
 		range: Range;
-		/**
-		 * Tooltip when hover on the hint.
-		 */
+
+		kind?: InlineHintKind;
+
+		// todo@API remove this
 		description?: string | MarkdownString;
 		/**
 		 * Whitespace before the hint.
@@ -2026,16 +2034,7 @@ declare module 'vscode' {
 		 */
 		whitespaceAfter?: boolean;
 
-		/**
-		 * Creates a new inline hint information object.
-		 *
-		 * @param text The text of the hint.
-		 * @param range The range of the hint.
-		 * @param hoverMessage Tooltip when hover on the hint.
-		 * @param whitespaceBefore Whitespace before the hint.
-		 * @param whitespaceAfter TWhitespace after the hint.
-		 */
-		constructor(text: string, range: Range, description?: string | MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean);
+		constructor(text: string, range: Range, kind?: InlineHintKind);
 	}
 
 	/**

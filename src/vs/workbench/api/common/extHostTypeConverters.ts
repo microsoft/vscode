@@ -1021,6 +1021,7 @@ export namespace InlineHint {
 		return {
 			text: hint.text,
 			range: Range.from(hint.range),
+			kind: InlineHintKind.from(hint.kind ?? types.InlineHintKind.Other),
 			description: hint.description && MarkdownString.fromStrict(hint.description),
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter
@@ -1028,13 +1029,24 @@ export namespace InlineHint {
 	}
 
 	export function to(hint: modes.InlineHint): vscode.InlineHint {
-		return new types.InlineHint(
+		const res = new types.InlineHint(
 			hint.text,
 			Range.to(hint.range),
-			htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description,
-			hint.whitespaceBefore,
-			hint.whitespaceAfter
+			InlineHintKind.to(hint.kind)
 		);
+		res.whitespaceAfter = hint.whitespaceAfter;
+		res.whitespaceBefore = hint.whitespaceBefore;
+		res.description = htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description;
+		return res;
+	}
+}
+
+export namespace InlineHintKind {
+	export function from(kind: vscode.InlineHintKind): modes.InlineHintKind {
+		return kind;
+	}
+	export function to(kind: modes.InlineHintKind): vscode.InlineHintKind {
+		return kind;
 	}
 }
 
