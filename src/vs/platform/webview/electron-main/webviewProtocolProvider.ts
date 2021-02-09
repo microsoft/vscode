@@ -168,7 +168,11 @@ export class WebviewProtocolProvider extends Disposable {
 					rewriteUri = (uri) => {
 						if (metadata.remoteConnectionData) {
 							if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === Schemas.vscodeRemote)) {
-								return URI.parse(`http://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
+								let host = metadata.remoteConnectionData.host;
+								if (host && host.indexOf(':') !== -1) { // IPv6 address
+									host = `[${host}]`;
+								}
+								return URI.parse(`http://${host}:${metadata.remoteConnectionData.port}`).with({
 									path: '/vscode-remote-resource',
 									query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,
 								});
