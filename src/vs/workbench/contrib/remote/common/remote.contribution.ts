@@ -134,6 +134,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded."),
 				default: true
 			},
+			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
+			// and extensions\configuration-editing\schemas\attachContainer.schema.json
+			// to keep in sync with devcontainer.json schema.
 			'remote.portsAttributes': {
 				type: 'object',
 				patternProperties: {
