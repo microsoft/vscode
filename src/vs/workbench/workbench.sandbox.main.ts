@@ -110,4 +110,7 @@ import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExport
 // Themes Support
 import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
 
+// User Data Sync
+import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
+
 //#endregion

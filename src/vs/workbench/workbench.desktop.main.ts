@@ -169,8 +169,6 @@ import 'vs/workbench/contrib/cli/node/cli.contribution';
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 
-// User Data Sync
-import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
