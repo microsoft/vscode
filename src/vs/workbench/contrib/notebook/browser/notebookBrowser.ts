@@ -716,7 +716,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput;
 }
 
 export interface CellFindMatch {

@@ -168,8 +168,8 @@ export interface ICellOutput {
 	// metadata?: NotebookCellOutsputMetadata;
 	outputId: string;
 	onDidChangeData: Event<void>;
-	replaceData(data: { [key: string]: unknown; }): void;
-	appendData(data: { [key: string]: unknown; }): void;
+	replaceData(items: IOutputItemDto[]): void;
+	appendData(items: IOutputItemDto[]): void;
 }
 
 export interface ICell {
@@ -340,7 +340,7 @@ export interface ICellOutputItemEdit {
 	editType: CellEditType.OutputItems;
 	index: number;
 	outputId: string;
-	data: { [key: string]: unknown; }
+	items: IOutputItemDto[];
 	append?: boolean;
 }
 

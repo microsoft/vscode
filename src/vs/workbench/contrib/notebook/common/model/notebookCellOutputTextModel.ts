@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellOutput, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellOutput, IOutputDto, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 let _handle = 0;
 export class NotebookCellOutputTextModel extends Disposable implements ICellOutput {
@@ -29,12 +29,13 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		super();
 	}
 
-	replaceData(data: { [key: string]: unknown; }) {
-		// this._data = data;
-		// this._onDidChangeData.fire();
+	replaceData(items: IOutputItemDto[]) {
+		this._rawOutput.outputs = items;
+		this._onDidChangeData.fire();
 	}
 
-	appendData(data: { [key: string]: unknown; }) {
+	appendData(items: IOutputItemDto[]) {
+		this._rawOutput.outputs.push(...items);
 		// for (const property in data) {
 		// 	if ((property === 'text/plain' || property === 'application/x.notebook.stream') && this._data[property] !== undefined) {
 		// 		const original = (isArray(this._data[property]) ? this._data[property] : [this._data[property]]) as string[];

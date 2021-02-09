@@ -66,10 +66,10 @@ export class OutputRenderer {
 		}
 
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
-		const item = viewModel.model.outputs.find(op => op.mime === preferredMimeType);
+		const items = viewModel.model.outputs.filter(op => op.mime === preferredMimeType);
 
-		if (item && renderer) {
-			return renderer.render(viewModel, item, container, notebookUri);
+		if (items.length && renderer) {
+			return renderer.render(viewModel, items, container, notebookUri);
 		} else {
 			return this.renderNoop(viewModel, container);
 		}

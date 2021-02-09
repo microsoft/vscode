@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
@@ -351,9 +351,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						this._assertIndex(edit.index);
 						const cell = this._cells[edit.index];
 						if (edit.append) {
-							this._appendNotebookCellOutputItems(cell.handle, edit.outputId, edit.data);
+							this._appendNotebookCellOutputItems(cell.handle, edit.outputId, edit.items);
 						} else {
-							this._replaceNotebookCellOutputItems(cell.handle, edit.outputId, edit.data);
+							this._replaceNotebookCellOutputItems(cell.handle, edit.outputId, edit.items);
 						}
 					}
 					break;
@@ -680,7 +680,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _appendNotebookCellOutputItems(cellHandle: number, outputId: string, data: { [key: string]: any }) {
+	private _appendNotebookCellOutputItems(cellHandle: number, outputId: string, items: IOutputItemDto[]) {
 		const cell = this._mapping.get(cellHandle);
 		if (!cell) {
 			return;
@@ -693,10 +693,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		const output = cell.outputs[outputIndex];
-		output.appendData(data);
+		output.appendData(items);
 	}
 
-	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, data: { [key: string]: any }) {
+	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, items: IOutputItemDto[]) {
 		const cell = this._mapping.get(cellHandle);
 		if (!cell) {
 			return;
@@ -709,7 +709,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		const output = cell.outputs[outputIndex];
-		output.replaceData(data);
+		output.replaceData(items);
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {

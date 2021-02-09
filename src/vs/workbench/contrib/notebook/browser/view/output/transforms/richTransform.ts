@@ -23,6 +23,10 @@ import { ErrorTransform } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
+function getStringValue(data: unknown): string {
+	return isArray(data) ? data.join('') : data as string;
+}
+
 class JSONRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
@@ -38,8 +42,8 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = items.map(item => getStringValue(item.value)).join('');
 		const str = JSON.stringify(data, null, '\t');
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
@@ -83,10 +87,14 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value;
-		const str = isArray(data) ? data.join('') : data;
-		const scriptVal = `<script type="application/javascript">${str}</script>`;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		let scriptVal = '';
+		items.forEach(item => {
+			const data = item.value;
+			const str = isArray(data) ? data.join('') : data;
+			scriptVal += `<script type="application/javascript">${str}</script>`;
+
+		});
 		return {
 			type: RenderOutputType.Html,
 			source: output,
@@ -111,10 +119,8 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value;
-		const str = (isArray(data) ? data.join('') : data) as string;
-
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const str = items.map(item => getStringValue(item.value)).join('');
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
 			dimension: {
@@ -160,13 +166,16 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		items.forEach(item => {
+			const data = item.value;
 
-		const text = (isArray(data) ? data.join('') : data) as string;
-		const contentNode = DOM.$('span.output-stream');
-		truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
-		container.appendChild(contentNode);
+			const text = (isArray(data) ? data.join('') : data) as string;
+			const contentNode = DOM.$('span.output-stream');
+			truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
+			container.appendChild(contentNode);
+		});
+
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 	}
 }
@@ -184,10 +193,13 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		items.forEach(item => {
+			const data = item.value;
 
-		ErrorTransform.render(data, container, this.themeService);
+			ErrorTransform.render(data, container, this.themeService);
+		});
+
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 	}
 }
@@ -207,10 +219,10 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value as any;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const str = items.map(item => getStringValue(item.value));
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
+		truncatedArrayOfString(contentNode, str, this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false, supportAppend: true };
@@ -229,8 +241,8 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = items.map(item => getStringValue(item.value)).join('');
 
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -254,9 +266,8 @@ class SVGRendererContrib extends Disposable implements IOutputRendererContributi
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = item.value;
-		const str = (isArray(data) ? data.join('') : data) as string;
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const str = items.map(item => getStringValue(item.value)).join('');
 		return {
 			type: RenderOutputType.Html,
 			source: output,
@@ -279,13 +290,15 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const data = item.value;
-		const str = (isArray(data) ? data.join('') : data) as string;
-		const mdOutput = document.createElement('div');
-		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
-		mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
-		container.appendChild(mdOutput);
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
+		items.forEach(item => {
+			const data = item.value;
+			const str = (isArray(data) ? data.join('') : data) as string;
+			const mdOutput = document.createElement('div');
+			const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
+			mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
+			container.appendChild(mdOutput);
+		});
 
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
@@ -303,14 +316,16 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const image = document.createElement('img');
-		const imagedata = item.value;
-		image.src = `data:image/png;base64,${imagedata}`;
-		const display = document.createElement('div');
-		display.classList.add('display');
-		display.appendChild(image);
-		container.appendChild(display);
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		items.forEach(item => {
+			const image = document.createElement('img');
+			const imagedata = item.value;
+			image.src = `data:image/png;base64,${imagedata}`;
+			const display = document.createElement('div');
+			display.classList.add('display');
+			display.appendChild(image);
+			container.appendChild(display);
+		});
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
 }
@@ -327,14 +342,17 @@ class JPEGRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const image = document.createElement('img');
-		const imagedata = item.value;
-		image.src = `data:image/jpeg;base64,${imagedata}`;
-		const display = document.createElement('div');
-		display.classList.add('display');
-		display.appendChild(image);
-		container.appendChild(display);
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		items.forEach(item => {
+			const image = document.createElement('img');
+			const imagedata = item.value;
+			image.src = `data:image/jpeg;base64,${imagedata}`;
+			const display = document.createElement('div');
+			display.classList.add('display');
+			display.appendChild(image);
+			container.appendChild(display);
+		});
+
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
 }
