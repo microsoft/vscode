@@ -146,20 +146,26 @@ export interface IOrderedMimeType {
 	isTrusted: boolean;
 }
 
+export interface IOutputItemDto {
+	readonly mime: string;
+	readonly value: unknown;
+	readonly metadata?: Record<string, string | number | boolean>;
+}
+
 export interface IOutputDto {
+	outputs: IOutputItemDto[];
 	/**
 	 * { mime_type: value }
 	 */
-	data: { [key: string]: unknown; }
+	// data: { [key: string]: unknown; }
 
-	metadata?: NotebookCellOutputMetadata;
-
+	// metadata?: NotebookCellOutputMetadata;
 	outputId: string;
 }
 
 export interface ICellOutput {
-	data: { [key: string]: unknown; }
-	metadata?: NotebookCellOutputMetadata;
+	outputs: IOutputItemDto[];
+	// metadata?: NotebookCellOutsputMetadata;
 	outputId: string;
 	onDidChangeData: Event<void>;
 	replaceData(data: { [key: string]: unknown; }): void;

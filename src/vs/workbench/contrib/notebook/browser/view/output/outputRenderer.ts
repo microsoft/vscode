@@ -45,16 +45,13 @@ export class OutputRenderer {
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
-		if (!viewModel.model.data) {
+		if (!viewModel.model.outputs.length) {
 			return this.renderNoop(viewModel, container);
 		}
 
 		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
 			const contentNode = document.createElement('p');
-			const mimeTypes = [];
-			for (const property in viewModel.model.data) {
-				mimeTypes.push(property);
-			}
+			const mimeTypes = viewModel.model.outputs.map(op => op.mime);
 
 			const mimeTypesMessage = mimeTypes.join(', ');
 

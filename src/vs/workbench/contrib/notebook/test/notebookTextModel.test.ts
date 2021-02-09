@@ -197,7 +197,7 @@ suite('NotebookTextModel', () => {
 					editType: CellEditType.Output,
 					outputs: [{
 						outputId: 'someId',
-						data: { 'text/markdown': '_Hello_' }
+						outputs: [{ mime: 'text/markdown', value: '_Hello_' }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
@@ -211,7 +211,7 @@ suite('NotebookTextModel', () => {
 					append: true,
 					outputs: [{
 						outputId: 'someId2',
-						data: { 'text/markdown': '_Hello2_' }
+						outputs: [{ mime: 'text/markdown', value: '_Hello2_' }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
@@ -227,7 +227,7 @@ suite('NotebookTextModel', () => {
 					editType: CellEditType.Output,
 					outputs: [{
 						outputId: 'someId3',
-						data: { 'text/plain': 'Last, replaced output' }
+						outputs: [{ mime: 'text/plain', value: 'Last, replaced output' }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 

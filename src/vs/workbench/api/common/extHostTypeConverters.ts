@@ -22,7 +22,7 @@ import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { isString, isNumber, isEmptyObject } from 'vs/base/common/types';
+import { isString, isNumber } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -1335,21 +1335,18 @@ export namespace LanguageSelector {
 export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): ICellDto2 {
-		let outputs: IOutputDto[];
-		const [first] = data.outputs;
-		if (!first) {
-			outputs = [];
-		} if (first instanceof types.NotebookCellOutput) {
-			outputs = (<vscode.NotebookCellOutput[]>data.outputs).map(NotebookCellOutput.from);
-		} else {
-			outputs = [];
-		}
 		return {
 			cellKind: data.cellKind,
 			language: data.language,
 			source: data.source,
 			metadata: data.metadata,
-			outputs
+			outputs: data.outputs.map(output => ({
+				outputId: output.id, outputs: (output.outputs || []).map(op => ({
+					mime: op.mime,
+					value: op.value,
+					metadata: op.metadata
+				}))
+			}))
 		};
 	}
 }
@@ -1367,16 +1364,17 @@ export namespace NotebookCellOutput {
 
 		return {
 			outputId: output.id,
-			data,
-			metadata: isEmptyObject(custom) ? undefined : { custom }
+			outputs: (output.outputs || []).map(op => ({
+				mime: op.mime,
+				value: op.value,
+				metadata: op.metadata
+			})) || [],
+			// metadata: isEmptyObject(custom) ? undefined : { custom }
 		};
 	}
 
 	export function to(output: IOutputDto): vscode.NotebookCellOutput {
-		const items: types.NotebookCellOutputItem[] = [];
-		for (const key in output.data) {
-			items.push(new types.NotebookCellOutputItem(key, output.data[key], output.metadata?.custom ? output.metadata?.custom[key] : undefined));
-		}
+		const items: types.NotebookCellOutputItem[] = output.outputs.map(op => new types.NotebookCellOutputItem(op.mime, op.value, op.metadata));
 		return new types.NotebookCellOutput(items, output.outputId);
 	}
 }

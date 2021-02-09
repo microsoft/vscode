@@ -34,7 +34,8 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	}
 
 	supportAppend() {
-		return !!this._outputRawData.data['application/x.notebook.stream'];
+		// if there is any mime type other than `application/x.notebook.stream`, then it's not mergeable.
+		return !this._outputRawData.outputs.find(op => op.mime !== 'application/x.notebook.stream');
 	}
 
 	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number] {
@@ -49,8 +50,8 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 
 	toRawJSON() {
 		return {
-			data: this._outputRawData.data,
-			metadata: this._outputRawData.metadata
+			outputs: this._outputRawData.outputs,
+			// TODO@rebronix, no id, right?
 		};
 	}
 }

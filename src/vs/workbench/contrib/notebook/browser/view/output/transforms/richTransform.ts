@@ -38,7 +38,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['application/json'];
+		const data = output.model.outputs.find(op => op.mime === 'application/json')?.value;
 		const str = JSON.stringify(data, null, '\t');
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
@@ -83,7 +83,7 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['application/javascript'];
+		const data = output.model.outputs.find(op => op.mime === 'application/javascript')?.value;
 		const str = isArray(data) ? data.join('') : data;
 		const scriptVal = `<script type="application/javascript">${str}</script>`;
 		return {
@@ -111,7 +111,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['text/x-javascript'];
+		const data = output.model.outputs.find(op => op.mime === 'text/x-javascript')?.value;
 		const str = (isArray(data) ? data.join('') : data) as string;
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
@@ -160,7 +160,8 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['application/x.notebook.stream'] as any;
+		const data = output.model.outputs.find(op => op.mime === 'application/x.notebook.stream')?.value;
+
 		const text = (isArray(data) ? data.join('') : data) as string;
 		const contentNode = DOM.$('span.output-stream');
 		truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
@@ -183,7 +184,8 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['application/x.notebook.error-traceback'] as any;
+		const data = output.model.outputs.find(op => op.mime === 'application/x.notebook.error-traceback')?.value;
+
 		ErrorTransform.render(data, container, this.themeService);
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
 	}
@@ -205,7 +207,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['text/plain'];
+		const data = output.model.outputs.find(op => op.mime === 'text/plain')?.value as any;
 		const contentNode = DOM.$('.output-plaintext');
 		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
@@ -227,7 +229,8 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['text/html'];
+		const data = output.model.outputs.find(op => op.mime === 'text/html')?.value;
+
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
 			type: RenderOutputType.Html,
@@ -251,7 +254,7 @@ class SVGRendererContrib extends Disposable implements IOutputRendererContributi
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.data['image/svg+xml'];
+		const data = output.model.outputs.find(op => op.mime === 'image/svg+xml')?.value;
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
 			type: RenderOutputType.Html,
@@ -276,7 +279,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 	}
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const data = output.model.data['text/markdown'];
+		const data = output.model.outputs.find(op => op.mime === 'text/markdown')?.value;
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
 		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
@@ -301,7 +304,8 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const image = document.createElement('img');
-		image.src = `data:image/png;base64,${output.model.data['image/png']}`;
+		const imagedata = output.model.outputs.find(op => op.mime === 'image/png')?.value;
+		image.src = `data:image/png;base64,${imagedata}`;
 		const display = document.createElement('div');
 		display.classList.add('display');
 		display.appendChild(image);
@@ -324,7 +328,8 @@ class JPEGRendererContrib extends Disposable implements IOutputRendererContribut
 
 	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const image = document.createElement('img');
-		image.src = `data:image/jpeg;base64,${output.model.data['image/jpeg']}`;
+		const imagedata = output.model.outputs.find(op => op.mime === 'image/jpeg')?.value;
+		image.src = `data:image/jpeg;base64,${imagedata}`;
 		const display = document.createElement('div');
 		display.classList.add('display');
 		display.appendChild(image);

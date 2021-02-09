@@ -799,7 +799,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IOutputDto, documentDisplayOrder: string[]): IOrderedMimeType[] {
-		const mimeTypes = Object.keys(output.data);
+		const mimeTypes = output.outputs.map(op => op.mime);
 		const coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
 

@@ -398,10 +398,7 @@ export class CellOutputContainer extends Disposable {
 		if (!this.notebookEditor.viewModel!.metadata.trusted) {
 			// not trusted
 			const secureOutput = outputs.filter(output => {
-				const mimeTypes = [];
-				for (const property in output.model.data) {
-					mimeTypes.push(property);
-				}
+				const mimeTypes = output.model.outputs.map(op => op.mime);
 
 				if (mimeTypes.indexOf('application/x.notebook.stream') >= 0
 					|| mimeTypes.indexOf('application/x.notebook.error-traceback') >= 0

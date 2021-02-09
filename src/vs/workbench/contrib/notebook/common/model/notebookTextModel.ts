@@ -744,7 +744,7 @@ class OutputSequence implements ISequence {
 
 	getElements(): Int32Array | number[] | string[] {
 		return this.outputs.map(output => {
-			return hash([output.metadata, output.data]);
+			return hash(output.outputs);
 		});
 	}
 

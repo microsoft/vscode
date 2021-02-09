@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
-import { INotebookRendererInfo, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
@@ -83,11 +83,28 @@ export interface IClearMessage {
 	type: 'clear';
 }
 
+export interface IOutputRequestMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: unknown };
+}
+
+export interface IOutputRequestDto {
+	/**
+	 * { mime_type: value }
+	 */
+	data: { [key: string]: unknown; }
+
+	metadata?: IOutputRequestMetadata;
+	outputId: string;
+}
+
 export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; output: IOutputDto; mimeType: string };
+	| { type: RenderOutputType.Extension; output: IOutputRequestDto; mimeType: string };
 	cellId: string;
 	outputId: string;
 	top: number;
@@ -674,6 +691,8 @@ var requirejs = (function() {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			renderer = content.renderer;
+			let data: { [key: string]: unknown } = {};
+			data[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.value || undefined;
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -683,8 +702,8 @@ var requirejs = (function() {
 					type: RenderOutputType.Extension,
 					mimeType: content.mimeType,
 					output: {
-						metadata: output.metadata,
-						data: output.data,
+						metadata: output.outputs.find(op => op.mime === content.mimeType)?.metadata || {},
+						data: data,
 						outputId: output.outputId
 					},
 				},

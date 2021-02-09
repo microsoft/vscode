@@ -703,15 +703,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: vscode.NotebookCellOutput[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		let newOutputs: NotebookCellOutput[] = [];
-		const [first] = outputs;
-		if (!first) {
-			newOutputs = [];
-		} else if (first instanceof NotebookCellOutput) {
-			newOutputs = (<NotebookCellOutput[]>outputs);
-		} else {
-			// newOutputs = (<vscode.CellOutput[]>outputs).map(o => NotebookCellOutput._fromOld(o));
-		}
+		let newOutputs: NotebookCellOutput[] = outputs;
 		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs, newMetadata: undefined });
 	}
 
