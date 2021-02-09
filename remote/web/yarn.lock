@@ -12,6 +12,18 @@ jschardet@2.2.1:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.2.1.tgz#03b0264669a90c7a5c436a68c5a7d4e4cb0c9823"
   integrity sha512-Ks2JNuUJoc7PGaZ7bVFtSEvOcr0rBq6Q1J5/7+zKWLT+g+4zziL63O0jg7y2jxhzIa1LVsHUbPXrbaWmz9iwDw==
 
+nan@^2.14.0:
+  version "2.14.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
+  integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
+
+node-pty@0.11.0-beta1:
+  version "0.11.0-beta1"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta1.tgz#961cf7ab56e0a689b71a19a46371ea090050f312"
+  integrity sha512-nHMB0K3LZTqjWv3X11XFdy/L4V2eMEk0RbmbVN02GPOkXdMy2NITI0px/x0JtNeIolRPq6r5hf5NUcNc2LJizw==
+  dependencies:
+    nan "^2.14.0"
+
 tas-client-umd@0.1.2:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.2.tgz#fe93ae085f65424292ac79feff4f1add3e50e624"
