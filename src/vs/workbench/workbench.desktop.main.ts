@@ -98,9 +98,6 @@ registerSingleton(ITunnelService, TunnelService);
 
 //#region --- workbench contributions
 
-// Output
-import 'vs/workbench/contrib/output/electron-browser/outputChannelModelService';
-
 // Tags
 import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
 import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
