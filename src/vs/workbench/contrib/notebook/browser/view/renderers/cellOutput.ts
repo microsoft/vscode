@@ -154,7 +154,7 @@ export class CellOutputElement extends Disposable {
 			};
 			const elementSizeObserver = getResizesObserver(this.domNode, dimension, () => {
 				if (this.outputContainer && document.body.contains(this.outputContainer)) {
-					const height = Math.ceil(elementSizeObserver.getHeight());
+					const height = Math.ceil(elementSizeObserver.getHeight()) + 8;
 
 					if (clientHeight === height) {
 						return;
