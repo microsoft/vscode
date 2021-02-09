@@ -27,15 +27,15 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { EditorModel } from 'vs/workbench/common/editor';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestItem, ITestMessage, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 interface ITestDto {
+	test: ITestItem,
 	messageIndex: number;
-	test: InternalTestItem;
+	state: ITestState;
 	expectedUri: URI;
 	actualUri: URI;
 	messageUri: URI;
@@ -66,7 +66,6 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		private readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestResultService private readonly testResults: ITestResultService,
-		@ITestService private readonly testService: ITestService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -83,7 +82,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
-		const message = dto.test.item.state.messages[dto.messageIndex];
+		const message = dto.state.messages[dto.messageIndex];
 		if (!message?.location) {
 			return;
 		}
@@ -120,28 +119,14 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return undefined;
 		}
 
-		if ('resultId' in parts) {
-			const test = this.testResults.lookup(parts.resultId)?.tests.find(t => t.id === parts.testId);
-			return test && {
-				test,
-				messageIndex: parts.messageIndex,
-				expectedUri: buildTestUri({ ...parts, type: TestUriType.ResultExpectedOutput }),
-				actualUri: buildTestUri({ ...parts, type: TestUriType.ResultActualOutput }),
-				messageUri: buildTestUri({ ...parts, type: TestUriType.ResultMessage }),
-			};
-		}
-
-		const test = await this.testService.lookupTest({ providerId: parts.providerId, testId: parts.testId });
-		if (!test) {
-			return;
-		}
-
-		return {
-			test,
+		const test = this.testResults.getResult(parts.resultId)?.getStateByExtId(parts.testId);
+		return test && {
+			test: test.item,
+			state: test.state,
 			messageIndex: parts.messageIndex,
-			expectedUri: buildTestUri({ ...parts, type: TestUriType.LiveActualOutput }),
-			actualUri: buildTestUri({ ...parts, type: TestUriType.LiveExpectedOutput }),
-			messageUri: buildTestUri({ ...parts, type: TestUriType.LiveMessage }),
+			expectedUri: buildTestUri({ ...parts, type: TestUriType.ResultExpectedOutput }),
+			actualUri: buildTestUri({ ...parts, type: TestUriType.ResultActualOutput }),
+			messageUri: buildTestUri({ ...parts, type: TestUriType.ResultMessage }),
 		};
 	}
 }
@@ -236,14 +221,14 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
-	public async setModel({ test, messageIndex, expectedUri, actualUri }: ITestDto) {
-		const message = test.item.state.messages[messageIndex];
+	public async setModel({ test, state, messageIndex, expectedUri, actualUri }: ITestDto) {
+		const message = state.messages[messageIndex];
 		if (!message?.location) {
 			return;
 		}
 
 		this.show(message.location.range, hintDiffPeekHeight(message));
-		this.setTitle(message.message.toString(), test.item.label);
+		this.setTitle(message.message.toString(), test.label);
 
 		const [original, modified] = await Promise.all([
 			this.modelService.createModelReference(expectedUri),
@@ -285,14 +270,14 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
-	public async setModel({ test, messageIndex, messageUri }: ITestDto) {
-		const message = test.item.state.messages[messageIndex];
+	public async setModel({ state, test, messageIndex, messageUri }: ITestDto) {
+		const message = state.messages[messageIndex];
 		if (!message?.location) {
 			return;
 		}
 
 		this.show(message.location.range, hintPeekStrHeight(message.message.toString()));
-		this.setTitle(message.message.toString(), test.item.label);
+		this.setTitle(message.message.toString(), test.label);
 
 		const modelRef = this.model.value = await this.modelService.createModelReference(messageUri);
 		if (this.preview.value) {

@@ -1009,6 +1009,7 @@
 							"end",
 							"expand",
 							"hide",
+							"invalidate",
 							"open",
 							"override",
 							"receive",

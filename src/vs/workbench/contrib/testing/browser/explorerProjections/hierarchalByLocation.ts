@@ -10,11 +10,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
+import { HierarchicalElement, HierarchicalFolder, refreshComputedState } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 /**
@@ -40,10 +42,35 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	 */
 	public readonly onUpdate = this.updateEmitter.event;
 
-	constructor(listener: TestSubscriptionListener) {
+	constructor(listener: TestSubscriptionListener, @ITestResultService private readonly results: ITestResultService) {
 		super();
 		this._register(listener.onDiff(([folder, diff]) => this.applyDiff(folder, diff)));
 		this._register(listener.onFolderChange(this.applyFolderChange, this));
+
+		const refreshTestsInResults = (results: LiveTestResult) => {
+			for (const test of results.tests) {
+				const inTree = this.items.get(test.id);
+				if (inTree && inTree.state !== test.state.state) {
+					inTree.state = test.state.state;
+					refreshComputedState(inTree, this.addUpdated);
+				}
+			}
+
+			this.updateEmitter.fire();
+		};
+
+		this._register(results.onStartedTests(refreshTestsInResults));
+		this._register(results.onCompletedTests(refreshTestsInResults));
+		this._register(results.onTestChanged(([, { item, state }]) => {
+			for (const i of this.items.values()) {
+				if (i.test.item.extId === item.extId) {
+					i.state = state.state;
+					refreshComputedState(i, this.addUpdated);
+					this.updateEmitter.fire();
+					return;
+				}
+			}
+		}));
 
 		for (const [folder, collection] of listener.workspaceFolderCollections) {
 			for (const node of collection.all) {
@@ -82,6 +109,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
 					const item = this.createItem(op[1], folder);
+					item.state = this.results.getStateByExtId(op[1].item.extId)?.[1].state.state ?? TestRunState.Unset;
 					this.storeItem(item);
 					this.changes.added(item);
 					break;
@@ -96,7 +124,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 					const locationChanged = !locationsEqual(existing.location, item.item.location);
 					if (locationChanged) { this.locations.remove(existing); }
-					existing.update(item, this.addUpdated);
+					existing.update(item);
 					if (locationChanged) { this.locations.add(existing); }
 					this.addUpdated(existing);
 					break;

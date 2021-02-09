@@ -46,11 +46,6 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { getComputedState } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
-import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByLocation';
-import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
-import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -64,6 +59,8 @@ import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/wo
 import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DebugAction, RunAction } from './testExplorerActions';
+import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
+import { getComputedState } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -229,11 +226,12 @@ export class TestingExplorerViewModel extends Disposable {
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
 		@ITestExplorerFilterState filterState: TestExplorerFilterState,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ITestResultService private readonly testResults: ITestResultService,
 	) {
 		super();
 
@@ -380,16 +378,18 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Tries to peek the first test error, if the item is in a failed state.
 	 */
 	private async tryPeekError(item: ITestTreeElement) {
-		if (!item.test || !isFailedState(item.test.item.state.runState)) {
+		const lookup = item.test && this.testResults.getStateByExtId(item.test.item.extId);
+		if (!lookup || !isFailedState(lookup[1].state.state)) {
 			return false;
 		}
 
-		const index = item.test.item.state.messages.findIndex(m => !!m.location);
+		const [result, test] = lookup;
+		const index = test.state.messages.findIndex(m => !!m.location);
 		if (index === -1) {
 			return;
 		}
 
-		const message = item.test.item.state.messages[index];
+		const message = test.state.messages[index];
 		const pane = await this.editorService.openEditor({
 			resource: message.location!.uri,
 			options: { selection: message.location!.range, preserveFocus: true }
@@ -401,10 +401,10 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 
 		TestingOutputPeekController.get(control).show(buildTestUri({
-			type: TestUriType.LiveMessage,
+			type: TestUriType.ResultMessage,
 			messageIndex: index,
-			providerId: item.test.providerId,
-			testId: item.test.id,
+			resultId: result.id,
+			testId: item.test!.id,
 		}));
 
 		return true;
@@ -417,18 +417,10 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		if (this._viewGrouping.get() === TestExplorerViewGrouping.ByLocation) {
-			if (this._viewMode.get() === TestExplorerViewMode.List) {
-				this.projection = new HierarchicalByNameProjection(this.listener);
-			} else {
-				this.projection = new HierarchicalByLocationProjection(this.listener);
-			}
+		if (this._viewMode.get() === TestExplorerViewMode.List) {
+			this.projection = this.instantiationService.createInstance(HierarchicalByNameProjection, this.listener);
 		} else {
-			if (this._viewMode.get() === TestExplorerViewMode.List) {
-				this.projection = new StateByNameProjection(this.listener);
-			} else {
-				this.projection = new StateByLocationProjection(this.listener);
-			}
+			this.projection = this.instantiationService.createInstance(HierarchicalByLocationProjection, this.listener);
 		}
 
 		this.projection.onUpdate(this.deferUpdate, this);
@@ -570,11 +562,7 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 
 class TreeSorter implements ITreeSorter<ITestTreeElement> {
 	public compare(a: ITestTreeElement, b: ITestTreeElement): number {
-		if (a instanceof StateElement && b instanceof StateElement) {
-			return cmpPriority(a.computedState, b.computedState);
-		}
-
-		return a.label.localeCompare(b.label);
+		return cmpPriority(getComputedState(a), getComputedState(b)) || a.label.localeCompare(b.label);
 	}
 }
 
@@ -587,7 +575,7 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeE
 		return localize({
 			key: 'testing.treeElementLabel',
 			comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
-		}, '{0} ({1})', element.label, testStateNames[getComputedState(element)]);
+		}, '{0} ({1})', element.label, testStateNames[element.state]);
 	}
 }
 
@@ -740,7 +728,7 @@ const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) =>
 class TestRunProgress {
 	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
 	private badge = new MutableDisposable();
-	private readonly resultLister = this.resultService.onNewTestResult(result => {
+	private readonly resultLister = this.resultService.onStartedTests(result => {
 		this.updateProgress();
 		this.updateBadge();
 

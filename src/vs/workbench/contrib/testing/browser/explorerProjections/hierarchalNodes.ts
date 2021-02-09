@@ -7,8 +7,8 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 
 /**
  * Test tree element element that groups be hierarchy.
@@ -24,10 +24,6 @@ export class HierarchicalElement implements ITestTreeElement {
 
 	public get label() {
 		return this.test.item.label;
-	}
-
-	public get state() {
-		return this.test.item.state.runState;
 	}
 
 	public get location() {
@@ -46,16 +42,14 @@ export class HierarchicalElement implements ITestTreeElement {
 			: Iterable.empty();
 	}
 
+	public state = TestRunState.Unset;
+
 	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchicalFolder | HierarchicalElement) {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
 	}
 
-	public update(actual: InternalTestItem, addUpdated: (n: ITestTreeElement) => void) {
-		const stateChange = actual.item.state.runState !== this.state;
+	public update(actual: InternalTestItem) {
 		Object.assign(this.test, actual);
-		if (stateChange) {
-			refreshComputedState(this, addUpdated);
-		}
 	}
 }
 
@@ -80,13 +74,14 @@ export class HierarchicalFolder implements ITestTreeElement {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
 	}
 
+	public state = TestRunState.Unset;
+
 	constructor(private readonly folder: IWorkspaceFolder) { }
 
 	public get label() {
 		return this.folder.name;
 	}
 }
-
 /**
  * Gets the computed state for the node.
  */

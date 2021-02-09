@@ -85,9 +85,9 @@ export interface ITestTreeElement {
 	readonly debuggable: Iterable<TestIdWithProvider>;
 
 	/**
-	 * State of of the tree item. Mostly used for deriving the computed state.
+	 * Derived state of the item to be displayed in the test tree.
 	 */
-	readonly state?: TestRunState;
+	readonly state: TestRunState;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
 }

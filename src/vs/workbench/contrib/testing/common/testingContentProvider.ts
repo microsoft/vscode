@@ -42,7 +42,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 
 		const test = 'providerId' in parsed
 			? await this.testService.lookupTest({ providerId: parsed.providerId, testId: parsed.testId })
-			: this.resultService.lookup(parsed.resultId)?.tests.find(t => t.id === parsed.testId);
+			: this.resultService.getResult(parsed.resultId)?.tests.find(t => t.id === parsed.testId);
 
 		if (!test) {
 			return null;
