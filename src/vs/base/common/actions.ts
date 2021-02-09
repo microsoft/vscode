@@ -216,17 +216,6 @@ export class Separator extends Action {
 	}
 }
 
-export class ActionWithMenuAction extends Action {
-
-	get actions(): IAction[] {
-		return this._actions;
-	}
-
-	constructor(id: string, private _actions: IAction[], label?: string, cssClass?: string, enabled?: boolean, actionCallback?: (event?: any) => Promise<any>) {
-		super(id, label, cssClass, enabled, actionCallback);
-	}
-}
-
 export class SubmenuAction implements IAction {
 
 	readonly id: string;
