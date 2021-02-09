@@ -17,7 +17,7 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyRegexExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -637,8 +637,10 @@ const viewDescriptor: IViewDescriptor = {
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
-			// View: Show Search is used for the keybindings in the View menu and the sidebar #115556, but it should only be enabled when search.mode == view, or else it will steal priority over opening a search editor #115511
-			when: ContextKeyAndExpr.create([Constants.SearchViewVisibleKey.toNegated(), ContextKeyEqualsExpr.create(`config.${SEARCH_MODE_CONFIG}`, 'view')]),
+			// View: Show Search is used for the keybindings in the View menu and the sidebar, but Find In Files should run the actual action.
+			// If the context key is clearly false (ContextKeyFalseExpression), the keybinding won't appear. Instead we use a regex that never is true.
+			// See #116188, #115556, #115511
+			when: ContextKeyRegexExpr.create(`never`, /(?!x)x/),
 		},
 		order: 1
 	}
