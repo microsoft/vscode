@@ -1,6 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride, IProcessDataEvent } from 'vs/platform/terminal/common/terminal';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 
 /**
@@ -8,8 +13,8 @@ import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal
  * created from the main process.
  */
 export class TerminalProcessMainProxy extends Disposable implements ITerminalChildProcess {
-	private readonly _onProcessData = this._register(new Emitter<string>());
-	public readonly onProcessData: Event<string> = this._onProcessData.event;
+	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
+	public readonly onProcessData: Event<IProcessDataEvent | string> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
@@ -26,6 +31,12 @@ export class TerminalProcessMainProxy extends Disposable implements ITerminalChi
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
+		this._localPtyService.onProcessData(e => e.id === this._localPtyId && this._onProcessData.fire(e.event));
+		this._localPtyService.onProcessExit(e => e.id === this._localPtyId && this._onProcessExit.fire(e.event));
+		this._localPtyService.onProcessReady(e => e.id === this._localPtyId && this._onProcessReady.fire(e.event));
+		this._localPtyService.onProcessTitleChanged(e => e.id === this._localPtyId && this._onProcessTitleChanged.fire(e.event));
+		this._localPtyService.onProcessOverrideDimensions(e => e.id === this._localPtyId && this._onProcessOverrideDimensions.fire(e.event));
+		this._localPtyService.onProcessResolvedShellLaunchConfig(e => e.id === this._localPtyId && this._onProcessResolvedShellLaunchConfig.fire(e.event));
 	}
 
 	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {

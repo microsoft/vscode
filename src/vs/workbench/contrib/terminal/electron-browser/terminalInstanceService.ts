@@ -81,7 +81,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
 		console.log('local pty id ' + id);
 		return this._instantiationService.createInstance(TerminalProcessMainProxy, id);
-		// return this._instantiationService.createInstance(TerminalProcess, shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {
