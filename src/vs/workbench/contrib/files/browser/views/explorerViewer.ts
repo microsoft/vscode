@@ -1492,9 +1492,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			progressLabel: localize('moving', "Moving {0}", labelSufix)
 		};
 
-		if (mergeDirectories) {
-			// With conflicting directories, children have to be merged recursively
-
+		if (mergeDirectories) { // Add children of directories recursively
 			const explodedEdits: ResourceFileEdit[] = [];
 			for (const edit of resourceFileEdits) {
 				explodedEdits.push(...await this.explodeConflictingFolderEdit(edit));
@@ -1540,18 +1538,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 
 				const choice = overwrites.length <= 1 ? 2 : await this.showDialog(getMultipleFilesOverwriteOrSkip(overwrites.map(e => e.newResource!)));
-
 				if (choice === 1) { // skip
 					edits = edits.filter(e => overwrites.indexOf(e) < 0);
 				} else if (choice === 2) { // decide
-					// remove all edits that cause a conflict and ask the user whether to include them
-					edits = edits.filter(e => overwrites.indexOf(e) < 0);
-
 					for (const overwrite of overwrites) {
 						const choice = await this.showDialog(getFileOverwriteOrSkip(overwrite.newResource!));
-
-						if (choice === 0) { // replace
-							edits.push(overwrite);
+						if (choice === 1) { // skip
+							edits.splice(edits.indexOf(overwrite), 1);
 						} else if (choice === 2) { // cancel
 							return false;
 						}
@@ -1566,9 +1559,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				} catch (error) {
 					this.notificationService.error(error);
 				}
-			}
-			// Any other error
-			else {
+			} else { // Any other error
 				this.notificationService.error(error);
 			}
 		}
