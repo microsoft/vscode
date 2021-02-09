@@ -61,15 +61,7 @@ import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
-import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
-import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/backup/electron-browser/backupFileService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreManagementService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
@@ -172,8 +164,6 @@ import 'vs/workbench/contrib/cli/node/cli.contribution';
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 
-// User Data Sync
-import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

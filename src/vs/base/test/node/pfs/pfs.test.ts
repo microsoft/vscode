@@ -262,28 +262,23 @@ flakySuite('PFS', function () {
 		const targetLinkMD5JSFolderLinked = join(targetLinkTestFolder, 'md5-linked');	// copy-test/link-test copy/md5-linked
 
 		// Copy with `preserveSymlinks: true` and verify result
-		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
+		//
+		// Windows: this test does not work because creating symlinks
+		// requires priviledged permissions (admin).
+		if (!isWindows) {
+			await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
 
-		assert.ok(fs.existsSync(targetLinkTestFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFile));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
-
-		// Windows: conditionally check for the symbolic link being
-		// created because in most cases this requires admin privilegdes
-		// and then it is valid that we fallback to copying the target
-		// without recreating the symbolic link.
-		const lstat = fs.lstatSync(targetLinkMD5JSFolderLinked);
-		if (isWindows && !lstat.isSymbolicLink()) {
-			assert.ok(lstat.isDirectory());
-		} else {
-			assert.ok(lstat.isSymbolicLink());
+			assert.ok(fs.existsSync(targetLinkTestFolder));
+			assert.ok(fs.existsSync(targetLinkMD5JSFolder));
+			assert.ok(fs.existsSync(targetLinkMD5JSFile));
+			assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
+			assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isSymbolicLink());
 
 			const linkTarget = await fs.promises.readlink(targetLinkMD5JSFolderLinked);
 			assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
-		}
 
-		await fs.promises.rmdir(targetLinkTestFolder, { recursive: true });
+			await fs.promises.rmdir(targetLinkTestFolder, { recursive: true });
+		}
 
 		// Copy with `preserveSymlinks: false` and verify result
 		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: false });
