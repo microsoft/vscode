@@ -54,6 +54,11 @@ import 'vs/workbench/services/localizations/electron-sandbox/localizationsServic
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
