@@ -53,12 +53,12 @@ export function setup(isWeb) {
 			await app.workbench.quickinput.closeQuickInput();
 		});
 
-		// it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
-		// 	const app = this.app as Application;
+		it.skip(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
+			const app = this.app as Application;
 
-		// 	await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
-		// 	await app.workbench.problems.waitForProblemsView();
-		// });
+			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
+			await app.workbench.problems.waitForProblemsView();
+		});
 
 		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
 			const app = this.app as Application;

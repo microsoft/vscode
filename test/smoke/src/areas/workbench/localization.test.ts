@@ -20,28 +20,28 @@ export function setup() {
 			await app.restart({ extraArgs: ['--locale=DE'] });
 		});
 
-		// it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-		// 	const app = this.app as Application;
+		it.skip(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
+			const app = this.app as Application;
 
-		// 	if (app.quality === Quality.Dev) {
-		// 		this.skip();
-		// 		return;
-		// 	}
+			if (app.quality === Quality.Dev) {
+				this.skip();
+				return;
+			}
 
-		// 	// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
+			// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
 
-		// 	await app.workbench.search.openSearchViewlet();
-		// 	await app.workbench.search.waitForTitle(title => /suchen/i.test(title));
+			await app.workbench.search.openSearchViewlet();
+			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));
 
-		// 	// await app.workbench.scm.openSCMViewlet();
-		// 	// await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
+			// await app.workbench.scm.openSCMViewlet();
+			// await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
 
-		// 	// See https://github.com/microsoft/vscode/issues/93462
-		// 	// await app.workbench.debug.openDebugViewlet();
-		// 	// await app.workbench.debug.waitForTitle(title => /starten/i.test(title));
+			// See https://github.com/microsoft/vscode/issues/93462
+			// await app.workbench.debug.openDebugViewlet();
+			// await app.workbench.debug.waitForTitle(title => /starten/i.test(title));
 
-		// 	// await app.workbench.extensions.openExtensionsViewlet();
-		// 	// await app.workbench.extensions.waitForTitle(title => /extensions/i.test(title));
-		// });
+			// await app.workbench.extensions.openExtensionsViewlet();
+			// await app.workbench.extensions.waitForTitle(title => /extensions/i.test(title));
+		});
 	});
 }
