@@ -21,6 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
@@ -62,7 +63,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 
 	append(message: string): void {
 		// update end offset always as message is read
-		this.endOffset = this.endOffset + Buffer.from(message).byteLength;
+		this.endOffset = this.endOffset + VSBuffer.fromString(message).byteLength;
 		if (this.loadingFromFileInProgress) {
 			this.appendedMessage += message;
 		} else {
@@ -89,7 +90,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implement
 		this.appendedMessage = '';
 		return this.loadFile()
 			.then(content => {
-				if (this.endOffset !== this.startOffset + Buffer.from(content).byteLength) {
+				if (this.endOffset !== this.startOffset + VSBuffer.fromString(content).byteLength) {
 					// Queue content is not written into the file
 					// Flush it and load file again
 					this.flush();
