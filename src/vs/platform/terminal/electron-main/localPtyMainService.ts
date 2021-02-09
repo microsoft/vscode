@@ -42,7 +42,6 @@ export class LocalPtyMainService extends Disposable implements ICommonLocalPtySe
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
-		console.log('PtyMainService#createProcess', cwd, cols, rows);
 		const id = ++currentLocalPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
