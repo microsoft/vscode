@@ -49,7 +49,6 @@ export class OutputElement extends Disposable {
 		const outputItemDiv = document.createElement('div');
 		let result: IRenderOutput | undefined = undefined;
 
-		// if (this.output.isDisplayOutput()) {
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel);
 		const pickedMimeTypeRenderer = mimeTypes[pick];
 		if (mimeTypes.length > 1) {
@@ -81,23 +80,18 @@ export class OutputElement extends Disposable {
 		DOM.append(outputItemDiv, innerContainer);
 
 
-		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
-			const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
-			result = renderer
-				? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
-				: this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri,);
-		} else {
-			result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
+		if (mimeTypes.length !== 0) {
+			if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
+				const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
+				result = renderer
+					? { type: RenderOutputType.Extension, renderer, source: this.output, mimeType: pickedMimeTypeRenderer.mimeType }
+					: this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri,);
+			} else {
+				result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
+			}
+
+			this.output.pickedMimeType = pick;
 		}
-
-		this.output.pickedMimeType = pick;
-		// } else {
-		// 	// for text and error, there is no mimetype
-		// 	const innerContainer = DOM.$('.output-inner-container');
-		// 	DOM.append(outputItemDiv, innerContainer);
-
-		// 	result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, undefined, this._notebookTextModel.uri);
-		// }
 
 		this.domNode = outputItemDiv;
 		this.renderResult = result;
