@@ -89,11 +89,14 @@ function fillInActions(
 		}
 	}
 
-	// ask the outside if submenu should be inlined or not
-	for (const item of submenuInfo) {
-		const target = isPrimaryGroup(item.group) ? primaryBucket : secondaryBucket;
-		if (shouldInlineSubmenu(item.action, item.group, target.length)) {
-			target.splice(item.index, 1, ...item.action.actions);
+	// ask the outside if submenu should be inlined or not. only ask when
+	// there would be enough space
+	for (const { group, action, index } of submenuInfo) {
+		const target = isPrimaryGroup(group) ? primaryBucket : secondaryBucket;
+
+		const submenuActions = action.actions;
+		if (target.length + submenuActions.length - 1 <= primaryMaxCount && shouldInlineSubmenu(action, group, target.length)) {
+			target.splice(index, 1, ...submenuActions);
 		}
 	}
 
