@@ -748,8 +748,8 @@ function getFileOverwriteConfirm(name: string): IConfirmation {
 	};
 }
 
-function getFileOverwriteOrSkip(name: string): { severity: Severity, message: string, buttons: string[], options: IDialogOptions } {
-	const confirmDialog = getFileOverwriteConfirm(name);
+function getFileOverwriteOrSkip(file: URI): { severity: Severity, message: string, buttons: string[], options: IDialogOptions } {
+	const confirmDialog = getFileOverwriteConfirm(basename(file));
 
 	return {
 		severity: Severity.Warning,
@@ -1539,29 +1539,24 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 				}
 
-				let choice: 'replace' | 'skip' | 'decide' | 'cancel';
-				if (overwrites.length > 1) {
-					choice = await this.chooseMultipleOverwriteSkipOrDecide(overwrites.map(e => e.newResource!));
-				} else {
-					choice = 'decide';
-				}
+				const choice = overwrites.length <= 1 ? 2 : await this.showDialog(getMultipleFilesOverwriteOrSkip(overwrites.map(e => e.newResource!)));
 
-				if (choice === 'skip') {
+				if (choice === 1) { // skip
 					edits = edits.filter(e => overwrites.indexOf(e) < 0);
-				} else if (choice === 'decide') {
+				} else if (choice === 2) { // decide
 					// remove all edits that cause a conflict and ask the user whether to include them
 					edits = edits.filter(e => overwrites.indexOf(e) < 0);
 
 					for (const overwrite of overwrites) {
-						const choice = await this.chooseOverwriteOrSkip(overwrite.newResource!);
+						const choice = await this.showDialog(getFileOverwriteOrSkip(overwrite.newResource!));
 
-						if (choice === 'replace') {
+						if (choice === 0) { // replace
 							edits.push(overwrite);
-						} else if (choice === 'cancel') {
+						} else if (choice === 2) { // cancel
 							return false;
 						}
 					}
-				} else if (choice === 'cancel') {
+				} else if (choice === 3) { // cancel
 					return false;
 				}
 
@@ -1581,52 +1576,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return false;
 	}
 
-	private async chooseOverwriteOrSkip(file: URI): Promise<('replace' | 'skip' | 'cancel')> {
-		const confirmDialog = getFileOverwriteOrSkip(basename(file));
-		const { choice } = await this.dialogService.show(confirmDialog.severity, confirmDialog.message, confirmDialog.buttons, confirmDialog.options);
-
-		if (choice === 0) {
-			return 'replace';
-		} else if (choice === 1) {
-			return 'skip';
-		}
-
-		return 'cancel';
-	}
-
-	private async chooseMultipleOverwriteSkipOrDecide(files: URI[]): Promise<('replace' | 'skip' | 'decide' | 'cancel')> {
-		const dialog = getMultipleFilesOverwriteOrSkip(files);
-		const { choice } = await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options);
-
-		if (choice === 0) {
-			return 'replace';
-		} else if (choice === 1) {
-			return 'skip';
-		} else if (choice === 2) {
-			return 'decide';
-		}
-
-		return 'cancel';
-	}
-
 	private async explodeConflictingFolderEdit(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
-		if (!edit.oldResource || !edit.newResource) {
-			return [edit];
-		}
-
-		if (!await this.fileService.exists(edit.newResource)) {
+		if (!edit.oldResource || !edit.newResource || !await this.fileService.exists(edit.newResource)) {
 			return [edit];
 		}
 
 		const resolvedOldResource = await this.fileService.resolve(edit.oldResource);
-		const resolvedNewResource = await this.fileService.resolve(edit.newResource);
-
-		if (!resolvedOldResource.isDirectory || !resolvedNewResource.isDirectory) {
+		if (!resolvedOldResource.isDirectory || !(await this.fileService.resolve(edit.newResource)).isDirectory) {
 			return [edit];
 		}
 
 		const edits: ResourceFileEdit[] = [];
-
 		const newEdits = resolvedOldResource.children?.map(child => new ResourceFileEdit(child.resource, URI.joinPath(edit.newResource!, child.name)));
 
 		for (const newEdit of newEdits!) {
@@ -1634,8 +1594,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		edits.push(new ResourceFileEdit(edit.oldResource, undefined));
-
 		return edits;
+	}
+
+	private async showDialog(dialog: { severity: Severity, message: string, buttons: string[], options: IDialogOptions }): Promise<number> {
+		return (await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options)).choice;
 	}
 
 	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {
