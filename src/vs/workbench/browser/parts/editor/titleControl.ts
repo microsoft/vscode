@@ -225,7 +225,7 @@ export abstract class TitleControl extends Themable {
 			}));
 
 			const isPrimaryGroup = (group: string) => group === 'navigation' || group === '1_run';
-			const shouldInlineGroup = (action: SubmenuAction, group: string) => isPrimaryGroup(group) && action.actions.length === 1;
+			const shouldInlineGroup = (action: SubmenuAction, group: string) => isPrimaryGroup(group) && action.actions.length <= 1;
 
 			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
 				titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary },
