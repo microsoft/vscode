@@ -51,6 +51,7 @@ import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
+import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
