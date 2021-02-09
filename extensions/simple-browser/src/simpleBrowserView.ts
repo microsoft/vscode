@@ -129,7 +129,7 @@ export class SimpleBrowserView extends Disposable {
 							class="reload-button icon"><i class="codicon codicon-refresh"></i></button>
 					</nav>
 
-					<input class="url-input" type="text" value=${url}>
+					<input class="url-input" type="text">
 
 					<nav class="controls">
 						<button
