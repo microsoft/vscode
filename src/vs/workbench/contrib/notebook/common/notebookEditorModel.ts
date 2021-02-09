@@ -19,6 +19,9 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TaskSequentializer } from 'vs/base/common/async';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 
 export interface INotebookLoadOptions {
@@ -53,6 +56,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IBackupFileService private readonly _backupFileService: IBackupFileService,
 		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService labelService: ILabelService,
@@ -154,8 +158,33 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		return this._loadFromProvider(false, backup?.meta?.backupId);
 	}
 
+	/**
+	 * @description Uses the textmodel resolver service to acquire the untitled file's content
+	 * @param resource The resource that is the untitled file
+	 * @returns The bytes
+	 */
+	private async getUntitledDocumentData(resource: URI): Promise<Uint8Array | undefined> {
+		if (resource.scheme !== Schemas.untitled) {
+			return;
+		}
+		// If it's an untitled file we must populate the untitledDocumentData
+		let untitledDocumentData = await this._instantiationService.invokeFunction(async accessor => {
+			if (resource.scheme === Schemas.untitled) {
+				const textModelResolverService = accessor.get(ITextModelService);
+				const model = await textModelResolverService.createModelReference(resource);
+				const untitledModel = model.object;
+				const untitledFileValue = untitledModel.textEditorModel.getValue();
+				model.dispose();
+				return VSBuffer.fromString(untitledFileValue).buffer;
+			}
+			return;
+		});
+		return untitledDocumentData;
+	}
+
 	private async _loadFromProvider(forceReloadFromDisk: boolean, backupId: string | undefined) {
-		this._notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, backupId);
+		const untitledDocumentData = await this.getUntitledDocumentData(this.resource);
+		this._notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, backupId, untitledDocumentData);
 
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;

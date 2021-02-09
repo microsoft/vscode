@@ -443,13 +443,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
+	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string, untitledDocumentData?: Uint8Array): Promise<NotebookDataDto> {
 		const provider = this._notebookContentProviders.get(viewType);
 		if (!provider) {
 			throw new Error(`NO provider for '${viewType}'`);
 		}
 
-		const data = await provider.provider.openNotebook(URI.revive(uri), { backupId });
+		const data = await provider.provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData });
 		return {
 			metadata: {
 				...notebookDocumentMetadataDefaults,

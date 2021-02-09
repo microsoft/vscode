@@ -459,8 +459,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					});
 				});
 			},
-			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string) => {
-				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
+			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string, untitledDocumentData?: Uint8Array) => {
+				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId, untitledDocumentData);
 				return {
 					data,
 					transientOptions: contentOptions

@@ -76,6 +76,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -350,7 +351,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				} else {
 					return {
 						override: (async () => {
-							const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id);
+							const noteboookInputOptions = { untitledDocumentData: await this.getUntitledDocumentData(originalInput.resource) };
+							const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id, noteboookInputOptions);
 							const originalEditorIndex = group.getIndexOfEditor(originalInput);
 
 							await group.closeEditor(originalInput);
@@ -381,7 +383,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 								await group.closeEditor(firstEditor);
 								firstEditor.dispose();
-								const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource!, originalInput.getName(), id);
+								const noteboookInputOptions = { untitledDocumentData: await this.getUntitledDocumentData(originalInput.resource!) };
+								const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource!, originalInput.getName(), id, noteboookInputOptions);
 								const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: false });
 
 								if (newEditor) {

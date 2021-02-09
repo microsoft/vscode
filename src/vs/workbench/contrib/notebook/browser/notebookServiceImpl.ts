@@ -751,7 +751,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.get(id);
 	}
 
-	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string, untitledDocumentData?: Uint8Array): Promise<NotebookTextModel> {
 
 		if (!await this.canResolve(viewType)) {
 			throw new Error(`CANNOT load notebook, no provider for '${viewType}'`);
@@ -768,7 +768,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return notebookModel;
 
 		} else {
-			const dataDto = await provider.controller.resolveNotebookDocument(viewType, uri, backupId);
+			const dataDto = await provider.controller.resolveNotebookDocument(viewType, uri, backupId, untitledDocumentData);
 			let cells = dataDto.data.cells.length ? dataDto.data.cells : (uri.scheme === Schemas.untitled ? [{
 				cellKind: CellKind.Code,
 				language: dataDto.data.languages.length ? dataDto.data.languages[0] : '',
