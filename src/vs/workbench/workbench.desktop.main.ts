@@ -71,7 +71,6 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountS
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
-import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
