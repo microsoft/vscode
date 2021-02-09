@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -716,7 +716,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput;
 }
 
 export interface CellFindMatch {

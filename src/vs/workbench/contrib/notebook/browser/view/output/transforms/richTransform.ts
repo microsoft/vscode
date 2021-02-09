@@ -21,6 +21,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ErrorTransform } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 class JSONRendererContrib extends Disposable implements IOutputRendererContribution {
 
@@ -37,8 +38,8 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'application/json')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value;
 		const str = JSON.stringify(data, null, '\t');
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
@@ -82,8 +83,8 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'application/javascript')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value;
 		const str = isArray(data) ? data.join('') : data;
 		const scriptVal = `<script type="application/javascript">${str}</script>`;
 		return {
@@ -110,8 +111,8 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'text/x-javascript')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value;
 		const str = (isArray(data) ? data.join('') : data) as string;
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
@@ -159,8 +160,8 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'application/x.notebook.stream')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value;
 
 		const text = (isArray(data) ? data.join('') : data) as string;
 		const contentNode = DOM.$('span.output-stream');
@@ -183,8 +184,8 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'application/x.notebook.error-traceback')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value;
 
 		ErrorTransform.render(data, container, this.themeService);
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
@@ -206,8 +207,8 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'text/plain')?.value as any;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value as any;
 		const contentNode = DOM.$('.output-plaintext');
 		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
@@ -228,8 +229,8 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'text/html')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value;
 
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -253,8 +254,8 @@ class SVGRendererContrib extends Disposable implements IOutputRendererContributi
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'image/svg+xml')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const data = item.value;
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
 			type: RenderOutputType.Html,
@@ -278,8 +279,8 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const data = output.model.outputs.find(op => op.mime === 'text/markdown')?.value;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const data = item.value;
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
 		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
@@ -302,9 +303,9 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const image = document.createElement('img');
-		const imagedata = output.model.outputs.find(op => op.mime === 'image/png')?.value;
+		const imagedata = item.value;
 		image.src = `data:image/png;base64,${imagedata}`;
 		const display = document.createElement('div');
 		display.classList.add('display');
@@ -326,9 +327,9 @@ class JPEGRendererContrib extends Disposable implements IOutputRendererContribut
 		super();
 	}
 
-	render(output: ICellOutputViewModel, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		const image = document.createElement('img');
-		const imagedata = output.model.outputs.find(op => op.mime === 'image/jpeg')?.value;
+		const imagedata = item.value;
 		image.src = `data:image/jpeg;base64,${imagedata}`;
 		const display = document.createElement('div');
 		display.classList.add('display');
