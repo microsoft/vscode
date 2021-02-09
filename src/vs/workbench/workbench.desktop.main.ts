@@ -70,7 +70,6 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService'
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
-import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
