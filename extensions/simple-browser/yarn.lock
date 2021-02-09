@@ -2565,10 +2565,10 @@ vm-browserify@^1.0.1:
   resolved "https://registry.yarnpkg.com/vm-browserify/-/vm-browserify-1.1.2.tgz#78641c488b8e6ca91a75f511e7a3b32a86e5dda0"
   integrity sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==
 
-vscode-codicons@^0.0.12:
-  version "0.0.12"
-  resolved "https://registry.yarnpkg.com/vscode-codicons/-/vscode-codicons-0.0.12.tgz#94b867156f3e3a6a4cf7661e9bf2bd0060042390"
-  integrity sha512-CyGFDf3OmQhtBql/BFheUAlvEZ1MKAgvyCrGktGXEsqYvK5m9456kckDTNvnEAGG8gYjE2ds5O1cle82sMgmAg==
+vscode-codicons@^0.0.14:
+  version "0.0.14"
+  resolved "https://registry.yarnpkg.com/vscode-codicons/-/vscode-codicons-0.0.14.tgz#e0d05418e2e195564ff6f6a2199d70415911c18f"
+  integrity sha512-6CEH5KT9ct5WMw7n5dlX7rB8ya4CUI2FSq1Wk36XaW+c5RglFtAanUV0T+gvZVVFhl/WxfjTvFHq06Hz9c1SLA==
 
 vscode-extension-telemetry@0.1.1:
   version "0.1.1"

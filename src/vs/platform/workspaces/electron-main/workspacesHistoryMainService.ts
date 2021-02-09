@@ -352,8 +352,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 				const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
 
-				let description;
-				let args;
+				let description: string;
+				let args: string;
 				if (URI.isUri(workspace)) {
 					description = localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
 					args = `--folder-uri "${workspace.toString()}"`;
@@ -362,6 +362,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					description = localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
 					args = `--file-uri "${workspace.configPath.toString()}"`;
 				}
+
 
 				return {
 					type: 'task',

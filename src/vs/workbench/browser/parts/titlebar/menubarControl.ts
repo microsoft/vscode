@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -291,6 +291,7 @@ export class CustomMenubarControl extends MenubarControl {
 	private alwaysOnMnemonics: boolean = false;
 	private focusInsideMenubar: boolean = false;
 	private visible: boolean = true;
+	private readonly webNavigationMenu = this._register(this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService));
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
@@ -325,16 +326,6 @@ export class CustomMenubarControl extends MenubarControl {
 		this.registerListeners();
 
 		this.registerActions();
-
-		// Register web menu actions to the file menu when its in the title
-		this.getWebNavigationMenuItemActions().forEach(actionItem => {
-			this._register(MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-				command: actionItem.item,
-				title: actionItem.item.title,
-				group: 'z_Web',
-				when: ContextKeyExpr.and(IsWebContext, ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
-			}));
-		});
 
 		registerThemingParticipant((theme, collector) => {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
@@ -640,6 +631,15 @@ export class CustomMenubarControl extends MenubarControl {
 				target.push(new Separator());
 			}
 
+			// Append web navigation menu items to the file menu when not compact
+			if (menu === this.menus.File && this.currentCompactMenuMode === undefined) {
+				const webActions = this.getWebNavigationActions();
+				if (webActions.length) {
+					target.push(...webActions);
+					target.push(new Separator()); // to account for pop below
+				}
+			}
+
 			target.pop();
 		};
 
@@ -655,6 +655,19 @@ export class CustomMenubarControl extends MenubarControl {
 						}
 					}
 				}));
+
+				// For the file menu, we need to update if the web nav menu updates as well
+				if (menu === this.menus.File) {
+					this._register(this.webNavigationMenu.onDidChange(() => {
+						if (!this.focusInsideMenubar) {
+							const actions: IAction[] = [];
+							updateActions(menu, actions, title);
+							if (this.menubar) {
+								this.menubar.updateMenu({ actions: actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
+							}
+						}
+					}));
+				}
 			}
 
 			const actions: IAction[] = [];
@@ -672,23 +685,23 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
-	private getWebNavigationMenuItemActions(): MenuItemAction[] {
+	private getWebNavigationActions(): IAction[] {
 		if (!isWeb) {
 			return []; // only for web
 		}
 
 		const webNavigationActions = [];
-		const webNavigationMenu = this.menuService.createMenu(MenuId.MenubarHomeMenu, this.contextKeyService);
-		for (const groups of webNavigationMenu.getActions()) {
+		for (const groups of this.webNavigationMenu.getActions()) {
 			const [, actions] = groups;
 			for (const action of actions) {
 				if (action instanceof MenuItemAction) {
-					webNavigationActions.push(action);
+					const title = typeof action.item.title === 'string'
+						? action.item.title
+						: action.item.title.mnemonicTitle ?? action.item.title.value;
+					webNavigationActions.push(new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id)));
 				}
 			}
 		}
-
-		webNavigationMenu.dispose();
 
 		return webNavigationActions;
 	}
@@ -719,14 +732,7 @@ export class CustomMenubarControl extends MenubarControl {
 						}));
 				}
 
-				const otherActions = this.getWebNavigationMenuItemActions().map(action => {
-					const title = typeof action.item.title === 'string'
-						? action.item.title
-						: action.item.title.mnemonicTitle ?? action.item.title.value;
-					return new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
-				});
-
-				webNavigationActions.push(...otherActions);
+				webNavigationActions.push(...this.getWebNavigationActions());
 				return webNavigationActions;
 			}
 		};
@@ -787,6 +793,7 @@ export class CustomMenubarControl extends MenubarControl {
 		// Mnemonics require fullscreen in web
 		if (isWeb) {
 			this._register(this.layoutService.onFullscreenChange(e => this.updateMenubar()));
+			this._register(this.webNavigationMenu.onDidChange(() => this.updateMenubar()));
 		}
 	}
 

@@ -205,25 +205,6 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	}
 }
 
-export class RadioGroup extends Disposable {
-
-	constructor(readonly actions: Action[]) {
-		super();
-
-		for (const action of actions) {
-			this._register(action.onDidChange(e => {
-				if (e.checked && action.checked) {
-					for (const candidate of actions) {
-						if (candidate !== action) {
-							candidate.checked = false;
-						}
-					}
-				}
-			}));
-		}
-	}
-}
-
 export class Separator extends Action {
 
 	static readonly ID = 'vs.actions.separator';

@@ -58,7 +58,8 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2112,6 +2113,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} system-disable`;
 	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} ${ThemeIcon.asClassName(warningIcon)}`;
 	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} ${ThemeIcon.asClassName(infoIcon)}`;
+	private static readonly TRUST_CLASS = `${SystemDisabledWarningAction.CLASS} ${ThemeIcon.asClassName(trustIcon)}`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private _runningExtensions: IExtensionDescription[] | null = null;
@@ -2123,6 +2125,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2187,6 +2190,11 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				}
 				return;
 			}
+		}
+		if (this.workspaceTrustService.isWorkspaceTrustEnabled() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
+			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled as it requires a trusted workspace");
+			return;
 		}
 	}
 

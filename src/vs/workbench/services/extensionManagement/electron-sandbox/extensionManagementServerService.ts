@@ -9,7 +9,7 @@ import { IExtensionManagementServer, IExtensionManagementServerService } from 'v
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-sandbox/remoteExtensionManagementService';
 import { ILabelService } from 'vs/platform/label/common/label';

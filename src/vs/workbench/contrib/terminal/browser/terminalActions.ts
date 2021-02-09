@@ -1214,6 +1214,11 @@ export function registerTerminalActions() {
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 				icon: Codicon.plus,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
+					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 				menu: {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
@@ -1302,7 +1307,7 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.KILL,
+				id: TERMINAL_COMMAND_ID.CLEAR,
 				title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
 				f1: true,
 				category,
@@ -1431,14 +1436,7 @@ export function registerTerminalActions() {
 				title: switchTerminalTitle,
 				f1: true,
 				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
-				keybinding: [{
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
-					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
-				}],
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor, item?: string) {

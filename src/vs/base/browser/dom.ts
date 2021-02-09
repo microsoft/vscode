@@ -1476,12 +1476,13 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		};
 
 		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
-			// if keydown event is repeated, ignore it #112347
-			if (e.repeat) {
-				return;
-			}
 
 			const event = new StandardKeyboardEvent(e);
+			// If Alt-key keydown event is repeated, ignore it #112347
+			// Only known to be necessary for Alt-Key at the moment #115810
+			if (event.keyCode === KeyCode.Alt && e.repeat) {
+				return;
+			}
 
 			if (e.altKey && !this._keyStatus.altKey) {
 				this._keyStatus.lastKeyPressed = 'alt';

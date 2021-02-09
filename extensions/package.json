@@ -10,6 +10,6 @@
     "postinstall": "node ./postinstall"
   },
   "devDependencies": {
-    "vscode-grammar-updater": "^1.0.2"
+    "vscode-grammar-updater": "^1.0.3"
   }
 }
