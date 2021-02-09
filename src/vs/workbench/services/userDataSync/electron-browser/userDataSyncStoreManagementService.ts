@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AbstractUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
