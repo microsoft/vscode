@@ -868,12 +868,8 @@ class StatusbarEntryItem extends Disposable {
 
 		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
-			if (entry.backgroundColor) {
-				this.applyColor(this.container, entry.backgroundColor, true);
-				this.container.classList.add('has-background-color');
-			} else {
-				this.container.classList.remove('has-background-color');
-			}
+			this.container.classList.toggle('has-background-color', !!entry.backgroundColor);
+			this.applyColor(this.container, entry.backgroundColor, true);
 		}
 
 		// Remember for next round
