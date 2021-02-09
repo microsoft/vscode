@@ -5,7 +5,6 @@
 
 .monaco-action-bar .action-item.menu-entry .action-label {
 	background-image: var(--menu-entry-icon-light);
-	display: inline-flex;
 }
 
 .vs-dark .monaco-action-bar .action-item.menu-entry .action-label,
