@@ -185,9 +185,21 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
 			const tooltip = this._commandAction.tooltip || this._commandAction.label;
-			this.label.title = keybindingLabel
+			let title = keybindingLabel
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
+			if (!this._wantsAltCommand && this._action.alt) {
+				const PREFIX = '\u2B98'; // THREE-D TOP-LIGHTED LEFTWARDS EQUILATERAL ARROWHEAD
+				const SUFFIX = '\u2B9A'; // THREE-D TOP-LIGHTED RIGHTWARDS EQUILATERAL ARROWHEAD
+				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
+				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
+				title += `\n${PREFIX}Alt${SUFFIX} `;
+				title += altKeybindingLabel
+					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
+					: altTooltip;
+			}
+			this.label.title = title;
 		}
 	}
 
