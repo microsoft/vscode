@@ -1495,7 +1495,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (mergeDirectories) { // Add children of directories recursively
 			const explodedEdits: ResourceFileEdit[] = [];
 			for (const edit of resourceFileEdits) {
-				explodedEdits.push(...await this.explodeConflictingFolderEdit(edit));
+				explodedEdits.push(...await this.recursivelyMoveChildrenOfConflictingFolders(edit));
 			}
 
 			resourceFileEdits = explodedEdits;
@@ -1538,12 +1538,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 
 				const choice = overwrites.length <= 1 ? 2 : await this.showDialog(getMultipleFilesOverwriteOrSkip(overwrites.map(e => e.newResource!)));
-				if (choice === 1) { // skip
+				if (choice === 1) { // skip (i.e. do not move conflicting files)
 					edits = edits.filter(e => overwrites.indexOf(e) < 0);
-				} else if (choice === 2) { // decide
+				} else if (choice === 2) { // decide on each file individually
 					for (const overwrite of overwrites) {
 						const choice = await this.showDialog(getFileOverwriteOrSkip(overwrite.newResource!));
-						if (choice === 1) { // skip
+						if (choice === 1) { // skip (i.e. do not move this file)
 							edits.splice(edits.indexOf(overwrite), 1);
 						} else if (choice === 2) { // cancel
 							return false;
@@ -1567,24 +1567,24 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return false;
 	}
 
-	private async explodeConflictingFolderEdit(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
-		if (!edit.oldResource || !edit.newResource || !await this.fileService.exists(edit.newResource)) {
+	private async recursivelyMoveChildrenOfConflictingFolders(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
+		if (!edit.oldResource || !edit.newResource || !await this.fileService.exists(edit.newResource)) { // end recursion if there is no conflict
 			return [edit];
 		}
 
 		const resolvedOldResource = await this.fileService.resolve(edit.oldResource);
-		if (!resolvedOldResource.isDirectory || !(await this.fileService.resolve(edit.newResource)).isDirectory) {
+		if (!resolvedOldResource.isDirectory || !(await this.fileService.resolve(edit.newResource)).isDirectory) { // end recursion if one of the files is not a directory
 			return [edit];
 		}
 
 		const edits: ResourceFileEdit[] = [];
-		const newEdits = resolvedOldResource.children?.map(child => new ResourceFileEdit(child.resource, URI.joinPath(edit.newResource!, child.name)));
+		const newEdits = resolvedOldResource.children!.map(child => new ResourceFileEdit(child.resource, URI.joinPath(edit.newResource!, child.name)));
 
-		for (const newEdit of newEdits!) {
-			edits.push(...await this.explodeConflictingFolderEdit(newEdit));
+		for (const newEdit of newEdits) {
+			edits.push(...await this.recursivelyMoveChildrenOfConflictingFolders(newEdit));
 		}
 
-		edits.push(new ResourceFileEdit(edit.oldResource, undefined));
+		edits.push(new ResourceFileEdit(edit.oldResource, undefined)); // delete the original folder (as it is already present in the target)
 		return edits;
 	}
 
