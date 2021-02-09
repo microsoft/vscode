@@ -692,7 +692,9 @@ var requirejs = (function() {
 			const output = content.source.model;
 			renderer = content.renderer;
 			let data: { [key: string]: unknown } = {};
+			let metadata: { [key: string]: unknown } = {};
 			data[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.value || undefined;
+			metadata[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.metadata || undefined;
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -702,7 +704,7 @@ var requirejs = (function() {
 					type: RenderOutputType.Extension,
 					mimeType: content.mimeType,
 					output: {
-						metadata: output.outputs.find(op => op.mime === content.mimeType)?.metadata || {},
+						metadata: metadata,
 						data: data,
 						outputId: output.outputId
 					},
