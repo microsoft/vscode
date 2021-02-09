@@ -21,11 +21,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService } from 'vs/workbench/common/views';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, IAction2Options, IMenuService } from 'vs/platform/actions/common/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -41,7 +41,6 @@ import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -141,6 +140,26 @@ class ViewWelcomeController {
 	}
 }
 
+class ViewMenuActions extends CompositeMenuActions {
+	constructor(
+		element: HTMLElement,
+		viewId: string,
+		menuId: MenuId,
+		contextMenuId: MenuId,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+	) {
+		const scopedContextKeyService = contextKeyService.createScoped(element);
+		scopedContextKeyService.createKey('view', viewId);
+		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
+		super(menuId, contextMenuId, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
+		this._register(scopedContextKeyService);
+		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
+	}
+
+}
+
 export abstract class ViewPane extends Pane implements IView {
 
 	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
@@ -160,8 +179,6 @@ export abstract class ViewPane extends Pane implements IView {
 	protected _onDidChangeViewWelcomeState = this._register(new Emitter<void>());
 	readonly onDidChangeViewWelcomeState: Event<void> = this._onDidChangeViewWelcomeState.event;
 
-	private focusedViewContextKey: IContextKey<string>;
-
 	private _isVisible: boolean = false;
 	readonly id: string;
 
@@ -175,7 +192,7 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	private readonly menuActions: CompositeMenuActions;
+	private readonly menuActions: ViewMenuActions;
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
 
@@ -210,12 +227,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
 		this.showActionsAlways = !!options.showActionsAlways;
-		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
-		scopedContextKeyService.createKey('view', this.id);
-		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-		this.menuActions = this._register(scopedInstantiationService.createInstance(CompositeMenuActions, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: true }));
+		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
@@ -265,17 +278,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const focusTracker = trackFocus(this.element);
 		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => {
-			this.focusedViewContextKey.set(this.id);
-			this._onDidFocus.fire();
-		}));
-		this._register(focusTracker.onDidBlur(() => {
-			if (this.focusedViewContextKey.get() === this.id) {
-				this.focusedViewContextKey.reset();
-			}
-
-			this._onDidBlur.fire();
-		}));
+		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {

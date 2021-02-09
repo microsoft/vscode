@@ -42,7 +42,8 @@ import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contr
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService, MessagePortMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';

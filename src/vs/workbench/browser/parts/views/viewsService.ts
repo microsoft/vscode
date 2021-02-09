@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -33,7 +33,6 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -49,6 +48,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	readonly onDidChangeViewContainerVisibility = this._onDidChangeViewContainerVisibility.event;
 
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
+	private readonly focusedViewContextKey: IContextKey<string>;
 
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
@@ -78,6 +78,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		this._register(this.viewletService.onDidViewletClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.Sidebar })));
 		this._register(this.panelService.onDidPanelClose(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: false, location: ViewContainerLocation.Panel })));
 
+		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
 
 	private onViewsAdded(added: IView[]): void {
@@ -567,20 +568,20 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 	}
 
-	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, contextKeyService: IContextKeyService, instantiationService: IInstantiationService): ViewPaneContainer {
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(element));
-		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
-		scopedContextKeyService.createKey('viewContainerLocation', ViewContainerLocationToString(viewContainerLocation));
-		scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewContainerLocation));
-
-		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-		const viewPaneContainer: ViewPaneContainer = (scopedInstantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || []));
+	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
+		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || []));
 
 		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
 		disposables.add(toDisposable(() => this.viewPaneContainers.delete(viewPaneContainer.getId())));
 		disposables.add(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
 		disposables.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
 		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
+		disposables.add(viewPaneContainer.onDidFocusView(view => this.focusedViewContextKey.set(view.id)));
+		disposables.add(viewPaneContainer.onDidBlurView(view => {
+			if (this.focusedViewContextKey.get() === view.id) {
+				this.focusedViewContextKey.reset();
+			}
+		}));
 
 		return viewPaneContainer;
 	}
@@ -596,7 +597,6 @@ export class ViewsService extends Disposable implements IViewsService {
 				@IContextMenuService contextMenuService: IContextMenuService,
 				@IExtensionService extensionService: IExtensionService,
 				@IWorkspaceContextService contextService: IWorkspaceContextService,
-				@IContextKeyService private readonly contextKeyService: IContextKeyService,
 			) {
 				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 			}
@@ -605,7 +605,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				const viewPaneContainerDisposables = this._register(new DisposableStore());
 
 				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				return that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Panel, viewPaneContainerDisposables, this.contextKeyService, this.instantiationService);
+				return that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Panel, viewPaneContainerDisposables, this.instantiationService);
 			}
 		}
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
@@ -635,7 +635,6 @@ export class ViewsService extends Disposable implements IViewsService {
 				@IThemeService themeService: IThemeService,
 				@IContextMenuService contextMenuService: IContextMenuService,
 				@IExtensionService extensionService: IExtensionService,
-				@IContextKeyService private readonly contextKeyService: IContextKeyService,
 			) {
 				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
 			}
@@ -644,7 +643,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				const viewPaneContainerDisposables = this._register(new DisposableStore());
 
 				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Sidebar, viewPaneContainerDisposables, this.contextKeyService, this.instantiationService);
+				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Sidebar, viewPaneContainerDisposables, this.instantiationService);
 
 				// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
 				if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {

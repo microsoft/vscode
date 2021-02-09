@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncStatus, SyncResource, IUserDataSyncService, UserDataSyncError, ISyncResourceHandle, ISyncTask, IManualSyncTask, IUserDataManifest, ISyncResourcePreview, IResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';

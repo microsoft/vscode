@@ -224,7 +224,7 @@ export class WebviewProtocolProvider extends Disposable {
 				}, fileReader, this.requestService, this.logService, CancellationToken.None);
 
 				switch (result.type) {
-					case WebviewFileReadResponse.Type.Success:
+					case WebviewResourceResponse.Type.Success:
 						{
 							const cacheHeaders: Record<string, string> = result.etag ? {
 								'ETag': result.etag,

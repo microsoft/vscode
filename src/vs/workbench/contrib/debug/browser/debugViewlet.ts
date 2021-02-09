@@ -168,7 +168,7 @@ registerAction2(class extends Action2 {
 			id: DEBUG_CONFIGURE_COMMAND_ID,
 			title: {
 				value: DEBUG_CONFIGURE_LABEL,
-				original: DEBUG_CONFIGURE_LABEL,
+				original: 'Open \'launch.json\'',
 				mnemonicTitle: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
 			},
 			f1: true,
