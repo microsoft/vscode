@@ -370,7 +370,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
-		throw new Error('Method not implemented.');
+		return diffSide === DiffSide.Original ? this.original : this.modified;
 	}
 
 	getCellByUri(cellUri: URI): IGenericCellViewModel {
