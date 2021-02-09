@@ -116,8 +116,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 
 	installSourcePath: string = undefined!;
 
-	sharedIPCHandle: string = undefined!;
-
 	extensionsPath: string = undefined!;
 	extensionsDownloadPath: string = undefined!;
 	builtinExtensionsPath: string = undefined!;
