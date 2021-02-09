@@ -91,12 +91,8 @@ export class ExtHostCell extends Disposable {
 				cellKind: this._cellData.cellKind,
 				document: data.document,
 				get language() { return data!.document.languageId; },
-				// get outputs() {
-				// 	return that._outputs.map(output => NotebookCellOutput._toOld(output));
-				// },
-				// set outputs(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
-				get outputs2() { return that._outputs.map(extHostTypeConverters.NotebookCellOutput.to); },
-				set outputs2(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
+				get outputs() { return that._outputs.map(extHostTypeConverters.NotebookCellOutput.to); },
+				set outputs(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
 				get metadata() { return that._metadata; },
 				set metadata(_value) { throw new Error('Use WorkspaceEdit to update cell metadata.'); },
 			});
