@@ -214,12 +214,12 @@ export class SimpleFileDialog {
 			path = path.replace(/\\/g, '/');
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		return resources.toLocalResource(uri,
-			// If the default scheme is file, then we don't care about the remote authority
-			uri.scheme === Schemas.file ? undefined : this.remoteAuthority,
+		// If the default scheme is file, then we don't care about the remote authority
+		const authority = uri.scheme === Schemas.file ? undefined : this.remoteAuthority;
+		return resources.toLocalResource(uri, authority,
 			// If there is a remote authority, then we should use the system's default URI as the local scheme.
 			// If there is *no* remote authority, then we should use the default scheme for this dialog as that is already local.
-			this.remoteAuthority ? this.pathService.defaultUriScheme : uri.scheme);
+			authority ? this.pathService.defaultUriScheme : uri.scheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
