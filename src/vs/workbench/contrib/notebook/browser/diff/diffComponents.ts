@@ -565,7 +565,7 @@ abstract class AbstractElementRenderer extends Disposable {
 	}
 
 	private _getFormatedOutputJSON(outputs: IOutputDto[]) {
-		return JSON.stringify(outputs, undefined, '\t');
+		return JSON.stringify(outputs.map(op => ({ outputs: op.outputs })), undefined, '\t');
 	}
 
 	private _buildOutputEditor() {
