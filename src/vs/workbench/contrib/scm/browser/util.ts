@@ -108,14 +108,6 @@ class StatusBarActionViewItem extends ActionViewItem {
 	}
 }
 
-// export function getStatusBarActionViewItem(action: IAction): IActionViewItem | undefined {
-// 	if (action instanceof StatusBarAction) {
-// 		return new StatusBarActionViewItem(action);
-// 	}
-
-// 	return undefined;
-// }
-
 export function getActionViewItemProvider(instaService: IInstantiationService): IActionViewItemProvider {
 	return action => {
 		if (action instanceof StatusBarAction) {
