@@ -28,7 +28,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { registerAction2, Action2, IAction2Options, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IAction2Options, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -293,6 +293,23 @@ class ViewPaneDropOverlay extends Themable {
 	}
 }
 
+class ViewContainerMenuActions extends CompositeMenuActions {
+	constructor(
+		element: HTMLElement,
+		viewContainer: ViewContainer,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+	) {
+		const scopedContextKeyService = contextKeyService.createScoped(element);
+		scopedContextKeyService.createKey('viewContainer', viewContainer.id);
+		const viewContainerLocationKey = scopedContextKeyService.createKey('viewContainerLocation', ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!));
+		super(MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
+		this._register(scopedContextKeyService);
+		this._register(Event.filter(viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === viewContainer)(() => viewContainerLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewContainerLocation(viewContainer)!))));
+	}
+}
+
 export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
@@ -349,7 +366,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.length;
 	}
 
-	private readonly menuActions: CompositeMenuActions;
+	private menuActions!: ViewContainerMenuActions;
 
 	constructor(
 		id: string,
@@ -379,9 +396,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 		this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
-
-		this.menuActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.ViewContainerTitle, MenuId.ViewContainerTitleContext, { shouldForwardArgs: true }));
-		this._register(this.menuActions.onDidChange(() => this.updateTitleArea()));
 	}
 
 	create(parent: HTMLElement): void {
@@ -390,6 +404,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+
+		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
+		this._register(this.menuActions.onDidChange(() => this.updateTitleArea()));
 
 		let overlay: ViewPaneDropOverlay | undefined;
 		const getOverlayBounds: () => BoundingRect = () => {
