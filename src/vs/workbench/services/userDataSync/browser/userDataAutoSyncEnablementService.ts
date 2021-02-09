@@ -29,14 +29,13 @@ export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnable
 	}
 
 	setEnablement(enabled: boolean) {
-		if (!this.canToggleEnablement()) {
-			throw new Error('Cannot toggle enablement');
-		}
-		if (this.enabled !== enabled) {
-			this.enabled = enabled;
-			super.setEnablement(enabled);
-			if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
-				this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+		if (this.canToggleEnablement()) {
+			if (this.enabled !== enabled) {
+				this.enabled = enabled;
+				super.setEnablement(enabled);
+				if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
+					this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+				}
 			}
 		}
 	}
