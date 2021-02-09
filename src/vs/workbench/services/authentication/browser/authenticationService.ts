@@ -22,7 +22,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { flatten } from 'vs/base/common/arrays';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -688,7 +688,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	private async tryActivateProvider(providerId: string): Promise<MainThreadAuthenticationProvider> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId));
+		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), ActivationKind.Immediate);
 		let provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			return provider;
