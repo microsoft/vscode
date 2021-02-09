@@ -58,7 +58,7 @@ export class MergeConflictParser {
 				currentConflict.commonAncestors.push(line);
 			}
 			// Are we within a conflict block and is this a splitter? =======
-			else if (currentConflict && !currentConflict.splitter && line.text.startsWith(splitterMarker)) {
+			else if (currentConflict && !currentConflict.splitter && line.text === splitterMarker) {
 				currentConflict.splitter = line;
 			}
 			// Are we within a conflict block and is this a footer? >>>>>>>

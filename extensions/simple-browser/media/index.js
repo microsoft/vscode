@@ -194,9 +194,19 @@ events_1.onceDocumentLoaded(() => {
         iframe.src = input.value;
     });
     navigateTo(settings.url);
+    input.value = settings.url;
     toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
-    function navigateTo(url) {
-        iframe.src = url;
+    function navigateTo(rawUrl) {
+        try {
+            const url = new URL(rawUrl);
+            // Try to bust the cache for the iframe
+            // There does not appear to be any way to reliably do this except modifying the url
+            url.searchParams.append('vscodeBrowserReqId', Date.now().toString());
+            iframe.src = url.toString();
+        }
+        catch (_a) {
+            iframe.src = rawUrl;
+        }
     }
 });
 function toggleFocusLockIndicatorEnabled(enabled) {

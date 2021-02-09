@@ -5,6 +5,7 @@
 
 import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { release } from 'os';
+import { statSync } from 'fs';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -21,7 +22,7 @@ import { LaunchMainService, ILaunchMainService } from 'vs/platform/launch/electr
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -45,7 +46,7 @@ import { Win32UpdateService } from 'vs/platform/update/electron-main/updateServi
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IssueMainService, IIssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { LoggerChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
@@ -64,8 +65,7 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesManagementMainService, IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { statSync } from 'fs';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
@@ -660,9 +660,12 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
-		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
+		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
+		electronIpcServer.registerChannel('logLevel', logLevelChannel);
+		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
+
+		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
 		electronIpcServer.registerChannel('logger', loggerChannel);
-		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		fileProtocolHandler.injectWindowsMainService(windowsMainService);

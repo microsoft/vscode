@@ -76,6 +76,7 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 
 const sessionsToIgnore = new Set<IDebugSession>();
 const identityProvider = { getId: (element: IReplElement) => element.getId() };
+const diffIdentityProvider = { getId: (element: IReplElement) => element.getId() + element.toString() };
 
 export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	declare readonly _serviceBrand: undefined;
@@ -512,7 +513,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider: identityProvider });
+			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider });
 
 			const session = this.tree.getInput();
 			if (session) {
@@ -810,7 +811,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: FILTER_ACTION_ID,
 			title: localize('filter', "Filter"),
-			f1: true,
+			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -832,8 +833,7 @@ registerAction2(class extends ViewAction<Repl> {
 			id: selectReplCommandId,
 			viewId: REPL_VIEW_ID,
 			title: localize('selectRepl', "Select Debug Console"),
-			f1: true,
-			icon: debugConsoleClearAll,
+			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -866,7 +866,7 @@ registerAction2(class extends ViewAction<Repl> {
 		super({
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
-			title: localize('clearRepl', "Clear Console"),
+			title: { value: localize('clearRepl', "Clear Console"), original: 'Clear Console' },
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{

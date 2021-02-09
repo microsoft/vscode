@@ -11,7 +11,14 @@ export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnable
 	private get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
 	private enabled: boolean | undefined = undefined;
 
+	canToggleEnablement(): boolean {
+		return this.isTrusted() && super.canToggleEnablement();
+	}
+
 	isEnabled(): boolean {
+		if (!this.isTrusted()) {
+			return false;
+		}
 		if (this.enabled === undefined) {
 			this.enabled = this.workbenchEnvironmentService.options?.settingsSyncOptions?.enabled;
 		}
@@ -22,13 +29,19 @@ export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnable
 	}
 
 	setEnablement(enabled: boolean) {
-		if (this.enabled !== enabled) {
-			this.enabled = enabled;
-			super.setEnablement(enabled);
-			if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
-				this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+		if (this.canToggleEnablement()) {
+			if (this.enabled !== enabled) {
+				this.enabled = enabled;
+				super.setEnablement(enabled);
+				if (this.workbenchEnvironmentService.options?.settingsSyncOptions?.enablementHandler) {
+					this.workbenchEnvironmentService.options.settingsSyncOptions.enablementHandler(this.enabled);
+				}
 			}
 		}
+	}
+
+	private isTrusted(): boolean {
+		return !!this.workbenchEnvironmentService.options?.workspaceProvider?.trusted;
 	}
 
 }

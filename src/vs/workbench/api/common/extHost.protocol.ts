@@ -1302,9 +1302,10 @@ export interface ISignatureHelpContextDto {
 export interface IInlineHintDto {
 	text: string;
 	range: IRange;
-	hoverMessage?: string;
+	kind: modes.InlineHintKind;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
+	hoverMessage?: string;
 }
 
 export interface IInlineHintsDto {

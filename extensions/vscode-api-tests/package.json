@@ -42,6 +42,7 @@
       "remote": [
         {
           "id": "test.treeId",
+          "name": "test-tree",
           "when": "never"
         }
       ]

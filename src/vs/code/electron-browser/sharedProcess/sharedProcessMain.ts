@@ -30,7 +30,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogger } from 'vs/platform/log/common/log';
-import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -42,7 +42,8 @@ import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contr
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService, MessagePortMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -78,6 +79,7 @@ import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/con
 import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { join } from 'vs/base/common/path';
 
 class SharedProcessMain extends Disposable {
 
@@ -142,13 +144,13 @@ class SharedProcessMain extends Disposable {
 
 		// Log
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
-		const loggerClient = new LoggerChannelClient(this.server.getChannel('logger', mainRouter)); // we only use this for log levels
+		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter)); // we only use this for log levels
 		const multiplexLogger = this._register(new MultiplexLogService([
 			this._register(new ConsoleLogger(this.configuration.logLevel)),
-			this._register(new SpdLogLogger('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
+			this._register(new SpdLogLogger('sharedprocess', join(environmentService.logsPath, 'sharedprocess.log'), true, this.configuration.logLevel))
 		]));
 
-		const logService = this._register(new FollowerLogService(loggerClient, multiplexLogger));
+		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
 
 		// Main Process

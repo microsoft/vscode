@@ -168,7 +168,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
 			userEnv: this.userEnv,
-			sharedIPCHandle: this.environmentService.sharedIPCHandle,
 			args: this.environmentService.args,
 			logLevel: this.logService.getLevel()
 		};

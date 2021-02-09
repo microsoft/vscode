@@ -1178,7 +1178,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
-			InlineHint: extHostTypes.InlineHint,
 			Location: extHostTypes.Location,
 			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: OverviewRulerLane,
@@ -1228,6 +1227,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
+			get InlineHint() {
+				return extHostTypes.InlineHint;
+			},
+			get InlineHintKind() {
+				return extHostTypes.InlineHintKind;
+			},
 			get RemoteAuthorityResolverError() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.RemoteAuthorityResolverError;

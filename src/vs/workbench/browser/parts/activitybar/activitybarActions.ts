@@ -19,7 +19,7 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -179,54 +179,6 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 
 	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
 		return this.contextMenuActionsProvider();
-	}
-}
-
-export class HomeActivityActionViewItem extends MenuActivityActionViewItem {
-
-	static readonly HOME_BAR_VISIBILITY_PREFERENCE = 'workbench.activity.showHomeIndicator';
-
-	constructor(
-		private readonly goHomeHref: string,
-		action: ActivityAction,
-		contextMenuActionsProvider: () => IAction[],
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		@IThemeService themeService: IThemeService,
-		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
-	) {
-		super(MenuId.MenubarHomeMenu, action, contextMenuActionsProvider, colors, themeService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
-	}
-
-	protected async resolveMainMenuActions(homeMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
-		const actions = [];
-
-		// Go Home
-		actions.push(toAction({ id: 'goHome', label: localize('goHome', "Go Home"), run: () => window.location.href = this.goHomeHref }));
-
-		// Contributed
-		const contributedActions = await super.resolveMainMenuActions(homeMenu, disposables);
-		if (contributedActions.length) {
-			actions.push(disposables.add(new Separator()));
-			actions.push(...contributedActions);
-		}
-
-		return actions;
-	}
-
-	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
-		const actions = await super.resolveContextMenuActions(disposables);
-
-		actions.unshift(...[
-			toAction({ id: 'hideHomeButton', label: localize('hideHomeButton', "Hide Home Button"), run: () => this.storageService.store(HomeActivityActionViewItem.HOME_BAR_VISIBILITY_PREFERENCE, false, StorageScope.GLOBAL, StorageTarget.USER) }),
-			new Separator()
-		]);
-
-		return actions;
 	}
 }
 
@@ -422,15 +374,6 @@ registerAction2(
 );
 
 registerThemingParticipant((theme, collector) => {
-	const activityBarBackgroundColor = theme.getColor(ACTIVITY_BAR_BACKGROUND);
-	if (activityBarBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content > .home-bar > .home-bar-icon-badge {
-				background-color: ${activityBarBackgroundColor};
-			}
-		`);
-	}
-
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {
 		collector.addRule(`
@@ -439,7 +382,6 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon) {
 				background-color: ${activityBarForegroundColor} !important;
 			}
-			.monaco-workbench .activitybar > .content .home-bar > .monaco-action-bar .action-item .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {

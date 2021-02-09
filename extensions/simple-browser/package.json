@@ -16,6 +16,11 @@
   "categories": [
     "Other"
   ],
+  "extensionKind": [
+    "ui",
+    "workspace",
+    "web"
+  ],
   "activationEvents": [
     "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
@@ -52,14 +57,15 @@
     "build-preview": "webpack --mode development",
     "build-preview-production": "webpack --mode production",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose",
+    "postinstall": "node ./build/copy"
   },
   "dependencies": {
-    "vscode-codicons": "^0.0.12",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
+    "vscode-codicons": "^0.0.14",
     "@types/node": "^12.11.7",
     "ts-loader": "^6.2.1",
     "typescript": "^3.7.3",

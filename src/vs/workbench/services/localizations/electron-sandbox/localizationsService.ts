@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 
 // @ts-ignore: interface is implemented via proxy
-export class DiagnosticsService implements IDiagnosticsService {
+export class LocalizationsService implements ILocalizationsService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
-		return createChannelSender<IDiagnosticsService>(sharedProcessService.getChannel('diagnostics'));
+		return createChannelSender<ILocalizationsService>(sharedProcessService.getChannel('localizations'));
 	}
 }
 
-registerSingleton(IDiagnosticsService, DiagnosticsService, true);
+registerSingleton(ILocalizationsService, LocalizationsService, true);

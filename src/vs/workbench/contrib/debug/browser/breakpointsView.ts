@@ -1001,7 +1001,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.debug.viewlet.action.toggleBreakpointsActivatedAction',
-			title: localize('activateBreakpoints', "Toggle Activate Breakpoints"),
+			title: { value: localize('activateBreakpoints', "Toggle Activate Breakpoints"), original: 'Toggle Activate Breakpoints' },
 			f1: true,
 			icon: icons.breakpointsActivate,
 			menu: {
@@ -1088,7 +1088,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.debug.viewlet.action.enableAllBreakpoints',
 			title: {
-				original: '',
+				original: 'Enable All Breakpoints',
 				value: localize('enableAllBreakpoints', "Enable All Breakpoints"),
 				mnemonicTitle: localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "&&Enable All Breakpoints"),
 			},
@@ -1150,7 +1150,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.debug.viewlet.action.reapplyBreakpointsAction',
-			title: localize('reapplyAllBreakpoints', "Reapply All Breakpoints"),
+			title: { value: localize('reapplyAllBreakpoints', "Reapply All Breakpoints"), original: 'Reapply All Breakpoints' },
 			f1: true,
 			precondition: CONTEXT_IN_DEBUG_MODE,
 			menu: [{
