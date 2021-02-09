@@ -19,7 +19,7 @@ export class SettingsEditor {
 		await this.editor.waitForEditorFocus('settings.json', 1);
 
 		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`);
+		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
 	}
 
