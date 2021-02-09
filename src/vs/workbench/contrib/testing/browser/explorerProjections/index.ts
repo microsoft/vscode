@@ -40,13 +40,6 @@ export interface ITestTreeProjection extends IDisposable {
 
 
 export interface ITestTreeElement {
-	/**
-	 * Computed element state. Will be set automatically if not initially provided.
-	 * The projection is responsible for clearing (or updating) this if it
-	 * becomes invalid.
-	 */
-	computedState: TestRunState | undefined;
-
 	readonly children: Set<ITestTreeElement>;
 
 	/**
@@ -85,9 +78,11 @@ export interface ITestTreeElement {
 	readonly debuggable: Iterable<TestIdWithProvider>;
 
 	/**
-	 * State of of the tree item. Mostly used for deriving the computed state.
+	 * Element state to display.
 	 */
-	readonly state?: TestRunState;
+	state: TestRunState;
+
+	readonly ownState: TestRunState;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
 }

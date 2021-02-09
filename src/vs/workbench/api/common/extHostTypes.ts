@@ -2964,31 +2964,6 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-@es5ClassCompat
-export class TestState {
-	#runState: TestRunState;
-	#duration?: number;
-	#messages: ReadonlyArray<Readonly<vscode.TestMessage>>;
-
-	public get runState() {
-		return this.#runState;
-	}
-
-	public get duration() {
-		return this.#duration;
-	}
-
-	public get messages() {
-		return this.#messages;
-	}
-
-	constructor(runState: TestRunState, messages: vscode.TestMessage[] = [], duration?: number) {
-		this.#runState = runState;
-		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
-		this.#duration = duration;
-	}
-}
-
 export type RequiredTestItem = vscode.RequiredTestItem;
 
 export type TestItem = vscode.TestItem;
