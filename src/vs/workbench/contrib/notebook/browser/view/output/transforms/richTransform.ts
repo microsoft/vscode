@@ -24,7 +24,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 function getStringValue(data: unknown): string {
-	return isArray(data) ? data.join('') : data as string;
+	return isArray(data) ? data.join('') : String(data);
 }
 
 class JSONRendererContrib extends Disposable implements IOutputRendererContribution {
@@ -43,8 +43,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
-		const data = items.map(item => getStringValue(item.value)).join('');
-		const str = JSON.stringify(data, null, '\t');
+		const str = items.map(item => JSON.stringify(item.value, null, '\t')).join('');
 
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
 			...getOutputSimpleEditorOptions(),
@@ -70,7 +69,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 			width
 		});
 
-		container.style.height = `${height + 16}px`;
+		container.style.height = `${height + 8}px`;
 
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
@@ -145,7 +144,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 			width
 		});
 
-		container.style.height = `${height + 16}px`;
+		container.style.height = `${height + 8}px`;
 
 		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
 	}
@@ -168,9 +167,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
 		items.forEach(item => {
-			const data = item.value;
-
-			const text = (isArray(data) ? data.join('') : data) as string;
+			const text = getStringValue(item.value);
 			const contentNode = DOM.$('span.output-stream');
 			truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
 			container.appendChild(contentNode);
