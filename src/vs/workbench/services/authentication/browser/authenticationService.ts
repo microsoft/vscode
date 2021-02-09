@@ -108,6 +108,7 @@ export interface IAuthenticationService {
 	getProviderIds(): string[];
 	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
+	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean;
 	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
 	selectSession(providerId: string, extensionId: string, extensionName: string, possibleSessions: AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, possibleSessions: AuthenticationSession[]): void;
@@ -426,7 +427,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
+	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {
@@ -442,6 +443,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return true;
 		}
 
+		return false;
+	}
+
+	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const providerName = this.getLabel(providerId);
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
@@ -454,6 +459,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		const allow = choice === 0;
 		if (allow) {
+			const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
 		}
