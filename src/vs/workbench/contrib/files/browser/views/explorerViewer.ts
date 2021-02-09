@@ -1621,7 +1621,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const resolvedOldResource = await this.fileService.resolve(edit.oldResource);
 		const resolvedNewResource = await this.fileService.resolve(edit.newResource);
 
-		//TODO: what to do here!?
 		if (!resolvedOldResource.isDirectory || !resolvedNewResource.isDirectory) {
 			return [edit];
 		}
