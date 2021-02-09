@@ -666,17 +666,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				});
 			}
 
-			this._accountBadgeDisposable.clear();
-
-			let numberOfRequests = 0;
-			this._signInRequestItems.forEach(providerRequests => {
-				Object.keys(providerRequests).forEach(request => {
-					numberOfRequests += providerRequests[request].requestingExtensionIds.length;
-				});
-			});
-
-			const badge = new NumberBadge(numberOfRequests, () => nls.localize('sign in', "Sign in requested"));
-			this._accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
+			this.updateBadgeCount();
 		}
 	}
 	getLabel(id: string): string {
