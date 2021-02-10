@@ -12,6 +12,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, append, $ } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
+import { Delayer } from 'vs/base/common/async';
 
 let DEBUG = false;
 // DEBUG = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
@@ -87,6 +88,7 @@ export class Sash extends Disposable {
 	private hidden: boolean;
 	private orientation!: Orientation;
 	private size: number;
+	private hoverDelayer = this._register(new Delayer(300));
 
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }
@@ -136,10 +138,10 @@ export class Sash extends Disposable {
 				if (state !== SashState.Disabled) {
 					this._orthogonalStartDragHandle = append(this.el, $('.orthogonal-drag-handle.start'));
 					this.orthogonalStartDragHandleDisposables.add(toDisposable(() => this._orthogonalStartDragHandle!.remove()));
-					domEvent(this._orthogonalStartDragHandle, 'mouseenter', false)
-						(() => sash.el.classList.add('hover'), undefined, this.orthogonalStartDragHandleDisposables);
-					domEvent(this._orthogonalStartDragHandle, 'mouseleave', false)
-						(() => sash.el.classList.remove('hover'), undefined, this.orthogonalStartDragHandleDisposables);
+					domEvent(this._orthogonalStartDragHandle, 'mouseenter')
+						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalStartDragHandleDisposables);
+					domEvent(this._orthogonalStartDragHandle, 'mouseleave')
+						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalStartDragHandleDisposables);
 				}
 			};
 
@@ -166,10 +168,10 @@ export class Sash extends Disposable {
 				if (state !== SashState.Disabled) {
 					this._orthogonalEndDragHandle = append(this.el, $('.orthogonal-drag-handle.end'));
 					this.orthogonalEndDragHandleDisposables.add(toDisposable(() => this._orthogonalEndDragHandle!.remove()));
-					domEvent(this._orthogonalEndDragHandle, 'mouseenter', false)
-						(() => sash.el.classList.add('hover'), undefined, this.orthogonalEndDragHandleDisposables);
-					domEvent(this._orthogonalEndDragHandle, 'mouseleave', false)
-						(() => sash.el.classList.remove('hover'), undefined, this.orthogonalEndDragHandleDisposables);
+					domEvent(this._orthogonalEndDragHandle, 'mouseenter')
+						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalEndDragHandleDisposables);
+					domEvent(this._orthogonalEndDragHandle, 'mouseleave')
+						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalEndDragHandleDisposables);
 				}
 			};
 
@@ -197,6 +199,8 @@ export class Sash extends Disposable {
 
 		this._register(domEvent(this.el, 'mousedown')(this.onMouseDown, this));
 		this._register(domEvent(this.el, 'dblclick')(this.onMouseDoubleClick, this));
+		this._register(domEvent(this.el, 'mouseenter')(() => Sash.onMouseEnter(this)));
+		this._register(domEvent(this.el, 'mouseleave')(() => Sash.onMouseLeave(this)));
 
 		this._register(Gesture.addTarget(this.el));
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
@@ -392,6 +396,15 @@ export class Sash extends Disposable {
 			this._onDidEnd.fire();
 			dispose(listeners);
 		}));
+	}
+
+	private static onMouseEnter(sash: Sash): void {
+		sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'));
+	}
+
+	private static onMouseLeave(sash: Sash): void {
+		sash.hoverDelayer.cancel();
+		sash.el.classList.remove('hover');
 	}
 
 	layout(): void {

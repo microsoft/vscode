@@ -121,4 +121,7 @@ import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
 
+// Output
+import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
+
 //#endregion

@@ -44,7 +44,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 		if (environmentService.options && environmentService.options.workspaceProvider) {
 			this.workspaceProvider = environmentService.options.workspaceProvider;
 		} else {
-			this.workspaceProvider = { open: async () => undefined, workspace: undefined };
+			this.workspaceProvider = { open: async () => undefined, workspace: undefined, trusted: undefined };
 			logService.warn('Extension Host Debugging not available due to missing workspace provider.');
 		}
 

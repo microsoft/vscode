@@ -56,7 +56,7 @@ import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustService } from 'vs/platform/workspace/test/common/testWorkspaceTrust';
+import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,

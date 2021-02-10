@@ -67,4 +67,47 @@ suite.skip('OnEnter', () => {
 					`    x`));
 		});
 	});
+
+	test('should not indent after a multi-line comment block 1', () => {
+		return withRandomFileEditor(`/*-----\n * line 1\n * line 2\n *-----*/\n${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`/*-----`,
+					` * line 1`,
+					` * line 2`,
+					` *-----*/`,
+					``,
+					`x`));
+		});
+	});
+
+	test('should not indent after a multi-line comment block 2', () => {
+		return withRandomFileEditor(`/*-----\n * line 1\n * line 2\n */\n${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`/*-----`,
+					` * line 1`,
+					` * line 2`,
+					` */`,
+					``,
+					`x`));
+		});
+	});
+
+	test('should indent within a multi-line comment block', () => {
+		return withRandomFileEditor(`/*-----\n * line 1\n * line 2${CURSOR}`, 'js', async (_editor, document) => {
+			await type(document, '\nx');
+			assert.strictEqual(
+				document.getText(),
+				joinLines(
+					`/*-----`,
+					` * line 1`,
+					` * line 2`,
+					` * x`));
+		});
+	});
 });

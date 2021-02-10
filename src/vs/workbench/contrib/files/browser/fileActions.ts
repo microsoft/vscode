@@ -53,6 +53,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { listenStream } from 'vs/base/common/stream';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -1034,21 +1035,21 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 								reject();
 							}));
 
-							sourceStream.on('data', data => {
-								if (!disposed) {
-									target.write(data.buffer);
-									reportProgress(contents.name, contents.size, data.byteLength, operation);
+							listenStream(sourceStream, {
+								onData: data => {
+									if (!disposed) {
+										target.write(data.buffer);
+										reportProgress(contents.name, contents.size, data.byteLength, operation);
+									}
+								},
+								onError: error => {
+									disposables.dispose();
+									reject(error);
+								},
+								onEnd: () => {
+									disposables.dispose();
+									resolve();
 								}
-							});
-
-							sourceStream.on('error', error => {
-								disposables.dispose();
-								reject(error);
-							});
-
-							sourceStream.on('end', () => {
-								disposables.dispose();
-								resolve();
 							});
 						});
 					}

@@ -48,6 +48,11 @@ export interface IWorkspaceProvider {
 	readonly payload?: object;
 
 	/**
+	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
+	 */
+	readonly trusted: boolean | undefined;
+
+	/**
 	 * Asks to open a workspace in the current or a new window.
 	 *
 	 * @param workspace the workspace to open.
@@ -103,6 +108,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		} else {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
 				readonly workspace = undefined;
+				readonly trusted = undefined;
 				async open() { }
 			};
 		}

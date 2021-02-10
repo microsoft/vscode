@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IWorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustRequestModel, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 	_serviceBrand: undefined;
@@ -23,9 +24,5 @@ export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 
 	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState> {
 		return Promise.resolve(WorkspaceTrustState.Trusted);
-	}
-
-	resetWorkspaceTrust(): Promise<WorkspaceTrustState> {
-		return Promise.resolve(WorkspaceTrustState.Unknown);
 	}
 }

@@ -10,19 +10,19 @@ import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } fro
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { resolveShellEnv } from 'vs/code/node/shellEnv';
+import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
-import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
 import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
+import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { LaunchMainService, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -46,7 +46,7 @@ import { Win32UpdateService } from 'vs/platform/update/electron-main/updateServi
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IssueMainService, IIssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { LoggerChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
@@ -526,7 +526,7 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
-		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
+		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		services.set(ILocalPtyMainService, new SyncDescriptor(LocalPtyMainService));
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
@@ -608,7 +608,7 @@ export class CodeApplication extends Disposable {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
-		const launchChannel = createChannelReceiver(launchMainService, { disableMarshalling: true });
+		const launchChannel = ProxyChannel.fromService(launchMainService, { disableMarshalling: true });
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 
 		// Register more Electron IPC services
@@ -621,44 +621,44 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('localPty', localPtyChannel);
 
 		const issueMainService = accessor.get(IIssueMainService);
-		const issueChannel = createChannelReceiver(issueMainService);
+		const issueChannel = ProxyChannel.fromService(issueMainService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
 		const encryptionMainService = accessor.get(IEncryptionMainService);
-		const encryptionChannel = createChannelReceiver(encryptionMainService);
+		const encryptionChannel = ProxyChannel.fromService(encryptionMainService);
 		electronIpcServer.registerChannel('encryption', encryptionChannel);
 
 		const keyboardLayoutMainService = accessor.get(IKeyboardLayoutMainService);
-		const keyboardLayoutChannel = createChannelReceiver(keyboardLayoutMainService);
+		const keyboardLayoutChannel = ProxyChannel.fromService(keyboardLayoutMainService);
 		electronIpcServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
 
 		const displayMainService = accessor.get(IDisplayMainService);
-		const displayChannel = createChannelReceiver(displayMainService);
+		const displayChannel = ProxyChannel.fromService(displayMainService);
 		electronIpcServer.registerChannel('display', displayChannel);
 
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);
+		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService);
 		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
 		const workspacesService = accessor.get(IWorkspacesService);
-		const workspacesChannel = createChannelReceiver(workspacesService);
+		const workspacesChannel = ProxyChannel.fromService(workspacesService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const menubarMainService = accessor.get(IMenubarMainService);
-		const menubarChannel = createChannelReceiver(menubarMainService);
+		const menubarChannel = ProxyChannel.fromService(menubarMainService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
 
 		const urlService = accessor.get(IURLService);
-		const urlChannel = createChannelReceiver(urlService);
+		const urlChannel = ProxyChannel.fromService(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
 
 		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
-		const extensionUrlTrustChannel = createChannelReceiver(extensionUrlTrustService);
+		const extensionUrlTrustChannel = ProxyChannel.fromService(extensionUrlTrustService);
 		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
 
 		const webviewManagerService = accessor.get(IWebviewManagerService);
-		const webviewChannel = createChannelReceiver(webviewManagerService);
+		const webviewChannel = ProxyChannel.fromService(webviewManagerService);
 		electronIpcServer.registerChannel('webview', webviewChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
@@ -666,9 +666,12 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
-		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
+		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
+		electronIpcServer.registerChannel('logLevel', logLevelChannel);
+		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
+
+		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
 		electronIpcServer.registerChannel('logger', loggerChannel);
-		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		fileProtocolHandler.injectWindowsMainService(windowsMainService);

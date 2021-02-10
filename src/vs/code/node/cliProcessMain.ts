@@ -105,7 +105,7 @@ class CliMain extends Disposable {
 		// Log
 		const logLevel = getLogLevel(environmentService);
 		const loggers: ILogger[] = [];
-		loggers.push(new SpdLogLogger('cli', environmentService.logsPath, logLevel));
+		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, logLevel));
 		if (logLevel === LogLevel.Trace) {
 			loggers.push(new ConsoleLogger(logLevel));
 		}

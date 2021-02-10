@@ -812,23 +812,26 @@ namespace LabelTunnelAction {
 	export const LABEL = nls.localize('remote.tunnel.label', "Set Label");
 
 	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
+		return async (accessor, arg): Promise<{ port: number, label: string } | undefined> => {
 			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
 			if (context instanceof TunnelItem) {
-				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				remoteExplorerService.setEditable(context, {
-					onFinish: async (value, success) => {
-						if (success) {
-							remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
-						}
-						remoteExplorerService.setEditable(context, null);
-					},
-					validationMessage: () => null,
-					placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
-					startingValue: context.name
+				return new Promise(resolve => {
+					const remoteExplorerService = accessor.get(IRemoteExplorerService);
+					remoteExplorerService.setEditable(context, {
+						onFinish: async (value, success) => {
+							if (success) {
+								remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
+							}
+							remoteExplorerService.setEditable(context, null);
+							resolve(success ? { port: context.remotePort, label: value } : undefined);
+						},
+						validationMessage: () => null,
+						placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
+						startingValue: context.name
+					});
 				});
 			}
-			return;
+			return undefined;
 		};
 	}
 }

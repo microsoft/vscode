@@ -204,7 +204,6 @@ const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
 	id: null,
 	label: null,
 	location: null,
-	state: null,
 	debuggable: null,
 	description: null,
 	runnable: null

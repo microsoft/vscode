@@ -95,7 +95,7 @@ function fillInActions(
 		const target = isPrimaryGroup(group) ? primaryBucket : secondaryBucket;
 
 		const submenuActions = action.actions;
-		if (target.length + submenuActions.length - 1 <= primaryMaxCount && shouldInlineSubmenu(action, group, target.length)) {
+		if (target.length + submenuActions.length - 2 <= primaryMaxCount && shouldInlineSubmenu(action, group, target.length)) {
 			target.splice(index, 1, ...submenuActions);
 		}
 	}

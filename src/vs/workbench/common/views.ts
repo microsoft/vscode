@@ -14,7 +14,6 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -814,7 +813,6 @@ export interface IViewPaneContainer {
 	setVisible(visible: boolean): void;
 	isVisible(): boolean;
 	focus(): void;
-	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;

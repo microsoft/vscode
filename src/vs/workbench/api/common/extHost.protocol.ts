@@ -57,7 +57,7 @@ import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib
 import { DebugConfigurationProviderTriggerKind, WorkspaceTrustState } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { InternalTestItem, InternalTestResults, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, InternalTestResults, ITestState, RunTestForProviderRequest, RunTestsRequest, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
@@ -1303,9 +1303,10 @@ export interface ISignatureHelpContextDto {
 export interface IInlineHintDto {
 	text: string;
 	range: IRange;
-	hoverMessage?: string;
+	kind: modes.InlineHintKind;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
+	hoverMessage?: string;
 }
 
 export interface IInlineHintsDto {
@@ -1826,7 +1827,7 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<RunTestsResult>;
+	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<void>;
 	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$lookupTest(test: TestIdWithProvider): Promise<InternalTestItem | undefined>;
@@ -1840,7 +1841,8 @@ export interface MainThreadTestingShape {
 	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
-	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<RunTestsResult>;
+	$updateTestStateInRun(runId: string, testId: string, state: ITestState): void;
+	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
 }
 
 // --- proxy identifiers

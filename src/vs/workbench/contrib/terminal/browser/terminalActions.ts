@@ -1217,8 +1217,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK },
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+					weight: KeybindingWeight.WorkbenchContrib
 				},
 				menu: {
 					id: MenuId.ViewTitle,

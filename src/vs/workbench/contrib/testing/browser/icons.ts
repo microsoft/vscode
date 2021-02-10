@@ -20,10 +20,10 @@ export const testingShowAsList = registerIcon('testing-show-as-list-icon', Codic
 export const testingShowAsTree = registerIcon('testing-show-as-list-icon', Codicon.listFlat, localize('testingShowAsTree', 'Icon shown when the test explorer is disabled as a list.'));
 
 export const testingStatesToIcons = new Map<TestRunState, ThemeIcon>([
-	[TestRunState.Errored, registerIcon('testing-error-icon', Codicon.warning, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],
-	[TestRunState.Failed, registerIcon('testing-failed-icon', Codicon.close, localize('testingFailedIcon', 'Icon shown for tests that failed.'))],
+	[TestRunState.Errored, registerIcon('testing-error-icon', Codicon.issues, localize('testingErrorIcon', 'Icon shown for tests that have an error.'))],
+	[TestRunState.Failed, registerIcon('testing-failed-icon', Codicon.error, localize('testingFailedIcon', 'Icon shown for tests that failed.'))],
 	[TestRunState.Passed, registerIcon('testing-passed-icon', Codicon.pass, localize('testingPassedIcon', 'Icon shown for tests that passed.'))],
-	[TestRunState.Queued, registerIcon('testing-queued-icon', Codicon.watch, localize('testingQueuedIcon', 'Icon shown for tests that are queued.'))],
+	[TestRunState.Queued, registerIcon('testing-queued-icon', Codicon.history, localize('testingQueuedIcon', 'Icon shown for tests that are queued.'))],
 	[TestRunState.Running, ThemeIcon.modify(Codicon.loading, 'spin')],
 	[TestRunState.Skipped, registerIcon('testing-skipped-icon', Codicon.debugStepOver, localize('testingSkippedIcon', 'Icon shown for tests that are skipped.'))],
 	[TestRunState.Unset, registerIcon('testing-unset-icon', Codicon.circleOutline, localize('testingUnsetIcon', 'Icon shown for tests that are in an unset state.'))],

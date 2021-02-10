@@ -44,6 +44,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorTitle', "The editor title menu")
 	},
 	{
+		key: 'editor/title/run',
+		id: MenuId.EditorTitleRun,
+		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu"),
+		proposed: true
+	},
+	{
 		key: 'editor/context',
 		id: MenuId.EditorContext,
 		description: localize('menus.editorContext', "The editor context menu")
@@ -176,6 +182,11 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.TimelineItemContext,
 		description: localize('view.timelineContext', "The Timeline view item context menu")
 	},
+	{
+		key: 'ports/item/context',
+		id: MenuId.TunnelContext,
+		description: localize('view.tunnelContext', "The Ports view item context menu")
+	}
 ];
 
 namespace schema {
