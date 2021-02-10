@@ -41,6 +41,10 @@
 	margin-right: 0.25em;
 }
 
+.test-explorer .computed-state.retired {
+	opacity: 0.7;
+}
+
 .test-explorer .test-explorer-messages {
 	padding: 0 12px 8px;
 }

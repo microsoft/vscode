@@ -628,10 +628,19 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeE
 	}
 
 	getAriaLabel(element: ITestTreeElement): string {
-		return localize({
+		let label = localize({
 			key: 'testing.treeElementLabel',
 			comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
 		}, '{0} ({1})', element.label, testStateNames[element.state]);
+
+		if (element.retired) {
+			label = localize({
+				key: 'testing.treeElementLabelOutdated',
+				comment: ['{0} is the original label in testing.treeElementLabel'],
+			}, '{0}, outdated result', label, testStateNames[element.state]);
+		}
+
+		return label;
 	}
 }
 
@@ -708,6 +717,10 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 
 		const icon = testingStatesToIcons.get(element.state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
+		if (element.retired) {
+			data.icon.className += ' retired';
+		}
+
 		const test = element.test;
 		if (test) {
 			if (test.item.location) {

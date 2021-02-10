@@ -87,6 +87,11 @@ export interface ITestTreeElement {
 	 */
 	state: TestRunState;
 
+	/**
+	 * Whether the node's test result is 'retired' -- from an outdated test run.
+	 */
+	readonly retired: boolean;
+
 	readonly ownState: TestRunState;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
