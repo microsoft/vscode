@@ -255,8 +255,9 @@ class WorkspaceTrustManageAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.manageTrust',
-			title: { value: nls.localize('resetTrustAction', "Manage Trusted Workspaces"), original: 'Manage Trusted Workspaces' },
+			title: { value: nls.localize('manageTrustAction', "Manage Workspace Trust"), original: 'Manage Workspace Trust' },
 			precondition: ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true),
+			category: nls.localize('workspacesCategory', "Workspaces"),
 			f1: true,
 		});
 	}

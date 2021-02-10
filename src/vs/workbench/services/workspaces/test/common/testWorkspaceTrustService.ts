@@ -25,8 +25,4 @@ export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState> {
 		return Promise.resolve(WorkspaceTrustState.Trusted);
 	}
-
-	resetWorkspaceTrust(): Promise<WorkspaceTrustState> {
-		return Promise.resolve(WorkspaceTrustState.Unknown);
-	}
 }

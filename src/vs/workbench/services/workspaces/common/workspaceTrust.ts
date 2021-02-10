@@ -128,11 +128,11 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 export class WorkspaceTrustRequestModel extends Disposable implements IWorkspaceTrustRequestModel {
 	trustRequest: IWorkspaceTrustRequest | undefined;
 
-	_onDidInitiateRequest = this._register(new Emitter<void>());
-	onDidInitiateRequest: Event<void> = this._onDidInitiateRequest.event;
+	private readonly _onDidInitiateRequest = this._register(new Emitter<void>());
+	readonly onDidInitiateRequest: Event<void> = this._onDidInitiateRequest.event;
 
-	_onDidCompleteRequest = this._register(new Emitter<WorkspaceTrustState | undefined>());
-	onDidCompleteRequest = this._onDidCompleteRequest.event;
+	private readonly _onDidCompleteRequest = this._register(new Emitter<WorkspaceTrustState | undefined>());
+	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
 
 	initiateRequest(request: IWorkspaceTrustRequest): void {
 		if (this.trustRequest && (!request.immediate || this.trustRequest.immediate)) {
@@ -284,15 +284,6 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		this._ctxWorkspaceTrustPendingRequest.set(true);
 
 		return this._trustRequestPromise;
-	}
-
-	async resetWorkspaceTrust(): Promise<WorkspaceTrustState> {
-		if (this.currentTrustState !== WorkspaceTrustState.Unknown) {
-			this._workspace.folders.forEach(folder => {
-				this.dataModel.setFolderTrustState(folder.uri, WorkspaceTrustState.Unknown);
-			});
-		}
-		return Promise.resolve(WorkspaceTrustState.Unknown);
 	}
 }
 

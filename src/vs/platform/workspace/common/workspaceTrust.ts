@@ -72,7 +72,6 @@ export interface IWorkspaceTrustService {
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
 	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState>;
-	resetWorkspaceTrust(): Promise<WorkspaceTrustState>;
 }
 
 export interface IWorkspaceTrustStateInfo {

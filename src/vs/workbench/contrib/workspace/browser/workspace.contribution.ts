@@ -20,7 +20,6 @@ import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkspaceTrustFileSystemProvider } from 'vs/workbench/contrib/workspace/common/workspaceTrustFileSystemProvider';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -265,48 +264,14 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Reset Workspace Trust
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.trust.reset',
-			title: {
-				original: 'Reset Workspace Trust',
-				value: localize('reset', "Reset Workspace Trust")
-			},
-			category: localize('workspacesCategory', "Workspaces"),
-			f1: true,
-			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), WorkspaceTrustContext.TrustState.isEqualTo(WorkspaceTrustState.Unknown).negate())
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const dialogService = accessor.get(IDialogService);
-		const workspaceTrustService = accessor.get(IWorkspaceTrustService);
-
-		const result = await dialogService.confirm({
-			message: localize('reset', "Reset Workspace Trust"),
-			detail: localize('confirmResetWorkspaceTrust', "Resetting workspace trust to the workspace will disable features that may pose a security risk if the contents of the workspace cannot be trusted. Are you sure you want to reset trust this workspace?"),
-			primaryButton: localize('yesGrant', 'Yes'),
-			secondaryButton: localize('noGrant', 'No')
-		});
-
-		if (result.confirmed) {
-			workspaceTrustService.resetWorkspaceTrust();
-		}
-
-		return;
-	}
-});
-
 // Manage Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.trust.manage',
 			title: {
-				original: 'Manage Trusted Workspaces',
-				value: localize('manageWorkspaceTrust', "Manage Trusted Workspaces")
+				original: 'Manage Workspace Trust',
+				value: localize('manageWorkspaceTrust', "Manage Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
@@ -328,7 +293,7 @@ registerAction2(class extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	command: {
 		id: 'workbench.trust.manage',
-		title: localize('manageWorkspaceTrustPending', "Manage Trusted Workspaces (1)"),
+		title: localize('manageWorkspaceTrustPending', "Manage Workspace Trust (1)"),
 	},
 	group: '7_trust',
 	order: 40,
