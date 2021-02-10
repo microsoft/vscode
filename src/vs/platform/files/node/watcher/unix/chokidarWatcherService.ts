@@ -146,9 +146,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		if (this.verboseLogging) {
-			this.log(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
-		}
+		this.info(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
@@ -299,6 +297,10 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 
 	private log(message: string) {
 		this._onDidLogMessage.fire({ type: 'trace', message: `[File Watcher (chokidar)] ` + message });
+	}
+
+	private info(message: string) {
+		this._onDidLogMessage.fire({ type: 'info', message: `[File Watcher (chokidar)] ` + message });
 	}
 
 	private warn(message: string) {
