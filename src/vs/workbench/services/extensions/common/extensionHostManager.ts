@@ -27,6 +27,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
+const ENABLE_FIREWALL = false;
 
 export class ExtensionHostManager extends Disposable {
 
@@ -178,7 +179,8 @@ export class ExtensionHostManager extends Disposable {
 			logger = new RPCLogger();
 		}
 
-		this._rpcProtocol = new RPCProtocol(protocol, logger);
+		const enableFirewall = (ENABLE_FIREWALL && this.kind === ExtensionHostKind.Remote);
+		this._rpcProtocol = new RPCProtocol(protocol, logger, null, enableFirewall);
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			remoteAuthority: this._extensionHost.remoteAuthority,

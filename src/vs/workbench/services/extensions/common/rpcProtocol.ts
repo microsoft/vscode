@@ -12,7 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
-import { IRPCProtocol, ProxyIdentifier, getStringIdentifierForProxy } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { IRPCProtocol, ProxyIdentifier, getIdentifierForProxy } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface JSONStringifyReplacer {
@@ -41,6 +41,10 @@ function createURIReplacer(transformer: IURITransformer | null): JSONStringifyRe
 		}
 		return value;
 	};
+}
+
+function blockedError() {
+	return new Error('Blocked');
 }
 
 export const enum RequestInitiator {
@@ -75,6 +79,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private readonly _protocol: IMessagePassingProtocol;
 	private readonly _logger: IRPCProtocolLogger | null;
 	private readonly _uriTransformer: IURITransformer | null;
+	private readonly _enableFirewall: boolean;
 	private readonly _uriReplacer: JSONStringifyReplacer | null;
 	private _isDisposed: boolean;
 	private readonly _locals: any[];
@@ -87,11 +92,12 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private _unresponsiveTime: number;
 	private _asyncCheckUresponsive: RunOnceScheduler;
 
-	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger | null = null, transformer: IURITransformer | null = null) {
+	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger | null = null, transformer: IURITransformer | null = null, enableFirewall: boolean = false) {
 		super();
 		this._protocol = protocol;
 		this._logger = logger;
 		this._uriTransformer = transformer;
+		this._enableFirewall = enableFirewall;
 		this._uriReplacer = createURIReplacer(this._uriTransformer);
 		this._isDisposed = false;
 		this._locals = [];
@@ -301,9 +307,22 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	}
 
 	private _receiveRequest(msgLength: number, req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean): void {
+		const identifier = getIdentifierForProxy(rpcId);
 		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${getStringIdentifierForProxy(rpcId)}.${method}(`, args);
+			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${identifier.sid}.${method}(`, args);
 		}
+		if (this._enableFirewall && !identifier.isAllowed(method)) {
+			// This method is not allowed
+			console.warn(`Blocked ${identifier.sid}.${method}`);
+			const err = blockedError();
+			const msg = MessageIO.serializeReplyErr(req, err);
+			if (this._logger) {
+				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `replyErr:`, err);
+			}
+			this._protocol.send(msg);
+			return;
+		}
+
 		const callId = String(req);
 
 		let promise: Promise<any>;
@@ -311,11 +330,11 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		if (usesCancellationToken) {
 			const cancellationTokenSource = new CancellationTokenSource();
 			args.push(cancellationTokenSource.token);
-			promise = this._invokeHandler(rpcId, method, args);
+			promise = this._invokeHandler(identifier, method, args);
 			cancel = () => cancellationTokenSource.cancel();
 		} else {
 			// cannot be cancelled
-			promise = this._invokeHandler(rpcId, method, args);
+			promise = this._invokeHandler(identifier, method, args);
 			cancel = noop;
 		}
 
@@ -397,22 +416,22 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		pendingReply.resolveErr(err);
 	}
 
-	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Promise<any> {
+	private _invokeHandler(identifier: ProxyIdentifier<any>, methodName: string, args: any[]): Promise<any> {
 		try {
-			return Promise.resolve(this._doInvokeHandler(rpcId, methodName, args));
+			return Promise.resolve(this._doInvokeHandler(identifier, methodName, args));
 		} catch (err) {
 			return Promise.reject(err);
 		}
 	}
 
-	private _doInvokeHandler(rpcId: number, methodName: string, args: any[]): any {
-		const actor = this._locals[rpcId];
+	private _doInvokeHandler(identifier: ProxyIdentifier<any>, methodName: string, args: any[]): any {
+		const actor = this._locals[identifier.nid];
 		if (!actor) {
-			throw new Error('Unknown actor ' + getStringIdentifierForProxy(rpcId));
+			throw new Error('Unknown actor ' + identifier.sid);
 		}
 		const method = actor[methodName];
 		if (typeof method !== 'function') {
-			throw new Error('Unknown method ' + methodName + ' on actor ' + getStringIdentifierForProxy(rpcId));
+			throw new Error('Unknown method ' + methodName + ' on actor ' + identifier.sid);
 		}
 		return method.apply(actor, args);
 	}
@@ -420,6 +439,11 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private _remoteCall(identifier: ProxyIdentifier<any>, methodName: string, args: any[]): Promise<any> {
 		if (this._isDisposed) {
 			return Promise.reject<any>(errors.canceled());
+		}
+		if (this._enableFirewall && !identifier.isAllowed(methodName)) {
+			// This method is not allowed
+			console.warn(`Blocked ${identifier.sid}.${methodName}`, args);
+			return Promise.reject<any>(blockedError());
 		}
 		let cancellationToken: CancellationToken | null = null;
 		if (args.length > 0 && CancellationToken.isCancellationToken(args[args.length - 1])) {

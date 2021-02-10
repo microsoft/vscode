@@ -43,7 +43,7 @@ import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ITerminalDimensions, IShellLaunchConfig, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ActivationKind, ExtensionActivationError, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as search from 'vs/workbench/services/search/common/search';
 import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
@@ -121,6 +121,116 @@ export interface IMainContext extends IRPCProtocol {
 export enum UIKind {
 	Desktop = 1,
 	Web = 2
+}
+
+// --- proxy identifiers
+
+export const MainContext = {
+	MainThreadAuthentication: createMainId<MainThreadAuthenticationShape>('MainThreadAuthentication'),
+	MainThreadBulkEdits: createMainId<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
+	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
+	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
+	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
+	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
+	MainThreadConsole: createMainId<MainThreadConsoleShape>('MainThreadConsole'),
+	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
+	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
+	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
+	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
+	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
+	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
+	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
+	MainThreadEditorInsets: createMainId<MainThreadEditorInsetsShape>('MainThreadEditorInsets'),
+	MainThreadEditorTabs: createMainId<MainThreadEditorTabsShape>('MainThreadEditorTabs'),
+	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
+	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
+	MainThreadDownloadService: createMainId<MainThreadDownloadServiceShape>('MainThreadDownloadService'),
+	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
+	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
+	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
+	MainThreadLog: createMainId<MainThreadLogShape>('MainThread'),
+	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
+	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),
+	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),
+	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
+	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar'),
+	MainThreadSecretState: createMainId<MainThreadSecretStateShape>('MainThreadSecretState'),
+	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
+	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
+	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
+	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
+	MainThreadWebviewPanels: createMainId<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
+	MainThreadWebviewViews: createMainId<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
+	MainThreadCustomEditors: createMainId<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
+	MainThreadUrls: createMainId<MainThreadUrlsShape>('MainThreadUrls'),
+	MainThreadUriOpeners: createMainId<MainThreadUriOpenersShape>('MainThreadUriOpeners'),
+	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
+	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
+	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
+	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
+	MainThreadSearch: createMainId<MainThreadSearchShape>('MainThreadSearch'),
+	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
+	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
+	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
+	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
+	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
+	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
+	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
+	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
+};
+
+export const ExtHostContext = {
+	ExtHostCommands: createExtId<ExtHostCommandsShape>('ExtHostCommands'),
+	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration'),
+	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
+	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService'),
+	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
+	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),
+	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
+	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders'),
+	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
+	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
+	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
+	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
+	ExtHostFileSystemInfo: createExtId<ExtHostFileSystemInfoShape>('ExtHostFileSystemInfo'),
+	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
+	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
+	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
+	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
+	ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
+	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
+	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
+	ExtHostSearch: createExtId<ExtHostSearchShape>('ExtHostSearch'),
+	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
+	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
+	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
+	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
+	ExtHostWebviewPanels: createExtId<ExtHostWebviewPanelsShape>('ExtHostWebviewPanels'),
+	ExtHostCustomEditors: createExtId<ExtHostCustomEditorsShape>('ExtHostCustomEditors'),
+	ExtHostWebviewViews: createExtId<ExtHostWebviewViewsShape>('ExtHostWebviewViews'),
+	ExtHostEditorInsets: createExtId<ExtHostEditorInsetsShape>('ExtHostEditorInsets'),
+	ExtHostEditorTabs: createExtId<IExtHostEditorTabsShape>('ExtHostEditorTabs'),
+	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
+	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
+	ExtHostSecretState: createMainId<ExtHostSecretStateShape>('ExtHostSecretState'),
+	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
+	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
+	ExtHostUriOpeners: createExtId<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
+	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
+	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
+	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook'),
+	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
+	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
+	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
+	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
+	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
+};
+
+// --- firewall
+
+
+function allow<T>(proxyIdentifier: ProxyIdentifier<T>, ...methods: (string & (keyof T))[]) {
+	proxyIdentifier.allow(methods);
 }
 
 // --- main thread
@@ -296,10 +406,12 @@ export interface MainThreadDownloadServiceShape extends IDisposable {
 	$download(uri: UriComponents, to: UriComponents): Promise<void>;
 }
 
+allow(MainContext.MainThreadErrors, '$onUnexpectedError');
 export interface MainThreadErrorsShape extends IDisposable {
 	$onUnexpectedError(err: any | SerializedError): void;
 }
 
+allow(MainContext.MainThreadConsole, '$logExtensionHostMessage');
 export interface MainThreadConsoleShape extends IDisposable {
 	$logExtensionHostMessage(msg: IRemoteConsoleLog): void;
 }
@@ -459,6 +571,7 @@ export interface TerminalLaunchConfig {
 	isFeatureTerminal?: boolean;
 }
 
+allow(MainContext.MainThreadTerminalService, '$registerProcessSupport');
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
 	$dispose(id: TerminalIdentifier): void;
@@ -583,6 +696,7 @@ export interface MainThreadStorageShape extends IDisposable {
 	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void;
 }
 
+allow(MainContext.MainThreadTelemetry, '$publicLog2');
 export interface MainThreadTelemetryShape extends IDisposable {
 	$publicLog(eventName: string, data?: any): void;
 	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
@@ -614,6 +728,7 @@ export interface IEditorTabDto {
 	resource: UriComponents
 }
 
+allow(ExtHostContext.ExtHostEditorTabs, '$acceptEditorTabs');
 export interface IExtHostEditorTabsShape {
 	$acceptEditorTabs(tabs: IEditorTabDto[]): void;
 }
@@ -882,6 +997,7 @@ export interface MainThreadTaskShape extends IDisposable {
 	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
 }
 
+allow(MainContext.MainThreadExtensionService, '$onWillActivateExtension');
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void>;
@@ -1015,6 +1131,7 @@ export interface ExtHostCommandsShape {
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription; }>;
 }
 
+allow(ExtHostContext.ExtHostConfiguration, '$initializeConfiguration');
 export interface ExtHostConfigurationShape {
 	$initializeConfiguration(data: IConfigurationInitData): void;
 	$acceptConfigurationChanged(data: IConfigurationInitData, change: IConfigurationChange): void;
@@ -1094,6 +1211,7 @@ export interface ExtHostTreeViewsShape {
 	$resolve(treeViewId: string, treeItemHandle: string, token: CancellationToken): Promise<ITreeItem | undefined>;
 }
 
+allow(ExtHostContext.ExtHostWorkspace, '$initializeWorkspace');
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null, trustState: WorkspaceTrustState): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
@@ -1101,6 +1219,7 @@ export interface ExtHostWorkspaceShape {
 	$onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void;
 }
 
+allow(ExtHostContext.ExtHostFileSystemInfo, '$acceptProviderInfos');
 export interface ExtHostFileSystemInfoShape {
 	$acceptProviderInfos(scheme: string, capabilities: number | null): void;
 }
@@ -1162,6 +1281,7 @@ export interface IResolveAuthorityOKResult {
 
 export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAuthorityOKResult;
 
+allow(ExtHostContext.ExtHostExtensionService, '$startExtensionHost', '$activateByEvent');
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
@@ -1469,6 +1589,7 @@ export interface ILinkedEditingRangesDto {
 	wordPattern?: IRegExpDto;
 }
 
+allow(ExtHostContext.ExtHostLanguageFeatures, '$setWordDefinitions');
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents, token: CancellationToken): Promise<modes.DocumentSymbol[] | undefined>;
 	$provideCodeLenses(handle: number, resource: UriComponents, token: CancellationToken): Promise<ICodeLensListDto | undefined>;
@@ -1713,6 +1834,7 @@ export interface MainThreadLogShape {
 	$log(file: UriComponents, level: LogLevel, args: any[]): void;
 }
 
+allow(ExtHostContext.ExtHostOutputService, '$setVisibleChannel');
 export interface ExtHostOutputServiceShape {
 	$setVisibleChannel(channelId: string | null): void;
 }
@@ -1802,6 +1924,7 @@ export interface ExtHostStorageShape {
 	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
 
+allow(ExtHostContext.ExtHostTheming, '$onColorThemeChange');
 export interface ExtHostThemingShape {
 	$onColorThemeChange(themeType: string): void;
 }
@@ -1844,106 +1967,3 @@ export interface MainThreadTestingShape {
 	$updateTestStateInRun(runId: string, testId: string, state: ITestState): void;
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
 }
-
-// --- proxy identifiers
-
-export const MainContext = {
-	MainThreadAuthentication: createMainId<MainThreadAuthenticationShape>('MainThreadAuthentication'),
-	MainThreadBulkEdits: createMainId<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
-	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
-	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
-	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
-	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
-	MainThreadConsole: createMainId<MainThreadConsoleShape>('MainThreadConsole'),
-	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
-	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
-	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
-	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
-	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
-	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
-	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),
-	MainThreadEditorInsets: createMainId<MainThreadEditorInsetsShape>('MainThreadEditorInsets'),
-	MainThreadEditorTabs: createMainId<MainThreadEditorTabsShape>('MainThreadEditorTabs'),
-	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
-	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
-	MainThreadDownloadService: createMainId<MainThreadDownloadServiceShape>('MainThreadDownloadService'),
-	MainThreadKeytar: createMainId<MainThreadKeytarShape>('MainThreadKeytar'),
-	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
-	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
-	MainThreadLog: createMainId<MainThreadLogShape>('MainThread'),
-	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
-	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),
-	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),
-	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
-	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar'),
-	MainThreadSecretState: createMainId<MainThreadSecretStateShape>('MainThreadSecretState'),
-	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
-	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
-	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
-	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
-	MainThreadWebviewPanels: createMainId<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
-	MainThreadWebviewViews: createMainId<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
-	MainThreadCustomEditors: createMainId<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
-	MainThreadUrls: createMainId<MainThreadUrlsShape>('MainThreadUrls'),
-	MainThreadUriOpeners: createMainId<MainThreadUriOpenersShape>('MainThreadUriOpeners'),
-	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
-	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
-	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
-	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
-	MainThreadSearch: createMainId<MainThreadSearchShape>('MainThreadSearch'),
-	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
-	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
-	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
-	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
-	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
-	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
-	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
-	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
-};
-
-export const ExtHostContext = {
-	ExtHostCommands: createExtId<ExtHostCommandsShape>('ExtHostCommands'),
-	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration'),
-	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
-	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService'),
-	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
-	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),
-	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
-	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders'),
-	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
-	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
-	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
-	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
-	ExtHostFileSystemInfo: createExtId<ExtHostFileSystemInfoShape>('ExtHostFileSystemInfo'),
-	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
-	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
-	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
-	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
-	ExtHostLogService: createExtId<ExtHostLogServiceShape>('ExtHostLogService'),
-	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
-	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
-	ExtHostSearch: createExtId<ExtHostSearchShape>('ExtHostSearch'),
-	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
-	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
-	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
-	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
-	ExtHostWebviewPanels: createExtId<ExtHostWebviewPanelsShape>('ExtHostWebviewPanels'),
-	ExtHostCustomEditors: createExtId<ExtHostCustomEditorsShape>('ExtHostCustomEditors'),
-	ExtHostWebviewViews: createExtId<ExtHostWebviewViewsShape>('ExtHostWebviewViews'),
-	ExtHostEditorInsets: createExtId<ExtHostEditorInsetsShape>('ExtHostEditorInsets'),
-	ExtHostEditorTabs: createExtId<IExtHostEditorTabsShape>('ExtHostEditorTabs'),
-	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
-	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
-	ExtHostSecretState: createMainId<ExtHostSecretStateShape>('ExtHostSecretState'),
-	ExtHostStorage: createMainId<ExtHostStorageShape>('ExtHostStorage'),
-	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
-	ExtHostUriOpeners: createExtId<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
-	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
-	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
-	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook'),
-	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
-	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
-	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
-	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
-	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
-};
