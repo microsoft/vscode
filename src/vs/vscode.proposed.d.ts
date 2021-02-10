@@ -2108,10 +2108,12 @@ declare module 'vscode' {
 		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
 
 		/**
-		 * Runs tests with the given options. If no options are given, then
-		 * all tests are run. Returns the resulting test run.
+		 * Runs tests. The "run" contains the list of tests to run as well as a
+		 * method that can be used to update their state. At the point in time
+		 * that "run" is called, all tests given in the run have their state
+		 * automatically set to {@link TestRunState.Queued}.
 		 */
-		export function runTests<T extends TestItem>(options: TestRunOptions<T>, cancellationToken?: CancellationToken): Thenable<void>;
+		export function runTests<T extends TestItem>(run: TestRunOptions<T>, cancellationToken?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2226,6 +2228,14 @@ declare module 'vscode' {
 		readonly discoveredInitialTests?: Thenable<unknown>;
 
 		/**
+		 * An event that fires when a test becomes outdated, as a result of
+		 * file changes, for example. In "watch" mode, tests that are outdated
+		 * will be automatically re-run after a short delay. Firing a test
+		 * with children will mark the entire subtree as outdated.
+		 */
+		readonly onDidInvalidateTest?: Event<T>;
+
+		/**
 		 * Dispose will be called when there are no longer observers interested
 		 * in the hierarchy.
 		 */
@@ -2269,11 +2279,11 @@ declare module 'vscode' {
 		 * @todo this will eventually need to be able to return a summary report, coverage for example.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		runTests?(options: TestRunOptions<T>, cancellationToken: CancellationToken): ProviderResult<void>;
+		runTests?(options: TestRun<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 
 	/**
-	 * Options given to `TestProvider.runTests`
+	 * Options given to {@link test.runTests}
 	 */
 	export interface TestRunOptions<T extends TestItem = TestItem> {
 		/**
@@ -2286,6 +2296,17 @@ declare module 'vscode' {
 		 * Whether or not tests in this run should be debugged.
 		 */
 		debug: boolean;
+	}
+
+	/**
+	 * Options given to `TestProvider.runTests`
+	 */
+	export interface TestRun<T extends TestItem = TestItem> extends TestRunOptions<T> {
+		/**
+		 * Updates the state of the test in the run. By default, all tests involved
+		 * in the run will have a "queued" state until they are updated by this method.
+		 */
+		setState(test: T, state: TestState): void;
 	}
 
 	/**
@@ -2336,12 +2357,6 @@ declare module 'vscode' {
 		 * Optional list of nested tests for this item.
 		 */
 		children?: TestItem[];
-
-		/**
-		 * Test run state. Will generally be {@link TestRunState.Unset} by
-		 * default.
-		 */
-		state: TestState;
 	}
 
 	/**
@@ -2376,11 +2391,11 @@ declare module 'vscode' {
 	 * in order to update it. This allows consumers to quickly and easily check
 	 * for changes via object identity.
 	 */
-	export class TestState {
+	export interface TestState {
 		/**
 		 * Current state of the test.
 		 */
-		readonly runState: TestRunState;
+		readonly state: TestRunState;
 
 		/**
 		 * Optional duration of the test run, in milliseconds.
@@ -2391,14 +2406,7 @@ declare module 'vscode' {
 		 * Associated test run message. Can, for example, contain assertion
 		 * failure information if the test fails.
 		 */
-		readonly messages: ReadonlyArray<Readonly<TestMessage>>;
-
-		/**
-		 * @param state Run state to hold in the test state
-		 * @param messages List of associated messages for the test
-		 * @param duration Length of time the test run took, if appropriate.
-		 */
-		constructor(runState: TestRunState, messages?: TestMessage[], duration?: number);
+		readonly messages?: ReadonlyArray<Readonly<TestMessage>>;
 	}
 
 	/**

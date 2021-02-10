@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestItem, TestRunState, TestState } from 'vs/workbench/api/common/extHostTypes';
+import { TestItem, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
 export const stubTest = (label: string): TestItem => ({
 	label,
 	location: undefined,
-	state: new TestState(TestRunState.Unset),
 	debuggable: true,
 	runnable: true,
 	description: ''
