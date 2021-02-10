@@ -999,7 +999,10 @@ export interface MainThreadTaskShape extends IDisposable {
 	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
 }
 
-allow(MainContext.MainThreadExtensionService, '$onWillActivateExtension');
+allow(MainContext.MainThreadExtensionService,
+	'$activateExtension', '$onWillActivateExtension', '$onDidActivateExtension', '$onExtensionActivationError',
+	'$onExtensionRuntimeError', '$onExtensionHostExit', '$setPerformanceMarks'
+);
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	$onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void>;

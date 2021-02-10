@@ -48,7 +48,7 @@ export class ExtensionHostMain {
 	) {
 		this._isTerminating = false;
 		this._hostUtils = hostUtils;
-		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
+		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer, !initData.isTrusted);
 
 		// ensure URIs are transformed and revived
 		initData = ExtensionHostMain._transform(initData, rpcProtocol);
