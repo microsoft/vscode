@@ -268,7 +268,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
 		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await this.authenticationService.getSessions(providerId)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
+		const sessions = (await this.authenticationService.getSessions(providerId, true)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
 
 		const silent = !options.createIfNone;
 		let session: modes.AuthenticationSession | undefined;
@@ -300,7 +300,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					throw new Error('User did not consent to login.');
 				}
 
-				session = await this.authenticationService.login(providerId, scopes);
+				session = await this.authenticationService.login(providerId, scopes, true);
 				await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			} else {
 				await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);

@@ -22,7 +22,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { flatten } from 'vs/base/common/arrays';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -124,10 +124,10 @@ export interface IAuthenticationService {
 	declaredProviders: AuthenticationProviderInformation[];
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
 
-	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(providerId: string, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
-	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
+	login(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
 	logout(providerId: string, sessionId: string): Promise<void>;
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
@@ -693,8 +693,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private async tryActivateProvider(providerId: string): Promise<MainThreadAuthenticationProvider> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId));
+	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<MainThreadAuthenticationProvider> {
+		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
 		let provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			return provider;
@@ -724,18 +724,18 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return Promise.race([didRegister, didTimeout]);
 	}
 
-	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		try {
-			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id);
+			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 			return await authProvider.getSessions();
 		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
-	async login(id: string, scopes: string[]): Promise<AuthenticationSession> {
+	async login(id: string, scopes: string[], activateImmediate: boolean = false): Promise<AuthenticationSession> {
 		try {
-			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id);
+			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 			return await authProvider.login(scopes);
 		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
