@@ -5,8 +5,8 @@
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import { ChokidarWatcherService } from 'vs/platform/files/node/watcher/unix/chokidarWatcherService';
-import { createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 const server = new Server('watcher');
 const service = new ChokidarWatcherService();
-server.registerChannel('watcher', createChannelReceiver(service));
+server.registerChannel('watcher', ProxyChannel.fromService(service));
