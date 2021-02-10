@@ -237,12 +237,12 @@ export function escapeNonWindowsPath(path: string): string {
 	if (newPath.indexOf('\\') !== 0) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
-	if (!newPath && (newPath.indexOf('"') !== -1)) {
-		newPath = '\'' + newPath + '\'';
-	} else if (newPath.indexOf(' ') !== -1) {
+	if (newPath.indexOf(' ') !== -1) {
 		newPath = newPath.replace(/ /g, '\\ ');
 	}
-	return newPath;
+	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
+	newPath = newPath.replace(bannedChars, '');
+	return `'${newPath}'`;
 }
 
 export type TerminalShellSetting = (

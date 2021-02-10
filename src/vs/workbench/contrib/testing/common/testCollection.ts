@@ -26,23 +26,11 @@ export interface RunTestsRequest {
  * Request from the main thread to run tests for a single provider.
  */
 export interface RunTestForProviderRequest {
+	runId: string;
 	providerId: string;
 	ids: string[];
 	debug: boolean;
 }
-
-/**
- * Response to a  {@link RunTestsRequest}
- */
-export interface RunTestsResult {
-	// todo
-}
-
-export const EMPTY_TEST_RESULT: RunTestsResult = {};
-
-export const collectTestResults = (results: ReadonlyArray<RunTestsResult>) => {
-	return results[0] || {}; // todo
-};
 
 export interface ITestMessage {
 	message: string | IMarkdownString;
@@ -53,7 +41,7 @@ export interface ITestMessage {
 }
 
 export interface ITestState {
-	runState: TestRunState;
+	state: TestRunState;
 	duration: number | undefined;
 	messages: ITestMessage[];
 }
@@ -70,7 +58,6 @@ export interface ITestItem {
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;
-	state: ITestState;
 }
 
 /**
@@ -84,7 +71,7 @@ export interface InternalTestItem {
 }
 
 export interface InternalTestItemWithChildren extends InternalTestItem {
-	children: InternalTestItemWithChildren[];
+	children: this[];
 }
 
 export interface InternalTestResults {

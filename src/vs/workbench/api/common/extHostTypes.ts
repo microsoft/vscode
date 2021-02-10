@@ -2849,6 +2849,33 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
+export class NotebookCellMetadata {
+
+	readonly readonly: boolean;
+	readonly inputCollapsed: boolean;
+	readonly outputCollapsed: boolean;
+
+	[key: string]: unknown;
+
+	constructor(readonly: boolean, inputCollapsed: boolean, outputCollapsed: boolean) {
+		this.readonly = readonly;
+		this.inputCollapsed = inputCollapsed;
+		this.outputCollapsed = outputCollapsed;
+	}
+
+	with(change: Partial<{ readonly: boolean, inputCollapsed: boolean, outputCollapsed: boolean, [key: string]: unknown }>): NotebookCellMetadata {
+		const thisAndChange = { ...this, ...change };
+		const res = new NotebookCellMetadata(thisAndChange.readonly, thisAndChange.inputCollapsed, thisAndChange.outputCollapsed);
+		for (const key in change) {
+			if (Object.prototype.hasOwnProperty.call(change, key)) {
+				res[key] = change[key];
+			}
+		}
+		return res;
+	}
+}
+
+
 export class NotebookCellOutputItem {
 
 	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
@@ -3016,31 +3043,6 @@ export enum TestMessageSeverity {
 	Warning = 1,
 	Information = 2,
 	Hint = 3
-}
-
-@es5ClassCompat
-export class TestState {
-	#runState: TestRunState;
-	#duration?: number;
-	#messages: ReadonlyArray<Readonly<vscode.TestMessage>>;
-
-	public get runState() {
-		return this.#runState;
-	}
-
-	public get duration() {
-		return this.#duration;
-	}
-
-	public get messages() {
-		return this.#messages;
-	}
-
-	constructor(runState: TestRunState, messages: vscode.TestMessage[] = [], duration?: number) {
-		this.#runState = runState;
-		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
-		this.#duration = duration;
-	}
 }
 
 export type RequiredTestItem = vscode.RequiredTestItem;

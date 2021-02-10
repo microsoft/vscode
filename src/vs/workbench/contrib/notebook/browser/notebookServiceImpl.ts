@@ -40,12 +40,8 @@ import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService } from
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-export class NotebookKernelProviderInfoStore extends Disposable {
+export class NotebookKernelProviderInfoStore {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
-
-	constructor() {
-		super();
-	}
 
 	add(provider: INotebookKernelProvider) {
 		this._notebookKernelProviders.push(provider);
@@ -66,7 +62,7 @@ export class NotebookKernelProviderInfoStore extends Disposable {
 	}
 
 	getContributedKernelProviders() {
-		return [...this._notebookKernelProviders.values()];
+		return [...this._notebookKernelProviders];
 	}
 
 	private _updateProviderExtensionsInfo() {

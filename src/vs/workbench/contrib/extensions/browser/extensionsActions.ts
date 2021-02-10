@@ -2193,7 +2193,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		}
 		if (this.workspaceTrustService.isWorkspaceTrustEnabled() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
-			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled as it requires a trusted workspace");
+			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted");
 			return;
 		}
 	}

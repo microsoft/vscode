@@ -678,12 +678,18 @@ export class SearchView extends ViewPane {
 	private clearMessage(): HTMLElement {
 		this.searchWithoutFolderMessageElement = undefined;
 
+		const wasHidden = this.messagesElement.style.display === 'none';
 		dom.clearNode(this.messagesElement);
 		dom.show(this.messagesElement);
 		dispose(this.messageDisposables);
 		this.messageDisposables = [];
 
-		return dom.append(this.messagesElement, $('.message'));
+		const newMessage = dom.append(this.messagesElement, $('.message'));
+		if (wasHidden) {
+			this.reLayout();
+		}
+
+		return newMessage;
 	}
 
 	private createSearchResultsView(container: HTMLElement): void {
@@ -1085,6 +1091,7 @@ export class SearchView extends ViewPane {
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
 		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
+		this.reLayout();
 	}
 
 	clearFilePatternFields(): void {

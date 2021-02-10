@@ -93,7 +93,7 @@
 		"addLabel": "z-author-verified",
 		"removeLabel": "author-verification-requested",
 		"requireLabel": "author-verification-requested",
-		"disallowLabel": "awaiting-insiders-release"
+		"disallowLabel": "unreleased"
 	},
 	{
 		"type": "comment",

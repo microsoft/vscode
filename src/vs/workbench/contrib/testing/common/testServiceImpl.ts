@@ -8,15 +8,14 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, collectTestResults, EMPTY_TEST_RESULT, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestResultService, TestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
 type TestLocationIdent = { resource: ExtHostTestingResource, uri: URI };
@@ -40,13 +39,8 @@ export class TestService extends Disposable implements ITestService {
 	private readonly busyStateChangeEmitter = new Emitter<TestLocationIdent & { busy: boolean }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
 	private readonly providerCount: IContextKey<number>;
-	private readonly runStartedEmitter = new Emitter<RunTestsRequest>();
-	private readonly runCompletedEmitter = new Emitter<{ req: RunTestsRequest, result: RunTestsResult }>();
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
 	private rootProviderCount = 0;
-
-	public readonly onTestRunStarted = this.runStartedEmitter.event;
-	public readonly onTestRunCompleted = this.runCompletedEmitter.event;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService, @ITestResultService private readonly testResults: ITestResultService) {
 		super();
@@ -126,35 +120,32 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<RunTestsResult> {
-		let result: TestResult | undefined;
+	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
 		const subscriptions = [...this.testSubscriptions.values()]
 			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
-			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri, () => result?.notifyChanged()));
-		result = this.testResults.push(TestResult.from(subscriptions.map(s => s.object), req.tests));
+			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri));
+		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req.tests));
 
 		try {
 			const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
 			const cancelSource = new CancellationTokenSource(token);
+			this.runningTests.set(req, cancelSource);
+
 			const requests = tests.map(group => {
 				const providerId = group[0].providerId;
 				const controller = this.testControllers.get(providerId);
-				return controller?.runTests({ providerId, debug: req.debug, ids: group.map(t => t.testId) }, cancelSource.token).catch(err => {
+				return controller?.runTests(
+					{ runId: result.id, providerId, debug: req.debug, ids: group.map(t => t.testId) },
+					cancelSource.token,
+				).catch(err => {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
-					return EMPTY_TEST_RESULT;
 				});
-			}).filter(isDefined);
+			});
 
-			if (requests.length === 0) {
-				return EMPTY_TEST_RESULT;
-			}
-
-			this.runningTests.set(req, cancelSource);
-			const result = collectTestResults(await Promise.all(requests));
-			this.runningTests.delete(req);
-
+			await Promise.all(requests);
 			return result;
 		} finally {
+			this.runningTests.delete(req);
 			subscriptions.forEach(s => s.dispose());
 			result.markComplete();
 		}

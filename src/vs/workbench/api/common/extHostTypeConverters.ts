@@ -1478,22 +1478,22 @@ export namespace NotebookDecorationRenderOptions {
 export namespace TestState {
 	export function from(item: vscode.TestState): ITestState {
 		return {
-			runState: item.runState,
+			state: item.state,
 			duration: item.duration,
-			messages: item.messages.map(message => ({
+			messages: item.messages?.map(message => ({
 				message: MarkdownString.fromStrict(message.message) || '',
 				severity: message.severity,
 				expectedOutput: message.expectedOutput,
 				actualOutput: message.actualOutput,
 				location: message.location ? location.from(message.location) : undefined,
-			})),
+			})) ?? [],
 		};
 	}
 
 	export function to(item: ITestState): vscode.TestState {
-		return new types.TestState(
-			item.runState,
-			item.messages.map(message => ({
+		return {
+			state: item.state,
+			messages: item.messages.map(message => ({
 				message: typeof message.message === 'string' ? message.message : MarkdownString.to(message.message),
 				severity: message.severity,
 				expectedOutput: message.expectedOutput,
@@ -1503,8 +1503,8 @@ export namespace TestState {
 					uri: URI.revive(message.location.uri)
 				}),
 			})),
-			item.duration,
-		);
+			duration: item.duration,
+		};
 	}
 }
 
@@ -1518,7 +1518,6 @@ export namespace TestItem {
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
-			state: TestState.from(item.state),
 		};
 	}
 
@@ -1533,7 +1532,6 @@ export namespace TestItem {
 			debuggable: item.debuggable,
 			description: item.description,
 			runnable: item.runnable,
-			state: TestState.to(item.state),
 		};
 	}
 }

@@ -5,12 +5,12 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -47,14 +47,10 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { getComputedState } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
-import { StateByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByLocation';
-import { StateByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateByName';
-import { StateElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/stateNodes';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { TestExplorerViewGrouping, TestExplorerViewMode, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
@@ -188,7 +184,7 @@ export class TestingExplorerViewModel extends Disposable {
 	public projection!: ITestTreeProjection;
 
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
-	private readonly _viewGrouping = TestingContextKeys.viewGrouping.bindTo(this.contextKeyService);
+	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 
 	/**
 	 * Fires when the selected tests change.
@@ -210,18 +206,18 @@ export class TestingExplorerViewModel extends Disposable {
 	}
 
 
-	public get viewGrouping() {
-		return this._viewGrouping.get() ?? TestExplorerViewGrouping.ByLocation;
+	public get viewSorting() {
+		return this._viewSorting.get() ?? TestExplorerViewSorting.ByLocation;
 	}
 
-	public set viewGrouping(newGrouping: TestExplorerViewGrouping) {
-		if (newGrouping === this._viewGrouping.get()) {
+	public set viewSorting(newSorting: TestExplorerViewSorting) {
+		if (newSorting === this._viewSorting.get()) {
 			return;
 		}
 
-		this._viewGrouping.set(newGrouping);
-		this.updatePreferredProjection();
-		this.storageService.store('testing.viewGrouping', newGrouping, StorageScope.WORKSPACE, StorageTarget.USER);
+		this._viewSorting.set(newSorting);
+		this.tree.resort(null);
+		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	constructor(
@@ -229,16 +225,17 @@ export class TestingExplorerViewModel extends Disposable {
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
 		@ITestExplorerFilterState filterState: TestExplorerFilterState,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ITestResultService private readonly testResults: ITestResultService,
 	) {
 		super();
 
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
-		this._viewGrouping.set(this.storageService.get('testing.viewGrouping', StorageScope.WORKSPACE, TestExplorerViewGrouping.ByLocation) as TestExplorerViewGrouping);
+		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
 
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
 
@@ -261,7 +258,7 @@ export class TestingExplorerViewModel extends Disposable {
 				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
 				hideTwistiesOfChildlessElements: true,
-				sorter: instantiationService.createInstance(TreeSorter),
+				sorter: instantiationService.createInstance(TreeSorter, this),
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
@@ -292,6 +289,10 @@ export class TestingExplorerViewModel extends Disposable {
 			} else {
 				tracker.deactivate();
 			}
+		}));
+
+		this._register(testResults.onResultsChanged(() => {
+			this.tree.resort(null);
 		}));
 	}
 
@@ -380,16 +381,18 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Tries to peek the first test error, if the item is in a failed state.
 	 */
 	private async tryPeekError(item: ITestTreeElement) {
-		if (!item.test || !isFailedState(item.test.item.state.runState)) {
+		const lookup = item.test && this.testResults.getStateByExtId(item.test.item.extId);
+		if (!lookup || !isFailedState(lookup[1].state.state)) {
 			return false;
 		}
 
-		const index = item.test.item.state.messages.findIndex(m => !!m.location);
+		const [result, test] = lookup;
+		const index = test.state.messages.findIndex(m => !!m.location);
 		if (index === -1) {
 			return;
 		}
 
-		const message = item.test.item.state.messages[index];
+		const message = test.state.messages[index];
 		const pane = await this.editorService.openEditor({
 			resource: message.location!.uri,
 			options: { selection: message.location!.range, preserveFocus: true }
@@ -401,10 +404,10 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 
 		TestingOutputPeekController.get(control).show(buildTestUri({
-			type: TestUriType.LiveMessage,
+			type: TestUriType.ResultMessage,
 			messageIndex: index,
-			providerId: item.test.providerId,
-			testId: item.test.id,
+			resultId: result.id,
+			testId: item.test!.item.extId,
 		}));
 
 		return true;
@@ -417,18 +420,10 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		if (this._viewGrouping.get() === TestExplorerViewGrouping.ByLocation) {
-			if (this._viewMode.get() === TestExplorerViewMode.List) {
-				this.projection = new HierarchicalByNameProjection(this.listener);
-			} else {
-				this.projection = new HierarchicalByLocationProjection(this.listener);
-			}
+		if (this._viewMode.get() === TestExplorerViewMode.List) {
+			this.projection = this.instantiationService.createInstance(HierarchicalByNameProjection, this.listener);
 		} else {
-			if (this._viewMode.get() === TestExplorerViewMode.List) {
-				this.projection = new StateByNameProjection(this.listener);
-			} else {
-				this.projection = new StateByLocationProjection(this.listener);
-			}
+			this.projection = this.instantiationService.createInstance(HierarchicalByLocationProjection, this.listener);
 		}
 
 		this.projection.onUpdate(this.deferUpdate, this);
@@ -569,9 +564,19 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 }
 
 class TreeSorter implements ITreeSorter<ITestTreeElement> {
+	constructor(private readonly viewModel: TestingExplorerViewModel) { }
+
 	public compare(a: ITestTreeElement, b: ITestTreeElement): number {
-		if (a instanceof StateElement && b instanceof StateElement) {
-			return cmpPriority(a.computedState, b.computedState);
+		let delta = cmpPriority(a.state, b.state);
+		if (delta !== 0) {
+			return delta;
+		}
+
+		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByLocation && a.location && b.location && a.location.uri.toString() === b.location.uri.toString()) {
+			delta = a.location.range.startLineNumber - b.location.range.startLineNumber;
+			if (delta !== 0) {
+				return delta;
+			}
 		}
 
 		return a.label.localeCompare(b.label);
@@ -587,7 +592,7 @@ class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeE
 		return localize({
 			key: 'testing.treeElementLabel',
 			comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
-		}, '{0} ({1})', element.label, testStateNames[getComputedState(element)]);
+		}, '{0} ({1})', element.label, testStateNames[element.state]);
 	}
 }
 
@@ -662,8 +667,7 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 		const options: IResourceLabelOptions = {};
 		data.actionBar.clear();
 
-		const state = getComputedState(element);
-		const icon = testingStatesToIcons.get(state);
+		const icon = testingStatesToIcons.get(element.state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
 		const test = element.test;
 		if (test) {
@@ -683,7 +687,7 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 			options.fileKind = FileKind.ROOT_FOLDER;
 		}
 
-		const running = state === TestRunState.Running;
+		const running = element.state === TestRunState.Running;
 		if (!Iterable.isEmpty(element.runnable)) {
 			data.actionBar.push(
 				this.instantiationService.createInstance(RunAction, element.runnable, running),
@@ -740,12 +744,16 @@ const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) =>
 class TestRunProgress {
 	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
 	private badge = new MutableDisposable();
-	private readonly resultLister = this.resultService.onNewTestResult(result => {
+	private readonly resultLister = this.resultService.onResultsChanged(result => {
+		if (!('started' in result)) {
+			return;
+		}
+
 		this.updateProgress();
 		this.updateBadge();
 
-		result.onChange(this.throttledProgressUpdate, this);
-		result.onComplete(() => {
+		result.started.onChange(this.throttledProgressUpdate, this);
+		result.started.onComplete(() => {
 			this.throttledProgressUpdate();
 			this.updateBadge();
 		});

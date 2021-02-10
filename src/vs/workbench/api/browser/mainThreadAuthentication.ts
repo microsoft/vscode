@@ -214,13 +214,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$logout(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.logout(providerId, sessionId);
 	}
-
-	private isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const extensionData = allowList.find(extension => extension.id === extensionId);
-		return !!extensionData;
-	}
-
 	private async loginPrompt(providerName: string, extensionName: string): Promise<boolean> {
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
@@ -257,10 +250,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			if (existingSessionPreference) {
 				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
 				if (matchingSession) {
-					const allowed = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
-					if (allowed) {
-						return matchingSession;
+					const allowed = this.authenticationService.isAccessAllowed(providerId, matchingSession.account.label, extensionId);
+					if (!allowed) {
+						const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
+						if (!didAcceptPrompt) {
+							throw new Error('User did not consent to login.');
+						}
 					}
+
+					return matchingSession;
 				}
 			}
 		}
@@ -270,14 +268,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
 		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await this.authenticationService.getSessions(providerId)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
+		const sessions = (await this.authenticationService.getSessions(providerId, true)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
 
 		const silent = !options.createIfNone;
 		let session: modes.AuthenticationSession | undefined;
 		if (sessions.length) {
 			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
 				session = sessions[0];
-				const allowed = this.isAccessAllowed(providerId, session.account.label, extensionId);
+				const allowed = this.authenticationService.isAccessAllowed(providerId, session.account.label, extensionId);
 				if (!allowed) {
 					if (!silent) {
 						const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, session.account.label, extensionId, extensionName);
@@ -302,7 +300,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					throw new Error('User did not consent to login.');
 				}
 
-				session = await this.authenticationService.login(providerId, scopes);
+				session = await this.authenticationService.login(providerId, scopes, true);
 				await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			} else {
 				await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);

@@ -1470,6 +1470,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const nextIndex = ui ? this.viewModel.getNextVisibleCellIndex(index) : index + 1;
 		let language;
 		if (type === CellKind.Code) {
+			const supportedLanguages = this._activeKernel?.supportedLanguages ?? this.viewModel.notebookDocument.resolvedLanguages;
+			const defaultLanguage = supportedLanguages[0] || 'plaintext';
 			if (cell?.cellKind === CellKind.Code) {
 				language = cell.language;
 			} else if (cell?.cellKind === CellKind.Markdown) {
@@ -1477,20 +1479,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				if (nearestCodeCellIndex > -1) {
 					language = this.viewModel.viewCells[nearestCodeCellIndex].language;
 				} else {
-					language = this.viewModel.resolvedLanguages[0] || 'plaintext';
+					language = defaultLanguage;
 				}
 			} else {
 				if (cell === undefined && direction === 'above') {
 					// insert cell at the very top
-					language = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || this.viewModel.resolvedLanguages[0] || 'plaintext';
+					language = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || defaultLanguage;
 				} else {
-					language = this.viewModel.resolvedLanguages[0] || 'plaintext';
+					language = defaultLanguage;
 				}
 			}
 
-			if (this.viewModel.resolvedLanguages.indexOf(language) < 0) {
+			if (!supportedLanguages.includes(language)) {
 				// the language no longer exists
-				language = this.viewModel.resolvedLanguages[0] || 'plaintext';
+				language = defaultLanguage;
 			}
 		} else {
 			language = 'markdown';
@@ -1500,8 +1502,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const focused = this._list.getFocusedElements();
-		const newCell = this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
-		return newCell as CellViewModel;
+		return this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
 	}
 
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
