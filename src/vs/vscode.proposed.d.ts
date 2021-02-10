@@ -1364,7 +1364,7 @@ declare module 'vscode' {
 	export class NotebookCellOutput {
 		readonly id: string;
 		readonly outputs: NotebookCellOutputItem[];
-		constructor(outputs: NotebookCellOutputItem[]);
+		constructor(outputs: NotebookCellOutputItem[], id?: string);
 	}
 
 	//#endregion
@@ -1524,8 +1524,8 @@ declare module 'vscode' {
 	// 	clearOutput(): void;
 	// 	appendOutput(out: NotebookCellOutput): void;
 	// 	replaceOutput(out: NotebookCellOutput): void;
-	//  appendOutputItems(items: NotebookCellOutputItem[]):void;
-	//  replaceOutputItems(items: NotebookCellOutputItem[]):void;
+	//  appendOutputItems(output:string, items: NotebookCellOutputItem[]):void;
+	//  replaceOutputItems(output:string, items: NotebookCellOutputItem[]):void;
 	// }
 
 	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellExecution;
