@@ -200,7 +200,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: WorkspaceTrustContext.PendingRequest,
-				group: '7_trust',
+				group: '6_workspace_trust',
 				order: 10
 			},
 		});
@@ -240,7 +240,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: WorkspaceTrustContext.PendingRequest,
-				group: '7_trust',
+				group: '6_workspace_trust',
 				order: 20
 			},
 		});
@@ -276,7 +276,7 @@ registerAction2(class extends Action2 {
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
-				group: '7_trust',
+				group: '6_workspace_trust',
 				order: 40,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest.negate())
 			},
@@ -295,7 +295,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 		id: 'workbench.trust.manage',
 		title: localize('manageWorkspaceTrustPending', "Manage Workspace Trust (1)"),
 	},
-	group: '7_trust',
+	group: '6_workspace_trust',
 	order: 40,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest)
 });
