@@ -14,7 +14,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
-import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, IReadableStreamObservable, observe } from 'vs/base/common/stream';
+import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, listenStream, consumeStream } from 'vs/base/common/stream';
 import { Promises, Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
@@ -454,8 +454,7 @@ export class FileService extends Disposable implements IFileService {
 			throw error;
 		});
 
-		let fileStreamObserver: IReadableStreamObservable | undefined = undefined;
-
+		let fileStream: VSBufferReadableStream | undefined = undefined;
 		try {
 
 			// if the etag is provided, we await the result of the validation
@@ -465,8 +464,6 @@ export class FileService extends Disposable implements IFileService {
 			if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED) {
 				await statPromise;
 			}
-
-			let fileStream: VSBufferReadableStream | undefined = undefined;
 
 			// read unbuffered (only if either preferred, or the provider has no buffered read capability)
 			if (!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) || (hasReadWriteCapability(provider) && options?.preferUnbuffered)) {
@@ -483,9 +480,6 @@ export class FileService extends Disposable implements IFileService {
 				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, options);
 			}
 
-			// observe the stream for the error case below
-			fileStreamObserver = observe(fileStream);
-
 			const fileStat = await statPromise;
 
 			return {
@@ -497,8 +491,8 @@ export class FileService extends Disposable implements IFileService {
 			// Await the stream to finish so that we exit this method
 			// in a consistent state with file handles closed
 			// (https://github.com/microsoft/vscode/issues/114024)
-			if (fileStreamObserver) {
-				await fileStreamObserver.errorOrEnd();
+			if (fileStream) {
+				await consumeStream(fileStream);
 			}
 
 			throw new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
@@ -1065,28 +1059,29 @@ export class FileService extends Disposable implements IFileService {
 
 		return new Promise(async (resolve, reject) => {
 
-			stream.on('data', async chunk => {
+			listenStream(stream, {
+				onData: async chunk => {
 
-				// pause stream to perform async write operation
-				stream.pause();
+					// pause stream to perform async write operation
+					stream.pause();
 
-				try {
-					await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
-				} catch (error) {
-					return reject(error);
-				}
+					try {
+						await this.doWriteBuffer(provider, handle, chunk, chunk.byteLength, posInFile, 0);
+					} catch (error) {
+						return reject(error);
+					}
 
-				posInFile += chunk.byteLength;
+					posInFile += chunk.byteLength;
 
-				// resume stream now that we have successfully written
-				// run this on the next tick to prevent increasing the
-				// execution stack because resume() may call the event
-				// handler again before finishing.
-				setTimeout(() => stream.resume());
+					// resume stream now that we have successfully written
+					// run this on the next tick to prevent increasing the
+					// execution stack because resume() may call the event
+					// handler again before finishing.
+					setTimeout(() => stream.resume());
+				},
+				onError: error => reject(error),
+				onEnd: () => resolve()
 			});
-
-			stream.on('error', error => reject(error));
-			stream.on('end', () => resolve());
 		});
 	}
 
