@@ -1023,145 +1023,140 @@ export class StaticRouter<TContext = string> implements IClientRouter<TContext> 
 	}
 }
 
-
-//#region createChannelReceiver / createChannelSender
-
 /**
- * Use both `createChannelReceiver` and `createChannelSender`
- * for automated process <=> process communication over methods
- * and events. You do not need to spell out each method on both
- * sides, a proxy will take care of this.
+ * Use ProxyChannels to automatically wrapping and unwrapping
+ * services to/from IPC channels, instead of manually wrapping
+ * each service method and event.
  *
- * Rules:
- * - if marshalling is enabled, only `URI` and `RegExp` is converted
+ * Restrictions:
+ * - If marshalling is enabled, only `URI` and `RegExp` is converted
  *   automatically for you
- * - events must follow the naming convention `onUppercase`
+ * - Events must follow the naming convention `onUpperCase`
  * - `CancellationToken` is currently not supported
- * - if a context is provided, you can use `AddFirstParameterToFunctions`
+ * - If a context is provided, you can use `AddFirstParameterToFunctions`
  *   utility to signal this in the receiving side type
  */
+export namespace ProxyChannel {
 
-export interface IBaseChannelOptions {
+	export interface IProxyOptions {
 
-	/**
-	 * Disables automatic marshalling of `URI`.
-	 * If marshalling is disabled, `UriComponents`
-	 * must be used instead.
-	 */
-	disableMarshalling?: boolean;
-}
-
-export interface IChannelReceiverOptions extends IBaseChannelOptions { }
-
-export function createChannelReceiver(service: unknown, options?: IChannelReceiverOptions): IServerChannel {
-	const handler = service as { [key: string]: unknown };
-	const disableMarshalling = options && options.disableMarshalling;
-
-	// Buffer any event that should be supported by
-	// iterating over all property keys and finding them
-	const mapEventNameToEvent = new Map<string, Event<unknown>>();
-	for (const key in handler) {
-		if (propertyIsEvent(key)) {
-			mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
-		}
+		/**
+		 * Disables automatic marshalling of `URI`.
+		 * If marshalling is disabled, `UriComponents`
+		 * must be used instead.
+		 */
+		disableMarshalling?: boolean;
 	}
 
-	return new class implements IServerChannel {
+	export interface ICreateServiceChannelOptions extends IProxyOptions { }
 
-		listen<T>(_: unknown, event: string): Event<T> {
-			const eventImpl = mapEventNameToEvent.get(event);
-			if (eventImpl) {
-				return eventImpl as Event<T>;
+	export function fromService(service: unknown, options?: ICreateServiceChannelOptions): IServerChannel {
+		const handler = service as { [key: string]: unknown };
+		const disableMarshalling = options && options.disableMarshalling;
+
+		// Buffer any event that should be supported by
+		// iterating over all property keys and finding them
+		const mapEventNameToEvent = new Map<string, Event<unknown>>();
+		for (const key in handler) {
+			if (propertyIsEvent(key)) {
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
 			}
-
-			throw new Error(`Event not found: ${event}`);
 		}
 
-		call(_: unknown, command: string, args?: any[]): Promise<any> {
-			const target = handler[command];
-			if (typeof target === 'function') {
+		return new class implements IServerChannel {
 
-				// Revive unless marshalling disabled
-				if (!disableMarshalling && Array.isArray(args)) {
-					for (let i = 0; i < args.length; i++) {
-						args[i] = revive(args[i]);
-					}
+			listen<T>(_: unknown, event: string): Event<T> {
+				const eventImpl = mapEventNameToEvent.get(event);
+				if (eventImpl) {
+					return eventImpl as Event<T>;
 				}
 
-				return target.apply(handler, args);
+				throw new Error(`Event not found: ${event}`);
 			}
 
-			throw new Error(`Method not found: ${command}`);
-		}
-	};
-}
-
-export interface IChannelSenderOptions extends IBaseChannelOptions {
-
-	/**
-	 * If provided, will add the value of `context`
-	 * to each method call to the target.
-	 */
-	context?: unknown;
-
-	/**
-	 * If provided, will not proxy any of the properties
-	 * that are part of the Map but rather return that value.
-	 */
-	properties?: Map<string, unknown>;
-}
-
-export function createChannelSender<T>(channel: IChannel, options?: IChannelSenderOptions): T {
-	const disableMarshalling = options && options.disableMarshalling;
-
-	return new Proxy({}, {
-		get(_target: T, propKey: PropertyKey) {
-			if (typeof propKey === 'string') {
-
-				// Check for predefined values
-				if (options?.properties?.has(propKey)) {
-					return options.properties.get(propKey);
-				}
-
-				// Event
-				if (propertyIsEvent(propKey)) {
-					return channel.listen(propKey);
-				}
-
-				// Function
-				return async function (...args: any[]) {
-
-					// Add context if any
-					let methodArgs: any[];
-					if (options && !isUndefinedOrNull(options.context)) {
-						methodArgs = [options.context, ...args];
-					} else {
-						methodArgs = args;
-					}
-
-					const result = await channel.call(propKey, methodArgs);
+			call(_: unknown, command: string, args?: any[]): Promise<any> {
+				const target = handler[command];
+				if (typeof target === 'function') {
 
 					// Revive unless marshalling disabled
-					if (!disableMarshalling) {
-						return revive(result);
+					if (!disableMarshalling && Array.isArray(args)) {
+						for (let i = 0; i < args.length; i++) {
+							args[i] = revive(args[i]);
+						}
 					}
 
-					return result;
-				};
+					return target.apply(handler, args);
+				}
+
+				throw new Error(`Method not found: ${command}`);
 			}
+		};
+	}
 
-			throw new Error(`Property not found: ${String(propKey)}`);
-		}
-	}) as T;
+	export interface ICreateProxyServiceOptions extends IProxyOptions {
+
+		/**
+		 * If provided, will add the value of `context`
+		 * to each method call to the target.
+		 */
+		context?: unknown;
+
+		/**
+		 * If provided, will not proxy any of the properties
+		 * that are part of the Map but rather return that value.
+		 */
+		properties?: Map<string, unknown>;
+	}
+
+	export function toService<T>(channel: IChannel, options?: ICreateProxyServiceOptions): T {
+		const disableMarshalling = options && options.disableMarshalling;
+
+		return new Proxy({}, {
+			get(_target: T, propKey: PropertyKey) {
+				if (typeof propKey === 'string') {
+
+					// Check for predefined values
+					if (options?.properties?.has(propKey)) {
+						return options.properties.get(propKey);
+					}
+
+					// Event
+					if (propertyIsEvent(propKey)) {
+						return channel.listen(propKey);
+					}
+
+					// Function
+					return async function (...args: any[]) {
+
+						// Add context if any
+						let methodArgs: any[];
+						if (options && !isUndefinedOrNull(options.context)) {
+							methodArgs = [options.context, ...args];
+						} else {
+							methodArgs = args;
+						}
+
+						const result = await channel.call(propKey, methodArgs);
+
+						// Revive unless marshalling disabled
+						if (!disableMarshalling) {
+							return revive(result);
+						}
+
+						return result;
+					};
+				}
+
+				throw new Error(`Property not found: ${String(propKey)}`);
+			}
+		}) as T;
+	}
+
+	function propertyIsEvent(name: string): boolean {
+		// Assume a property is an event if it has a form of "onSomething"
+		return name[0] === 'o' && name[1] === 'n' && strings.isUpperAsciiLetter(name.charCodeAt(2));
+	}
 }
-
-function propertyIsEvent(name: string): boolean {
-	// Assume a property is an event if it has a form of "onSomething"
-	return name[0] === 'o' && name[1] === 'n' && strings.isUpperAsciiLetter(name.charCodeAt(2));
-}
-
-//#endregion
-
 
 const colorTables = [
 	['#2977B1', '#FC802D', '#34A13A', '#D3282F', '#9366BA'],

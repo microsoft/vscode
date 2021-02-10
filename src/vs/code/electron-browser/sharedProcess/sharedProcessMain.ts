@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { release } from 'os';
 import { gracefulify } from 'graceful-fs';
 import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { StaticRouter, createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
+import { StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -184,7 +184,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		// Native Host
-		const nativeHostService = createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
+		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
@@ -270,12 +270,12 @@ class SharedProcessMain extends Disposable {
 
 		// Localizations
 		const localizationsService = accessor.get(ILocalizationsService);
-		const localizationsChannel = createChannelReceiver(localizationsService);
+		const localizationsChannel = ProxyChannel.fromService(localizationsService);
 		this.server.registerChannel('localizations', localizationsChannel);
 
 		// Diagnostics
 		const diagnosticsService = accessor.get(IDiagnosticsService);
-		const diagnosticsChannel = createChannelReceiver(diagnosticsService);
+		const diagnosticsChannel = ProxyChannel.fromService(diagnosticsService);
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips

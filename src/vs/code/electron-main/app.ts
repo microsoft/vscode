@@ -13,7 +13,7 @@ import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
-import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
 import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
@@ -525,7 +525,7 @@ export class CodeApplication extends Disposable {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
-		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
+		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
@@ -606,7 +606,7 @@ export class CodeApplication extends Disposable {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
-		const launchChannel = createChannelReceiver(launchMainService, { disableMarshalling: true });
+		const launchChannel = ProxyChannel.fromService(launchMainService, { disableMarshalling: true });
 		this.mainIpcServer.registerChannel('launch', launchChannel);
 
 		// Register more Electron IPC services
@@ -615,44 +615,44 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('update', updateChannel);
 
 		const issueMainService = accessor.get(IIssueMainService);
-		const issueChannel = createChannelReceiver(issueMainService);
+		const issueChannel = ProxyChannel.fromService(issueMainService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
 		const encryptionMainService = accessor.get(IEncryptionMainService);
-		const encryptionChannel = createChannelReceiver(encryptionMainService);
+		const encryptionChannel = ProxyChannel.fromService(encryptionMainService);
 		electronIpcServer.registerChannel('encryption', encryptionChannel);
 
 		const keyboardLayoutMainService = accessor.get(IKeyboardLayoutMainService);
-		const keyboardLayoutChannel = createChannelReceiver(keyboardLayoutMainService);
+		const keyboardLayoutChannel = ProxyChannel.fromService(keyboardLayoutMainService);
 		electronIpcServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
 
 		const displayMainService = accessor.get(IDisplayMainService);
-		const displayChannel = createChannelReceiver(displayMainService);
+		const displayChannel = ProxyChannel.fromService(displayMainService);
 		electronIpcServer.registerChannel('display', displayChannel);
 
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
-		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);
+		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService);
 		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
 		const workspacesService = accessor.get(IWorkspacesService);
-		const workspacesChannel = createChannelReceiver(workspacesService);
+		const workspacesChannel = ProxyChannel.fromService(workspacesService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
 		const menubarMainService = accessor.get(IMenubarMainService);
-		const menubarChannel = createChannelReceiver(menubarMainService);
+		const menubarChannel = ProxyChannel.fromService(menubarMainService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
 
 		const urlService = accessor.get(IURLService);
-		const urlChannel = createChannelReceiver(urlService);
+		const urlChannel = ProxyChannel.fromService(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
 
 		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
-		const extensionUrlTrustChannel = createChannelReceiver(extensionUrlTrustService);
+		const extensionUrlTrustChannel = ProxyChannel.fromService(extensionUrlTrustService);
 		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
 
 		const webviewManagerService = accessor.get(IWebviewManagerService);
-		const webviewChannel = createChannelReceiver(webviewManagerService);
+		const webviewChannel = ProxyChannel.fromService(webviewManagerService);
 		electronIpcServer.registerChannel('webview', webviewChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
