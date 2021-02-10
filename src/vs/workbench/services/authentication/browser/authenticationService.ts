@@ -22,7 +22,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { flatten } from 'vs/base/common/arrays';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -124,10 +124,10 @@ export interface IAuthenticationService {
 	declaredProviders: AuthenticationProviderInformation[];
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
 
-	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(providerId: string, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
-	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
+	login(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
 	logout(providerId: string, sessionId: string): Promise<void>;
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
@@ -192,7 +192,6 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	declare readonly _serviceBrand: undefined;
 	private _placeholderMenuItem: IDisposable | undefined;
-	private _noAccountsMenuItem: IDisposable | undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[], possibleSessions: AuthenticationSession[] } }>();
 	private _accountBadgeDisposable = this._register(new MutableDisposable());
@@ -278,29 +277,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return this._authenticationProviders.has(id);
 	}
 
-	private updateAccountsMenuItem(): void {
-		let hasSession = false;
-		this._authenticationProviders.forEach(async provider => {
-			hasSession = hasSession || provider.hasSessions();
-		});
-
-		if (hasSession && this._noAccountsMenuItem) {
-			this._noAccountsMenuItem.dispose();
-			this._noAccountsMenuItem = undefined;
-		}
-
-		if (!hasSession && !this._noAccountsMenuItem) {
-			this._noAccountsMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-				group: '0_accounts',
-				command: {
-					id: 'noAccounts',
-					title: nls.localize('noAccounts', "You are not signed in to any accounts"),
-					precondition: ContextKeyExpr.false()
-				},
-			});
-		}
-	}
-
 	registerAuthenticationProvider(id: string, authenticationProvider: MainThreadAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
 		this._onDidRegisterAuthenticationProvider.fire({ id, label: authenticationProvider.label });
@@ -309,8 +285,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this._placeholderMenuItem.dispose();
 			this._placeholderMenuItem = undefined;
 		}
-
-		this.updateAccountsMenuItem();
 	}
 
 	unregisterAuthenticationProvider(id: string): void {
@@ -319,7 +293,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			provider.dispose();
 			this._authenticationProviders.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
-			this.updateAccountsMenuItem();
 
 			const accessRequests = this._sessionAccessRequestItems.get(id) || {};
 			Object.keys(accessRequests).forEach(extensionId => {
@@ -343,7 +316,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			this._onDidChangeSessions.fire({ providerId: id, label: provider.label, event: event });
 			await provider.updateSessionItems(event);
-			this.updateAccountsMenuItem();
 
 			if (event.added) {
 				await this.updateNewSessionRequests(provider);
@@ -693,8 +665,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private async tryActivateProvider(providerId: string): Promise<MainThreadAuthenticationProvider> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId));
+	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<MainThreadAuthenticationProvider> {
+		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId), activateImmediate ? ActivationKind.Immediate : ActivationKind.Normal);
 		let provider = this._authenticationProviders.get(providerId);
 		if (provider) {
 			return provider;
@@ -724,18 +696,18 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return Promise.race([didRegister, didTimeout]);
 	}
 
-	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		try {
-			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id);
+			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 			return await authProvider.getSessions();
 		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
-	async login(id: string, scopes: string[]): Promise<AuthenticationSession> {
+	async login(id: string, scopes: string[], activateImmediate: boolean = false): Promise<AuthenticationSession> {
 		try {
-			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id);
+			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 			return await authProvider.login(scopes);
 		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);

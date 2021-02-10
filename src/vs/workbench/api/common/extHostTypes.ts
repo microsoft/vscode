@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { addIdToOutput, CellEditType, ICellEditOperation, ICellOutputEdit, ITransformedDisplayOutputDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, ICellEditOperation, ICellOutputEdit, ITransformedDisplayOutputDto, notebookDocumentMetadataDefaults, NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -2812,6 +2812,72 @@ export enum ColorThemeKind {
 //#endregion Theming
 
 //#region Notebook
+
+export class NotebookCellMetadata {
+
+	constructor(
+		readonly editable?: boolean,
+		readonly breakpointMargin?: boolean,
+		readonly runnable?: boolean,
+		readonly hasExecutionOrder?: boolean,
+		readonly executionOrder?: number,
+		readonly runState?: NotebookCellRunState,
+		readonly runStartTime?: number,
+		readonly statusMessage?: string,
+		readonly lastRunDuration?: number,
+		readonly inputCollapsed?: boolean,
+		readonly outputCollapsed?: boolean,
+		readonly custom?: Record<string, any>,
+	) { }
+
+	with(change: Partial<Omit<NotebookCellMetadata, 'with'>>): NotebookCellMetadata {
+		return new NotebookCellMetadata(
+			change.editable ?? this.editable,
+			change.breakpointMargin ?? this.breakpointMargin,
+			change.runnable ?? this.runnable,
+			change.hasExecutionOrder ?? this.hasExecutionOrder,
+			change.executionOrder ?? this.executionOrder,
+			change.runState ?? this.runState,
+			change.runStartTime ?? this.runStartTime,
+			change.statusMessage ?? this.statusMessage,
+			change.lastRunDuration ?? this.lastRunDuration,
+			change.inputCollapsed ?? this.inputCollapsed,
+			change.outputCollapsed ?? this.outputCollapsed,
+			change.custom ?? this.custom
+		);
+	}
+}
+
+export class NotebookDocumentMetadata {
+
+	constructor(
+		readonly editable: boolean = true,
+		readonly runnable: boolean = true,
+		readonly cellEditable: boolean = true,
+		readonly cellRunnable: boolean = true,
+		readonly cellHasExecutionOrder: boolean = true,
+		readonly displayOrder: vscode.GlobPattern[] = NOTEBOOK_DISPLAY_ORDER,
+		readonly custom: { [key: string]: any; } = {},
+		readonly runState: NotebookRunState = NotebookRunState.Idle,
+		readonly trusted: boolean = true,
+		readonly languages: string[] = [],
+	) { }
+
+	with(change: Partial<Omit<NotebookDocumentMetadata, 'with'>>) {
+		return new NotebookDocumentMetadata(
+			change.editable ?? this.editable,
+			change.runnable ?? this.runnable,
+			change.cellEditable ?? this.cellEditable,
+			change.cellRunnable ?? this.cellRunnable,
+			change.cellHasExecutionOrder ?? this.cellHasExecutionOrder,
+			change.displayOrder ?? this.displayOrder,
+			change.custom ?? this.custom,
+			change.runState ?? this.runState,
+			change.trusted ?? this.trusted,
+			change.languages ?? this.languages,
+		);
+	}
+}
 
 export class NotebookCellOutputItem {
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream, observe } from 'vs/base/common/stream';
+import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream, listenStream } from 'vs/base/common/stream';
 import { timeout } from 'vs/base/common/async';
 
 suite('Stream', () => {
@@ -69,11 +69,21 @@ suite('Stream', () => {
 		stream.end('Final Bit');
 		assert.strictEqual(chunks.length, 4);
 		assert.strictEqual(chunks[3], 'Final Bit');
+		assert.strictEqual(end, true);
 
 		stream.destroy();
 
 		stream.write('Unexpected');
 		assert.strictEqual(chunks.length, 4);
+	});
+
+	test('WriteableStream - end with empty string works', async () => {
+		const reducer = (strings: string[]) => strings.length > 0 ? strings.join() : 'error';
+		const stream = newWriteableStream<string>(reducer);
+		stream.end('');
+
+		const result = await consumeStream(stream, reducer);
+		assert.strictEqual(result, '');
 	});
 
 	test('WriteableStream - removeListener', () => {
@@ -270,6 +280,56 @@ suite('Stream', () => {
 		assert.strictEqual(consumed, '1,2,3,4,5');
 	});
 
+	test('consumeStream - without reducer', async () => {
+		const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
+		const consumed = await consumeStream(stream);
+		assert.strictEqual(consumed, undefined);
+	});
+
+	test('consumeStream - without reducer and error', async () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+		stream.error(new Error());
+
+		const consumed = await consumeStream(stream);
+		assert.strictEqual(consumed, undefined);
+	});
+
+	test('listenStream', () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+
+		let error = false;
+		let end = false;
+		let data = '';
+
+		listenStream(stream, {
+			onData: d => {
+				data = d;
+			},
+			onError: e => {
+				error = true;
+			},
+			onEnd: () => {
+				end = true;
+			}
+		});
+
+		stream.write('Hello');
+
+		assert.strictEqual(data, 'Hello');
+
+		stream.write('World');
+		assert.strictEqual(data, 'World');
+
+		assert.strictEqual(error, false);
+		assert.strictEqual(end, false);
+
+		stream.error(new Error());
+		assert.strictEqual(error, true);
+
+		stream.end('Final Bit');
+		assert.strictEqual(end, true);
+	});
+
 	test('peekStream', async () => {
 		for (let i = 0; i < 5; i++) {
 			const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
@@ -333,30 +393,6 @@ suite('Stream', () => {
 
 		const consumed = await consumeStream(result, strings => strings.join());
 		assert.strictEqual(consumed, '11,22,33,44,55');
-	});
-
-	test('observer', async () => {
-		const source1 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => source1.error(new Error()));
-		await observe(source1).errorOrEnd();
-
-		const source2 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => source2.end('Hello Test'));
-		await observe(source2).errorOrEnd();
-
-		const source3 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => {
-			source3.write('Hello Test');
-			source3.error(new Error());
-		});
-		await observe(source3).errorOrEnd();
-
-		const source4 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => {
-			source4.write('Hello Test');
-			source4.end();
-		});
-		await observe(source4).errorOrEnd();
 	});
 
 	test('events are delivered even if a listener is removed during delivery', () => {

@@ -69,7 +69,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { bufferToStream, VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -839,20 +839,7 @@ export class TestFileService implements IFileService {
 
 		return Promise.resolve({
 			resource,
-			value: {
-				on: (event: string, callback: Function): void => {
-					if (event === 'data') {
-						callback(this.content);
-					}
-					if (event === 'end') {
-						callback();
-					}
-				},
-				removeListener: () => { },
-				resume: () => { },
-				pause: () => { },
-				destroy: () => { }
-			},
+			value: bufferToStream(VSBuffer.fromString(this.content)),
 			etag: 'index.txt',
 			encoding: 'utf8',
 			mtime: Date.now(),

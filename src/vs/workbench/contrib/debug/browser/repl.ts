@@ -76,7 +76,6 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 
 const sessionsToIgnore = new Set<IDebugSession>();
 const identityProvider = { getId: (element: IReplElement) => element.getId() };
-const diffIdentityProvider = { getId: (element: IReplElement) => element.getId() + element.toString() };
 
 export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	declare readonly _serviceBrand: undefined;
@@ -513,7 +512,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider });
+			await this.tree.updateChildren(undefined, true, false, { diffIdentityProvider: identityProvider });
 
 			const session = this.tree.getInput();
 			if (session) {

@@ -268,6 +268,8 @@ export interface INotebookTextModel {
 	metadata: NotebookDocumentMetadata
 	readonly uri: URI;
 	readonly versionId: number;
+
+	/** @deprecated */
 	languages: string[];
 	readonly cells: readonly ICell[];
 	onWillDispose(listener: () => void): IDisposable;
@@ -803,6 +805,7 @@ export interface INotebookKernelInfoDto2 {
 	detail?: string;
 	isPreferred?: boolean;
 	preloads?: UriComponents[];
+	supportedLanguages?: string[]
 }
 
 export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {

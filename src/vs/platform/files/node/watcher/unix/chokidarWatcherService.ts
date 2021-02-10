@@ -49,7 +49,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 	get wacherCount() { return this._watcherCount; }
 
 	private pollingInterval?: number;
-	private usePolling?: boolean;
+	private usePolling?: boolean | string[];
 	private verboseLogging: boolean | undefined;
 
 	private spamCheckStartTime: number | undefined;
@@ -101,7 +101,11 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 
 	private watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
 		const pollingInterval = this.pollingInterval || 5000;
-		const usePolling = this.usePolling;
+		let usePolling = this.usePolling; // boolean or a list of path patterns
+		if (Array.isArray(usePolling)) {
+			// switch to polling if one of the paths matches with a watched path
+			usePolling = usePolling.some(pattern => requests.some(r => glob.match(pattern, r.path)));
+		}
 
 		const watcherOpts: chokidar.WatchOptions = {
 			ignoreInitial: true,
