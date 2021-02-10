@@ -314,9 +314,9 @@ class SharedProcessMain extends Disposable {
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
 
 		// Terminal
-		const localPtyMainService = accessor.get(ILocalPtyService);
-		const localPtyMainChannel = new LocalPtyChannel(localPtyMainService);
-		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyMainChannel);
+		const localPtyService = accessor.get(ILocalPtyService);
+		const localPtyChannel = ProxyChannel.fromService(localPtyService);
+		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

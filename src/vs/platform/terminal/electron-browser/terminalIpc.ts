@@ -10,19 +10,20 @@ import { ILocalPtyService } from 'vs/platform/terminal/common/terminal';
 
 export class LocalPtyChannel extends Disposable implements IServerChannel {
 	constructor(
-		private readonly _localPtyMainService: ILocalPtyService
+		private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
 	}
 
 	listen(_: unknown, event: string): Event<any> {
+		console.log('LocalPtyChannel listen ' + event);
 		throw new Error(`Event not found: ${event}`);
 	}
 
 	async call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case '$createProcess': return this._localPtyMainService.createProcess(...arg as [any, any, any, any, any, any, any]);
-			case '$start': return this._localPtyMainService.start(...(arg as [any]));
+			case 'createProcess': return this._localPtyService.createProcess(...arg as [any, any, any, any, any, any, any]);
+			case 'start': return this._localPtyService.start(...(arg as [any]));
 			// TODO: Fill in other calls
 
 			default:

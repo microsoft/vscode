@@ -31,12 +31,12 @@ export class TerminalProcessMainProxy extends Disposable implements ITerminalChi
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
-		// this._localPtyService.onProcessData(e => e.id === this._localPtyId && this._onProcessData.fire(e.event));
-		// this._localPtyService.onProcessExit(e => e.id === this._localPtyId && this._onProcessExit.fire(e.event));
-		// this._localPtyService.onProcessReady(e => e.id === this._localPtyId && this._onProcessReady.fire(e.event));
-		// this._localPtyService.onProcessTitleChanged(e => e.id === this._localPtyId && this._onProcessTitleChanged.fire(e.event));
-		// this._localPtyService.onProcessOverrideDimensions(e => e.id === this._localPtyId && this._onProcessOverrideDimensions.fire(e.event));
-		// this._localPtyService.onProcessResolvedShellLaunchConfig(e => e.id === this._localPtyId && this._onProcessResolvedShellLaunchConfig.fire(e.event));
+		this._localPtyService.onProcessData(e => e.id === this._localPtyId && this._onProcessData.fire(e.event));
+		this._localPtyService.onProcessExit(e => e.id === this._localPtyId && this._onProcessExit.fire(e.event));
+		this._localPtyService.onProcessReady(e => e.id === this._localPtyId && this._onProcessReady.fire(e.event));
+		this._localPtyService.onProcessTitleChanged(e => e.id === this._localPtyId && this._onProcessTitleChanged.fire(e.event));
+		this._localPtyService.onProcessOverrideDimensions(e => e.id === this._localPtyId && this._onProcessOverrideDimensions.fire(e.event));
+		this._localPtyService.onProcessResolvedShellLaunchConfig(e => e.id === this._localPtyId && this._onProcessResolvedShellLaunchConfig.fire(e.event));
 	}
 
 	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {

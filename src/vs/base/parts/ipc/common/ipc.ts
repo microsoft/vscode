@@ -1066,6 +1066,7 @@ export namespace ProxyChannel {
 		return new class implements IServerChannel {
 
 			listen<T>(_: unknown, event: string): Event<T> {
+				console.log('fromService listen', event);
 				const eventImpl = mapEventNameToEvent.get(event);
 				if (eventImpl) {
 					return eventImpl as Event<T>;

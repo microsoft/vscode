@@ -79,7 +79,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<ITerminalChildProcess> {
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
-		console.log('local pty id ' + id);
 		return this._instantiationService.createInstance(TerminalProcessMainProxy, id);
 	}
 
