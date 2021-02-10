@@ -9,6 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
+import FileConfigurationManager from './fileConfigurationManager';
 
 
 const localize = nls.loadMessageBundle();
@@ -37,6 +38,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly fileConfigurationManager: FileConfigurationManager,
 	) { }
 
 	public async provideCompletionItems(
@@ -53,8 +55,12 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 			return undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-		const response = await this.client.execute('docCommentTemplate', args, token);
+		const response = await this.client.interruptGetErr(async () => {
+			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+
+			const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
+			return this.client.execute('docCommentTemplate', args, token);
+		});
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
@@ -107,6 +113,9 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 		out += post + ` \${${snippetIndex++}}`;
 		return out;
 	});
+
+	template = template.replace(/\* @returns[ \t]*$/gm, `* @returns \${${snippetIndex++}}`);
+
 	return new vscode.SnippetString(template);
 }
 
@@ -114,12 +123,14 @@ export function register(
 	selector: DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
+	fileConfigurationManager: FileConfigurationManager,
+
 ): vscode.Disposable {
 	return conditionalRegistration([
 		requireConfiguration(modeId, 'suggest.completeJSDocs')
 	], () => {
 		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new JsDocCompletionProvider(client),
+			new JsDocCompletionProvider(client, fileConfigurationManager),
 			'*');
 	});
 }
