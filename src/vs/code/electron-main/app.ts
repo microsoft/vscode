@@ -10,7 +10,7 @@ import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } fro
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { resolveShellEnv } from 'vs/code/node/shellEnv';
+import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
 import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
