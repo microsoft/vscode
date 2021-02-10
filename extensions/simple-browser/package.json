@@ -54,8 +54,8 @@
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-preview": "webpack --mode development",
-    "build-preview-production": "webpack --mode production",
+    "build-preview": "npx webpack-cli --mode development",
+    "build-preview-production": "npx webpack-cli --mode production",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose",
     "postinstall": "node ./build/copy"
@@ -66,11 +66,7 @@
   },
   "devDependencies": {
     "vscode-codicons": "^0.0.14",
-    "@types/node": "^12.11.7",
-    "ts-loader": "^6.2.1",
-    "typescript": "^3.7.3",
-    "webpack": "^4.41.2",
-    "webpack-cli": "^3.3.0"
+    "@types/node": "^12.11.7"
   },
   "repository": {
     "type": "git",
