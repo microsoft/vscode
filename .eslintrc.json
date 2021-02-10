@@ -268,7 +268,6 @@
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
 					"**/vs/platform/*/{common,node,electron-main}/**",
-					"**/vs/code/**",
 					"*" // node modules
 				]
 			},

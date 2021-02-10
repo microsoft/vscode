@@ -17,7 +17,7 @@ import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSe
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
 import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
+import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { LaunchMainService, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
