@@ -371,7 +371,9 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			existingTunnel.name = name;
+			if (name) {
+				existingTunnel.name = name;
+			}
 			this._onForwardPort.fire();
 			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
 		}
