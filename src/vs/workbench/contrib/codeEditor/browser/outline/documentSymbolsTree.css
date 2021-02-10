@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-list .monaco-list-row.focused.selected .outline-element .monaco-highlighted-label,
+.monaco-list .monaco-list-row.focused.selected .outline-element-decoration {
+	/* make sure selection color wins when a label is being selected */
+	color: inherit !important;
+}
+
+.monaco-list .outline-element {
+	display: flex;
+	flex: 1;
+	flex-flow: row nowrap;
+	align-items: center;
+}
+
+.monaco-list .outline-element .monaco-highlighted-label {
+	color: var(--outline-element-color);
+}
+
+.monaco-breadcrumbs .outline-element .outline-element-decoration,
+.monaco-list .outline-element .outline-element-decoration {
+	opacity: 0.75;
+	font-size: 90%;
+	font-weight: 600;
+	padding: 0 12px 0 5px;
+	margin-left: auto;
+	text-align: center;
+	color: var(--outline-element-color);
+}
+
+/* when showing in breadcrumbs than hide a few things, like markers or descriptions */
+.monaco-breadcrumbs .outline-element .monaco-icon-label-container .monaco-icon-description-container,
+.monaco-breadcrumbs .outline-element .outline-element-decoration {
+	display: none;
+}
+
+.monaco-list .outline-element .outline-element-decoration.bubble {
+	font-family: codicon;
+	font-size: 14px;
+	opacity: 0.4;
+	padding-right: 8px;
+}
+
+.monaco-list .outline-element .outline-element-icon {
+	margin-right: 4px;
+}

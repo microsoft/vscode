@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MockDebugAdapter, createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockDebugAdapter, createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { generateUuid } from 'vs/base/common/uuid';
-import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { stub, SinonStub } from 'sinon';
 import { timeout } from 'vs/base/common/async';
+import { generateUuid } from 'vs/base/common/uuid';
+import { NullOpenerService } from 'vs/platform/opener/common/opener';
 
 suite('Debug - DebugSession telemetry', () => {
 	let model: DebugModel;
@@ -26,8 +26,8 @@ suite('Debug - DebugSession telemetry', () => {
 		model = createMockDebugModel();
 
 		const telemetryService = telemetry as Partial<ITelemetryService> as ITelemetryService;
-		session = new DebugSession(generateUuid(), undefined!, undefined!, model, undefined, undefined!, telemetryService, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
-		session.initializeForTest(new RawDebugSession(adapter, undefined!, undefined!, telemetryService, undefined!, undefined!, undefined!));
+		session = new DebugSession(generateUuid(), undefined!, undefined!, model, undefined, undefined!, telemetryService, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
+		session.initializeForTest(new RawDebugSession(adapter, undefined!, '', undefined!, telemetryService, undefined!, undefined!, undefined!));
 	});
 
 	test('does not send telemetry when opted out', async () => {

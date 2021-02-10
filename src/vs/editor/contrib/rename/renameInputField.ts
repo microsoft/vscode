@@ -100,7 +100,7 @@ export class RenameInputField implements IContentWidget {
 
 		const widgetShadowColor = theme.getColor(widgetShadow);
 		this._domNode.style.backgroundColor = String(theme.getColor(editorWidgetBackground) ?? '');
-		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 2px 8px ${widgetShadowColor}` : '';
+		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 0 8px 2px ${widgetShadowColor}` : '';
 		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
 
 		this._input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
@@ -133,6 +133,14 @@ export class RenameInputField implements IContentWidget {
 			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
 	}
+
+	afterRender(position: ContentWidgetPositionPreference | null): void {
+		if (!position) {
+			// cancel rename when input widget isn't rendered anymore
+			this.cancelInput(true);
+		}
+	}
+
 
 	private _currentAcceptInput?: (wantsPreview: boolean) => void;
 	private _currentCancelInput?: (focusEditor: boolean) => void;

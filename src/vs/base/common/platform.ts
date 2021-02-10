@@ -8,6 +8,7 @@ const LANGUAGE_DEFAULT = 'en';
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
+let _isLinuxSnap = false;
 let _isNative = false;
 let _isWeb = false;
 let _isIOS = false;
@@ -26,15 +27,16 @@ export interface IProcessEnvironment {
 	[key: string]: string;
 }
 
-interface INodeProcess {
-	platform: string;
+export interface INodeProcess {
+	platform: 'win32' | 'linux' | 'darwin';
 	env: IProcessEnvironment;
-	getuid(): number;
 	nextTick: Function;
 	versions?: {
 		electron?: string;
 	};
+	sandboxed?: boolean; // Electron
 	type?: string;
+	cwd(): string;
 }
 declare const process: INodeProcess;
 declare const global: any;
@@ -47,9 +49,41 @@ interface INavigator {
 declare const navigator: INavigator;
 declare const self: any;
 
-const isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
+const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 
-// OS detection
+let nodeProcess: INodeProcess | undefined = undefined;
+if (typeof process !== 'undefined') {
+	// Native environment (non-sandboxed)
+	nodeProcess = process;
+} else if (typeof _globals.vscode !== 'undefined') {
+	// Native environment (sandboxed)
+	nodeProcess = _globals.vscode.process;
+}
+
+const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
+export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
+export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' | undefined = (() => {
+
+	// Always enabled when sandbox is enabled
+	if (isElectronSandboxed) {
+		return 'bypassHeatCheck';
+	}
+
+	// Otherwise, only enabled conditionally
+	const env = nodeProcess?.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'];
+	if (typeof env === 'string') {
+		if (env === 'none' || env === 'code' || env === 'bypassHeatCheck' || env === 'bypassHeatCheckAndEagerCompile') {
+			return env;
+		}
+
+		return 'bypassHeatCheck';
+	}
+
+	return undefined;
+})();
+export const isPreferringBrowserCodeLoad = typeof browserCodeLoadingCacheStrategy === 'string';
+
+// Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
 	_isWindows = _userAgent.indexOf('Windows') >= 0;
@@ -59,13 +93,17 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
-} else if (typeof process === 'object') {
-	_isWindows = (process.platform === 'win32');
-	_isMacintosh = (process.platform === 'darwin');
-	_isLinux = (process.platform === 'linux');
+}
+
+// Native environment
+else if (typeof nodeProcess === 'object') {
+	_isWindows = (nodeProcess.platform === 'win32');
+	_isMacintosh = (nodeProcess.platform === 'darwin');
+	_isLinux = (nodeProcess.platform === 'linux');
+	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
-	const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
+	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
 			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
@@ -78,6 +116,11 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 		}
 	}
 	_isNative = true;
+}
+
+// Unknown environment
+else {
+	console.error('Unable to resolve platform.');
 }
 
 export const enum Platform {
@@ -107,15 +150,12 @@ if (_isMacintosh) {
 export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
+export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const isIOS = _isIOS;
 export const platform = _platform;
 export const userAgent = _userAgent;
-
-export function isRootUser(): boolean {
-	return _isNative && !_isWindows && (process.getuid() === 0);
-}
 
 /**
  * The language used for the user interface. The format of
@@ -157,7 +197,6 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
 export const globals: any = _globals;
 
 interface ISetImmediate {
@@ -196,8 +235,8 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
 		};
 	}
-	if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
-		return process.nextTick.bind(process);
+	if (nodeProcess && typeof nodeProcess.nextTick === 'function') {
+		return nodeProcess.nextTick.bind(nodeProcess);
 	}
 	const _promise = Promise.resolve();
 	return (callback: (...args: any[]) => void) => _promise.then(callback);

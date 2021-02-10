@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { readFile, exists } from 'vs/base/node/pfs';
+import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { exists } from 'vs/base/node/pfs';
 import { isString } from 'vs/base/common/types';
+import { getCaseInsensitive } from 'vs/base/common/objects';
 
 let mainProcessParentEnv: IProcessEnvironment | undefined;
 
-export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironment = process.env as IProcessEnvironment): Promise<IProcessEnvironment> {
 	if (mainProcessParentEnv) {
 		return mainProcessParentEnv;
 	}
@@ -25,7 +27,7 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		let name: string = codeProcessName;
 		do {
 			pid = ppid;
-			const status = await readFile(`/proc/${pid}/status`, 'utf8');
+			const status = await fs.promises.readFile(`/proc/${pid}/status`, 'utf8');
 			const splitByLine = status.split('\n');
 			splitByLine.forEach(line => {
 				if (line.indexOf('Name:') === 0) {
@@ -36,7 +38,7 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 				}
 			});
 		} while (name === codeProcessName);
-		const rawEnv = await readFile(`/proc/${pid}/environ`, 'utf8');
+		const rawEnv = await fs.promises.readFile(`/proc/${pid}/environ`, 'utf8');
 		const env: IProcessEnvironment = {};
 		rawEnv.split('\0').forEach(e => {
 			const i = e.indexOf('=');
@@ -65,21 +67,21 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 			'TMPDIR'
 		];
 		rootEnvVars.forEach(k => {
-			if (process.env[k]) {
-				mainProcessParentEnv![k] = process.env[k]!;
+			if (baseEnvironment[k]) {
+				mainProcessParentEnv![k] = baseEnvironment[k]!;
 			}
 		});
 	}
 
 	// TODO: Windows should return a fresh environment block, might need native code?
 	if (isWindows) {
-		mainProcessParentEnv = process.env as IProcessEnvironment;
+		mainProcessParentEnv = baseEnvironment;
 	}
 
 	return mainProcessParentEnv!;
 }
 
-export async function findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined> {
+export async function findExecutable(command: string, cwd?: string, paths?: string[], env: IProcessEnvironment = process.env as IProcessEnvironment): Promise<string | undefined> {
 	// If we have an absolute path then we take it.
 	if (path.isAbsolute(command)) {
 		return await exists(command) ? command : undefined;
@@ -94,8 +96,9 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 		const fullPath = path.join(cwd, command);
 		return await exists(fullPath) ? fullPath : undefined;
 	}
-	if (paths === undefined && isString(process.env.PATH)) {
-		paths = process.env.PATH.split(path.delimiter);
+	const envPath = getCaseInsensitive(env, 'PATH');
+	if (paths === undefined && isString(envPath)) {
+		paths = envPath.split(path.delimiter);
 	}
 	// No PATH environment. Make path absolute to the cwd.
 	if (paths === undefined || paths.length === 0) {

@@ -7,13 +7,12 @@ import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import type * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -31,6 +30,9 @@ import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { CellOutputKind, IDisplayOutput, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -218,7 +220,7 @@ export namespace DiagnosticSeverity {
 }
 
 export namespace ViewColumn {
-	export function from(column?: vscode.ViewColumn): EditorViewColumn {
+	export function from(column?: vscode.ViewColumn): EditorGroupColumn {
 		if (typeof column === 'number' && column >= types.ViewColumn.One) {
 			return column - 1; // adjust zero index (ViewColumn.ONE => 0)
 		}
@@ -230,12 +232,12 @@ export namespace ViewColumn {
 		return ACTIVE_GROUP; // default is always the active group
 	}
 
-	export function to(position: EditorViewColumn): vscode.ViewColumn {
+	export function to(position: EditorGroupColumn): vscode.ViewColumn {
 		if (typeof position === 'number' && position >= 0) {
 			return position + 1; // adjust to index (ViewColumn.ONE => 1)
 		}
 
-		throw new Error(`invalid 'EditorViewColumn'`);
+		throw new Error(`invalid 'EditorGroupColumn'`);
 	}
 }
 
@@ -272,8 +274,8 @@ export namespace MarkdownString {
 		if (isCodeblock(markup)) {
 			const { language, value } = markup;
 			res = { value: '```' + language + '\n' + value + '\n```\n' };
-		} else if (htmlContent.isMarkdownString(markup)) {
-			res = markup;
+		} else if (types.MarkdownString.isMarkdownString(markup)) {
+			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons };
 		} else if (typeof markup === 'string') {
 			res = { value: markup };
 		} else {
@@ -336,10 +338,12 @@ export namespace MarkdownString {
 	}
 
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		return new htmlContent.MarkdownString(value.value, { isTrusted: value.isTrusted, supportThemeIcons: value.supportThemeIcons });
+		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
+		result.isTrusted = value.isTrusted;
+		return result;
 	}
 
-	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+	export function fromStrict(value: string | vscode.MarkdownString): undefined | string | htmlContent.IMarkdownString {
 		if (!value) {
 			return undefined;
 		}
@@ -505,31 +509,42 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors, notebooks?: ExtHostNotebookController): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
 
 		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value.allEntries()) {
+			for (let entry of value._allEntries()) {
 
-				if (entry._type === 1) {
+				if (entry._type === types.FileEditType.File) {
 					// file operation
 					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.File,
 						oldUri: entry.from,
 						newUri: entry.to,
 						options: entry.options,
 						metadata: entry.metadata
 					});
 
-				} else {
+				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
 					const doc = documents?.getDocument(entry.uri);
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: doc?.version,
 						metadata: entry.metadata
+					});
+				} else if (entry._type === types.FileEditType.Cell) {
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
+						resource: entry.uri,
+						edit: entry.edit,
+						notebookMetadata: entry.notebookMetadata,
+						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
 				}
 			}
@@ -1000,6 +1015,41 @@ export namespace SignatureHelp {
 	}
 }
 
+export namespace InlineHint {
+
+	export function from(hint: vscode.InlineHint): modes.InlineHint {
+		return {
+			text: hint.text,
+			range: Range.from(hint.range),
+			kind: InlineHintKind.from(hint.kind ?? types.InlineHintKind.Other),
+			description: hint.description && MarkdownString.fromStrict(hint.description),
+			whitespaceBefore: hint.whitespaceBefore,
+			whitespaceAfter: hint.whitespaceAfter
+		};
+	}
+
+	export function to(hint: modes.InlineHint): vscode.InlineHint {
+		const res = new types.InlineHint(
+			hint.text,
+			Range.to(hint.range),
+			InlineHintKind.to(hint.kind)
+		);
+		res.whitespaceAfter = hint.whitespaceAfter;
+		res.whitespaceBefore = hint.whitespaceBefore;
+		res.description = htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description;
+		return res;
+	}
+}
+
+export namespace InlineHintKind {
+	export function from(kind: vscode.InlineHintKind): modes.InlineHintKind {
+		return kind;
+	}
+	export function to(kind: modes.InlineHintKind): vscode.InlineHintKind {
+		return kind;
+	}
+}
+
 export namespace DocumentLink {
 
 	export function from(link: vscode.DocumentLink): modes.ILink {
@@ -1168,6 +1218,7 @@ export namespace FoldingRangeKind {
 
 export interface TextEditorOpenOptions extends vscode.TextDocumentShowOptions {
 	background?: boolean;
+	override?: boolean;
 }
 
 export namespace TextEditorOpenOptions {
@@ -1179,6 +1230,7 @@ export namespace TextEditorOpenOptions {
 				inactive: options.background,
 				preserveFocus: options.preserveFocus,
 				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+				override: typeof options.override === 'boolean' ? false : undefined
 			};
 		}
 
@@ -1238,46 +1290,162 @@ export namespace LanguageSelector {
 	}
 }
 
-export namespace LogLevel {
-	export function from(extLevel: types.LogLevel): _MainLogLevel {
-		switch (extLevel) {
-			case types.LogLevel.Trace:
-				return _MainLogLevel.Trace;
-			case types.LogLevel.Debug:
-				return _MainLogLevel.Debug;
-			case types.LogLevel.Info:
-				return _MainLogLevel.Info;
-			case types.LogLevel.Warning:
-				return _MainLogLevel.Warning;
-			case types.LogLevel.Error:
-				return _MainLogLevel.Error;
-			case types.LogLevel.Critical:
-				return _MainLogLevel.Critical;
-			case types.LogLevel.Off:
-				return _MainLogLevel.Off;
-			default:
-				return _MainLogLevel.Info;
+export namespace NotebookCellOutput {
+	export function from(output: types.NotebookCellOutput): IDisplayOutput {
+		return output.toJSON();
+	}
+}
+
+export namespace NotebookCellOutputItem {
+	export function from(output: types.NotebookCellOutputItem): IDisplayOutput {
+		return {
+			outputKind: CellOutputKind.Rich,
+			data: { [output.mime]: output.value },
+			metadata: output.metadata && { custom: output.metadata }
+		};
+	}
+}
+
+export namespace NotebookExclusiveDocumentPattern {
+	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: undefined): undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
+		if (pattern === null || pattern === undefined) {
+			return undefined;
 		}
+
+		if (pattern instanceof types.RelativePattern) {
+			return pattern;
+		}
+
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+
+		if (isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.base, pattern.pattern);
+		}
+
+		if (isExclusivePattern(pattern)) {
+			return {
+				include: GlobPattern.from(pattern.include) || undefined,
+				exclude: GlobPattern.from(pattern.exclude) || undefined
+			};
+		}
+
+		return undefined; // preserve `undefined`
+
 	}
 
-	export function to(mainLevel: _MainLogLevel): types.LogLevel {
-		switch (mainLevel) {
-			case _MainLogLevel.Trace:
-				return types.LogLevel.Trace;
-			case _MainLogLevel.Debug:
-				return types.LogLevel.Debug;
-			case _MainLogLevel.Info:
-				return types.LogLevel.Info;
-			case _MainLogLevel.Warning:
-				return types.LogLevel.Warning;
-			case _MainLogLevel.Error:
-				return types.LogLevel.Error;
-			case _MainLogLevel.Critical:
-				return types.LogLevel.Critical;
-			case _MainLogLevel.Off:
-				return types.LogLevel.Off;
-			default:
-				return types.LogLevel.Info;
+	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
+		if (typeof pattern === 'string') {
+			return pattern;
 		}
+
+		if (isRelativePattern(pattern)) {
+			return {
+				base: pattern.base,
+				pattern: pattern.pattern
+			};
+		}
+
+		return {
+			include: pattern.include,
+			exclude: pattern.exclude
+		};
+	}
+
+	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
+		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
+		const include = GlobPattern.from(ep.include);
+		if (!(include && include instanceof types.RelativePattern || typeof include === 'string')) {
+			return false;
+		}
+
+		const exclude = GlobPattern.from(ep.exclude);
+		if (!(exclude && exclude instanceof types.RelativePattern || typeof exclude === 'string')) {
+			return false;
+		}
+
+		return true;
+	}
+
+	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+		const rp = obj as vscode.RelativePattern;
+		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
+}
+
+export namespace NotebookDecorationRenderOptions {
+	export function from(options: vscode.NotebookDecorationRenderOptions): INotebookDecorationRenderOptions {
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+		};
+	}
+}
+
+export namespace TestState {
+	export function from(item: vscode.TestState): ITestState {
+		return {
+			state: item.state,
+			duration: item.duration,
+			messages: item.messages?.map(message => ({
+				message: MarkdownString.fromStrict(message.message) || '',
+				severity: message.severity,
+				expectedOutput: message.expectedOutput,
+				actualOutput: message.actualOutput,
+				location: message.location ? location.from(message.location) : undefined,
+			})) ?? [],
+		};
+	}
+
+	export function to(item: ITestState): vscode.TestState {
+		return {
+			state: item.state,
+			messages: item.messages.map(message => ({
+				message: typeof message.message === 'string' ? message.message : MarkdownString.to(message.message),
+				severity: message.severity,
+				expectedOutput: message.expectedOutput,
+				actualOutput: message.actualOutput,
+				location: message.location && location.to({
+					range: message.location.range,
+					uri: URI.revive(message.location.uri)
+				}),
+			})),
+			duration: item.duration,
+		};
+	}
+}
+
+
+export namespace TestItem {
+	export function from(item: vscode.TestItem, parentExtId?: string): ITestItem {
+		return {
+			extId: item.id ?? (parentExtId ? `${parentExtId}\0${item.label}` : item.label),
+			label: item.label,
+			location: item.location ? location.from(item.location) : undefined,
+			debuggable: item.debuggable ?? false,
+			description: item.description,
+			runnable: item.runnable ?? true,
+		};
+	}
+
+	export function toShallow(item: ITestItem): Omit<vscode.RequiredTestItem, 'children'> {
+		return {
+			id: item.extId,
+			label: item.label,
+			location: item.location && location.to({
+				range: item.location.range,
+				uri: URI.revive(item.location.uri)
+			}),
+			debuggable: item.debuggable,
+			description: item.description,
+			runnable: item.runnable,
+		};
 	}
 }

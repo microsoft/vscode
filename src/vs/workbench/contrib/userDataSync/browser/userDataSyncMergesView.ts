@@ -34,7 +34,7 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -302,7 +302,11 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		if (previewResource.mergeState === MergeState.Accepted) {
 			if (previewResource.localChange !== Change.Deleted && previewResource.remoteChange !== Change.Deleted) {
 				// Do not open deleted preview
-				await this.editorService.openEditor({ resource: previewResource.accepted, label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)) });
+				await this.editorService.openEditor({
+					resource: previewResource.accepted,
+					label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)),
+					options: { pinned: true }
+				});
 			}
 		} else {
 			const leftResource = previewResource.remote;
@@ -314,9 +318,11 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 				leftResource,
 				rightResource,
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: true,
 					revealIfVisible: true,
+					pinned: true
 				},
 			});
 		}

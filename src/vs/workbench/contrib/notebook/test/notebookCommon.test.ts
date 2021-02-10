@@ -269,7 +269,7 @@ suite('NotebookCommon', () => {
 
 		for (let i = 0; i < 5; i++) {
 			cells.push(
-				new TestCell('notebook', i, [`var a = ${i};`], 'javascript', CellKind.Code, [], textModelService)
+				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], textModelService)
 			);
 		}
 
@@ -295,8 +295,8 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, ['var a = 6;'], 'javascript', CellKind.Code, [], textModelService);
-		const cellB = new TestCell('notebook', 7, ['var a = 7;'], 'javascript', CellKind.Code, [], textModelService);
+		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], textModelService);
+		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], textModelService);
 
 		const modifiedCells = [
 			cells[0],

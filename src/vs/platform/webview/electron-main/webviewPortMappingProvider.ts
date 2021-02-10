@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session } from 'electron';
+import { OnBeforeRequestListenerDetails, session } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
 import { IWebviewPortMapping, WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
+
+interface OnBeforeRequestListenerDetails_Extended extends OnBeforeRequestListenerDetails {
+	readonly lastCommittedOrigin?: string;
+}
 
 interface PortMappingData {
 	readonly extensionLocation: URI | undefined;
@@ -20,12 +24,9 @@ interface PortMappingData {
 export class WebviewPortMappingProvider extends Disposable {
 
 	private readonly _webviewData = new Map<string, {
-		readonly webContentsId: number | undefined;
 		readonly manager: WebviewPortMappingManager;
 		metadata: PortMappingData;
 	}>();
-
-	private _webContentsIdsToWebviewIds = new Map<number, /* id */ string>();
 
 	constructor(
 		@ITunnelService private readonly _tunnelService: ITunnelService,
@@ -40,12 +41,15 @@ export class WebviewPortMappingProvider extends Disposable {
 				'*://127.0.0.1:*/*',
 				'*://0.0.0.0:*/*',
 			]
-		}, async (details, callback) => {
-			const webviewId = details.webContentsId && this._webContentsIdsToWebviewIds.get(details.webContentsId);
-			if (!webviewId) {
+		}, async (details: OnBeforeRequestListenerDetails_Extended, callback) => {
+			let origin: URI;
+			try {
+				origin = URI.parse(details.lastCommittedOrigin!);
+			} catch {
 				return callback({});
 			}
 
+			const webviewId = origin.authority;
 			const entry = this._webviewData.get(webviewId);
 			if (!entry) {
 				return callback({});
@@ -56,16 +60,13 @@ export class WebviewPortMappingProvider extends Disposable {
 		});
 	}
 
-	public async registerWebview(id: string, webContentsId: number | undefined, metadata: PortMappingData): Promise<void> {
+	public async registerWebview(id: string, metadata: PortMappingData): Promise<void> {
 		const manager = new WebviewPortMappingManager(
 			() => this._webviewData.get(id)?.metadata.extensionLocation,
 			() => this._webviewData.get(id)?.metadata.mappings || [],
 			this._tunnelService);
 
-		this._webviewData.set(id, { webContentsId, metadata, manager });
-		if (typeof webContentsId === 'number') {
-			this._webContentsIdsToWebviewIds.set(webContentsId, id);
-		}
+		this._webviewData.set(id, { metadata, manager });
 	}
 
 	public unregisterWebview(id: string): void {
@@ -73,9 +74,6 @@ export class WebviewPortMappingProvider extends Disposable {
 		if (existing) {
 			existing.manager.dispose();
 			this._webviewData.delete(id);
-			if (typeof existing.webContentsId === 'number') {
-				this._webContentsIdsToWebviewIds.delete(existing.webContentsId);
-			}
 		}
 	}
 

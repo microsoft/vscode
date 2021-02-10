@@ -143,7 +143,7 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 	}
 
 	public render(container: HTMLElement): void {
-		dom.addClass(container, 'select-container');
+		container.classList.add('select-container');
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
 		this.applyStyles();

@@ -215,7 +215,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		let result: Promise<ServerResponse.Response<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
 			result = new Promise<ServerResponse.Response<Proto.Response>>((resolve, reject) => {
-				this._callbacks.add(request.seq, { onSuccess: resolve, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
+				this._callbacks.add(request.seq, { onSuccess: resolve as () => ServerResponse.Response<Proto.Response> | undefined, onError: reject, queuingStartTime: Date.now(), isAsync: executeInfo.isAsync }, executeInfo.isAsync);
 
 				if (executeInfo.token) {
 					executeInfo.token.onCancellationRequested(() => {
@@ -318,7 +318,6 @@ class RequestRouter {
 		'open',
 		'updateOpen',
 		'configure',
-		'configurePlugin',
 	]);
 
 	constructor(
@@ -490,7 +489,8 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	private static readonly semanticCommands = new Set<keyof TypeScriptRequests>([
 		'geterr',
 		'geterrForProject',
-		'projectInfo'
+		'projectInfo',
+		'configurePlugin',
 	]);
 
 	/**

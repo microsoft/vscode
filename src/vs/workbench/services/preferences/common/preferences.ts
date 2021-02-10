@@ -18,6 +18,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IMatch } from 'vs/base/common/filters';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export enum SettingValueType {
 	Null = 'null',
@@ -76,6 +79,7 @@ export interface ISetting {
 	disallowSyncIgnore?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
+	enumItemLabels?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -161,18 +165,21 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
-	editSetting?: string;
+	revealSetting?: {
+		key: string;
+		edit?: boolean;
+	};
 }
 
-/**
- * TODO Why do we need this class?
- */
 export class SettingsEditorOptions extends EditorOptions implements ISettingsEditorOptions {
 
 	target?: ConfigurationTarget;
 	folderUri?: URI;
 	query?: string;
-	editSetting?: string;
+	revealSetting?: {
+		key: string;
+		edit?: boolean;
+	};
 
 	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
 		const options = new SettingsEditorOptions();
@@ -181,13 +188,18 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 		options.target = settings.target;
 		options.folderUri = settings.folderUri;
 		options.query = settings.query;
-		options.editSetting = settings.editSetting;
+		options.revealSetting = settings.revealSetting;
+		options.pinned = true;
 
 		return options;
 	}
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
+}
+
+export interface IKeybindingsEditorOptions extends IEditorOptions {
+	query?: string;
 }
 
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
@@ -210,7 +222,7 @@ export interface IPreferencesService {
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
-	openGlobalKeybindingSettings(textual: boolean): Promise<void>;
+	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
 }
@@ -227,6 +239,64 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 			return folder ? folder.name : '';
 	}
 	return '';
+}
+
+export interface KeybindingMatch {
+	ctrlKey?: boolean;
+	shiftKey?: boolean;
+	altKey?: boolean;
+	metaKey?: boolean;
+	keyCode?: boolean;
+}
+
+export interface KeybindingMatches {
+	firstPart: KeybindingMatch;
+	chordPart: KeybindingMatch;
+}
+
+export interface IKeybindingItemEntry {
+	id: string;
+	templateId: string;
+	keybindingItem: IKeybindingItem;
+	commandIdMatches?: IMatch[];
+	commandLabelMatches?: IMatch[];
+	commandDefaultLabelMatches?: IMatch[];
+	sourceMatches?: IMatch[];
+	whenMatches?: IMatch[];
+	keybindingMatches?: KeybindingMatches;
+}
+
+export interface IKeybindingItem {
+	keybinding: ResolvedKeybinding;
+	keybindingItem: ResolvedKeybindingItem;
+	commandLabel: string;
+	commandDefaultLabel: string;
+	command: string;
+	source: string;
+	when: string;
+}
+
+export interface IKeybindingsEditorPane extends IEditorPane {
+
+	readonly activeKeybindingEntry: IKeybindingItemEntry | null;
+	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
+	readonly onLayout: Event<void>;
+
+	search(filter: string): void;
+	focusSearch(): void;
+	clearSearchResults(): void;
+	focusKeybindings(): void;
+	recordSearchKeys(): void;
+	toggleSortByPrecedence(): void;
+	selectKeybinding(keybindingEntry: IKeybindingItemEntry): void;
+	defineKeybinding(keybindingEntry: IKeybindingItemEntry, add: boolean): Promise<void>;
+	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void;
+	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any>;
+	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
+	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
+	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
 }
 
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';

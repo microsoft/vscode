@@ -12,9 +12,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { MenuRegistry, MenuId, SyncActionDescriptor, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { EmptyWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -23,6 +23,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_URI } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class OpenFileAction extends Action {
 
@@ -114,11 +115,11 @@ export class CloseWorkspaceAction extends Action {
 
 	async run(): Promise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
+			this.notificationService.info(nls.localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."));
 			return;
 		}
 
-		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.configuration.remoteAuthority });
+		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.remoteAuthority });
 	}
 }
 
@@ -141,7 +142,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	async run(): Promise<void> {
 		const configuration = this.workspaceContextService.getWorkspace().configuration;
 		if (configuration) {
-			await this.editorService.openEditor({ resource: configuration });
+			await this.editorService.openEditor({ resource: configuration, options: { pinned: true } });
 		}
 	}
 }
@@ -225,7 +226,7 @@ export class SaveWorkspaceAsAction extends Action {
 export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
-	static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
+	static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate As Workspace in New Window");
 
 	constructor(
 		id: string,
@@ -241,7 +242,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 	async run(): Promise<void> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this.environmentService.remoteAuthority;
 
 		const newWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
 		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
@@ -250,6 +251,24 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 	}
 }
 
+class WorkspaceTrustManageAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.manageTrust',
+			title: { value: nls.localize('resetTrustAction', "Manage Trusted Workspaces"), original: 'Manage Trusted Workspaces' },
+			precondition: ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true),
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		editorService.openEditor({ resource: WORKSPACE_TRUST_URI, mode: 'jsonc', options: { pinned: true } });
+	}
+}
+
+registerAction2(WorkspaceTrustManageAction);
+
 // --- Actions Registration
 
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -257,9 +276,9 @@ const workspacesCategory = nls.localize('workspaces', "Workspaces");
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(AddRootFolderAction), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(GlobalRemoveRootFolderAction), 'Workspaces: Remove Folder from Workspace...', workspacesCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseWorkspaceAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'Workspaces: Close Workspace', workspacesCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SaveWorkspaceAsAction), 'Workspaces: Save Workspace As...', workspacesCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DuplicateWorkspaceInNewWindowAction), 'Workspaces: Duplicate Workspace in New Window', workspacesCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseWorkspaceAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'Workspaces: Close Workspace', workspacesCategory, EmptyWorkspaceSupportContext);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SaveWorkspaceAsAction), 'Workspaces: Save Workspace As...', workspacesCategory, EmptyWorkspaceSupportContext);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(DuplicateWorkspaceInNewWindowAction), 'Workspaces: Duplicate As Workspace in New Window', workspacesCategory);
 
 // --- Menu Registration
 
@@ -282,7 +301,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		id: SaveWorkspaceAsAction.ID,
 		title: nls.localize('miSaveWorkspaceAs', "Save Workspace As...")
 	},
-	order: 2
+	order: 2,
+	when: EmptyWorkspaceSupportContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -301,7 +321,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		precondition: WorkspaceFolderCountContext.notEqualsTo('0')
 	},
 	order: 3,
-	when: WorkbenchStateContext.notEqualsTo('workspace')
+	when: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('workspace'), EmptyWorkspaceSupportContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -311,5 +331,5 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace")
 	},
 	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'))
+	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), EmptyWorkspaceSupportContext)
 });

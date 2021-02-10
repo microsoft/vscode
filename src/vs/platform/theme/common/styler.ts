@@ -360,6 +360,9 @@ export interface IDialogStyleOverrides extends IButtonStyleOverrides {
 	errorIconForeground?: ColorIdentifier;
 	warningIconForeground?: ColorIdentifier;
 	infoIconForeground?: ColorIdentifier;
+	inputBackground?: ColorIdentifier;
+	inputForeground?: ColorIdentifier;
+	inputBorder?: ColorIdentifier;
 }
 
 export const defaultDialogStyles = <IDialogStyleOverrides>{
@@ -376,7 +379,10 @@ export const defaultDialogStyles = <IDialogStyleOverrides>{
 	checkboxForeground: simpleCheckboxForeground,
 	errorIconForeground: problemsErrorIconForeground,
 	warningIconForeground: problemsWarningIconForeground,
-	infoIconForeground: problemsInfoIconForeground
+	infoIconForeground: problemsInfoIconForeground,
+	inputBackground: inputBackground,
+	inputForeground: inputForeground,
+	inputBorder: inputBorder
 };
 
 

@@ -850,7 +850,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 					this.updateSoon.schedule();
 				} else {
 					this._setState(null);
-
 				}
 			} else {
 				this._update();
@@ -971,7 +970,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			return;
 		}
 
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model);
+		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
 
 		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
 		allMatches.sort(Range.compareRangesUsingStarts);

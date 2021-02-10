@@ -4,29 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./codicon/codicon';
-import 'vs/css!./codicon/codicon-modifications';
-import 'vs/css!./codicon/codicon-animations';
+import 'vs/css!./codicon/codicon-modifiers';
 
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
-
-function initialize() {
-	let codiconStyleSheet = createStyleSheet();
-	codiconStyleSheet.id = 'codiconStyles';
-
-	function updateAll() {
-		const rules = [];
-		for (let c of iconRegistry.all) {
-			rules.push(formatRule(c));
-		}
-		codiconStyleSheet.innerHTML = rules.join('\n');
-	}
-
-	const delayer = new RunOnceScheduler(updateAll, 0);
-	iconRegistry.onDidRegister(() => delayer.schedule());
-	delayer.schedule();
-}
+import { Codicon } from 'vs/base/common/codicons';
 
 export function formatRule(c: Codicon) {
 	let def = c.definition;
@@ -35,5 +15,3 @@ export function formatRule(c: Codicon) {
 	}
 	return `.codicon-${c.id}:before { content: '${def.character}'; }`;
 }
-
-initialize();

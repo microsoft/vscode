@@ -15,17 +15,14 @@ import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
-import { ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 
-export class PaneComposite extends Composite implements IPaneComposite {
+export abstract class PaneComposite extends Composite implements IPaneComposite {
 
-	private menuActions: ViewContainerMenuActions;
+	private viewPaneContainer?: ViewPaneContainer;
 
 	constructor(
 		id: string,
-		protected readonly viewPaneContainer: ViewPaneContainer,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -35,66 +32,57 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super(id, telemetryService, themeService, storageService);
-
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.getId(), MenuId.ViewContainerTitleContext));
-		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 	}
 
 	create(parent: HTMLElement): void {
+		this.viewPaneContainer = this._register(this.createViewPaneContainer(parent));
+		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 		this.viewPaneContainer.create(parent);
 	}
 
 	setVisible(visible: boolean): void {
 		super.setVisible(visible);
-		this.viewPaneContainer.setVisible(visible);
+		this.viewPaneContainer?.setVisible(visible);
 	}
 
 	layout(dimension: Dimension): void {
-		this.viewPaneContainer.layout(dimension);
+		this.viewPaneContainer?.layout(dimension);
 	}
 
 	getOptimalWidth(): number {
-		return this.viewPaneContainer.getOptimalWidth();
+		return this.viewPaneContainer?.getOptimalWidth() ?? 0;
 	}
 
 	openView<T extends IView>(id: string, focus?: boolean): T | undefined {
-		return this.viewPaneContainer.openView(id, focus) as T;
+		return this.viewPaneContainer?.openView(id, focus) as T;
 	}
 
-	getViewPaneContainer(): ViewPaneContainer {
+	getViewPaneContainer(): ViewPaneContainer | undefined {
 		return this.viewPaneContainer;
 	}
 
 	getActionsContext(): unknown {
-		return this.getViewPaneContainer().getActionsContext();
+		return this.getViewPaneContainer()?.getActionsContext();
 	}
 
 	getContextMenuActions(): ReadonlyArray<IAction> {
-		const result = [];
-		result.push(...this.menuActions.getContextMenuActions());
-
-		if (result.length) {
-			result.push(new Separator());
-		}
-
-		result.push(...this.viewPaneContainer.getContextMenuActions());
-		return result;
+		return this.viewPaneContainer?.getContextMenuActions() ?? [];
 	}
 
 	getActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getActions();
+		return this.viewPaneContainer?.getActions() ?? [];
 	}
 
 	getSecondaryActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer.getSecondaryActions();
+		return this.viewPaneContainer?.getSecondaryActions() ?? [];
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return this.viewPaneContainer.getActionViewItem(action);
+		return this.viewPaneContainer?.getActionViewItem(action);
 	}
 
 	getTitle(): string {
-		return this.viewPaneContainer.getTitle();
+		return this.viewPaneContainer?.getTitle() ?? '';
 	}
 
 	saveState(): void {
@@ -102,6 +90,8 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	}
 
 	focus(): void {
-		this.viewPaneContainer.focus();
+		this.viewPaneContainer?.focus();
 	}
+
+	protected abstract createViewPaneContainer(parent: HTMLElement): ViewPaneContainer;
 }

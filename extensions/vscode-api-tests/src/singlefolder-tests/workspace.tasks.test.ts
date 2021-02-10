@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution, Terminal, Event } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event } from 'vscode';
+import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -14,6 +15,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 		let disposables: Disposable[] = [];
 
 		teardown(() => {
+			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
 		});
@@ -94,7 +96,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 						};
 						return Promise.resolve(pty);
 					});
-					const task = new Task2(kind, TaskScope.Workspace, taskName, taskType, execution);
+					const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);
 					return result;
 				},
@@ -151,7 +153,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 						};
 						return Promise.resolve(pty);
 					});
-					const task = new Task2(kind, TaskScope.Workspace, taskName, taskType, execution);
+					const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);
 					return result;
 				},
@@ -168,7 +170,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 		});
 
 		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
-			return new Promise(async (resolve) => {
+			return new Promise<void>(async (resolve) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
 				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
@@ -213,7 +215,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 
 		// https://github.com/microsoft/vscode/issues/100577
 		test('A CustomExecution task can be fetched and executed', () => {
-			return new Promise(async (resolve, reject) => {
+			return new Promise<void>(async (resolve, reject) => {
 				class CustomTerminal implements Pseudoterminal {
 					private readonly writeEmitter = new EventEmitter<string>();
 					public readonly onDidWrite: Event<string> = this.writeEmitter.event;

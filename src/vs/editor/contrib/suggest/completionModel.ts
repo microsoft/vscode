@@ -10,22 +10,12 @@ import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { CharCode } from 'vs/base/common/charCode';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { quickSelect } from 'vs/base/common/arrays';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
-/* __GDPR__FRAGMENT__
-	"ICompletionStats" : {
-		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-	}
-*/
-// __GDPR__TODO__: This is a dynamically extensible structure which can not be declared statically.
 export interface ICompletionStats {
-	suggestionCount: number;
-	snippetCount: number;
-	textCount: number;
-	[name: string]: any;
+	pLabelLen: number;
 }
 
 export class LineContext {
@@ -55,7 +45,7 @@ export class CompletionModel {
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
 	private _filteredItems?: StrictCompletionItem[];
-	private _isIncomplete?: Set<CompletionItemProvider>;
+	private _providerInfo?: Map<CompletionItemProvider, boolean>;
 	private _stats?: ICompletionStats;
 
 	constructor(
@@ -99,9 +89,20 @@ export class CompletionModel {
 		return this._filteredItems!;
 	}
 
+	get allProvider(): IterableIterator<CompletionItemProvider> {
+		this._ensureCachedState();
+		return this._providerInfo!.keys();
+	}
+
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
-		return this._isIncomplete!;
+		const result = new Set<CompletionItemProvider>();
+		for (let [provider, incomplete] of this._providerInfo!) {
+			if (incomplete) {
+				result.add(provider);
+			}
+		}
+		return result;
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
@@ -135,8 +136,9 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 
-		this._isIncomplete = new Set();
-		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
+		this._providerInfo = new Map();
+
+		const labelLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
@@ -159,11 +161,8 @@ export class CompletionModel {
 				continue; // SKIP invalid items
 			}
 
-			// collect those supports that signaled having
-			// an incomplete result
-			if (item.container.incomplete) {
-				this._isIncomplete.add(item.provider);
-			}
+			// collect all support, know if their result is incomplete
+			this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
@@ -174,6 +173,8 @@ export class CompletionModel {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 				wordLow = word.toLowerCase();
 			}
+
+			const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 
 			// remember the word against which this item was
 			// scored
@@ -200,7 +201,6 @@ export class CompletionModel {
 					}
 				}
 
-				const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
@@ -240,15 +240,16 @@ export class CompletionModel {
 			target.push(item as StrictCompletionItem);
 
 			// update stats
-			this._stats.suggestionCount++;
-			switch (item.completion.kind) {
-				case CompletionItemKind.Snippet: this._stats.snippetCount++; break;
-				case CompletionItemKind.Text: this._stats.textCount++; break;
-			}
+			labelLengths.push(textLabel.length);
 		}
 
 		this._filteredItems = target.sort(this._snippetCompareFn);
 		this._refilterKind = Refilter.Nothing;
+		this._stats = {
+			pLabelLen: labelLengths.length ?
+				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
+				: 0
+		};
 	}
 
 	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {

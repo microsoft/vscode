@@ -11,7 +11,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from 'vs/base/common/fuzzyScorer';
-import * as objects from 'vs/base/common/objects';
 import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -103,7 +102,7 @@ export class SearchService implements IRawSearchService {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config, fileProgressCallback, token);
 			if (!sortedSearch) {
-				const walkerConfig = config.maxResults ? objects.assign({}, config, { maxResults: null }) : config;
+				const walkerConfig = config.maxResults ? Object.assign({}, config, { maxResults: null }) : config;
 				const engine = new EngineClass(walkerConfig);
 				sortedSearch = this.doSortedSearch(engine, config, progressCallback, fileProgressCallback, token);
 			}

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { WatcherChannel } from 'vs/platform/files/node/watcher/nsfw/watcherIpc';
 import { NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/nsfwWatcherService';
+import { createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
 
 const server = new Server('watcher');
 const service = new NsfwWatcherService();
-const channel = new WatcherChannel(service);
-server.registerChannel('watcher', channel);
+server.registerChannel('watcher', createChannelReceiver(service));

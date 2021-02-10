@@ -5,10 +5,10 @@
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWindowsShellHelper, ITerminalChildProcess, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal as XTermTerminal } from 'xterm';
-import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

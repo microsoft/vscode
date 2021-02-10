@@ -11,7 +11,7 @@ import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/commo
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 
 export interface IRelayOpenURLOptions extends IOpenURLOptions {
@@ -26,12 +26,12 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
-		this.urlService = createChannelSender(mainProcessService.getChannel('url'));
+		this.urlService = createChannelSender<IURLService>(mainProcessService.getChannel('url'));
 
 		mainProcessService.registerChannel('urlHandler', new URLHandlerChannel(this));
 		openerService.registerOpener(this);
@@ -42,9 +42,9 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 
 		let query = uri.query;
 		if (!query) {
-			query = `windowId=${encodeURIComponent(this.electronService.windowId)}`;
+			query = `windowId=${encodeURIComponent(this.nativeHostService.windowId)}`;
 		} else {
-			query += `&windowId=${encodeURIComponent(this.electronService.windowId)}`;
+			query += `&windowId=${encodeURIComponent(this.nativeHostService.windowId)}`;
 		}
 
 		return uri.with({ query });
@@ -66,7 +66,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		const result = await super.open(uri, options);
 
 		if (result) {
-			await this.electronService.focusWindow();
+			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */ });
 		}
 
 		return result;

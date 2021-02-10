@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -37,7 +37,8 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService
-	) { }
+	) {
+	}
 
 	protected async handleTelemetryOptOut(): Promise<void> {
 		if (this.productService.telemetryOptOutUrl && !this.storageService.get(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
@@ -49,7 +50,7 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 				return; // return early if meanwhile another window opened (we only show the opt-out once)
 			}
 
-			this.storageService.store(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
+			this.storageService.store(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL, StorageTarget.USER);
 
 			this.privacyUrl = this.productService.privacyStatementUrl || this.productService.telemetryOptOutUrl;
 

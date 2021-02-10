@@ -10,7 +10,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
 import { IConflictSetting, getDisallowedIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
-import { firstIndex, distinct } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IMergeResult {
@@ -320,7 +320,7 @@ interface InsertLocation {
 
 function getInsertLocation(key: string, sourceTree: INode[], targetTree: INode[]): InsertLocation {
 
-	const sourceNodeIndex = firstIndex(sourceTree, (node => node.setting?.key === key));
+	const sourceNodeIndex = sourceTree.findIndex(node => node.setting?.key === key);
 
 	const sourcePreviousNode: INode = sourceTree[sourceNodeIndex - 1];
 	if (sourcePreviousNode) {

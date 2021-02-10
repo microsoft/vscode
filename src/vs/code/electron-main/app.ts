@@ -3,57 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
-import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
+import { release } from 'os';
+import { statSync } from 'fs';
+import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { getShellEnvironment } from 'vs/code/node/shellEnv';
+import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
-import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
-import { Client } from 'vs/base/parts/ipc/common/ipc.net';
-import { Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
+import { getDelayedChannel, StaticRouter, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
+import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
+import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { LaunchMainService, ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IURLService } from 'vs/platform/url/common/url';
+import { IOpenURLOptions, IURLService } from 'vs/platform/url/common/url';
 import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService, combinedAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
-import { getDelayedChannel, StaticRouter, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
+import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { ActiveWindowManager } from 'vs/platform/windows/electron-main/windowTracker';
+import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
+import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
 import { IssueMainService, IIssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { LoggerChannel } from 'vs/platform/log/common/logIpc';
+import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { homedir } from 'os';
-import { join, sep, posix } from 'vs/base/common/path';
+import { sep, posix, join, isAbsolute } from 'vs/base/common/path';
+import { joinPath } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
@@ -63,43 +64,47 @@ import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainSe
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { statSync } from 'fs';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { WorkspacesManagementMainService, IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
-import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
-import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
-import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
+import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { coalesce } from 'vs/base/common/arrays';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { createServer, AddressInfo } from 'net';
-import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
+import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { isEqualOrParent } from 'vs/base/common/extpath';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
+import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
+import { once } from 'vs/base/common/functional';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private dialogMainService: IDialogMainService | undefined;
+	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
-		private readonly mainIpcServer: Server,
+		private readonly mainIpcServer: NodeIPCServer,
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -119,18 +124,18 @@ export class CodeApplication extends Disposable {
 		// Contextmenu via IPC support
 		registerContextMenuListener();
 
-		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
-			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
-			}
+		// Accessibility change event
+		app.on('accessibility-support-changed', (event, accessibilitySupportEnabled) => {
+			this.windowsMainService?.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
 		});
 
-		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
-			this.logService.trace('App#activate');
+		// macOS dock activate
+		app.on('activate', (event, hasVisibleWindows) => {
+			this.logService.trace('app#activate');
 
 			// Mac only event: open new window when we get activated
-			if (!hasVisibleWindows && this.windowsMainService) {
-				this.windowsMainService.openEmptyWindow({ context: OpenContext.DOCK });
+			if (!hasVisibleWindows) {
+				this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
 			}
 		});
 
@@ -139,24 +144,24 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 		app.on('remote-require', (event, sender, module) => {
-			this.logService.trace('App#on(remote-require): prevented');
+			this.logService.trace('app#on(remote-require): prevented');
 
 			event.preventDefault();
 		});
 		app.on('remote-get-global', (event, sender, module) => {
-			this.logService.trace(`App#on(remote-get-global): prevented on ${module}`);
+			this.logService.trace(`app#on(remote-get-global): prevented on ${module}`);
 
 			event.preventDefault();
 		});
 		app.on('remote-get-builtin', (event, sender, module) => {
-			this.logService.trace(`App#on(remote-get-builtin): prevented on ${module}`);
+			this.logService.trace(`app#on(remote-get-builtin): prevented on ${module}`);
 
 			if (module !== 'clipboard') {
 				event.preventDefault();
 			}
 		});
 		app.on('remote-get-current-window', event => {
-			this.logService.trace(`App#on(remote-get-current-window): prevented`);
+			this.logService.trace(`app#on(remote-get-current-window): prevented`);
 
 			event.preventDefault();
 		});
@@ -165,12 +170,12 @@ export class CodeApplication extends Disposable {
 				return; // the driver needs access to web contents
 			}
 
-			this.logService.trace(`App#on(remote-get-current-web-contents): prevented`);
+			this.logService.trace(`app#on(remote-get-current-web-contents): prevented`);
 
 			event.preventDefault();
 		});
-		app.on('web-contents-created', (_event: Event, contents) => {
-			contents.on('will-attach-webview', (event: Event, webPreferences, params) => {
+		app.on('web-contents-created', (event, contents) => {
+			contents.on('will-attach-webview', (event, webPreferences, params) => {
 
 				const isValidWebviewSource = (source: string | undefined): boolean => {
 					if (!source) {
@@ -212,10 +217,10 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			contents.on('new-window', (event: Event, url: string) => {
+			contents.on('new-window', (event, url) => {
 				event.preventDefault(); // prevent code that wants to open links
 
-				shell.openExternal(url);
+				this.nativeHostMainService?.openExternal(undefined, url);
 			});
 
 			session.defaultSession.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
@@ -231,8 +236,8 @@ export class CodeApplication extends Disposable {
 
 		let macOpenFileURIs: IWindowOpenable[] = [];
 		let runningTimeout: NodeJS.Timeout | null = null;
-		app.on('open-file', (event: Event, path: string) => {
-			this.logService.trace('App#open-file: ', path);
+		app.on('open-file', (event, path) => {
+			this.logService.trace('app#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
@@ -246,61 +251,134 @@ export class CodeApplication extends Disposable {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				if (this.windowsMainService) {
-					this.windowsMainService.open({
-						context: OpenContext.DOCK /* can also be opening from finder while app is running */,
-						cli: this.environmentService.args,
-						urisToOpen: macOpenFileURIs,
-						gotoLineMode: false,
-						preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
-					});
+				this.windowsMainService?.open({
+					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
+					cli: this.environmentService.args,
+					urisToOpen: macOpenFileURIs,
+					gotoLineMode: false,
+					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+				});
 
-					macOpenFileURIs = [];
-					runningTimeout = null;
-				}
+				macOpenFileURIs = [];
+				runningTimeout = null;
 			}, 100);
 		});
 
 		app.on('new-window-for-tab', () => {
-			if (this.windowsMainService) {
-				this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
-			}
+			this.windowsMainService?.openEmptyWindow({ context: OpenContext.DESKTOP }); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:fetchShellEnv', async (event: IpcMainEvent) => {
+		//#region Bootstrap IPC Handlers
+
+		let slowShellResolveWarningShown = false;
+		ipcMain.on('vscode:fetchShellEnv', async event => {
+
+			// DO NOT remove: not only usual windows are fetching the
+			// shell environment but also shared process, issue reporter
+			// etc, so we need to reply via `webContents` always
 			const webContents = event.sender;
 
-			try {
-				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
-				if (!webContents.isDestroyed()) {
-					webContents.send('vscode:acceptShellEnv', shellEnv);
-				}
-			} catch (error) {
-				if (!webContents.isDestroyed()) {
-					webContents.send('vscode:acceptShellEnv', {});
-				}
+			let replied = false;
 
-				this.logService.error('Error fetching shell env', error);
+			function acceptShellEnv(env: NodeJS.ProcessEnv): void {
+				clearTimeout(shellEnvSlowWarningHandle);
+				clearTimeout(shellEnvTimeoutErrorHandle);
+
+				if (!replied) {
+					replied = true;
+
+					if (!webContents.isDestroyed()) {
+						webContents.send('vscode:acceptShellEnv', env);
+					}
+				}
 			}
+
+			// Handle slow shell environment resolve calls:
+			// - a warning after 3s but continue to resolve (only once in active window)
+			// - an error after 10s and stop trying to resolve (in every window where this happens)
+			const cts = new CancellationTokenSource();
+
+			const shellEnvSlowWarningHandle = setTimeout(() => {
+				if (!slowShellResolveWarningShown) {
+					this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
+					slowShellResolveWarningShown = true;
+				}
+			}, 3000);
+
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
+			const shellEnvTimeoutErrorHandle = setTimeout(() => {
+				cts.dispose(true);
+				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
+				acceptShellEnv({});
+			}, 10000);
+
+			// Prefer to use the args and env from the target window
+			// when resolving the shell env. It is possible that
+			// a first window was opened from the UI but a second
+			// from the CLI and that has implications for whether to
+			// resolve the shell environment or not.
+			//
+			// Window can be undefined for e.g. the shared process
+			// that is not part of our windows registry!
+			let args: NativeParsedArgs;
+			let env: NodeJS.ProcessEnv;
+			if (window?.config) {
+				args = window.config;
+				env = { ...process.env, ...window.config.userEnv };
+			} else {
+				args = this.environmentService.args;
+				env = process.env;
+			}
+
+			// Resolve shell env
+			const shellEnv = await resolveShellEnv(this.logService, args, env);
+			acceptShellEnv(shellEnv);
 		});
 
-		ipc.on('vscode:toggleDevTools', (event: IpcMainEvent) => event.sender.toggleDevTools());
-		ipc.on('vscode:openDevTools', (event: IpcMainEvent) => event.sender.openDevTools());
+		ipcMain.handle('vscode:writeNlsFile', async (event, path: unknown, data: unknown) => {
+			const uri = this.validateNlsPath([path]);
+			if (!uri || typeof data !== 'string') {
+				throw new Error('Invalid operation (vscode:writeNlsFile)');
+			}
 
-		ipc.on('vscode:reloadWindow', (event: IpcMainEvent) => event.sender.reload());
+			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
+		});
 
-		// Some listeners after window opened
-		(async () => {
-			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
+		ipcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
+			const uri = this.validateNlsPath(paths);
+			if (!uri) {
+				throw new Error('Invalid operation (vscode:readNlsFile)');
+			}
 
-			// Keyboard layout changes (after window opened)
-			const nativeKeymap = await import('native-keymap');
-			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				if (this.windowsMainService) {
-					this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
+			return (await this.fileService.readFile(uri)).value.toString();
+		});
+
+		ipcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
+		ipcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
+
+		ipcMain.on('vscode:reloadWindow', event => event.sender.reload());
+
+		//#endregion
+	}
+
+	private validateNlsPath(pathSegments: unknown[]): URI | undefined {
+		let path: string | undefined = undefined;
+
+		for (const pathSegment of pathSegments) {
+			if (typeof pathSegment === 'string') {
+				if (typeof path !== 'string') {
+					path = pathSegment;
+				} else {
+					path = join(path, pathSegment);
 				}
-			});
-		})();
+			}
+		}
+
+		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentService.cachedLanguagesPath, !isLinux)) {
+			return undefined;
+		}
+
+		return URI.file(path);
 	}
 
 	private onUnexpectedError(err: Error): void {
@@ -313,9 +391,7 @@ export class CodeApplication extends Disposable {
 			};
 
 			// handle on client side
-			if (this.windowsMainService) {
-				this.windowsMainService.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
-			}
+			this.windowsMainService?.sendToFocused('vscode:reportError', JSON.stringify(friendlyError));
 		}
 
 		this.logService.error(`[uncaught exception in main]: ${err}`);
@@ -343,7 +419,7 @@ export class CodeApplication extends Disposable {
 		// "com.microsoft.", which breaks native tabs for VS Code when using this
 		// identifier (from the official build).
 		// Explicitly opt out of the patch here before creating any windows.
-		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
+		// See: https://github.com/microsoft/vscode/issues/35361#issuecomment-399794085
 		try {
 			if (isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
 				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
@@ -351,6 +427,9 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
+
+		// Setup Protocol Handler
+		const fileProtocolHandler = this._register(this.instantiationService.createInstance(FileProtocolHandler));
 
 		// Create Electron IPC Server
 		const electronIpcServer = new ElectronIPCServer();
@@ -362,19 +441,23 @@ export class CodeApplication extends Disposable {
 
 		// Spawn shared process after the first window has opened and 3s have passed
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
-		const sharedProcessClient = sharedProcess.whenIpcReady().then(() => {
-			this.logService.trace('Shared process: IPC ready');
-			return connect(this.environmentService.sharedIPCHandle, 'main');
-		});
-		const sharedProcessReady = sharedProcess.whenReady().then(() => {
-			this.logService.trace('Shared process: init ready');
+		const sharedProcessClient = (async () => {
+			this.logService.trace('Main->SharedProcess#connect');
+
+			const port = await sharedProcess.connect();
+
+			this.logService.trace('Main->SharedProcess#connect: connection established');
+
+			return new MessagePortClient(port, 'main');
+		})();
+		const sharedProcessReady = (async () => {
+			await sharedProcess.whenReady();
+
 			return sharedProcessClient;
-		});
+		})();
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
-
-				sharedProcess.spawn(userEnv);
+				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentService.args, process.env));
 			}, 3000)).schedule();
 		});
 
@@ -390,10 +473,10 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Setup Auth Handler
-		this._register(new ProxyAuthHandler());
+		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
@@ -418,7 +501,7 @@ export class CodeApplication extends Disposable {
 		return machineId;
 	}
 
-	private async createServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<Client<string>>): Promise<IInstantiationService> {
+	private async createServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		switch (process.platform) {
@@ -427,8 +510,8 @@ export class CodeApplication extends Disposable {
 				break;
 
 			case 'linux':
-				if (process.env.SNAP && process.env.SNAP_REVISION) {
-					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env.SNAP, process.env.SNAP_REVISION]));
+				if (isLinuxSnap) {
+					services.set(IUpdateService, new SyncDescriptor(SnapUpdateService, [process.env['SNAP'], process.env['SNAP_REVISION']]));
 				} else {
 					services.set(IUpdateService, new SyncDescriptor(LinuxUpdateService));
 				}
@@ -441,17 +524,18 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
-		services.set(ISharedProcessMainService, new SyncDescriptor(SharedProcessMainService, [sharedProcess]));
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
-
-		const diagnosticsChannel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')));
-		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
+		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
-		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
+		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
-		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
+		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
+		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
@@ -462,14 +546,14 @@ export class CodeApplication extends Disposable {
 
 		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
 		services.set(IURLService, new SyncDescriptor(NativeURLService));
-		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
+		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
-			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
-			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
-			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
+			const appender = new TelemetryAppenderClient(channel);
+			const commonProperties = resolveCommonProperties(this.fileService, release(), process.arch, product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
+			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -494,17 +578,15 @@ export class CodeApplication extends Disposable {
 
 			recordingStopped = true; // only once
 
-			const path = await contentTracing.stopRecording(join(homedir(), `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`));
+			const path = await contentTracing.stopRecording(joinPath(this.environmentService.userHome, `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
 
 			if (!timeout) {
-				if (this.dialogMainService) {
-					this.dialogMainService.showMessageBox({
-						type: 'info',
-						message: localize('trace.message', "Successfully created trace."),
-						detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-						buttons: [localize('trace.ok', "OK")]
-					}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-				}
+				this.dialogMainService?.showMessageBox({
+					type: 'info',
+					message: localize('trace.message', "Successfully created trace."),
+					detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+					buttons: [localize('trace.ok', "OK")]
+				}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 			} else {
 				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
 			}
@@ -520,7 +602,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<Client<string>>): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<MessagePortClient>, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
 
 		// Register more Main IPC services
 		const launchMainService = accessor.get(ILaunchMainService);
@@ -536,14 +618,22 @@ export class CodeApplication extends Disposable {
 		const issueChannel = createChannelReceiver(issueMainService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
-		const electronMainService = accessor.get(IElectronMainService);
-		const electronChannel = createChannelReceiver(electronMainService);
-		electronIpcServer.registerChannel('electron', electronChannel);
-		sharedProcessClient.then(client => client.registerChannel('electron', electronChannel));
+		const encryptionMainService = accessor.get(IEncryptionMainService);
+		const encryptionChannel = createChannelReceiver(encryptionMainService);
+		electronIpcServer.registerChannel('encryption', encryptionChannel);
 
-		const sharedProcessMainService = accessor.get(ISharedProcessMainService);
-		const sharedProcessChannel = createChannelReceiver(sharedProcessMainService);
-		electronIpcServer.registerChannel('sharedProcess', sharedProcessChannel);
+		const keyboardLayoutMainService = accessor.get(IKeyboardLayoutMainService);
+		const keyboardLayoutChannel = createChannelReceiver(keyboardLayoutMainService);
+		electronIpcServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
+
+		const displayMainService = accessor.get(IDisplayMainService);
+		const displayChannel = createChannelReceiver(displayMainService);
+		electronIpcServer.registerChannel('display', displayChannel);
+
+		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		const nativeHostChannel = createChannelReceiver(this.nativeHostMainService);
+		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
+		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
 		const workspacesService = accessor.get(IWorkspacesService);
 		const workspacesChannel = createChannelReceiver(workspacesService);
@@ -557,6 +647,10 @@ export class CodeApplication extends Disposable {
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
 
+		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
+		const extensionUrlTrustChannel = createChannelReceiver(extensionUrlTrustService);
+		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
+
 		const webviewManagerService = accessor.get(IWebviewManagerService);
 		const webviewChannel = createChannelReceiver(webviewManagerService);
 		electronIpcServer.registerChannel('webview', webviewChannel);
@@ -566,17 +660,17 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
-		const storageKeysSyncRegistryService = accessor.get(IStorageKeysSyncRegistryService);
-		const storageKeysSyncChannel = new StorageKeysSyncRegistryChannel(storageKeysSyncRegistryService);
-		electronIpcServer.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel);
-		sharedProcessClient.then(client => client.registerChannel('storageKeysSyncRegistryService', storageKeysSyncChannel));
+		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
+		electronIpcServer.registerChannel('logLevel', logLevelChannel);
+		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
 
-		const loggerChannel = new LoggerChannel(accessor.get(ILogService));
+		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
 		electronIpcServer.registerChannel('logger', loggerChannel);
-		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
+
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		fileProtocolHandler.injectWindowsMainService(windowsMainService);
 
 		// ExtensionHost Debug broadcast service
-		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
 
 		// Signal phase: ready (services set)
@@ -587,29 +681,32 @@ export class CodeApplication extends Disposable {
 
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
-		const pendingProtocolLinksToHandle = coalesce([
-
+		const pendingProtocolLinksToHandle = [
 			// Windows/Linux: protocol handler invokes CLI with --open-url
 			...this.environmentService.args['open-url'] ? this.environmentService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
-		].map(pendingUrlToHandle => {
+		].map(url => {
 			try {
-				return URI.parse(pendingUrlToHandle);
-			} catch (error) {
-				return undefined;
+				return { uri: URI.parse(url), url };
+			} catch {
+				return null;
 			}
-		})).filter(pendingUriToHandle => {
-			// if URI should be blocked, filter it out
-			if (this.shouldBlockURI(pendingUriToHandle)) {
+		}).filter((obj): obj is { uri: URI, url: string } => {
+			if (!obj) {
 				return false;
 			}
 
-			// filter out any protocol link that wants to open as window so that
+			// If URI should be blocked, filter it out
+			if (this.shouldBlockURI(obj.uri)) {
+				return false;
+			}
+
+			// Filter out any protocol link that wants to open as window so that
 			// we open the right set of windows on startup and not restore the
 			// previous workspace too.
-			const windowOpenable = this.getWindowOpenableFromProtocolLink(pendingUriToHandle);
+			const windowOpenable = this.getWindowOpenableFromProtocolLink(obj.uri);
 			if (windowOpenable) {
 				pendingWindowOpenablesFromProtocolLinks.push(windowOpenable);
 
@@ -620,11 +717,14 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler to open file URIs in the active window
+		// or open new windows. The URL handler will be invoked from
+		// protocol invocations outside of VSCode.
 		const app = this;
 		const environmentService = this.environmentService;
 		urlService.registerHandler({
-			async handleURL(uri: URI): Promise<boolean> {
-				// if URI should be blocked, behave as if it's handled
+			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+
+				// If URI should be blocked, behave as if it's handled
 				if (app.shouldBlockURI(uri)) {
 					return true;
 				}
@@ -632,12 +732,14 @@ export class CodeApplication extends Disposable {
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
 				if (windowOpenableFromProtocolLink) {
-					windowsMainService.open({
+					const [window] = windowsMainService.open({
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
 						gotoLineMode: true
 					});
+
+					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
 					return true;
 				}
@@ -654,7 +756,7 @@ export class CodeApplication extends Disposable {
 
 					await window.ready();
 
-					return urlService.open(uri);
+					return urlService.open(uri, options);
 				}
 
 				return false;
@@ -662,7 +764,11 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager(electronMainService);
+		const activeWindowManager = this._register(new ActiveWindowManager({
+			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
+			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
+			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
+		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
@@ -674,7 +780,7 @@ export class CodeApplication extends Disposable {
 		// Open our first window
 		const args = this.environmentService.args;
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
-		const context = !!process.env['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
+		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const hasCliArgs = args._.length;
 		const hasFolderURIs = !!args['folder-uri'];
 		const hasFileURIs = !!args['file-uri'];
@@ -694,8 +800,8 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// new window if "-n" or "--remote" was used without paths
-		if ((args['new-window'] || args.remote) && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+		// new window if "-n"
+		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 			return windowsMainService.open({
 				context,
 				cli: args,
@@ -742,7 +848,7 @@ export class CodeApplication extends Disposable {
 					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
 				],
 				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath), product.nameShort),
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentService), product.nameShort),
 				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 				noLink: true
 			});
@@ -811,8 +917,25 @@ export class CodeApplication extends Disposable {
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
+		// Windows: install mutex
+		const win32MutexName = product.win32MutexName;
+		if (isWindows && win32MutexName) {
+			try {
+				const WindowsMutex = (require.__$__nodeRequire('windows-mutex') as typeof import('windows-mutex')).Mutex;
+				const mutex = new WindowsMutex(win32MutexName);
+				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
+
 		// Remote Authorities
-		this.handleRemoteAuthorities();
+		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
+			callback({
+				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
+				method: request.method
+			});
+		});
 
 		// Initialize update service
 		const updateService = accessor.get(IUpdateService);
@@ -820,12 +943,14 @@ export class CodeApplication extends Disposable {
 			updateService.initialize();
 		}
 
+		// Start to fetch shell environment (if needed) after window has opened
+		resolveShellEnv(this.logService, this.environmentService.args, process.env);
+
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
 		// will be used as crash reporter id and also update the json file.
 		try {
-			const fileService = accessor.get(IFileService);
-			const argvContent = await fileService.readFile(this.environmentService.argvResource);
+			const argvContent = await this.fileService.readFile(this.environmentService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
 			if (argvJSON['enable-crash-reporter'] === undefined) {
@@ -842,116 +967,11 @@ export class CodeApplication extends Disposable {
 					'}'
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
-				await fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
+
+				await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {
 			this.logService.error(error);
 		}
-	}
-
-	private handleRemoteAuthorities(): void {
-		protocol.registerHttpProtocol(Schemas.vscodeRemoteResource, (request, callback) => {
-			callback({
-				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
-				method: request.method
-			});
-		});
-	}
-}
-
-class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
-
-	constructor(private windowsMainService: IWindowsMainService) {
-		super();
-	}
-
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
-		if (command === 'openExtensionDevelopmentHostWindow') {
-			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
-		} else {
-			return super.call(ctx, command, arg);
-		}
-	}
-
-	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
-		const pargs = parseArgs(args, OPTIONS);
-		const extDevPaths = pargs.extensionDevelopmentPath;
-		if (!extDevPaths) {
-			return {};
-		}
-
-		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
-			context: OpenContext.API,
-			cli: pargs,
-			userEnv: Object.keys(env).length > 0 ? env : undefined
-		});
-
-		if (!debugRenderer) {
-			return {};
-		}
-
-		const debug = codeWindow.win.webContents.debugger;
-
-		let listeners = debug.isAttached() ? Infinity : 0;
-		const server = createServer(listener => {
-			if (listeners++ === 0) {
-				debug.attach();
-			}
-
-			let closed = false;
-			const writeMessage = (message: object) => {
-				if (!closed) { // in case sendCommand promises settle after closed
-					listener.write(JSON.stringify(message) + '\0'); // null-delimited, CDP-compatible
-				}
-			};
-
-			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
-				writeMessage(({ method, params, sessionId }));
-
-			codeWindow.win.on('close', () => {
-				debug.removeListener('message', onMessage);
-				listener.end();
-				closed = true;
-			});
-
-			debug.addListener('message', onMessage);
-
-			let buf = Buffer.alloc(0);
-			listener.on('data', data => {
-				buf = Buffer.concat([buf, data]);
-				for (let delimiter = buf.indexOf(0); delimiter !== -1; delimiter = buf.indexOf(0)) {
-					let data: { id: number; sessionId: string; params: {} };
-					try {
-						const contents = buf.slice(0, delimiter).toString('utf8');
-						buf = buf.slice(delimiter + 1);
-						data = JSON.parse(contents);
-					} catch (e) {
-						console.error('error reading cdp line', e);
-					}
-
-					// depends on a new API for which electron.d.ts has not been updated:
-					// @ts-ignore
-					debug.sendCommand(data.method, data.params, data.sessionId)
-						.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
-						.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
-				}
-			});
-
-			listener.on('error', err => {
-				console.error('error on cdp pipe:', err);
-			});
-
-			listener.on('close', () => {
-				closed = true;
-				if (--listeners === 0) {
-					debug.detach();
-				}
-			});
-		});
-
-		await new Promise(r => server.listen(0, r));
-		codeWindow.win.on('close', () => server.close());
-
-		return { rendererDebugPort: (server.address() as AddressInfo).port };
 	}
 }

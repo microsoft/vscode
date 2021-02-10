@@ -13,6 +13,7 @@ import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/e
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -50,7 +51,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 			this._installGestureHandlerTimeout = -1;
 
 			// TODO@Alex: replace the usage of MSGesture here with something that works across all browsers
-			if ((<any>window).MSGesture) {
+			if (window.MSGesture) {
 				const touchGesture = new MSGesture();
 				const penGesture = new MSGesture();
 				touchGesture.target = this.viewHelper.linesContentDomNode;
@@ -182,7 +183,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	public _onMouseDown(e: EditorMouseEvent): void {
-		if (e.target && this.viewHelper.linesContentDomNode.contains(e.target) && this._lastPointerType === 'touch') {
+		if ((e.browserEvent as any).pointerType === 'touch') {
 			return;
 		}
 
@@ -210,6 +211,11 @@ class TouchHandler extends MouseHandler {
 		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
+			// Send the tap event also to the <textarea> (for input purposes)
+			const event = document.createEvent('CustomEvent');
+			event.initEvent(TextAreaSyntethicEvents.Tap, false, true);
+			this.viewHelper.dispatchTextAreaEvent(event);
+
 			this.viewController.moveTo(target.position);
 		}
 	}
@@ -226,9 +232,9 @@ export class PointerHandler extends Disposable {
 		super();
 		if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
-		} else if ((<any>window).TouchEvent) {
+		} else if (window.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
-		} else if (window.navigator.pointerEnabled || (<any>window).PointerEvent) {
+		} else if (window.navigator.pointerEnabled || window.PointerEvent) {
 			this.handler = this._register(new StandardPointerHandler(context, viewController, viewHelper));
 		} else {
 			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));

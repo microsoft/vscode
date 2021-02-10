@@ -10,13 +10,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -29,9 +27,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
@@ -55,7 +51,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			input.setForceOpenAsText();
 
 			// If more editors are installed that can handle this input, show a picker
-			await openEditorWith(input, undefined, options, this.group, this.editorService, this.configurationService, this.quickInputService);
+			await this.instantiationService.invokeFunction(openEditorWith, input, undefined, options, this.group);
 		}
 	}
 

@@ -451,7 +451,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this.container.classList.remove(classToReplace);
 		}
 
-		dom.addClass(this.container, className);
+		this.container.classList.add(className);
 
 	}
 

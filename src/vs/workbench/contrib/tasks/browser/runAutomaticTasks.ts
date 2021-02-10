@@ -9,21 +9,24 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { forEach } from 'vs/base/common/collections';
 import { RunOnOptions, Task, TaskRunSource, TASKS_CATEGORY } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
-		@IStorageService storageService: IStorageService) {
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceTrustService workspaceTrustService: IWorkspaceTrustService) {
 		super();
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		this.tryRunTasks(isFolderAutomaticAllowed);
+		const isWorkspaceTrusted = workspaceTrustService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted;
+		this.tryRunTasks(isFolderAutomaticAllowed && isWorkspaceTrusted);
 	}
 
 	private tryRunTasks(isAllowed: boolean | undefined) {
@@ -38,7 +41,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	private static runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task>>) {
+	private static runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
 		tasks.forEach(task => {
 			if (task instanceof Promise) {
 				task.then(promiseResult => {
@@ -52,8 +55,8 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		});
 	}
 
-	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task>>, taskNames: Array<string> } {
-		const tasks = new Array<Task | Promise<Task>>();
+	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>, taskNames: Array<string> } {
+		const tasks = new Array<Task | Promise<Task | undefined>>();
 		const taskNames = new Array<string>();
 		if (workspaceTaskResult) {
 			workspaceTaskResult.forEach(resultElement => {
@@ -68,7 +71,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 				if (resultElement.configurations) {
 					forEach(resultElement.configurations.byIdentifier, (configedTask) => {
 						if (configedTask.value.runOptions.runOn === RunOnOptions.folderOpen) {
-							tasks.push(new Promise<Task>(resolve => {
+							tasks.push(new Promise<Task | undefined>(resolve => {
 								taskService.getTask(resultElement.workspaceFolder, configedTask.value._id, true).then(task => resolve(task));
 							}));
 							if (configedTask.value._label) {
@@ -84,8 +87,13 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames };
 	}
 
-	public static promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService,
+	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustService: IWorkspaceTrustService,
 		workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
+		const isWorkspaceTrusted = await workspaceTrustService.requireWorkspaceTrust({ immediate: false }) === WorkspaceTrustState.Trusted;
+		if (!isWorkspaceTrusted) {
+			return;
+		}
+
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
 		if (isFolderAutomaticAllowed !== undefined) {
 			return;
@@ -110,14 +118,14 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 					label: nls.localize('allow', "Allow and run"),
 					run: () => {
 						resolve(true);
-						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, true, StorageScope.WORKSPACE);
+						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 					}
 				},
 				{
 					label: nls.localize('disallow', "Disallow"),
 					run: () => {
 						resolve(false);
-						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, false, StorageScope.WORKSPACE);
+						storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 					}
 				},
 				{
@@ -156,6 +164,6 @@ export class ManageAutomaticTaskRunning extends Action2 {
 			return;
 		}
 
-		storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, value === allowItem, StorageScope.WORKSPACE);
+		storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, value === allowItem, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }

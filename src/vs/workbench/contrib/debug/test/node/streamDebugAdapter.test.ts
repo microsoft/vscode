@@ -49,7 +49,7 @@ function serverConnection(socket: net.Socket) {
 
 suite('Debug - StreamDebugAdapter', () => {
 	const port = rndPort();
-	const pipeName = crypto.randomBytes(10).toString('utf8');
+	const pipeName = crypto.randomBytes(10).toString('hex');
 	const pipePath = platform.isWindows ? join('\\\\.\\pipe\\', pipeName) : join(tmpdir(), pipeName);
 
 	const testCases: { testName: string, debugAdapter: StreamDebugAdapter, connectionDetail: string | number }[] = [

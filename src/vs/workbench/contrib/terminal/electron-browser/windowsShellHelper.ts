@@ -6,8 +6,8 @@
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal as XTermTerminal } from 'xterm';
-import * as WindowsProcessTreeType from 'windows-process-tree';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 
@@ -52,10 +52,6 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	}
 
 	private async _startMonitoringShell(): Promise<void> {
-		if (!windowsProcessTree) {
-			windowsProcessTree = await import('windows-process-tree');
-		}
-
 		if (this._isDisposed) {
 			return;
 		}
@@ -133,7 +129,10 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (this._currentRequest) {
 			return this._currentRequest;
 		}
-		this._currentRequest = new Promise<string>(resolve => {
+		this._currentRequest = new Promise<string>(async resolve => {
+			if (!windowsProcessTree) {
+				windowsProcessTree = await import('windows-process-tree');
+			}
 			windowsProcessTree.getProcessTree(this._rootProcessId, (tree) => {
 				const name = this.traverseTree(tree);
 				this._currentRequest = undefined;

@@ -63,6 +63,11 @@ export interface IStatusbarEntry {
 	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
+
+	/**
+	 * Will enable a spinning icon in front of the text to indicate progress.
+	 */
+	readonly showProgress?: boolean;
 }
 
 export interface IStatusbarService {

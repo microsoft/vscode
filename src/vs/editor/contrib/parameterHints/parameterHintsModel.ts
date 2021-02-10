@@ -31,7 +31,8 @@ namespace ParameterHintState {
 	export class Pending {
 		readonly type = Type.Pending;
 		constructor(
-			readonly request: CancelablePromise<modes.SignatureHelpResult | undefined | null>
+			readonly request: CancelablePromise<modes.SignatureHelpResult | undefined | null>,
+			readonly previouslyActiveHints: modes.SignatureHelp | undefined,
 		) { }
 	}
 
@@ -167,8 +168,7 @@ export class ParameterHintsModel extends Disposable {
 
 	private async doTrigger(triggerId: number): Promise<boolean> {
 		const isRetrigger = this.state.type === ParameterHintState.Type.Active || this.state.type === ParameterHintState.Type.Pending;
-		const activeSignatureHelp = this.state.type === ParameterHintState.Type.Active ? this.state.hints : undefined;
-
+		const activeSignatureHelp = this.getLastActiveHints();
 		this.cancel(true);
 
 		if (this._pendingTriggers.length === 0) {
@@ -192,8 +192,9 @@ export class ParameterHintsModel extends Disposable {
 		const model = this.editor.getModel();
 		const position = this.editor.getPosition();
 
-		this.state = new ParameterHintState.Pending(createCancelablePromise(token =>
-			provideSignatureHelp(model, position, triggerContext, token)));
+		this.state = new ParameterHintState.Pending(
+			createCancelablePromise(token => provideSignatureHelp(model, position, triggerContext, token)),
+			activeSignatureHelp);
 
 		try {
 			const result = await this.state.request;
@@ -222,6 +223,14 @@ export class ParameterHintsModel extends Disposable {
 			}
 			onUnexpectedError(error);
 			return false;
+		}
+	}
+
+	private getLastActiveHints(): modes.SignatureHelp | undefined {
+		switch (this.state.type) {
+			case ParameterHintState.Type.Active: return this.state.hints;
+			case ParameterHintState.Type.Pending: return this.state.previouslyActiveHints;
+			default: return undefined;
 		}
 	}
 

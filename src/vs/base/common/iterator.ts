@@ -22,6 +22,10 @@ export namespace Iterable {
 		return iterable || _empty;
 	}
 
+	export function isEmpty<T>(iterable: Iterable<T> | undefined | null): boolean {
+		return !iterable || iterable[Symbol.iterator]().next().done === true;
+	}
+
 	export function first<T>(iterable: Iterable<T>): T | undefined {
 		return iterable[Symbol.iterator]().next().value;
 	}
@@ -35,6 +39,8 @@ export namespace Iterable {
 		return false;
 	}
 
+	export function filter<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): Iterable<R>;
+	export function filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T>;
 	export function* filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T> {
 		for (const element of iterable) {
 			if (predicate(element)) {
@@ -54,6 +60,41 @@ export namespace Iterable {
 			for (const element of iterable) {
 				yield element;
 			}
+		}
+	}
+
+	export function* concatNested<T>(iterables: Iterable<Iterable<T>>): Iterable<T> {
+		for (const iterable of iterables) {
+			for (const element of iterable) {
+				yield element;
+			}
+		}
+	}
+
+	export function reduce<T, R>(iterable: Iterable<T>, reducer: (previousValue: R, currentValue: T) => R, initialValue: R): R {
+		let value = initialValue;
+		for (const element of iterable) {
+			value = reducer(value, element);
+		}
+		return value;
+	}
+
+	/**
+	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
+	 */
+	export function* slice<T>(iterable: ReadonlyArray<T>, from: number, to = iterable.length): Iterable<T> {
+		if (from < 0) {
+			from += iterable.length;
+		}
+
+		if (to < 0) {
+			to += iterable.length;
+		} else if (to > iterable.length) {
+			to = iterable.length;
+		}
+
+		for (; from < to; from++) {
+			yield iterable[from];
 		}
 	}
 

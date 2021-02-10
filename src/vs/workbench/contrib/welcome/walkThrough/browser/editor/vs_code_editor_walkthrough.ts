@@ -38,17 +38,14 @@ That is the tip of the iceberg for multi-cursor editing. Have a look at the sele
 
 ### IntelliSense
 
-Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor in front of the error underline, right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestion comes from the Request API.
+Visual Studio Code comes with the powerful IntelliSense for JavaScript and TypeScript pre-installed. In the below example, position the text cursor right after the dot and press kb(editor.action.triggerSuggest) to invoke IntelliSense.  Notice how the suggestions come from the Canvas API.
 
 |||js
-const express = require('express');
-const app = express();
+const canvas = document.querySelector('canvas');
+const context = canvas.getContext('2d');
 
-app.get('/',  (req, res) => {
-	res.send(|Hello \${req.}|);
-});
-
-app.listen(3000);
+context.strokeStyle = 'blue';
+context.
 |||
 
 >**Tip:** while we ship JavaScript and TypeScript support out of the box other languages can be upgraded with better IntelliSense through one of the many [extensions](command:workbench.extensions.action.showPopularExtensions).
@@ -56,7 +53,7 @@ app.listen(3000);
 
 ### Line Actions
 Since it's very common to work with the entire text in a line we provide a set of useful shortcuts to help with this.
-1. Copy a line and insert it above or below the current position with kb(editor.action.copyLinesDownAction) or kb(editor.action.copyLinesUpAction) respectively.
+1. <span class="mac-only windows-only">Copy a line and insert it above or below the current position with kb(editor.action.copyLinesDownAction) or kb(editor.action.copyLinesUpAction) respectively.</span><span class="linux-only">Copy the entire current line when no text is selected with kb(editor.action.clipboardCopyAction).</span>
 2. Move an entire line or selection of lines up or down with kb(editor.action.moveLinesUpAction) and kb(editor.action.moveLinesDownAction) respectively.
 3. Delete the entire line with kb(editor.action.deleteLines).
 
@@ -73,7 +70,7 @@ Since it's very common to work with the entire text in a line we provide a set o
 
 
 ### Rename Refactoring
-It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol |Book| to rename all instances - this will occur across all files in a project.  You can also see refactoring in the right-click context menu.
+It's easy to rename a symbol such as a function name or variable name.  Hit kb(editor.action.rename) while in the symbol |Book| to rename all instances - this will occur across all files in a project. You also have |Rename Symbol| in the right-click context menu.
 
 |||js
 // Reference the function

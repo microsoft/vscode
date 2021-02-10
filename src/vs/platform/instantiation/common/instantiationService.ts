@@ -132,15 +132,31 @@ export class InstantiationService implements IInstantiationService {
 	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
 		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
-			return this._createAndCacheServiceInstance(id, thing, _trace.branch(id, true));
+			return this._safeCreateAndCacheServiceInstance(id, thing, _trace.branch(id, true));
 		} else {
 			_trace.branch(id, false);
 			return thing;
 		}
 	}
 
+	private readonly _activeInstantiations = new Set<ServiceIdentifier<any>>();
+
+
+	private _safeCreateAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
+		if (this._activeInstantiations.has(id)) {
+			throw new Error(`illegal state - RECURSIVELY instantiating service '${id}'`);
+		}
+		this._activeInstantiations.add(id);
+		try {
+			return this._createAndCacheServiceInstance(id, desc, _trace);
+		} finally {
+			this._activeInstantiations.delete(id);
+		}
+	}
+
 	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
-		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace };
+
+		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace; };
 		const graph = new Graph<Triple>(data => data.id.toString());
 
 		let cycleCount = 0;
@@ -183,13 +199,18 @@ export class InstantiationService implements IInstantiationService {
 			}
 
 			for (const { data } of roots) {
-				// create instance and overwrite the service collections
-				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
-				this._setServiceInstance(data.id, instance);
+				// Repeat the check for this still being a service sync descriptor. That's because
+				// instantiating a dependency might have side-effect and recursively trigger instantiation
+				// so that some dependencies are now fullfilled already.
+				const instanceOrDesc = this._getServiceInstanceOrDescriptor(data.id);
+				if (instanceOrDesc instanceof SyncDescriptor) {
+					// create instance and overwrite the service collections
+					const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
+					this._setServiceInstance(data.id, instance);
+				}
 				graph.removeNode(data);
 			}
 		}
-
 		return <T>this._getServiceInstanceOrDescriptor(id);
 	}
 

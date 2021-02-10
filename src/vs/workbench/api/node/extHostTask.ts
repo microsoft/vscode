@@ -51,6 +51,11 @@ export class ExtHostTask extends ExtHostTaskBase {
 
 	public async executeTask(extension: IExtensionDescription, task: vscode.Task): Promise<vscode.TaskExecution> {
 		const tTask = (task as types.Task);
+
+		if (!task.execution && (tTask._id === undefined)) {
+			throw new Error('Tasks to execute must include an execution');
+		}
+
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
 			// Always get the task execution first to prevent timing issues when retrieving it later
@@ -99,7 +104,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 						// is invoked, we have to be able to map it back to our data.
-						taskIdPromises.push(this.addCustomExecution(taskDTO, <vscode.Task2>task, true));
+						taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
 					}
 				}
 			}
@@ -117,7 +122,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	private async getVariableResolver(workspaceFolders: vscode.WorkspaceFolder[]): Promise<ExtHostVariableResolverService> {
 		if (this._variableResolver === undefined) {
 			const configProvider = await this._configurationService.getConfigProvider();
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, process.env as IProcessEnvironment);
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, process.env as IProcessEnvironment, this.workspaceService);
 		}
 		return this._variableResolver;
 	}

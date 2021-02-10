@@ -20,7 +20,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7"
+    "@types/node": "^12.19.9"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -62,5 +62,9 @@
         }
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

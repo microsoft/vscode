@@ -36,11 +36,12 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		}
 
 		return new vscode.Hover(
-			this.getContents(response.body, response._serverType),
+			this.getContents(document.uri, response.body, response._serverType),
 			typeConverters.Range.fromTextSpan(response.body));
 	}
 
 	private getContents(
+		resource: vscode.Uri,
 		data: Proto.QuickInfoResponseBody,
 		source: ServerType | undefined,
 	) {
@@ -49,7 +50,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		if (data.displayString) {
 			const displayParts: string[] = [];
 
-			if (source === ServerType.Syntax && this.client.capabilities.has(ClientCapability.Semantic)) {
+			if (source === ServerType.Syntax && this.client.hasCapabilityForResource(resource, ClientCapability.Semantic)) {
 				displayParts.push(
 					localize({
 						key: 'loadingPrefix',

@@ -22,13 +22,13 @@ export async function createRandomFile(contents = '', dir: vscode.Uri | undefine
 	} else {
 		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
 	}
-	await testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
+	testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
 	return fakeFile;
 }
 
 export async function deleteFile(file: vscode.Uri): Promise<boolean> {
 	try {
-		await testFs.delete(file);
+		testFs.delete(file);
 		return true;
 	} catch {
 		return false;
@@ -71,4 +71,49 @@ export function withLogDisabled(runnable: () => Promise<any>): () => Promise<voi
 			await vscode.commands.executeCommand('_extensionTests.setLogLevel', logLevel);
 		}
 	};
+}
+
+export function assertNoRpc() {
+	assertNoRpcFromEntry([vscode, 'vscode']);
+}
+
+export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
+
+	const symProxy = Symbol.for('rpcProxy');
+	const symProtocol = Symbol.for('rpcProtocol');
+
+	const proxyPaths: string[] = [];
+	const rpcPaths: string[] = [];
+
+	function walk(obj: any, path: string, seen: Set<any>) {
+		if (!obj) {
+			return;
+		}
+		if (typeof obj !== 'object' && typeof obj !== 'function') {
+			return;
+		}
+		if (seen.has(obj)) {
+			return;
+		}
+		seen.add(obj);
+
+		if (obj[symProtocol]) {
+			rpcPaths.push(`PROTOCOL via ${path}`);
+		}
+		if (obj[symProxy]) {
+			proxyPaths.push(`PROXY '${obj[symProxy]}' via ${path}`);
+		}
+
+		for (const key in obj) {
+			walk(obj[key], `${path}.${String(key)}`, seen);
+		}
+	}
+
+	try {
+		walk(entry[0], entry[1], new Set());
+	} catch (err) {
+		assert.fail(err);
+	}
+	assert.strictEqual(rpcPaths.length, 0, rpcPaths.join('\n'));
+	assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n')); // happens...
 }

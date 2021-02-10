@@ -76,7 +76,6 @@
 }
 
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
-	padding: 1px;
 	border-radius: 3px;
 }
 
@@ -90,7 +89,7 @@
 	height: 22px;
 }
 
-.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .ibwrapper > .input {
 	padding: 0;
 	height: 20px;
 }

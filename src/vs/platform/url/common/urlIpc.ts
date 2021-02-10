@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { first } from 'vs/base/common/arrays';
 
 export class URLHandlerChannel implements IServerChannel {
 
@@ -20,7 +19,7 @@ export class URLHandlerChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'handleURL': return this.handler.handleURL(URI.revive(arg));
+			case 'handleURL': return this.handler.handleURL(URI.revive(arg[0]), arg[1]);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -32,7 +31,7 @@ export class URLHandlerChannelClient implements IURLHandler {
 	constructor(private channel: IChannel) { }
 
 	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		return this.channel.call('handleURL', uri.toJSON());
+		return this.channel.call('handleURL', [uri.toJSON(), options]);
 	}
 }
 
@@ -54,7 +53,7 @@ export class URLHandlerRouter implements IClientRouter<string> {
 				if (match) {
 					const windowId = match[1];
 					const regex = new RegExp(`window:${windowId}`);
-					const connection = first(hub.connections, c => regex.test(c.ctx));
+					const connection = hub.connections.find(c => regex.test(c.ctx));
 
 					if (connection) {
 						return connection;

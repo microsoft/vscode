@@ -32,6 +32,7 @@ let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"haml": { extensions: ['haml'] },
 	"stylus": { extensions: ['styl'] },
 	"vala": { extensions: ['vala'] },
+	"github-issues": { extensions: ['github-issues'] },
 	"todo": { fileNames: ['todo'] }
 };
 
@@ -305,7 +306,7 @@ exports.update = function () {
 		}
 
 		return download(fileAssociationFile).then(function (content) {
-			let regex2 = /\.icon-(?:set|partial)\(['"]([\w-\.]+)['"],\s*['"]([\w-]+)['"],\s*(@[\w-]+)\)/g;
+			let regex2 = /\.icon-(?:set|partial)\(['"]([\w-\.+]+)['"],\s*['"]([\w-]+)['"],\s*(@[\w-]+)\)/g;
 			while ((match = regex2.exec(content)) !== null) {
 				let pattern = match[1];
 				let def = '_' + match[2];

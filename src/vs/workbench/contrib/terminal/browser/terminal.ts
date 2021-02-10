@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal as XTermTerminal } from 'xterm';
-import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro, IRemoteTerminalAttachTarget, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
 /**
  * A service used by TerminalInstance (and components owned by it) that allows it to break its
@@ -57,16 +58,22 @@ export interface ITerminalTab {
 	title: string;
 	onDisposed: Event<ITerminalTab>;
 	onInstancesChanged: Event<void>;
-
 	focusPreviousPane(): void;
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
+	resizePanes(relativeSizes: number[]): void;
 	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
+	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById;
+}
+
+export const enum TerminalConnectionState {
+	Connecting,
+	Connected
 }
 
 export interface ITerminalService {
@@ -76,7 +83,10 @@ export interface ITerminalService {
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
+	isProcessSupportRegistered: boolean;
+	readonly connectionState: TerminalConnectionState;
 
+	initializeTerminals(): Promise<void>;
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
 	onInstanceCreated: Event<ITerminalInstance>;
@@ -87,9 +97,11 @@ export interface ITerminalService {
 	onInstanceRequestSpawnExtHostProcess: Event<ISpawnExtHostProcessRequest>;
 	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	onInstancesChanged: Event<void>;
-	onInstanceTitleChanged: Event<ITerminalInstance>;
+	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
+	onDidRegisterProcessSupport: Event<void>;
+	onDidChangeConnectionState: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -136,6 +148,7 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
+	registerProcessSupport(isSupported: boolean): void;
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
 	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
@@ -169,6 +182,17 @@ export interface ITerminalService {
 	extHostReady(remoteAuthority: string): void;
 	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
+	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
+}
+
+export interface IRemoteTerminalService {
+	readonly _serviceBrand: undefined;
+	dispose(): void;
+	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
+	createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
+
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 /**
@@ -238,6 +262,12 @@ export interface ITerminalInstance {
 	 * with this terminal.
 	 */
 	processId: number | undefined;
+
+	/**
+	 * The id of a terminal on the remote server. Defined if this is a terminal created
+	 * by the RemoteTerminalService.
+	 */
+	readonly remoteTerminalId: number | undefined;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
@@ -399,6 +429,11 @@ export interface ITerminalInstance {
 	 * Notifies the terminal that the find widget's focus state has been changed.
 	 */
 	notifyFindWidgetFocusChanged(isFocused: boolean): void;
+
+	/**
+	 * Notifies the terminal to refresh its focus state based on the active document elemnet in DOM
+	 */
+	refreshFocusState(): void;
 
 	/**
 	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
