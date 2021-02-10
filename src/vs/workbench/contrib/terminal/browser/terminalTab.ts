@@ -297,14 +297,14 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		return this._terminalInstances[this._activeInstanceIndex];
 	}
 
-	public getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
+	public getLayoutInfo(isActive: boolean, isRemote: boolean): ITerminalTabLayoutInfoById {
 		const isHorizontal = this.splitPaneContainer?.orientation === Orientation.HORIZONTAL;
-		const remoteInstances = this.terminalInstances.filter(instance => typeof instance.remoteTerminalId === 'number');
-		const totalSize = remoteInstances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
+		const instances = isRemote ? this.terminalInstances.filter(instance => typeof instance.remoteTerminalId === 'number') : this.terminalInstances;
+		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {
 			isActive: isActive,
-			activeTerminalProcessId: this.activeInstance?.processId || 0,
-			terminals: remoteInstances.map(t => {
+			activeTerminalProcessId: isRemote ? this.activeInstance?.processId || 0 : this.activeInstance?.id || 0,
+			terminals: instances.map(t => {
 				return {
 					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,
 					terminal: t.remoteTerminalId!
@@ -485,7 +485,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			this._initialRelativeSizes = relativeSizes;
 			return;
 		}
-
+		// for the local case
+		this._initialRelativeSizes = relativeSizes;
 		this._splitPaneContainer.resizePanes(relativeSizes);
 	}
 }
