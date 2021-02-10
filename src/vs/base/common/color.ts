@@ -599,18 +599,24 @@ export namespace Color {
 					case CharCode.Digit7: return 7;
 					case CharCode.Digit8: return 8;
 					case CharCode.Digit9: return 9;
-					case CharCode.a: return 10;
-					case CharCode.A: return 10;
-					case CharCode.b: return 11;
-					case CharCode.B: return 11;
-					case CharCode.c: return 12;
-					case CharCode.C: return 12;
-					case CharCode.d: return 13;
-					case CharCode.D: return 13;
-					case CharCode.e: return 14;
-					case CharCode.E: return 14;
-					case CharCode.f: return 15;
-					case CharCode.F: return 15;
+					case CharCode.a:
+					case CharCode.A: 
+						return 10;
+					case CharCode.b:
+					case CharCode.B:
+						return 11;
+					case CharCode.c:
+					case CharCode.C:
+						return 12;
+					case CharCode.d:
+					case CharCode.D:
+						return 13;
+					case CharCode.e:
+					case CharCode.E: 
+						return 14;
+					case CharCode.f:
+					case CharCode.F: 
+						return 15;
 				}
 				return 0;
 			}
