@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol as MessagePortProtocol } from 'vs/base/parts/ipc/common/ipc.mp';
@@ -39,6 +39,9 @@ export class Server extends IPCServer {
 			};
 
 			// Send one port back to the requestor
+			// Note: we intentionally use `electron` APIs here because
+			// transferables like the `MessagePort` cannot be transfered
+			// over preload scripts when `contextIsolation: true`
 			ipcRenderer.postMessage('vscode:createMessageChannelResult', nonce, [outgoingPort]);
 
 			return result;

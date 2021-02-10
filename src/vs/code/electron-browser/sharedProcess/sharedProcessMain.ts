@@ -7,7 +7,8 @@ import product from 'vs/platform/product/common/product';
 import * as fs from 'fs';
 import { release } from 'os';
 import { gracefulify } from 'graceful-fs';
-import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { ipcRenderer } from 'electron';
+import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -28,7 +29,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogger } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
@@ -40,7 +40,8 @@ import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/co
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { IMainProcessService, MessagePortMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
