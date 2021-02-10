@@ -91,11 +91,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 
 	set(type: UserDataSyncStoreType) {
 		if (this.userDataSyncStore) {
-			if (type === this.userDataSyncStore.defaultType) {
-				this.storageService.remove(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL);
-			} else {
-				this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			}
+			this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	}
 
@@ -130,7 +126,11 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 
 	async switch(type: UserDataSyncStoreType): Promise<void> {
 		if (this.userDataSyncStore?.canSwitch && type !== this.userDataSyncStore.type) {
-			this.set(type);
+			if (type === this.userDataSyncStore.defaultType) {
+				this.storageService.remove(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL);
+			} else {
+				this.set(type);
+			}
 			this.updateUserDataSyncStore();
 		}
 	}

@@ -27,7 +27,7 @@ import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncStoreManagementService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
@@ -540,36 +540,57 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 						}
 					});
 				}
+
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
 					const userDataAutoSyncEnablementService = accessor.get(IUserDataAutoSyncEnablementService);
 					const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
 					const storageService = accessor.get(IStorageService);
 
-					const askToUseInsidersSettingsSyncService = isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled();
-					const useInsidersSettingsSyncServiceCheckedKey = 'switchQuality.useInsidersSettingsSyncService.checked';
+					const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
+					let userDataSyncStoreType: UserDataSyncStoreType | undefined;
+					if (isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
+						&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
+						userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
+						if (!userDataSyncStoreType) {
+							return;
+						}
+					}
 
 					const res = await dialogService.confirm({
 						type: 'info',
-						message: askToUseInsidersSettingsSyncService ? nls.localize('relaunchMessage1', "Choose Settings Sync service and Reload")
-							: nls.localize('relaunchMessage2', "Changing the version requires a reload to take effect"),
-						detail: isSwitchingToInsiders ?
+						message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
+						detail: newQuality === 'insider' ?
 							nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
 							nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
-						checkbox: askToUseInsidersSettingsSyncService ? {
-							label: nls.localize('useInsidersSyncService.description', "Use Insiders Settings Sync service for syncing."),
-							checked: storageService.getBoolean(useInsidersSettingsSyncServiceCheckedKey, StorageScope.GLOBAL, true)
-						} : undefined,
 						primaryButton: nls.localize('reload', "&&Reload")
 					});
 
 					if (res.confirmed) {
-						if (askToUseInsidersSettingsSyncService) {
-							storageService.store(useInsidersSettingsSyncServiceCheckedKey, !!res.checkboxChecked, StorageScope.GLOBAL, StorageTarget.USER);
-							userDataSyncStoreManagementService.switch(res.checkboxChecked ? 'insiders' : 'stable');
+						if (userDataSyncStoreType !== undefined) {
+							userDataSyncStoreManagementService.set(userDataSyncStoreType);
+							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+							await storageService.flush();
 						}
 						productQualityChangeHandler(newQuality);
 					}
+				}
+
+				private async selectSettingsSyncService(dialogService: IDialogService): Promise<UserDataSyncStoreType | undefined> {
+					const res = await dialogService.show(
+						Severity.Info,
+						nls.localize('selectSyncService.message', "Choose the settings sync service to use"),
+						[
+							nls.localize('use insiders', "Insiders"),
+							nls.localize('use stable', "Stable (current)"),
+							nls.localize('cancel', "Cancel"),
+						],
+						{
+							detail: nls.localize('selectSyncService.detail', "Switching to insiders version will synchronize your data using insiders settings sync service."),
+							cancelId: 2
+						}
+					);
+					return res.choice === 0 ? 'insiders' : res.choice === 1 ? 'stable' : undefined;
 				}
 			});
 		}
