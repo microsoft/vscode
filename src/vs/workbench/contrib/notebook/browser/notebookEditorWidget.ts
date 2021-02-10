@@ -1470,7 +1470,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const nextIndex = ui ? this.viewModel.getNextVisibleCellIndex(index) : index + 1;
 		let language;
 		if (type === CellKind.Code) {
-			const defaultLanguage = this.viewModel.notebookDocument.resolvedLanguages[0] || 'plaintext';
+			const supportedLanguages = this._activeKernel?.supportedLanguages ?? this.viewModel.notebookDocument.resolvedLanguages;
+			const defaultLanguage = supportedLanguages[0] || 'plaintext';
 			if (cell?.cellKind === CellKind.Code) {
 				language = cell.language;
 			} else if (cell?.cellKind === CellKind.Markdown) {
@@ -1489,7 +1490,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			if (this.viewModel.notebookDocument.resolvedLanguages.indexOf(language) < 0) {
+			if (!supportedLanguages.includes(language)) {
 				// the language no longer exists
 				language = defaultLanguage;
 			}
@@ -1501,8 +1502,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const focused = this._list.getFocusedElements();
-		const newCell = this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
-		return newCell as CellViewModel;
+		return this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
 	}
 
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
