@@ -35,7 +35,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this._register(tunnelService.onTunnelClosed(() => this._proxy.$onDidTunnelsChange()));
 	}
 
-	async $setCandidateFinder(): Promise<void> {
+	async $setRemoteTunnelService(processId: number): Promise<void> {
+		this.remoteExplorerService.namedProcesses.set(processId, 'Code Extension Host');
 		if (this.remoteExplorerService.portsFeaturesEnabled) {
 			this._proxy.$registerCandidateFinder(this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING));
 		} else {

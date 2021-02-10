@@ -137,10 +137,16 @@ export async function loadLocalResource(
 
 		logService.debug(`loadLocalResource - Loaded over http(s). requestUri=${requestUri}, response=${response.res.statusCode}`);
 
-		if (response.res.statusCode === 200) {
-			return new WebviewResourceResponse.StreamSuccess(response.stream, response.res.headers['etag'], mime);
+		switch (response.res.statusCode) {
+			case 200:
+				return new WebviewResourceResponse.StreamSuccess(response.stream, response.res.headers['etag'], mime);
+
+			case 304: // Not modified
+				return new WebviewResourceResponse.NotModified(mime);
+
+			default:
+				return WebviewResourceResponse.Failed;
 		}
-		return WebviewResourceResponse.Failed;
 	}
 
 	try {

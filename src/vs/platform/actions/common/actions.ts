@@ -89,6 +89,7 @@ export class MenuId {
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
@@ -148,6 +149,7 @@ export class MenuId {
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
+	static readonly TerminalContext = new MenuId('TerminalContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -174,7 +176,7 @@ export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
-	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
+	createMenu(id: MenuId, contextKeyService: IContextKeyService, emitEventsForSubmenuChanges?: boolean): IMenu;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;

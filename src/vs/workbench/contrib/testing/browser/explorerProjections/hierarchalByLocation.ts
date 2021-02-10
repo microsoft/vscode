@@ -10,12 +10,27 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
+import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+
+const computedStateAccessor: IComputedStateAccessor<ITestTreeElement> = {
+	getOwnState: i => i.state,
+	getCurrentComputedState: i => i.state,
+	setComputedState: (i, s) => i.state = s,
+	getChildren: i => i.children.values(),
+	*getParents(i) {
+		for (let parent = i.parentItem; parent; parent = parent.parentItem) {
+			yield parent;
+		}
+	},
+};
 
 /**
  * Projection that lists tests in their traditional tree view.
@@ -40,10 +55,41 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	 */
 	public readonly onUpdate = this.updateEmitter.event;
 
-	constructor(listener: TestSubscriptionListener) {
+	constructor(listener: TestSubscriptionListener, @ITestResultService private readonly results: ITestResultService) {
 		super();
 		this._register(listener.onDiff(([folder, diff]) => this.applyDiff(folder, diff)));
 		this._register(listener.onFolderChange(this.applyFolderChange, this));
+
+		// when test results are cleared, recalculate all state
+		this._register(results.onResultsChanged((evt) => {
+			if (!('removed' in evt)) {
+				return;
+			}
+
+			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
+				const lookup = this.results.getStateByExtId(inTree.test.item.extId)?.[1];
+				inTree.ownState = lookup?.state.state ?? TestRunState.Unset;
+				const computed = lookup?.computedState ?? TestRunState.Unset;
+				if (computed !== inTree.state) {
+					inTree.state = computed;
+					this.addUpdated(inTree);
+				}
+			}
+
+			this.updateEmitter.fire();
+		}));
+
+		// when test states change, reflect in the tree
+		this._register(results.onTestChanged(([, { item, state, computedState }]) => {
+			for (const i of this.items.values()) {
+				if (i.test.item.extId === item.extId) {
+					i.ownState = state.state;
+					refreshComputedState(computedStateAccessor, i, this.addUpdated, computedState);
+					this.updateEmitter.fire();
+					return;
+				}
+			}
+		}));
 
 		for (const [folder, collection] of listener.workspaceFolderCollections) {
 			for (const node of collection.all) {
@@ -96,7 +142,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 					const locationChanged = !locationsEqual(existing.location, item.item.location);
 					if (locationChanged) { this.locations.remove(existing); }
-					existing.update(item, this.addUpdated);
+					existing.update(item);
 					if (locationChanged) { this.locations.add(existing); }
 					this.addUpdated(existing);
 					break;
@@ -172,5 +218,11 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		item.parentItem.children.add(item);
 		this.items.set(item.test.id, item);
 		this.locations.add(item);
+
+		const prevState = this.results.getStateByExtId(item.test.item.extId)?.[1];
+		if (prevState) {
+			item.ownState = prevState.state.state;
+			refreshComputedState(computedStateAccessor, item, this.addUpdated, prevState.computedState);
+		}
 	}
 }

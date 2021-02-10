@@ -8,13 +8,13 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IStateService } from 'vs/platform/state/node/state';
 import { app, JumpListCategory, JumpListItem } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getBaseLabel, getPathLabel, splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { dirname, originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -350,16 +350,13 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			let hasWorkspaces = false;
 			const items: JumpListItem[] = coalesce(this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
-				const title = recent.label ? splitName(recent.label).name : this.getSimpleWorkspaceLabel(workspace, this.environmentService.untitledWorkspacesHome);
 
-				let description;
+				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);
 				let args;
 				if (URI.isUri(workspace)) {
-					description = localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(dirname(workspace), this.environmentService));
 					args = `--folder-uri "${workspace.toString()}"`;
 				} else {
 					hasWorkspaces = true;
-					description = localize('workspaceDesc', "{0} {1}", getBaseLabel(workspace.configPath), getPathLabel(dirname(workspace.configPath), this.environmentService));
 					args = `--file-uri "${workspace.configPath.toString()}"`;
 				}
 
@@ -395,16 +392,18 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
-	private getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
-
+	private getWindowsJumpListLabel(workspace: IWorkspaceIdentifier | URI, recentLabel: string | undefined): { title: string; description: string } {
+		if (recentLabel) {
+			return { title: splitName(recentLabel).name, description: recentLabel };
+		}
 		// Single Folder
 		if (URI.isUri(workspace)) {
-			return basename(workspace);
+			return { title: basename(workspace), description: renderJumpListPathDescription(workspace) };
 		}
 
 		// Workspace: Untitled
-		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, workspaceHome)) {
-			return localize('untitledWorkspace', "Untitled (Workspace)");
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, this.environmentService.userHome)) {
+			return { title: localize('untitledWorkspace', "Untitled (Workspace)"), description: '' };
 		}
 
 		// Workspace: normal
@@ -413,8 +412,12 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 
-		return localize('workspaceName', "{0} (Workspace)", filename);
+		return { title: localize('workspaceName', "{0} (Workspace)", filename), description: renderJumpListPathDescription(workspace.configPath) };
 	}
+}
+
+function renderJumpListPathDescription(uri: URI) {
+	return uri.scheme === 'file' ? normalizeDriveLetter(uri.fsPath) : uri.toString();
 }
 
 function location(recent: IRecent): URI {

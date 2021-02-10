@@ -1383,20 +1383,26 @@ export enum SignatureHelpTriggerKind {
 	ContentChange = 3,
 }
 
+
+export enum InlineHintKind {
+	Other = 0,
+	Type = 1,
+	Parameter = 2,
+}
+
 @es5ClassCompat
 export class InlineHint {
 	text: string;
 	range: Range;
+	kind?: vscode.InlineHintKind;
 	description?: string | vscode.MarkdownString;
 	whitespaceBefore?: boolean;
 	whitespaceAfter?: boolean;
 
-	constructor(text: string, range: Range, description?: string | vscode.MarkdownString, whitespaceBefore?: boolean, whitespaceAfter?: boolean) {
+	constructor(text: string, range: Range, kind?: vscode.InlineHintKind) {
 		this.text = text;
 		this.range = range;
-		this.description = description;
-		this.whitespaceBefore = whitespaceBefore;
-		this.whitespaceAfter = whitespaceAfter;
+		this.kind = kind;
 	}
 }
 
@@ -2964,31 +2970,6 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-@es5ClassCompat
-export class TestState {
-	#runState: TestRunState;
-	#duration?: number;
-	#messages: ReadonlyArray<Readonly<vscode.TestMessage>>;
-
-	public get runState() {
-		return this.#runState;
-	}
-
-	public get duration() {
-		return this.#duration;
-	}
-
-	public get messages() {
-		return this.#messages;
-	}
-
-	constructor(runState: TestRunState, messages: vscode.TestMessage[] = [], duration?: number) {
-		this.#runState = runState;
-		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
-		this.#duration = duration;
-	}
-}
-
 export type RequiredTestItem = vscode.RequiredTestItem;
 
 export type TestItem = vscode.TestItem;
@@ -3000,4 +2981,10 @@ export enum ExternalUriOpenerPriority {
 	Option = 1,
 	Default = 2,
 	Preferred = 3,
+}
+
+export enum WorkspaceTrustState {
+	Untrusted = 0,
+	Trusted = 1,
+	Unknown = 2
 }

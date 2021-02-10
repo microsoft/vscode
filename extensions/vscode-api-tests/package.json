@@ -5,6 +5,7 @@
   "publisher": "vscode",
   "license": "MIT",
   "enableProposedApi": true,
+  "requiresWorkspaceTrust": "onDemand",
   "private": true,
   "activationEvents": [],
   "main": "./out/extension",
@@ -41,6 +42,7 @@
       "remote": [
         {
           "id": "test.treeId",
+          "name": "test-tree",
           "when": "never"
         }
       ]

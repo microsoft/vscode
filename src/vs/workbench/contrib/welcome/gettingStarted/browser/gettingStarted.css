@@ -218,6 +218,10 @@
 	max-width: 800px;
 }
 
+.monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-right img {
+	object-fit: contain;
+}
+
 .monaco-workbench .part.editor > .content .walkThroughContent .gettingStartedContainer button {
 	border: none;
 	color: inherit;

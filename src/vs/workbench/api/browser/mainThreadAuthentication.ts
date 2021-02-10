@@ -214,13 +214,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$logout(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.logout(providerId, sessionId);
 	}
-
-	private isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const extensionData = allowList.find(extension => extension.id === extensionId);
-		return !!extensionData;
-	}
-
 	private async loginPrompt(providerName: string, extensionName: string): Promise<boolean> {
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
@@ -257,10 +250,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			if (existingSessionPreference) {
 				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
 				if (matchingSession) {
-					const allowed = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
-					if (allowed) {
-						return matchingSession;
+					const allowed = this.authenticationService.isAccessAllowed(providerId, matchingSession.account.label, extensionId);
+					if (!allowed) {
+						const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
+						if (!didAcceptPrompt) {
+							throw new Error('User did not consent to login.');
+						}
 					}
+
+					return matchingSession;
 				}
 			}
 		}
@@ -277,7 +275,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		if (sessions.length) {
 			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
 				session = sessions[0];
-				const allowed = this.isAccessAllowed(providerId, session.account.label, extensionId);
+				const allowed = this.authenticationService.isAccessAllowed(providerId, session.account.label, extensionId);
 				if (!allowed) {
 					if (!silent) {
 						const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, session.account.label, extensionId, extensionName);

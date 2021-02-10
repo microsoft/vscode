@@ -53,6 +53,7 @@ import 'vs/workbench/browser/parts/views/viewsService';
 
 //#region --- workbench services
 
+import 'vs/platform/workspace/common/workspaceTrust';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -308,6 +309,9 @@ import 'vs/workbench/contrib/welcome/common/viewsWelcome.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
+
+// Workspace
+import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
 
 // Workspaces
 import 'vs/workbench/contrib/workspaces/browser/workspaces.contribution';

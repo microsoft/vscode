@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { release } from 'os';
 import { gracefulify } from 'graceful-fs';
 import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { StaticRouter, createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
+import { StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -29,8 +29,8 @@ import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetry
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogService } from 'vs/platform/log/common/log';
-import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogger } from 'vs/platform/log/common/log';
+import { LogLevelChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -41,8 +41,9 @@ import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedPr
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
 import { IMainProcessService, MessagePortMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -78,6 +79,7 @@ import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/con
 import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { join } from 'vs/base/common/path';
 
 class SharedProcessMain extends Disposable {
 
@@ -142,13 +144,13 @@ class SharedProcessMain extends Disposable {
 
 		// Log
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
-		const loggerClient = new LoggerChannelClient(this.server.getChannel('logger', mainRouter)); // we only use this for log levels
+		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter)); // we only use this for log levels
 		const multiplexLogger = this._register(new MultiplexLogService([
-			this._register(new ConsoleLogService(this.configuration.logLevel)),
-			this._register(new SpdLogService('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
+			this._register(new ConsoleLogger(this.configuration.logLevel)),
+			this._register(new SpdLogLogger('sharedprocess', join(environmentService.logsPath, 'sharedprocess.log'), true, this.configuration.logLevel))
 		]));
 
-		const logService = this._register(new FollowerLogService(loggerClient, multiplexLogger));
+		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
 
 		// Main Process
@@ -182,7 +184,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		// Native Host
-		const nativeHostService = createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
+		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
@@ -268,12 +270,12 @@ class SharedProcessMain extends Disposable {
 
 		// Localizations
 		const localizationsService = accessor.get(ILocalizationsService);
-		const localizationsChannel = createChannelReceiver(localizationsService);
+		const localizationsChannel = ProxyChannel.fromService(localizationsService);
 		this.server.registerChannel('localizations', localizationsChannel);
 
 		// Diagnostics
 		const diagnosticsService = accessor.get(IDiagnosticsService);
-		const diagnosticsChannel = createChannelReceiver(diagnosticsService);
+		const diagnosticsChannel = ProxyChannel.fromService(diagnosticsService);
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips

@@ -51,6 +51,10 @@ export class Application {
 		return !!this.options.remote;
 	}
 
+	get web(): boolean {
+		return !!this.options.web;
+	}
+
 	private _workspacePathOrFolder: string;
 	get workspacePathOrFolder(): string {
 		return this._workspacePathOrFolder;

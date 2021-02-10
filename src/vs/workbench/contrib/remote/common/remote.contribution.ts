@@ -11,7 +11,7 @@ import { OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
@@ -63,7 +63,7 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 			if (!connection) {
 				return;
 			}
-			connection.withChannel('logger', (channel) => LoggerChannelClient.setLevel(channel, logService.getLevel()));
+			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
 		};
 		updateRemoteLogLevel();
 		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
@@ -134,6 +134,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded."),
 				default: true
 			},
+			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
+			// and extensions\configuration-editing\schemas\attachContainer.schema.json
+			// to keep in sync with devcontainer.json schema.
 			'remote.portsAttributes': {
 				type: 'object',
 				patternProperties: {

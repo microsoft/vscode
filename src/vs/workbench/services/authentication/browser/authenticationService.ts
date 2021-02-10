@@ -108,6 +108,7 @@ export interface IAuthenticationService {
 	getProviderIds(): string[];
 	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
+	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean;
 	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
 	selectSession(providerId: string, extensionId: string, extensionName: string, possibleSessions: AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, possibleSessions: AuthenticationSession[]): void;
@@ -324,8 +325,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			Object.keys(accessRequests).forEach(extensionId => {
 				this.removeAccessRequest(id, extensionId);
 			});
-
-			this.updateBadgeCount();
 		}
 
 		if (!this._authenticationProviders.size) {
@@ -424,10 +423,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (providerRequests[extensionId]) {
 			providerRequests[extensionId].disposables.forEach(d => d.dispose());
 			delete providerRequests[extensionId];
+			this.updateBadgeCount();
 		}
 	}
 
-	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
+	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean {
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {
@@ -443,6 +443,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return true;
 		}
 
+		return false;
+	}
+
+	async showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean> {
 		const providerName = this.getLabel(providerId);
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
@@ -455,11 +459,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		const allow = choice === 0;
 		if (allow) {
+			const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-			this.removeAccessRequest(providerId, extensionId);
 		}
 
+		this.removeAccessRequest(providerId, extensionId);
 		return allow;
 	}
 
@@ -505,9 +510,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				if (!allowList.find(allowed => allowed.id === extensionId)) {
 					allowList.push({ id: extensionId, name: extensionName });
 					this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-					this.removeAccessRequest(providerId, extensionId);
 				}
 
+				this.removeAccessRequest(providerId, extensionId);
 				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 				quickPick.dispose();
@@ -667,17 +672,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				});
 			}
 
-			this._accountBadgeDisposable.clear();
-
-			let numberOfRequests = 0;
-			this._signInRequestItems.forEach(providerRequests => {
-				Object.keys(providerRequests).forEach(request => {
-					numberOfRequests += providerRequests[request].requestingExtensionIds.length;
-				});
-			});
-
-			const badge = new NumberBadge(numberOfRequests, () => nls.localize('sign in', "Sign in requested"));
-			this._accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
+			this.updateBadgeCount();
 		}
 	}
 	getLabel(id: string): string {

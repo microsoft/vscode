@@ -45,6 +45,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { forwardPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isWeb } from 'vs/base/common/platform';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
@@ -91,7 +92,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remotePort: 0,
 			description: '',
 			wideDescription: '',
-			icon: undefined
+			icon: undefined,
+			tooltip: ''
 		};
 	}
 
@@ -136,7 +138,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
-			const tunnelItem = TunnelItem.createFromTunnel(tunnel);
+			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel);
 			this.addProcessInfoFromCandidate(tunnelItem);
 			return tunnelItem;
 		}).sort((a: TunnelItem, b: TunnelItem) => {
@@ -154,7 +156,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 
 	get detected(): TunnelItem[] {
 		return Array.from(this.model.detected.values()).map(tunnel => {
-			const tunnelItem = TunnelItem.createFromTunnel(tunnel, TunnelType.Detected, false);
+			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel, TunnelType.Detected, false);
 			this.addProcessInfoFromCandidate(tunnelItem);
 			return tunnelItem;
 		});
@@ -264,7 +266,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		const isWide = templateData.container.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.classList.contains('wide');
 		const description = isWide ? node.wideDescription : node.description;
 		const label = node.label + (description ? (' - ' + description) : '');
-		templateData.iconLabel.setLabel(node.label, description, { title: label, extraClasses: ['tunnel-view-label'] });
+		templateData.iconLabel.setLabel(node.label, description, { title: node instanceof TunnelItem ? node.tooltip : label, extraClasses: ['tunnel-view-label'] });
 
 		templateData.actionBar.context = node;
 		const contextKeyService = this._register(this.contextKeyService.createScoped());
@@ -403,7 +405,7 @@ interface ITunnelGroup {
 }
 
 class TunnelItem implements ITunnelItem {
-	static createFromTunnel(tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
+	static createFromTunnel(remoteExplorerService: IRemoteExplorerService, tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
 		return new TunnelItem(type,
 			tunnel.remoteHost,
 			tunnel.remotePort,
@@ -414,7 +416,8 @@ class TunnelItem implements ITunnelItem {
 			tunnel.runningProcess,
 			tunnel.source,
 			tunnel.pid,
-			tunnel.privacy);
+			tunnel.privacy,
+			remoteExplorerService);
 	}
 
 	constructor(
@@ -429,6 +432,7 @@ class TunnelItem implements ITunnelItem {
 		private source?: string,
 		private pid?: number,
 		public privacy?: TunnelPrivacy,
+		private remoteExplorerService?: IRemoteExplorerService
 	) { }
 	get label(): string {
 		if (this.name) {
@@ -476,7 +480,10 @@ class TunnelItem implements ITunnelItem {
 
 		if (item.runningProcess) {
 			let processPid: string;
-			if (isWide) {
+			if (item.pid && item.remoteExplorerService?.namedProcesses.has(item.pid)) {
+				// This is a known process. Give it a friendly name.
+				processPid = item.remoteExplorerService.namedProcesses.get(item.pid)!;
+			} else if (isWide) {
 				processPid = item.runningProcess.replace(/\0/g, ' ').trim();
 			} else {
 				const nullIndex = item.runningProcess.indexOf('\0');
@@ -517,6 +524,27 @@ class TunnelItem implements ITunnelItem {
 
 		}
 	}
+
+	get tooltip(): string {
+		let information: string = this.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", this.name) : '';
+		if (this.localAddress) {
+			information += nls.localize('remote.tunnel.tooltipForwarded', "Remote port {0}:{1} forwarded to local address {2}. ", this.remoteHost, this.remotePort, this.localAddress);
+		} else {
+			information += nls.localize('remote.tunnel.tooltipCandidate', "Remote port {0}:{1} not forwarded. ", this.remoteHost, this.remotePort);
+		}
+
+		if (this.privacy === TunnelPrivacy.Public) {
+			information += nls.localize('remote.tunnel.tooltipPublic', "Accessible publicly. ");
+		} else {
+			information += nls.localize('remote.tunnel.tooltipPrivate', "Only accessible from this machine. ");
+		}
+
+		if (this.runningProcess) {
+			information += nls.localize('remote.tunnel.tooltipProcess', "Process: {0} ({1})", this.runningProcess.replace(/\0/g, ' ').trim(), this.pid);
+		}
+
+		return information;
+	}
 }
 
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
@@ -526,6 +554,7 @@ const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', 
 const TunnelViewSelectionKeyName = 'tunnelViewSelection';
 const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false);
+const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb);
 
 class TunnelDataTree extends WorkbenchAsyncDataTree<any, any, any> { }
 
@@ -615,11 +644,7 @@ export class TunnelPanel extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
 						if (item instanceof TunnelItem) {
-							if (item.localAddress) {
-								return nls.localize('remote.tunnel.ariaLabelForwarded', "Remote port {0}:{1} forwarded to local address {2}", item.remoteHost, item.remotePort, item.localAddress);
-							} else {
-								return nls.localize('remote.tunnel.ariaLabelCandidate', "Remote port {0}:{1} not forwarded", item.remoteHost, item.remotePort);
-							}
+							return item.tooltip;
 						} else {
 							return item.label;
 						}
@@ -885,9 +910,9 @@ interface QuickPickTunnel extends IQuickPickItem {
 	tunnel?: ITunnelItem
 }
 
-function makeTunnelPicks(tunnels: Tunnel[]): QuickPickInput<QuickPickTunnel>[] {
+function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplorerService): QuickPickInput<QuickPickTunnel>[] {
 	const picks: QuickPickInput<QuickPickTunnel>[] = tunnels.map(forwarded => {
-		const item = TunnelItem.createFromTunnel(forwarded);
+		const item = TunnelItem.createFromTunnel(remoteExplorerService, forwarded);
 		return {
 			label: item.label,
 			description: item.description,
@@ -923,7 +948,7 @@ namespace ClosePortAction {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const commandService = accessor.get(ICommandService);
 
-			const picks: QuickPickInput<QuickPickTunnel>[] = makeTunnelPicks(Array.from(remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.closeable));
+			const picks: QuickPickInput<QuickPickTunnel>[] = makeTunnelPicks(Array.from(remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.closeable), remoteExplorerService);
 			const result = await quickInputService.pick(picks, { placeHolder: nls.localize('remote.tunnel.closePlaceholder', "Choose a port to stop forwarding") });
 			if (result && result.tunnel) {
 				await remoteExplorerService.close({ host: result.tunnel.remoteHost, port: result.tunnel.remotePort });
@@ -1017,12 +1042,13 @@ namespace OpenPortInBrowserCommandPaletteAction {
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg) => {
-			const model = accessor.get(IRemoteExplorerService).tunnelModel;
+			const remoteExplorerService = accessor.get(IRemoteExplorerService);
+			const model = remoteExplorerService.tunnelModel;
 			const quickPickService = accessor.get(IQuickInputService);
 			const openerService = accessor.get(IOpenerService);
 			const commandService = accessor.get(ICommandService);
 			const options: QuickPickTunnel[] = [...model.forwarded, ...model.detected].map(value => {
-				const tunnelItem = TunnelItem.createFromTunnel(value[1]);
+				const tunnelItem = TunnelItem.createFromTunnel(remoteExplorerService, value[1]);
 				return {
 					label: tunnelItem.label,
 					description: tunnelItem.description,
@@ -1078,7 +1104,7 @@ namespace CopyAddressAction {
 			const clipboardService = accessor.get(IClipboardService);
 
 			const tunnels = Array.from(remoteExplorerService.tunnelModel.forwarded.values()).concat(Array.from(remoteExplorerService.tunnelModel.detected.values()));
-			const result = await quickInputService.pick(makeTunnelPicks(tunnels), { placeHolder: nls.localize('remote.tunnel.copyAddressPlaceholdter', "Choose a forwarded port") });
+			const result = await quickInputService.pick(makeTunnelPicks(tunnels, remoteExplorerService), { placeHolder: nls.localize('remote.tunnel.copyAddressPlaceholdter', "Choose a forwarded port") });
 			if (result && result.tunnel) {
 				await copyAddress(remoteExplorerService, clipboardService, result.tunnel);
 			} else if (result) {
@@ -1273,7 +1299,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		id: OpenPortInPreviewAction.ID,
 		title: OpenPortInPreviewAction.LABEL,
 	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
+	when: ContextKeyExpr.and(WebContextKey.negate(), ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected)))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '0_manage',
@@ -1346,7 +1372,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 		title: OpenPortInPreviewAction.LABEL,
 		icon: openPreviewIcon
 	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
+	when: ContextKeyExpr.and(WebContextKey.negate(), ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected)))
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	order: 0,

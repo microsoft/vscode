@@ -32,13 +32,14 @@ import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 export class ViewsService extends Disposable implements IViewsService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
-	private readonly viewPaneContainers: Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>;
+	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
 
 	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeViewVisibility.event;
@@ -47,6 +48,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	readonly onDidChangeViewContainerVisibility = this._onDidChangeViewContainerVisibility.event;
 
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
+	private readonly focusedViewContextKey: IContextKey<string>;
 
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
@@ -59,7 +61,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
 		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
-		this.viewPaneContainers = new Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>();
+		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
 
 		this._register(toDisposable(() => {
 			this.viewDisposable.forEach(disposable => disposable.dispose());
@@ -76,24 +78,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		this._register(this.viewletService.onDidViewletClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.Sidebar })));
 		this._register(this.panelService.onDidPanelClose(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: false, location: ViewContainerLocation.Panel })));
 
-	}
-
-	private registerViewPaneContainer(viewPaneContainer: ViewPaneContainer): void {
-		const disposable = new DisposableStore();
-		disposable.add(viewPaneContainer);
-		disposable.add(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
-		disposable.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
-		disposable.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
-
-		this.viewPaneContainers.set(viewPaneContainer.getId(), { viewPaneContainer, disposable });
-	}
-
-	private deregisterViewPaneContainer(id: string): void {
-		const viewPaneContainerItem = this.viewPaneContainers.get(id);
-		if (viewPaneContainerItem) {
-			viewPaneContainerItem.disposable.dispose();
-			this.viewPaneContainers.delete(id);
-		}
+		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
 
 	private onViewsAdded(added: IView[]): void {
@@ -340,7 +325,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			return undefined;
 		}
 
-		const viewPaneContainer = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer;
+		const viewPaneContainer = this.viewPaneContainers.get(viewContainer.id);
 		if (!viewPaneContainer) {
 			return undefined;
 		}
@@ -583,6 +568,24 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 	}
 
+	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
+		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || []));
+
+		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
+		disposables.add(toDisposable(() => this.viewPaneContainers.delete(viewPaneContainer.getId())));
+		disposables.add(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
+		disposables.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
+		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
+		disposables.add(viewPaneContainer.onDidFocusView(view => this.focusedViewContextKey.set(view.id)));
+		disposables.add(viewPaneContainer.onDidBlurView(view => {
+			if (this.focusedViewContextKey.get() === view.id) {
+				this.focusedViewContextKey.reset();
+			}
+		}));
+
+		return viewPaneContainer;
+	}
+
 	private registerPanel(viewContainer: ViewContainer): void {
 		const that = this;
 		class PaneContainerPanel extends Panel {
@@ -595,10 +598,14 @@ export class ViewsService extends Disposable implements IViewsService {
 				@IExtensionService extensionService: IExtensionService,
 				@IWorkspaceContextService contextService: IWorkspaceContextService,
 			) {
+				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+			}
+
+			protected createViewPaneContainer(element: HTMLElement): ViewPaneContainer {
+				const viewPaneContainerDisposables = this._register(new DisposableStore());
+
 				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				const viewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || []));
-				super(viewContainer.id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-				that.registerViewPaneContainer(this.viewPaneContainer);
+				return that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Panel, viewPaneContainerDisposables, this.instantiationService);
 			}
 		}
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
@@ -612,7 +619,6 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private deregisterPanel(viewContainer: ViewContainer): void {
-		this.deregisterViewPaneContainer(viewContainer.id);
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
 	}
 
@@ -630,10 +636,24 @@ export class ViewsService extends Disposable implements IViewsService {
 				@IContextMenuService contextMenuService: IContextMenuService,
 				@IExtensionService extensionService: IExtensionService,
 			) {
+				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+			}
+
+			protected createViewPaneContainer(element: HTMLElement): ViewPaneContainer {
+				const viewPaneContainerDisposables = this._register(new DisposableStore());
+
 				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				const viewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor!.ctor, ...(viewContainer.ctorDescriptor!.staticArguments || []));
-				super(viewContainer.id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
-				that.registerViewPaneContainer(this.viewPaneContainer);
+				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Sidebar, viewPaneContainerDisposables, this.instantiationService);
+
+				// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
+				if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
+					viewPaneContainerDisposables.add(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
+						// Update title area since there is no better way to update secondary actions
+						this.updateTitleArea();
+					}));
+				}
+
+				return viewPaneContainer;
 			}
 		}
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
@@ -648,7 +668,6 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private deregisterViewlet(viewContainer: ViewContainer): void {
-		this.deregisterViewPaneContainer(viewContainer.id);
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
 	}
 }

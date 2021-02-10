@@ -26,10 +26,9 @@ import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
 
 // this class contains the commands that the CLI server is reying on
 
-CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents, options: { allowTunneling?: boolean }) {
-	// TODO: discuss martin, ben where to put this
+CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents | string) {
 	const openerService = accessor.get(IOpenerService);
-	openerService.open(URI.revive(uri), { openExternal: true, allowTunneling: options?.allowTunneling === true });
+	openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
 });
 
 interface ManageExtensionsArgs {

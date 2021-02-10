@@ -6,7 +6,7 @@
 import 'vs/css!./menuEntryActionViewItem';
 import { asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
@@ -27,10 +27,10 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean, primaryMaxCount?: number): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean, primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean): IDisposable {
 	const groups = menu.getActions(options);
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryGroup, primaryMaxCount);
+	fillInActions(groups, target, false, isPrimaryGroup, primaryMaxCount, shouldInlineSubmenu);
 	return asDisposable(groups);
 }
 
@@ -44,7 +44,14 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 	return disposables;
 }
 
-function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation', primaryMaxCount: number = Number.MAX_SAFE_INTEGER): void {
+
+function fillInActions(
+	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; },
+	useAlternativeActions: boolean,
+	isPrimaryGroup: (group: string) => boolean = group => group === 'navigation',
+	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
+	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false
+): void {
 
 	let primaryBucket: IAction[];
 	let secondaryBucket: IAction[];
@@ -56,18 +63,40 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 		secondaryBucket = target.secondary;
 	}
 
-	for (let [group, actions] of groups) {
-		if (useAlternativeActions) {
-			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
+	const submenuInfo = new Set<{ group: string, action: SubmenuAction, index: number }>();
+
+	for (const [group, actions] of groups) {
+
+		let target: IAction[];
+		if (isPrimaryGroup(group)) {
+			target = primaryBucket;
+		} else {
+			target = secondaryBucket;
+			if (target.length > 0) {
+				target.push(new Separator());
+			}
 		}
 
-		if (isPrimaryGroup(group)) {
-			primaryBucket.unshift(...actions);
-		} else {
-			if (secondaryBucket.length > 0) {
-				secondaryBucket.push(new Separator());
+		for (let action of actions) {
+			if (useAlternativeActions) {
+				action = action instanceof MenuItemAction && action.alt ? action.alt : action;
 			}
-			secondaryBucket.push(...actions);
+			const newLen = target.push(action);
+			// keep submenu info for later inlining
+			if (action instanceof SubmenuAction) {
+				submenuInfo.add({ group, action, index: newLen - 1 });
+			}
+		}
+	}
+
+	// ask the outside if submenu should be inlined or not. only ask when
+	// there would be enough space
+	for (const { group, action, index } of submenuInfo) {
+		const target = isPrimaryGroup(group) ? primaryBucket : secondaryBucket;
+
+		const submenuActions = action.actions;
+		if (target.length + submenuActions.length - 2 <= primaryMaxCount && shouldInlineSubmenu(action, group, target.length)) {
+			target.splice(index, 1, ...submenuActions);
 		}
 	}
 

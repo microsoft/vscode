@@ -1147,7 +1147,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inline Hints, back and forth', async function () {
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), undefined, true, false)];
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
 			}
 		}));
 
@@ -1167,13 +1167,15 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inline Hints, merge', async function () {
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Bar', new types.Range(10, 11, 12, 13), undefined, true, false)];
+				return [new types.InlineHint('Bar', new types.Range(10, 11, 12, 13))];
 			}
 		}));
 
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), new types.MarkdownString('**Hello**'), true, false)];
+				const hint = new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), types.InlineHintKind.Parameter);
+				hint.description = new types.MarkdownString('**Hello**');
+				return [hint];
 			}
 		}));
 
@@ -1201,7 +1203,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inline Hints, bad provider', async function () {
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), undefined, true, false)];
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
 			}
 		}));
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{

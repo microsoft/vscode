@@ -45,6 +45,14 @@ export interface IWindowState {
 	display?: number;
 }
 
+export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
+	return {
+		width: 1024,
+		height: 768,
+		mode
+	};
+};
+
 export const enum WindowMode {
 	Maximized,
 	Normal,
