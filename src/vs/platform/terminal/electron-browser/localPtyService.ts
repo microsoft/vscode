@@ -10,7 +10,7 @@ import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 
 export class LocalPtyService extends Disposable implements ILocalPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -36,7 +36,6 @@ export class LocalPtyService extends Disposable implements ILocalPtyService {
 	) {
 		super();
 
-		this._logService.info('Create pty host process');
 		const client = this._register(new Client(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
@@ -49,6 +48,8 @@ export class LocalPtyService extends Disposable implements ILocalPtyService {
 				}
 			}
 		));
+
+		// TODO: Handle exit gracefully
 		this._register(client.onDidProcessExit(e => {
 			this._logService.info('ptyHost exit', e);
 			// 	// our watcher app should never be completed because it keeps on watching. being in here indicates
@@ -66,12 +67,13 @@ export class LocalPtyService extends Disposable implements ILocalPtyService {
 
 		this._proxy = ProxyChannel.toService(client.getChannel('ptyHost'));
 		this._register(this._proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(this._proxy.onProcessExit(e => this._.onProcessExit.fire(e)));
+		this._register(this._proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(this._proxy.onProcessReady(e => this._onProcessReady.fire(e)));
 		this._register(this._proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(this._proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(this._proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
 	}
+
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
 		return this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty);
 	}
