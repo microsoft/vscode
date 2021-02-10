@@ -2890,57 +2890,15 @@ export class NotebookCellOutputItem {
 }
 
 export class NotebookCellOutput {
-
-	// static _toOld(output: IOutputDto): vscode.CellOutput {
-	// 	if (output.data['application/x.notebook.stream']) {
-	// 		return {
-	// 			outputKind: CellOutputKind.Text,
-	// 			text: output.data['application/x.notebook.stream'] as string
-	// 		};
-	// 	} else if (output.data['application/x.notebook.error-traceback']) {
-	// 		return {
-	// 			outputKind: CellOutputKind.Error,
-	// 			ename: (output.data['application/x.notebook.error-traceback'] as any)['ename'],
-	// 			evalue: (output.data['application/x.notebook.error-traceback'] as any)['evalue'],
-	// 			traceback: (output.data['application/x.notebook.error-traceback'] as any)['traceback'],
-	// 		};
-	// 	} else {
-	// 		return {
-	// 			outputKind: CellOutputKind.Rich,
-	// 			data: output.data,
-	// 			metadata: output.metadata
-	// 		};
-	// 	}
-	// }
-
-	// static _fromOld(output: vscode.CellOutput, id?: string): NotebookCellOutput {
-	// 	switch (output.outputKind) {
-	// 		case CellOutputKind.Error:
-	// 			return new NotebookCellOutput([new NotebookCellOutputItem('application/x.notebook.error-traceback', output)]);
-	// 		case CellOutputKind.Text:
-	// 			return new NotebookCellOutput([new NotebookCellOutputItem('application/x.notebook.stream', output.text)]);
-	// 		case CellOutputKind.Rich:
-	// 			const items: NotebookCellOutputItem[] = [];
-	// 			for (const key in output.data) {
-	// 				items.push(new NotebookCellOutputItem(key, output.data[key], output.metadata?.custom ? output.metadata?.custom[key] : undefined));
-	// 			}
-	// 			return new NotebookCellOutput(items, id);
-	// 	}
-	// 	throw new Error('invalid outputKind');
-	// }
-
-	constructor(readonly outputs: NotebookCellOutputItem[], readonly id: string = generateUuid()) { }
+	constructor(
+		readonly outputs: NotebookCellOutputItem[],
+		readonly id: string = generateUuid()
+	) { }
 }
 
 export enum CellKind {
 	Markdown = 1,
 	Code = 2
-}
-
-export enum CellOutputKind {
-	Text = 1,
-	Error = 2,
-	Rich = 3
 }
 
 export enum NotebookCellRunState {
