@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -65,7 +65,7 @@ export class LocalPtyService extends Disposable implements ILocalPtyService {
 			// 	}
 		}));
 
-		this._proxy = ProxyChannel.toService(client.getChannel('ptyHost'));
+		this._proxy = ProxyChannel.toService(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(this._proxy.onProcessData(e => this._onProcessData.fire(e)));
 		this._register(this._proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(this._proxy.onProcessReady(e => this._onProcessReady.fire(e)));

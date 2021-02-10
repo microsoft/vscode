@@ -37,7 +37,6 @@ export class PtyService extends Disposable implements ILocalPtyService {
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
 		const id = ++currentPtyId;
-		console.log('PtyMainService#createProcess ' + id, shellLaunchConfig, cwd, cols);
 		// TODO: Impl proper logging, level doesn't get passed over
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, new LogService(new ConsoleLogger()));
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));

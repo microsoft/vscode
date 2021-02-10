@@ -8,7 +8,14 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
 export enum TerminalIpcChannels {
-	LocalPty = 'localPty'
+	/**
+	 * Communicates between the renderer process and shared process.
+	 */
+	LocalPty = 'localPty',
+	/**
+	 * Communicates between the shared process and the pty host process.
+	 */
+	PtyHost = 'ptyHost'
 }
 
 export interface ILocalPtyService {
