@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalProcessExtHostProxy, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessExtHostProxy, ITerminalConfigHelper, IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import * as nls from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 
 let hasReceivedResponseFromRemoteExtHost: boolean = false;
 

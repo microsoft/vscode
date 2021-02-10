@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_COMMAND_ID } from 'vs/platform/terminal/common/terminal';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { getNoDefaultTerminalShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 

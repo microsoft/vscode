@@ -6,7 +6,7 @@
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
+import { INavigationMode } from 'vs/platform/terminal/common/terminal';
 
 export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 	private _terminal: Terminal | undefined;

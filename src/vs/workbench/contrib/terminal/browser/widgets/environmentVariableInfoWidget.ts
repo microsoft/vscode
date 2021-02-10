@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableInfo } from 'vs/platform/terminal/common/environmentVariable';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { RunOnceScheduler } from 'vs/base/common/async';

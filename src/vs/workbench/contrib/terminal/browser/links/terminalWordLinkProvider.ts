@@ -5,7 +5,7 @@
 
 import type { Terminal, IViewportRange } from 'xterm';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/platform/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { localize } from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
