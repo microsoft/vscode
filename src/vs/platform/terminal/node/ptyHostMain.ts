@@ -5,7 +5,7 @@
 
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { PtyService } from 'vs/platform/terminal/node/ptyHost/ptyService';
+import { PtyService } from 'vs/platform/terminal/node/ptyService';
 import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 
 const server = new Server('ptyHost');

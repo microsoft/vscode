@@ -42,7 +42,7 @@ export class LocalPtyService extends Disposable implements ILocalPtyService {
 				serverName: 'Pty Host',
 				args: ['--type=ptyHost'],
 				env: {
-					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHost/ptyHostMain',
+					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
