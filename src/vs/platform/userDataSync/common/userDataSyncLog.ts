@@ -17,7 +17,7 @@ export class UserDataSyncLogService extends AbstractLogger implements IUserDataS
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
-		this.logger = this._register(loggerService.createLogger(environmentService.userDataSyncLogResource));
+		this.logger = this._register(loggerService.createLogger(environmentService.userDataSyncLogResource, { name: 'settingssync' }));
 	}
 
 	trace(message: string, ...args: any[]): void {
