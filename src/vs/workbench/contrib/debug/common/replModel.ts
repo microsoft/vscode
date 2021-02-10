@@ -15,6 +15,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 const MAX_REPL_LENGTH = 10000;
 let topReplElementCounter = 0;
+const getUniqueId = () => `topReplElement:${topReplElementCounter++}`;
 
 export class SimpleReplElement implements IReplElement {
 
@@ -230,13 +231,14 @@ export class ReplModel {
 					return;
 				}
 				if (!previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n') && previousElement.count === 1) {
-					previousElement.value += data;
+					this.replElements[this.replElements.length - 1] = new SimpleReplElement(
+						session, getUniqueId(), previousElement.value + data, sev, source);
 					this._onDidChangeElements.fire();
 					return;
 				}
 			}
 
-			const element = new SimpleReplElement(session, `topReplElement:${topReplElementCounter++}`, data, sev, source);
+			const element = new SimpleReplElement(session, getUniqueId(), data, sev, source);
 			this.addReplElement(element);
 		} else {
 			// TODO@Isidor hack, we should introduce a new type which is an output that can fetch children like an expression
@@ -311,7 +313,7 @@ export class ReplModel {
 				}
 
 				// show object
-				this.appendToRepl(session, new RawObjectReplElement(`topReplElement:${topReplElementCounter++}`, (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
+				this.appendToRepl(session, new RawObjectReplElement(getUniqueId(), (<any>a).prototype, a, undefined, nls.localize('snapshotObj', "Only primitive values are shown for this object.")), sev, source);
 			}
 
 			// string: watch out for % replacement directive
