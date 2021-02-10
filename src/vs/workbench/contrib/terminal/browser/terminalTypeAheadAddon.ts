@@ -25,6 +25,7 @@ const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
 const CSI_MOVE_RE = /^\x1b\[?([0-9]*)(;[35])?O?([DC])/;
 const CSI_CURSOR_POSITION_RE = /^\x1b\[(\d+);?(\d*)H/;
 const NOT_WORD_RE = /[^a-z0-9]/i;
+const ANSI_RE = /^\x1b\[?\??[0-9;]*[a-z]/i;
 
 const statsBufferSize = 24;
 const statsSendTelemetryEvery = 1000 * 60 * 5; // how often to collect stats
@@ -159,57 +160,12 @@ const moveToWordBoundary = (b: IBuffer, cursor: Cursor, direction: -1 | 1) => {
 
 const emitPredictionOmitted = (reader: StringReader) => {
 	let output = '';
-	let omit = reader.eatRe(PREDICTION_OMIT_RE);
+	let omit = reader.eatRe(PREDICTION_OMIT_RE) || reader.eatRe(CSI_STYLE_RE);
 	while (omit) {
 		output += omit[0];
-		omit = reader.eatRe(PREDICTION_OMIT_RE);
+		omit = reader.eatRe(PREDICTION_OMIT_RE) || reader.eatRe(CSI_STYLE_RE);
 	}
 	return output;
-};
-
-const followMovement = (reader: StringReader, cursor: Cursor, endPosition: ICoordinate): MatchResult => {
-	cursor = cursor.clone();
-
-	do {
-		// Ignore things we don't care about
-		emitPredictionOmitted(reader);
-		while (reader.eatRe(CSI_STYLE_RE)) { }
-
-		// Handle movement
-		const cursorMove = reader.eatRe(CSI_CURSOR_POSITION_RE);
-		if (cursorMove) {
-			// We need to follow the cursor movements
-			cursor.moveTo({
-				x: parseInt(cursorMove[2] ?? 1) - 1,
-				y: parseInt(cursorMove[1]) - 1,
-				baseY: cursor.baseY
-			});
-
-			continue;
-		}
-
-		if (reader.eof) {
-			return MatchResult.Buffer;
-		}
-
-		const char = cursor.getCell()?.getChars();
-		if (char) {
-			// See if the character at the cursor matches the reader
-			if (!reader.eatChar(char)) {
-				return MatchResult.Failure;
-			}
-
-			cursor.shift(char.length);
-			continue;
-		}
-
-		return MatchResult.Failure;
-	} while (endPosition.x !== cursor.x || endPosition.y !== cursor.y);
-
-	// Ignore things we don't care about
-	emitPredictionOmitted(reader);
-	while (reader.eatRe(CSI_STYLE_RE)) { }
-	return MatchResult.Success;
 };
 
 const enum MatchResult {
@@ -222,6 +178,7 @@ const enum MatchResult {
 }
 
 export interface IPrediction {
+	appliedHere: ICoordinate | undefined
 	/**
 	 * Whether applying this prediction can modify the style attributes of the
 	 * terminal. If so it means we need to reset the cursor style if it's
@@ -359,8 +316,10 @@ class StringReader {
  */
 class HardBoundary implements IPrediction {
 	public readonly clearAfterTimeout = false;
+	public appliedHere: ICoordinate | undefined;
 
-	public apply() {
+	public apply(buffer: IBuffer, cursor: Cursor) {
+		this.appliedHere = cursor.coordinate;
 		return '';
 	}
 
@@ -383,6 +342,10 @@ class HardBoundary implements IPrediction {
  */
 class TentativeBoundary implements IPrediction {
 	private appliedCursor?: Cursor;
+
+	public get appliedHere(): ICoordinate | undefined {
+		return this.inner.appliedHere;
+	}
 
 	constructor(public readonly inner: IPrediction) { }
 
@@ -419,6 +382,7 @@ export const isTenativeCharacterPrediction = (p: unknown): p is (TentativeBounda
 class CharacterPrediction implements IPrediction {
 	public readonly affectsStyle = true;
 
+	public appliedHere: ICoordinate | undefined;
 	public appliedAt?: {
 		pos: ICoordinate;
 		oldAttributes: string;
@@ -432,6 +396,8 @@ class CharacterPrediction implements IPrediction {
 		this.appliedAt = cell
 			? { pos: cursor.coordinate, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
 			: { pos: cursor.coordinate, oldAttributes: '', oldChar: '' };
+
+		this.appliedHere = this.appliedAt.pos;
 
 		cursor.shift(1);
 
@@ -457,30 +423,14 @@ class CharacterPrediction implements IPrediction {
 	}
 
 	public matches(input: StringReader, lookBehind?: IPrediction, cursor?: Cursor) {
-		let startIndex = input.index;
-
-		const result = followMovement(input, cursor!, this.appliedAt!.pos);
-		if (result !== MatchResult.Success) {
-			return result;
-		}
-
-		// remove any styling CSI before checking the char
-		while (input.eatRe(CSI_STYLE_RE)) { }
-
 		if (input.eof) {
 			return MatchResult.Buffer;
 		}
+		let startIndex = input.index;
 
 		if (input.eatChar(this.char)) {
+			cursor?.shift(this.char.length);
 			return MatchResult.Success;
-		}
-
-		if (lookBehind instanceof CharacterPrediction) {
-			// see #112842
-			const sillyZshOutcome = input.eatGradually(`\b${lookBehind.char}${this.char}`);
-			if (sillyZshOutcome !== MatchResult.Failure) {
-				return sillyZshOutcome;
-			}
 		}
 
 		input.index = startIndex;
@@ -489,6 +439,8 @@ class CharacterPrediction implements IPrediction {
 }
 
 class BackspacePrediction implements IPrediction {
+	public appliedHere: ICoordinate | undefined;
+
 	protected appliedAt?: {
 		pos: ICoordinate;
 		oldAttributes: string;
@@ -508,6 +460,8 @@ class BackspacePrediction implements IPrediction {
 		this.appliedAt = cell
 			? { isLastChar, pos, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
 			: { isLastChar, pos, oldAttributes: '', oldChar: '' };
+
+		this.appliedHere = this.appliedAt.pos;
 
 		return move + DELETE_CHAR;
 	}
@@ -547,16 +501,16 @@ class BackspacePrediction implements IPrediction {
 }
 
 class NewlinePrediction implements IPrediction {
-	protected prevPosition?: ICoordinate;
+	public appliedHere: ICoordinate | undefined;
 
 	public apply(_: IBuffer, cursor: Cursor) {
-		this.prevPosition = cursor.coordinate;
+		this.appliedHere = cursor.coordinate;
 		cursor.move(0, cursor.y + 1);
 		return '\r\n';
 	}
 
 	public rollback(cursor: Cursor) {
-		return this.prevPosition ? cursor.moveTo(this.prevPosition) : '';
+		return this.appliedHere ? cursor.moveTo(this.appliedHere) : '';
 	}
 
 	public rollForwards() {
@@ -574,8 +528,8 @@ class NewlinePrediction implements IPrediction {
  */
 class LinewrapPrediction extends NewlinePrediction implements IPrediction {
 	public apply(_: IBuffer, cursor: Cursor) {
-		this.prevPosition = cursor.coordinate;
 		cursor.move(0, cursor.y + 1);
+		this.appliedHere = cursor.coordinate;
 		return ' \r';
 	}
 
@@ -593,6 +547,8 @@ class LinewrapPrediction extends NewlinePrediction implements IPrediction {
 }
 
 class CursorMovePrediction implements IPrediction {
+	public appliedHere: ICoordinate | undefined;
+
 	private applied?: {
 		rollForward: string;
 		prevPosition: number;
@@ -607,6 +563,7 @@ class CursorMovePrediction implements IPrediction {
 	) { }
 
 	public apply(buffer: IBuffer, cursor: Cursor) {
+		this.appliedHere = cursor.coordinate;
 		const prevPosition = cursor.x;
 		const currentCell = cursor.getCell();
 		const prevAttrs = currentCell ? attributesToSeq(currentCell) : '';
@@ -797,6 +754,11 @@ export class PredictionTimeline {
 	 */
 	private lookBehind?: IPrediction;
 
+	private CoordinateToPrediction: Map<string, {
+		gen: number;
+		prediction: IPrediction;
+	}> = new Map();
+
 	private readonly addedEmitter = new Emitter<IPrediction>();
 	public readonly onPredictionAdded = this.addedEmitter.event;
 	private readonly failedEmitter = new Emitter<IPrediction>();
@@ -881,12 +843,69 @@ export class PredictionTimeline {
 		const startingGen = this.expected[0].gen;
 
 		output += emitPredictionOmitted(reader);
+
+		const checkInstanceOf = (prediction: IPrediction | undefined, type: any): boolean => {
+			if (!prediction) {
+				return false;
+			}
+
+			return prediction instanceof type
+				|| prediction instanceof TentativeBoundary && prediction.inner instanceof type;
+		};
+
+		const cursor = this.physicalCursor(buffer).clone();
 		ReadLoop: while (this.expected.length && reader.remaining > 0) {
 
-			const { p: prediction, gen } = this.expected[0];
-			const cursor = this.physicalCursor(buffer);
-			let beforeTestReaderIndex = reader.index;
+			// Ignore things we don't care about
+			output += emitPredictionOmitted(reader);
 
+			const thing = this.CoordinateToPrediction.get(`${cursor.coordinate.x}/${cursor.coordinate.baseY + cursor.coordinate.y}`);
+
+			if (!thing || !checkInstanceOf(thing.prediction, CursorMovePrediction)) {
+				// Handle movement
+				const cursorMove = reader.eatRe(CSI_CURSOR_POSITION_RE);
+				if (cursorMove) {
+					// We need to follow the cursor movements
+					cursor.moveTo({
+						x: parseInt(cursorMove[2] ?? 1) - 1,
+						y: parseInt(cursorMove[1]) - 1,
+						baseY: cursor.baseY
+					});
+
+					output += cursorMove[0];
+
+					continue;
+				}
+			}
+
+			const ansi = reader.eatRe(ANSI_RE);
+			if (ansi) {
+				output += ansi;
+				continue;
+				// log?
+			}
+
+			if (!thing || (!checkInstanceOf(thing.prediction, CharacterPrediction) && !checkInstanceOf(thing.prediction, NewlinePrediction))) {
+
+				const char = cursor.getCell()?.getChars();
+				if (char) {
+					// See if the character at the cursor matches the reader
+					if (!reader.eatChar(char)) {
+						this.failedEmitter.fire(new HardBoundary());
+						break ReadLoop;
+					}
+
+					cursor.shift(char.length);
+					continue;
+				}
+
+				const nextChar = reader.eatRe(/./);
+				cursor.shift(nextChar?.length);
+				continue;
+			}
+
+			const { gen, prediction } = thing;
+			let beforeTestReaderIndex = reader.index;
 			const matchResult = prediction.matches(reader, this.lookBehind, cursor);
 			switch (matchResult) {
 				case MatchResult.Success:
@@ -903,13 +922,7 @@ export class PredictionTimeline {
 					this.succeededEmitter.fire(prediction);
 					this.lookBehind = prediction;
 					this.expected.shift();
-					break ReadLoop;
-				case MatchResult.Buffer:
-					// on a buffer, store the remaining data and completely read data
-					// to be output as normal.
-					this.inputBuffer = input.slice(beforeTestReaderIndex);
-					reader.index = input.length;
-					break ReadLoop;
+					break;
 				case MatchResult.Failure:
 					// on a failure, roll back all remaining items in this generation
 					// and clear predictions, since they are no longer valid
@@ -973,6 +986,7 @@ export class PredictionTimeline {
 		this.expected = [];
 		this.clearCursor();
 		this.lookBehind = undefined;
+		this.CoordinateToPrediction.clear();
 	}
 
 	/**
@@ -997,6 +1011,9 @@ export class PredictionTimeline {
 			// console.log('predict:', JSON.stringify(text));
 			this.terminal.write(text);
 		}
+
+		const coord = prediction.appliedHere!;
+		this.CoordinateToPrediction.set(`${coord.x}/${coord.baseY + coord.y}`, { gen: this.currentGen, prediction });
 
 		return true;
 	}
@@ -1564,6 +1581,11 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 			if (reader.eatChar('\r') && buffer.cursorY < terminal.rows - 1) {
 				this.timeline.addPrediction(buffer, new NewlinePrediction());
+				continue;
+			}
+
+			// Eat response to cursor position
+			if (reader.eatRe(/^\x1b\[[0-9;]*R/)) {
 				continue;
 			}
 
