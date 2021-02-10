@@ -324,7 +324,7 @@ export async function createTask(context: ExtensionContext, script: NpmTaskDefin
 		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
 		for (let i = 0; i < cmd.length; i++) {
 			if (/\s/.test(cmd[i])) {
-				result[i] = { value: `${cmd[i]}`, quoting: ShellQuoting.Strong };
+				result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
 			} else {
 				result[i] = cmd[i];
 			}
