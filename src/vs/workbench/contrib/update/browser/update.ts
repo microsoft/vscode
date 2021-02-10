@@ -9,7 +9,7 @@ import { Action } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -21,12 +21,14 @@ import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
@@ -511,7 +513,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -524,27 +526,50 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 		if (productQualityChangeHandler && (quality === 'stable' || quality === 'insider')) {
 			const newQuality = quality === 'stable' ? 'insider' : 'stable';
 			const commandId = `update.switchQuality.${newQuality}`;
-			CommandsRegistry.registerCommand(commandId, async accessor => {
-				const dialogService = accessor.get(IDialogService);
-
-				const res = await dialogService.confirm({
-					type: 'info',
-					message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
-					detail: newQuality === 'insider' ?
-						nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
-						nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
-					primaryButton: nls.localize('reload', "&&Reload")
-				});
-
-				if (res.confirmed) {
-					productQualityChangeHandler(newQuality);
+			const isSwitchingToInsiders = newQuality === 'insider';
+			registerAction2(class SwitchQuality extends Action2 {
+				constructor() {
+					super({
+						id: commandId,
+						title: isSwitchingToInsiders ? nls.localize('switchToInsiders', "Switch to Insiders Version...") : nls.localize('switchToStable', "Switch to Stable Version..."),
+						precondition: IsWebContext,
+						menu: {
+							id: MenuId.GlobalActivity,
+							when: IsWebContext,
+							group: '6_update',
+						}
+					});
 				}
-			});
-			MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-				group: '6_update',
-				command: {
-					id: commandId,
-					title: newQuality === 'insider' ? nls.localize('switchToInsiders', "Switch to Insiders Version...") : nls.localize('switchToStable', "Switch to Stable Version...")
+				async run(accessor: ServicesAccessor): Promise<void> {
+					const dialogService = accessor.get(IDialogService);
+					const userDataAutoSyncEnablementService = accessor.get(IUserDataAutoSyncEnablementService);
+					const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
+					const storageService = accessor.get(IStorageService);
+
+					const askToUseInsidersSettingsSyncService = isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled();
+					const useInsidersSettingsSyncServiceCheckedKey = 'switchQuality.useInsidersSettingsSyncService.checked';
+
+					const res = await dialogService.confirm({
+						type: 'info',
+						message: askToUseInsidersSettingsSyncService ? nls.localize('relaunchMessage1', "Choose Settings Sync service and Reload")
+							: nls.localize('relaunchMessage2', "Changing the version requires a reload to take effect"),
+						detail: isSwitchingToInsiders ?
+							nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
+							nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
+						checkbox: askToUseInsidersSettingsSyncService ? {
+							label: nls.localize('useInsidersSyncService.description', "Use Insiders Settings Sync service for syncing."),
+							checked: storageService.getBoolean(useInsidersSettingsSyncServiceCheckedKey, StorageScope.GLOBAL, true)
+						} : undefined,
+						primaryButton: nls.localize('reload', "&&Reload")
+					});
+
+					if (res.confirmed) {
+						if (askToUseInsidersSettingsSyncService) {
+							storageService.store(useInsidersSettingsSyncServiceCheckedKey, !!res.checkboxChecked, StorageScope.GLOBAL, StorageTarget.USER);
+							userDataSyncStoreManagementService.switch(res.checkboxChecked ? 'insiders' : 'stable');
+						}
+						productQualityChangeHandler(newQuality);
+					}
 				}
 			});
 		}
