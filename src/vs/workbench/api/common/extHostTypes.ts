@@ -2813,6 +2813,33 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
+export class NotebookCellMetadata {
+
+	readonly readonly: boolean;
+	readonly inputCollapsed: boolean;
+	readonly outputCollapsed: boolean;
+
+	[key: string]: unknown;
+
+	constructor(readonly: boolean, inputCollapsed: boolean, outputCollapsed: boolean) {
+		this.readonly = readonly;
+		this.inputCollapsed = inputCollapsed;
+		this.outputCollapsed = outputCollapsed;
+	}
+
+	with(change: Partial<{ readonly: boolean, inputCollapsed: boolean, outputCollapsed: boolean, [key: string]: unknown }>): NotebookCellMetadata {
+		const thisAndChange = { ...this, ...change };
+		const res = new NotebookCellMetadata(thisAndChange.readonly, thisAndChange.inputCollapsed, thisAndChange.outputCollapsed);
+		for (const key in change) {
+			if (Object.prototype.hasOwnProperty.call(change, key)) {
+				res[key] = change[key];
+			}
+		}
+		return res;
+	}
+}
+
+
 export class NotebookCellOutputItem {
 
 	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
