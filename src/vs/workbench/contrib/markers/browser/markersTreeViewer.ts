@@ -596,11 +596,8 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			codeMatches = undefined;
 		}
 
-		const anyMatched = (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) ? true : false;
-		if (anyMatched && negate) {
-			return false;
-		} else if (anyMatched || negate) {
-			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
+		if (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) {
+			return negate ? false : { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
 		}
 
 		return parentVisibility;
@@ -616,10 +613,7 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 		const uriMatches = FilterOptions._filter(text, basename(relatedInformation.raw.resource));
 		const messageMatches = FilterOptions._messageFilter(text, paths.basename(relatedInformation.raw.message));
 
-		const anyMatched = (uriMatches || messageMatches) ? true : false;
-		if (anyMatched && negate) {
-			return false;
-		} else if (anyMatched || negate) {
+		if (uriMatches || messageMatches) {
 			return negate ? false : { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
 		}
 
