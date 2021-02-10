@@ -198,6 +198,12 @@ export class Client implements IChannelClient, IDisposable {
 				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
 			}
 
+			if (forkOpts.execArgv === undefined) {
+				// if not set, the forked process inherits the execArgv of the parent process
+				// --inspect and --inspect-brk can not be inherited as the port would conflict
+				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
+			}
+
 			if (isMacintosh && forkOpts.env) {
 				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
 				// See https://github.com/microsoft/vscode/issues/105848
