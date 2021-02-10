@@ -495,9 +495,13 @@ export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IRedu
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 
-		stream.on('data', data => chunks.push(data));
 		stream.on('error', error => reject(error));
 		stream.on('end', () => resolve(reducer(chunks)));
+
+		// Adding the `data` listener will turn the stream
+		// into flowing mode. As such it is important to
+		// add this listener last (DO NOT CHANGE!)
+		stream.on('data', data => chunks.push(data));
 	});
 }
 
