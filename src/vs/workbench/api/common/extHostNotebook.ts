@@ -25,6 +25,7 @@ import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { assertIsDefined } from 'vs/base/common/types';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class ExtHostWebviewCommWrapper extends Disposable {
 	private readonly _onDidReceiveDocumentMessage = new Emitter<any>();
@@ -443,13 +444,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string, untitledDocumentData?: Uint8Array): Promise<NotebookDataDto> {
+	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string, untitledDocumentData?: VSBuffer): Promise<NotebookDataDto> {
 		const provider = this._notebookContentProviders.get(viewType);
 		if (!provider) {
 			throw new Error(`NO provider for '${viewType}'`);
 		}
 
-		const data = await provider.provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData });
+		const data = await provider.provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer });
 		return {
 			metadata: {
 				...notebookDocumentMetadataDefaults,

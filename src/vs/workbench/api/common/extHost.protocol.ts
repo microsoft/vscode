@@ -704,7 +704,7 @@ export interface ExtHostWebviewPanelsShape {
 
 export interface ExtHostCustomEditorsShape {
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewHandle, viewType: string, title: string, position: EditorGroupColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, cancellation: CancellationToken): Promise<void>;
-	$createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: Uint8Array | undefined, cancellation: CancellationToken): Promise<{ editable: boolean }>;
+	$createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, cancellation: CancellationToken): Promise<{ editable: boolean }>;
 	$disposeCustomDocument(resource: UriComponents, viewType: string): Promise<void>;
 
 	$undo(resource: UriComponents, viewType: string, editId: number, isDirty: boolean): Promise<void>;
@@ -1779,7 +1779,7 @@ export interface INotebookDocumentsAndEditorsDelta {
 }
 
 export interface ExtHostNotebookShape {
-	$resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string, untitledDocumentData?: Uint8Array): Promise<NotebookDataDto>;
+	$resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string, untitledDocumentData?: VSBuffer): Promise<NotebookDataDto>;
 	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
 	$provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	$resolveNotebookKernel(handle: number, editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;

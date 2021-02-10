@@ -5,6 +5,7 @@
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { flatten } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -751,7 +752,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.get(id);
 	}
 
-	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string, untitledDocumentData?: Uint8Array): Promise<NotebookTextModel> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string, untitledDocumentData?: VSBuffer): Promise<NotebookTextModel> {
 
 		if (!await this.canResolve(viewType)) {
 			throw new Error(`CANNOT load notebook, no provider for '${viewType}'`);

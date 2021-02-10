@@ -163,7 +163,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	 * @param resource The resource that is the untitled file
 	 * @returns The bytes
 	 */
-	private async getUntitledDocumentData(resource: URI): Promise<Uint8Array | undefined> {
+	private async getUntitledDocumentData(resource: URI): Promise<VSBuffer | undefined> {
 		if (resource.scheme !== Schemas.untitled) {
 			return;
 		}
@@ -175,7 +175,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 				const untitledModel = model.object;
 				const untitledFileValue = untitledModel.textEditorModel.getValue();
 				model.dispose();
-				return VSBuffer.fromString(untitledFileValue).buffer;
+				return VSBuffer.fromString(untitledFileValue);
 			}
 			return;
 		});

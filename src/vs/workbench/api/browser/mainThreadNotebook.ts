@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { diffMaps, diffSets } from 'vs/base/common/collections';
 import { Emitter } from 'vs/base/common/event';
@@ -459,7 +460,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					});
 				});
 			},
-			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string, untitledDocumentData?: Uint8Array) => {
+			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string, untitledDocumentData?: VSBuffer) => {
 				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId, untitledDocumentData);
 				return {
 					data,

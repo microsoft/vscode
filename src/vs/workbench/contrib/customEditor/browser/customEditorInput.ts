@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { memoize } from 'vs/base/common/decorators';
 import { Lazy } from 'vs/base/common/lazy';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -30,7 +31,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private readonly _backupId: string | undefined;
 
-	private readonly _untitledDocumentData: Uint8Array | undefined;
+	private readonly _untitledDocumentData: VSBuffer | undefined;
 
 	get resource() { return this._editorResource; }
 
@@ -41,7 +42,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: Lazy<WebviewOverlay>,
-		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: Uint8Array },
+		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: VSBuffer },
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -242,7 +243,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._backupId;
 	}
 
-	get untiltedDocumentData(): Uint8Array | undefined {
+	get untitledDocumentData(): VSBuffer | undefined {
 		return this._untitledDocumentData;
 	}
 }

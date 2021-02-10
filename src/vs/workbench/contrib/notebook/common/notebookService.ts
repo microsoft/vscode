@@ -18,6 +18,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -26,7 +27,7 @@ export interface IMainNotebookController {
 	supportBackup: boolean;
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
-	resolveNotebookDocument(viewType: string, uri: URI, backupId?: string, untitledDocumentData?: Uint8Array): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
+	resolveNotebookDocument(viewType: string, uri: URI, backupId?: string, untitledDocumentData?: VSBuffer): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
@@ -57,7 +58,7 @@ export interface INotebookService {
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 
-	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string, untitledDocumentData?: Uint8Array): Promise<NotebookTextModel>;
+	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string, untitledDocumentData?: VSBuffer): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];

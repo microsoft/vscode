@@ -244,7 +244,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				const untitledModel = model.object;
 				const untitledFileValue = untitledModel.textEditorModel.getValue();
 				model.dispose();
-				return VSBuffer.fromString(untitledFileValue).buffer;
+				return VSBuffer.fromString(untitledFileValue);
 			}
 			return;
 		});
@@ -257,7 +257,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		resource: URI,
 		viewType: string,
 		group: GroupIdentifier | undefined,
-		options?: { readonly customClasses?: string, readonly untitledDocumentData?: Uint8Array },
+		options?: { readonly customClasses?: string, readonly untitledDocumentData?: VSBuffer },
 	): IEditorInput {
 		if (viewType === defaultCustomEditor.id) {
 			return this.editorService.createEditorInput({ resource, forceFile: true });

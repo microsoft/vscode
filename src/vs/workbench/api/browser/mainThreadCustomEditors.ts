@@ -5,6 +5,7 @@
 
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -205,7 +206,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		modelType: CustomEditorModelType,
 		resource: URI,
 		viewType: string,
-		options: { backupId?: string, untitledDocumentData?: Uint8Array },
+		options: { backupId?: string },
 		cancellation: CancellationToken,
 	): Promise<IReference<ICustomEditorModel>> {
 		const existingModel = this._customEditorService.models.tryRetain(resource, viewType);
@@ -290,16 +291,17 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		proxy: extHostProtocol.ExtHostCustomEditorsShape,
 		viewType: string,
 		resource: URI,
-		options: { backupId?: string, untitledDocumentData?: Uint8Array },
+		options: { backupId?: string },
 		getEditors: () => CustomEditorInput[],
 		cancellation: CancellationToken,
 		_backupFileService: IBackupFileService,
 	): Promise<MainThreadCustomEditorModel> {
 		const editors = getEditors();
+		let untitledDocumentData: VSBuffer | undefined;
 		if (editors.length !== 0) {
-			options.untitledDocumentData = editors[0].untiltedDocumentData;
+			untitledDocumentData = editors[0].untitledDocumentData;
 		}
-		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, options.untitledDocumentData, cancellation);
+		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, getEditors);
 	}
 
