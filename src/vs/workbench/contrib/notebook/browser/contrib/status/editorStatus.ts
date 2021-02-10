@@ -91,8 +91,8 @@ registerAction2(class extends Action2 {
 		) : undefined;
 
 		if (selectedKernel) {
-			editor.activeKernel = selectedKernel!;
-			return selectedKernel!.resolve(editor.uri!, editor.getId(), tokenSource.token);
+			editor.activeKernel = selectedKernel;
+			return selectedKernel.resolve(editor.uri!, editor.getId(), tokenSource.token);
 		} else {
 			picker.show();
 		}
@@ -224,4 +224,3 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Ready);
-

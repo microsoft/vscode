@@ -462,6 +462,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 class ProcAutomaticPortForwarding extends Disposable {
 	private candidateListener: IDisposable | undefined;
 	private autoForwarded: Set<string> = new Set();
+	private notifiedOnly: Set<string> = new Set();
 	private notifier: OnAutoForwardedAction;
 	private initialCandidates: Set<string> = new Set();
 	private portsFeatures: IDisposable | undefined;
@@ -543,18 +544,18 @@ class ProcAutomaticPortForwarding extends Disposable {
 			if (this.initialCandidates.has(address)) {
 				return undefined;
 			}
+			const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, value.host, value.port);
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, value.host, value.port)) {
-				return undefined;
-			}
-			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, value.host, value.port)) {
 				return undefined;
 			}
 			if (this.portsAttributes.getAttributes(value.port)?.onAutoForward === OnPortForward.Ignore) {
 				return undefined;
 			}
 			const forwarded = await this.remoteExplorerService.forward(value, undefined, undefined, undefined, undefined, undefined, false);
-			if (forwarded) {
+			if (!alreadyForwarded && forwarded) {
 				this.autoForwarded.add(address);
+			} else if (forwarded) {
+				this.notifiedOnly.add(address);
 			}
 			return forwarded;
 		}))).filter(tunnel => !!tunnel);
@@ -570,6 +571,9 @@ class ProcAutomaticPortForwarding extends Disposable {
 			if (this.autoForwarded.has(key)) {
 				this.remoteExplorerService.close(value);
 				this.autoForwarded.delete(key);
+				removedPorts.push(value.port);
+			} else if (this.notifiedOnly.has(key)) {
+				this.notifiedOnly.delete(key);
 				removedPorts.push(value.port);
 			} else if (this.initialCandidates.has(key)) {
 				this.initialCandidates.delete(key);

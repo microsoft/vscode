@@ -15,10 +15,12 @@ export interface IpcRendererEvent extends Event {
 
 	// Docs: https://electronjs.org/docs/api/structures/ipc-renderer-event
 
-	/**
-	 * A list of MessagePorts that were transferred with this message
-	 */
-	ports: MessagePort[];
+	// Note: API with `Transferable` intentionally commented out because you
+	// cannot transfer these when `contextIsolation: true`.
+	// /**
+	//  * A list of MessagePorts that were transferred with this message
+	//  */
+	// ports: MessagePort[];
 	/**
 	 * The `IpcRenderer` instance that emitted the event originally
 	 */
@@ -93,20 +95,23 @@ export interface IpcRenderer {
 	 * If you do not need a response to the message, consider using `ipcRenderer.send`.
 	 */
 	invoke(channel: string, ...args: any[]): Promise<any>;
-	/**
-	 * Send a message to the main process, optionally transferring ownership of zero or
-	 * more `MessagePort` objects.
-	 *
-	 * The transferred `MessagePort` objects will be available in the main process as
-	 * `MessagePortMain` objects by accessing the `ports` property of the emitted
-	 * event.
-	 *
-	 * For example:
-	 *
-	 * For more information on using `MessagePort` and `MessageChannel`, see the MDN
-	 * documentation.
-	 */
-	postMessage(channel: string, message: any, transfer?: MessagePort[]): void;
+
+	// Note: API with `Transferable` intentionally commented out because you
+	// cannot transfer these when `contextIsolation: true`.
+	// /**
+	//  * Send a message to the main process, optionally transferring ownership of zero or
+	//  * more `MessagePort` objects.
+	//  *
+	//  * The transferred `MessagePort` objects will be available in the main process as
+	//  * `MessagePortMain` objects by accessing the `ports` property of the emitted
+	//  * event.
+	//  *
+	//  * For example:
+	//  *
+	//  * For more information on using `MessagePort` and `MessageChannel`, see the MDN
+	//  * documentation.
+	//  */
+	// postMessage(channel: string, message: any): void;
 }
 
 export interface WebFrame {

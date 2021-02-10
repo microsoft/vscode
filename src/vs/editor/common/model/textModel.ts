@@ -38,6 +38,7 @@ import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRed
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { listenStream } from 'vs/base/common/stream';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -64,33 +65,33 @@ export function createTextBufferFactoryFromStream(stream: ITextStream | VSBuffer
 
 		let done = false;
 
-		stream.on('data', (chunk: string | VSBuffer) => {
-			if (validator) {
-				const error = validator(chunk);
-				if (error) {
+		listenStream<string | VSBuffer>(stream, {
+			onData: chunk => {
+				if (validator) {
+					const error = validator(chunk);
+					if (error) {
+						done = true;
+						reject(error);
+					}
+				}
+
+				if (filter) {
+					chunk = filter(chunk);
+				}
+
+				builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
+			},
+			onError: error => {
+				if (!done) {
 					done = true;
 					reject(error);
 				}
-			}
-
-			if (filter) {
-				chunk = filter(chunk);
-			}
-
-			builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
-		});
-
-		stream.on('error', (error) => {
-			if (!done) {
-				done = true;
-				reject(error);
-			}
-		});
-
-		stream.on('end', () => {
-			if (!done) {
-				done = true;
-				resolve(builder.finish());
+			},
+			onEnd: () => {
+				if (!done) {
+					done = true;
+					resolve(builder.finish());
+				}
 			}
 		});
 	});
