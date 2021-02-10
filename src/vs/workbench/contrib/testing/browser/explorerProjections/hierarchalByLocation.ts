@@ -123,6 +123,13 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	/**
 	 * @inheritdoc
 	 */
+	public hasTestInDocument(uri: URI) {
+		return this.locations.hasTestInDocument(uri);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	private applyDiff(folder: IWorkspaceFolder, diff: TestsDiff) {
 		for (const op of diff) {
 			switch (op[0]) {

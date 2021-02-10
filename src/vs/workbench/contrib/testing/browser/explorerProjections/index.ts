@@ -33,6 +33,11 @@ export interface ITestTreeProjection extends IDisposable {
 	getTestAtPosition(uri: URI, position: Position): ITestTreeElement | undefined;
 
 	/**
+	 * Gets whether any test is defined in the given URI.
+	 */
+	hasTestInDocument(uri: URI): boolean;
+
+	/**
 	 * Applies pending update to the tree.
 	 */
 	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;

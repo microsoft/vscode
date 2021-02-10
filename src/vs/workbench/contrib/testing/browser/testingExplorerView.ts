@@ -20,6 +20,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -64,7 +65,7 @@ import { DebugAction, RunAction } from './testExplorerActions';
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
 	private filterActionBar = this._register(new MutableDisposable());
-	private currentSubscription?: TestSubscriptionListener;
+	private readonly currentSubscription = new MutableDisposable<TestSubscriptionListener>();
 	private container!: HTMLElement;
 	private finishDiscovery?: () => void;
 	private readonly location = TestingContextKeys.explorerLocation.bindTo(this.contextKeyService);;
@@ -112,17 +113,16 @@ export class TestingExplorerView extends ViewPane {
 		this._register(this.instantiationService.createInstance(TestRunProgress, messagesContainer, this.getProgressLocation()));
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
-		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription);
+		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription.value);
 		this._register(this.viewModel);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible && this.currentSubscription) {
-				this.currentSubscription.dispose();
-				this.currentSubscription = undefined;
+				this.currentSubscription.value = undefined;
 				this.viewModel.replaceSubscription(undefined);
-			} else if (visible && !this.currentSubscription) {
-				this.currentSubscription = this.createSubscription();
-				this.viewModel.replaceSubscription(this.currentSubscription);
+			} else if (visible && !this.currentSubscription.value) {
+				this.currentSubscription.value = this.createSubscription();
+				this.viewModel.replaceSubscription(this.currentSubscription.value);
 			}
 		}));
 	}
@@ -227,7 +227,6 @@ export class TestingExplorerViewModel extends Disposable {
 		@ITestExplorerFilterState filterState: TestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
@@ -239,13 +238,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
 
-		this.filter = new TestsFilter(filterState.value);
-
-		this._register(filterState.onDidChange(text => {
-			this.filter.setFilter(text);
-			this.tree.refilter();
-		}));
-
+		this.filter = this.instantiationService.createInstance(TestsFilter);
 		this.tree = instantiationService.createInstance(
 			WorkbenchObjectTree,
 			'Test Explorer List',
@@ -263,11 +256,22 @@ export class TestingExplorerViewModel extends Disposable {
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
 			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
+
+		this._register(Event.any(filterState.currentDocumentOnly.onDidChange, filterState.text.onDidChange)(this.tree.refilter, this.tree));
+		this._register(editorService.onDidActiveEditorChange(() => {
+			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
+				if (this.projection.hasTestInDocument(editorService.activeEditor.resource)) {
+					this.filter.filterToUri(editorService.activeEditor.resource);
+					this.tree.refilter();
+				}
+			}
+		}));
+
 		this._register(this.tree);
 
 		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
 			if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
-				filterState.value = evt.browserEvent.key;
+				filterState.text.value = evt.browserEvent.key;
 				filterState.focusInput();
 			}
 		}));
@@ -282,7 +286,7 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		const tracker = this._register(new CodeEditorTracker(codeEditorService, this));
+		const tracker = this._register(this.instantiationService.createInstance(CodeEditorTracker, this));
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
 				tracker.activate();
@@ -447,7 +451,10 @@ class CodeEditorTracker {
 	private store = new DisposableStore();
 	private lastRevealed?: ITestTreeElement;
 
-	constructor(@ICodeEditorService private readonly codeEditorService: ICodeEditorService, private readonly model: TestingExplorerViewModel) {
+	constructor(
+		private readonly model: TestingExplorerViewModel,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+	) {
 	}
 
 	public activate() {
@@ -496,22 +503,23 @@ class CodeEditorTracker {
 }
 
 const enum FilterResult {
-	Include,
 	Exclude,
 	Inherit,
+	Include,
 }
 
 class TestsFilter implements ITreeFilter<ITestTreeElement> {
+	private lastText?: string;
 	private filters: [include: boolean, value: string][] | undefined;
+	private _filterToUri: string | undefined;
 
-	constructor(initialFilter: string) {
-		this.setFilter(initialFilter);
-	}
+	constructor(@ITestExplorerFilterState private readonly state: ITestExplorerFilterState) { }
 
 	/**
 	 * Parses and updates the tree filter. Supports lists of patterns that can be !negated.
 	 */
-	public setFilter(text: string) {
+	private setFilter(text: string) {
+		this.lastText = text;
 		text = text.trim();
 
 		if (!text) {
@@ -529,37 +537,68 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 		}
 	}
 
-	public filter(element: ITestTreeElement): TreeFilterResult<void> {
-		for (let e: ITestTreeElement | null = element; e; e = e.parentItem) {
-			switch (this.testFilterText(e.label)) {
-				case FilterResult.Exclude:
-					return TreeVisibility.Hidden;
-				case FilterResult.Include:
-					return TreeVisibility.Visible;
-				case FilterResult.Inherit:
-				// continue to parent
-			}
-		}
-
-		return TreeVisibility.Recurse;
+	public filterToUri(uri: URI) {
+		this._filterToUri = uri.toString();
 	}
 
-	private testFilterText(data: string) {
+	/**
+	 * @inheritdoc
+	 */
+	public filter(element: ITestTreeElement): TreeFilterResult<void> {
+		if (this.state.text.value !== this.lastText) {
+			this.setFilter(this.state.text.value);
+		}
+
+		switch (Math.min(this.testFilterText(element), this.testLocation(element))) {
+			case FilterResult.Exclude:
+				return TreeVisibility.Hidden;
+			case FilterResult.Include:
+				return TreeVisibility.Visible;
+			default:
+				return TreeVisibility.Recurse;
+		}
+	}
+
+	private testLocation(element: ITestTreeElement): FilterResult {
+		if (!this._filterToUri || !this.state.currentDocumentOnly.value) {
+			return FilterResult.Include;
+		}
+
+		for (let e: ITestTreeElement | null = element; e; e = e!.parentItem) {
+			if (!e.location) {
+				continue;
+			}
+
+			return e.location.uri.toString() === this._filterToUri
+				? FilterResult.Include
+				: FilterResult.Exclude;
+		}
+
+		return FilterResult.Inherit;
+	}
+
+	private testFilterText(element: ITestTreeElement) {
 		if (!this.filters) {
 			return FilterResult.Include;
 		}
 
-		// start as included if the first glob is a negation
-		let included = this.filters[0][0] === false ? FilterResult.Exclude : FilterResult.Inherit;
-		data = data.toLowerCase();
+		for (let e: ITestTreeElement | null = element; e; e = e.parentItem) {
+			// start as included if the first glob is a negation
+			let included = this.filters[0][0] === false ? FilterResult.Exclude : FilterResult.Inherit;
+			const data = e.label.toLowerCase();
 
-		for (const [include, filter] of this.filters) {
-			if (data.includes(filter)) {
-				included = include ? FilterResult.Include : FilterResult.Exclude;
+			for (const [include, filter] of this.filters) {
+				if (data.includes(filter)) {
+					included = include ? FilterResult.Include : FilterResult.Exclude;
+				}
+			}
+
+			if (included !== FilterResult.Inherit) {
+				return included;
 			}
 		}
 
-		return included;
+		return FilterResult.Inherit;
 	}
 }
 
