@@ -1008,6 +1008,8 @@ declare module 'vscode' {
 		Idle = 2
 	}
 
+	// TODO@API
+	// make this a class, allow modified using with-pattern
 	export interface NotebookCellMetadata {
 		/**
 		 * Controls whether a cell's editor is editable/readonly.
@@ -1521,6 +1523,9 @@ declare module 'vscode' {
 	// 	dispose(): void;
 	// 	clearOutput(): void;
 	// 	appendOutput(out: NotebookCellOutput): void;
+	// 	replaceOutput(out: NotebookCellOutput): void;
+	//  appendOutputItems(items: NotebookCellOutputItem[]):void;
+	//  replaceOutputItems(items: NotebookCellOutputItem[]):void;
 	// }
 
 	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellExecution;
