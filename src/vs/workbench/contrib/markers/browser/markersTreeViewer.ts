@@ -533,11 +533,11 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
-		const negate = this.options.textFilter.startsWith('!');
-		const textFilter = this.options.textFilter.substring(negate ? 1 : 0);
+		const negate = this.options.textFilter.negate;
+		const text = this.options.textFilter.text;
 
-		if (textFilter) {
-			const uriMatches = FilterOptions._filter(textFilter, basename(resourceMarkers.resource));
+		if (text) {
+			const uriMatches = FilterOptions._filter(text, basename(resourceMarkers.resource));
 			if (uriMatches && negate) {
 				return false;
 			} else if (uriMatches || negate) {
@@ -571,19 +571,19 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 		}
 
 		const lineMatches: IMatch[][] = [];
-		const negate = this.options.textFilter.startsWith('!');
-		const textFilter = this.options.textFilter.substring(negate ? 1 : 0);
-		if (!textFilter) {
+		const negate = this.options.textFilter.negate;
+		const text = this.options.textFilter.text;
+		if (!text) {
 			return true;
 		}
 		for (const line of marker.lines) {
-			const lineMatch = FilterOptions._messageFilter(textFilter, line);
+			const lineMatch = FilterOptions._messageFilter(text, line);
 			lineMatches.push(lineMatch || []);
 		}
 
 		let sourceMatches: IMatch[] | null | undefined;
 		if (marker.marker.source) {
-			sourceMatches = FilterOptions._filter(textFilter, marker.marker.source);
+			sourceMatches = FilterOptions._filter(text, marker.marker.source);
 		} else {
 			sourceMatches = undefined;
 		}
@@ -591,7 +591,7 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 		let codeMatches: IMatch[] | null | undefined;
 		if (marker.marker.code) {
 			const codeText = typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value;
-			codeMatches = FilterOptions._filter(textFilter, codeText);
+			codeMatches = FilterOptions._filter(text, codeText);
 		} else {
 			codeMatches = undefined;
 		}
@@ -607,14 +607,14 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 	}
 
 	private filterRelatedInformation(relatedInformation: RelatedInformation, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		const negate = this.options.textFilter.startsWith('!');
-		const textFilter = this.options.textFilter.substring(negate ? 1 : 0);
-		if (!textFilter) {
+		const negate = this.options.textFilter.negate;
+		const text = this.options.textFilter.text;
+		if (!text) {
 			return true;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(relatedInformation.raw.resource));
-		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
+		const uriMatches = FilterOptions._filter(text, basename(relatedInformation.raw.resource));
+		const messageMatches = FilterOptions._messageFilter(text, paths.basename(relatedInformation.raw.message));
 
 		const anyMatched = (uriMatches || messageMatches) ? true : false;
 		if (anyMatched && negate) {

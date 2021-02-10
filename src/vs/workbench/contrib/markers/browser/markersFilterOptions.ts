@@ -48,7 +48,7 @@ export class FilterOptions {
 	readonly showWarnings: boolean = false;
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
-	readonly textFilter: string = '';
+	readonly textFilter: { text: string, negate: boolean } = { text: '', negate: false };
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
@@ -80,22 +80,20 @@ export class FilterOptions {
 					if (unnegated) {
 						this.setPattern(excludesExpression, unnegated);
 						if (negatedTextFilter) {
-							this.textFilter += ` ${unnegated}`;
+							this.textFilter.text += ` ${unnegated}`;
 						}
 					}
 				} else {
 					this.setPattern(includeExpression, f);
-					this.textFilter += ` ${f}`;
+					this.textFilter.text += ` ${f}`;
 				}
 			}
 		}
 
 		this.excludesMatcher = new ResourceGlobMatcher(excludesExpression, filesExcludeByRoot, uriIdentityService);
 		this.includesMatcher = new ResourceGlobMatcher(includeExpression, [], uriIdentityService);
-		this.textFilter = this.textFilter.trim();
-		if (negatedTextFilter) {
-			this.textFilter = '!' + this.textFilter;
-		}
+		this.textFilter.text = this.textFilter.text.trim();
+		this.textFilter.negate = negatedTextFilter;
 	}
 
 	private setPattern(expression: IExpression, pattern: string) {
