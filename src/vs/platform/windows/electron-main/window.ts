@@ -694,6 +694,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			config.userEnv = { ...currentUserEnv, ...config.userEnv }; // still allow to override certain environment as passed in
 		}
 
+		// If named pipe was instantiated for the crashpad_handler process, reuse the same
+		// pipe for new app instances connecting to the original app instance.
+		// Ref: https://github.com/microsoft/vscode/issues/115874
+		if (process.env['CHROME_CRASHPAD_PIPE_NAME']) {
+			Object.assign(config.userEnv, {
+				CHROME_CRASHPAD_PIPE_NAME: process.env['CHROME_CRASHPAD_PIPE_NAME']
+			});
+		}
+
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
 		if (this._readyState === ReadyState.NONE) {
