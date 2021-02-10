@@ -66,6 +66,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalProcess;
 	public readonly remoteAuthority = null;
+	public readonly isTrusted = true;
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onExit: Event<[number, string]> = this._onExit.event;
@@ -456,6 +457,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
 		return {
+			isTrusted: this.isTrusted,
 			commit: this._productService.commit,
 			version: this._productService.version,
 			parentPid: process.pid,

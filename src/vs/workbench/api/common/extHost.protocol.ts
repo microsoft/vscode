@@ -89,6 +89,7 @@ export interface IWorkspaceData extends IStaticWorkspaceData {
 }
 
 export interface IInitData {
+	isTrusted: boolean;
 	version: string;
 	commit?: string;
 	parentPid: number;
@@ -111,6 +112,7 @@ export interface IConfigurationInitData extends IConfigurationData {
 }
 
 export interface IExtHostContext extends IRPCProtocol {
+	readonly isTrusted: boolean;
 	readonly remoteAuthority: string | null;
 	readonly extensionHostKind: ExtensionHostKind;
 }

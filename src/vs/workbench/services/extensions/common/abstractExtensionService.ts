@@ -35,6 +35,7 @@ import { Schemas } from 'vs/base/common/network';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
+export const ENABLE_FIREWALL = false;
 
 export function parseScannedExtension(extension: ITranslatedScannedExtension): IExtensionDescription {
 	return {

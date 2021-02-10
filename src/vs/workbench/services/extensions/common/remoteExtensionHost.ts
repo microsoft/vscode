@@ -52,6 +52,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.Remote;
 	public readonly remoteAuthority: string;
+	public get isTrusted(): boolean { return this._isTrusted; }
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
@@ -62,6 +63,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	private readonly _isExtensionDevHost: boolean;
 
 	constructor(
+		private readonly _isTrusted: boolean,
 		private readonly _initDataProvider: IRemoteExtensionHostDataProvider,
 		private readonly _socketFactory: ISocketFactory,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -223,6 +225,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		);
 		const workspace = this._contextService.getWorkspace();
 		return {
+			isTrusted: this.isTrusted,
 			commit: this._productService.commit,
 			version: this._productService.version,
 			parentPid: remoteInitData.pid,

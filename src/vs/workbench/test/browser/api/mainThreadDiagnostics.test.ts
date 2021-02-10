@@ -25,6 +25,7 @@ suite('MainThreadDiagnostics', function () {
 
 		let diag = new MainThreadDiagnostics(
 			new class implements IExtHostContext {
+				isTrusted = true;
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
 				assertRegistered() { }

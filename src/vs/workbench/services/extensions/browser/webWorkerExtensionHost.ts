@@ -56,6 +56,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
 	public readonly remoteAuthority = null;
+	public readonly isTrusted = true;
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
@@ -356,6 +357,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
 		return {
+			isTrusted: this.isTrusted,
 			commit: this._productService.commit,
 			version: this._productService.version,
 			parentPid: -1,

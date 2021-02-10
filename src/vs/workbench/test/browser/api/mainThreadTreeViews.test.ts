@@ -61,6 +61,7 @@ suite('MainThreadHostTreeView', function () {
 		extHostTreeViewsShape = new MockExtHostTreeViewsShape();
 		mainThreadTreeViews = new MainThreadTreeViews(
 			new class implements IExtHostContext {
+				isTrusted = true;
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
 				assertRegistered() { }
