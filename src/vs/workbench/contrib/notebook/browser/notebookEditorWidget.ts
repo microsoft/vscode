@@ -1470,6 +1470,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const nextIndex = ui ? this.viewModel.getNextVisibleCellIndex(index) : index + 1;
 		let language;
 		if (type === CellKind.Code) {
+			const defaultLanguage = this.viewModel.notebookDocument.resolvedLanguages[0] || 'plaintext';
 			if (cell?.cellKind === CellKind.Code) {
 				language = cell.language;
 			} else if (cell?.cellKind === CellKind.Markdown) {
@@ -1477,20 +1478,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				if (nearestCodeCellIndex > -1) {
 					language = this.viewModel.viewCells[nearestCodeCellIndex].language;
 				} else {
-					language = this.viewModel.resolvedLanguages[0] || 'plaintext';
+					language = defaultLanguage;
 				}
 			} else {
 				if (cell === undefined && direction === 'above') {
 					// insert cell at the very top
-					language = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || this.viewModel.resolvedLanguages[0] || 'plaintext';
+					language = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || defaultLanguage;
 				} else {
-					language = this.viewModel.resolvedLanguages[0] || 'plaintext';
+					language = defaultLanguage;
 				}
 			}
 
-			if (this.viewModel.resolvedLanguages.indexOf(language) < 0) {
+			if (this.viewModel.notebookDocument.resolvedLanguages.indexOf(language) < 0) {
 				// the language no longer exists
-				language = this.viewModel.resolvedLanguages[0] || 'plaintext';
+				language = defaultLanguage;
 			}
 		} else {
 			language = 'markdown';
