@@ -18,6 +18,7 @@ import { localize } from 'vs/nls';
 import { toLocalISOString } from 'vs/base/common/date';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
+import { isWeb } from 'vs/base/common/platform';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -73,9 +74,10 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 	}
 
 	setEnablement(enabled: boolean): void {
-		if (this.canToggleEnablement()) {
-			this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		if (enabled && !this.canToggleEnablement()) {
+			return;
 		}
+		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
@@ -313,9 +315,14 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 		// Service changed
 		else if (userDataSyncError.code === UserDataSyncErrorCode.ServiceChanged || userDataSyncError.code === UserDataSyncErrorCode.DefaultServiceChanged) {
-			await this.turnOff(false, true /* force soft turnoff on error */, true /* do not disable machine */);
-			await this.turnOn();
-			this.logService.info('Auto Sync: Sync Service changed. Turned off auto sync, reset local state and turned on auto sync.');
+			if (userDataSyncError.code === UserDataSyncErrorCode.DefaultServiceChanged && isWeb) {
+				await this.turnOff(false, true /* force soft turnoff on error */);
+				this.logService.info('Auto Sync: Turned off sync because default sync service is changed.');
+			} else {
+				await this.turnOff(false, true /* force soft turnoff on error */, true /* do not disable machine */);
+				await this.turnOn();
+				this.logService.info('Auto Sync: Sync Service changed. Turned off auto sync, reset local state and turned on auto sync.');
+			}
 		}
 
 		else {
