@@ -140,6 +140,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
+			const focusedItem = typeof this.focusedItem === 'number' ? this.viewItems[this.focusedItem] : undefined;
 
 			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
 				eventHandled = this.focusPrevious();
@@ -147,6 +148,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 				eventHandled = this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
+			} else if ((event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
+				if (event.equals(KeyCode.Tab)) {
+					this.focusNext();
+				} else {
+					this.focusPrevious();
+				}
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
@@ -293,6 +300,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
+
+			if (this.viewItems.length === 0 && item instanceof BaseActionViewItem) {
+				// We need to allow for the first item to be focused on using tab navigation #106441
+				item.setFocusable();
+			}
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
