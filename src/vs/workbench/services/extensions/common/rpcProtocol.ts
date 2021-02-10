@@ -189,17 +189,17 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
 		const { nid: rpcId, sid } = identifier;
 		if (!this._proxies[rpcId]) {
-			this._proxies[rpcId] = this._createProxy(rpcId, sid);
+			this._proxies[rpcId] = this._createProxy(identifier, sid);
 		}
 		return this._proxies[rpcId];
 	}
 
-	private _createProxy<T>(rpcId: number, debugName: string): T {
+	private _createProxy<T>(identifier: ProxyIdentifier<T>, debugName: string): T {
 		const handler = {
 			get: (target: any, name: PropertyKey) => {
 				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
-						return this._remoteCall(rpcId, name, myArgs);
+						return this._remoteCall(identifier, name, myArgs);
 					};
 				}
 				if (name === _RPCProxySymbol) {
@@ -417,7 +417,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		return method.apply(actor, args);
 	}
 
-	private _remoteCall(rpcId: number, methodName: string, args: any[]): Promise<any> {
+	private _remoteCall(identifier: ProxyIdentifier<any>, methodName: string, args: any[]): Promise<any> {
 		if (this._isDisposed) {
 			return Promise.reject<any>(errors.canceled());
 		}
@@ -449,9 +449,9 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 
 		this._pendingRPCReplies[callId] = result;
 		this._onWillSendRequest(req);
-		const msg = MessageIO.serializeRequest(req, rpcId, methodName, serializedRequestArguments, !!cancellationToken);
+		const msg = MessageIO.serializeRequest(req, identifier.nid, methodName, serializedRequestArguments, !!cancellationToken);
 		if (this._logger) {
-			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
+			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${identifier.sid}.${methodName}(`, args);
 		}
 		this._protocol.send(msg);
 		return result;
