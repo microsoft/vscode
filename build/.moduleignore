@@ -72,6 +72,7 @@ keytar/node_modules/**
 
 node-pty/binding.gyp
 node-pty/build/**
+node-pty/lib/**
 node-pty/src/**
 node-pty/tools/**
 node-pty/deps/**
