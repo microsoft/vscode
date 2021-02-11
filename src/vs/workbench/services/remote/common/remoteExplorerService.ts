@@ -48,6 +48,7 @@ export interface ITunnelItem {
 	wideDescription?: string;
 	readonly icon?: ThemeIcon;
 	readonly label: string;
+	readonly wideLabel: string;
 }
 
 export interface Tunnel {
