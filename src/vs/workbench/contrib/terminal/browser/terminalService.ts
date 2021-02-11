@@ -19,7 +19,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalLaunchError, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, ITerminalsLayoutInfoById, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/platform/terminal/common/terminal';
+import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalLaunchError, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -156,6 +156,24 @@ export class TerminalService implements ITerminalService {
 	private async _reconnectToRemoteTerminals(): Promise<void> {
 		// Reattach to all remote terminals
 		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
+		const reconnectCounter = this._recreateRemoteTabs(layoutInfo);
+		/* __GDPR__
+			"terminalReconnection" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		 */
+		const data = {
+			count: reconnectCounter
+		};
+		this._telemetryService.publicLog('terminalReconnection', data);
+		this._connectionState = TerminalConnectionState.Connected;
+		// now that terminals have been restored,
+		// attach listeners to update remote when terminals are changed
+		this.attachListeners(true);
+		this._onDidChangeConnectionState.fire();
+	}
+
+	private _recreateRemoteTabs(layoutInfo?: ITerminalsLayoutInfo): number {
 		let reconnectCounter = 0;
 		let activeTab: ITerminalTab | undefined;
 		if (layoutInfo) {
@@ -189,20 +207,7 @@ export class TerminalService implements ITerminalService {
 				this.setActiveTabByIndex(activeTab ? this.terminalTabs.indexOf(activeTab) : 0);
 			}
 		}
-		/* __GDPR__
-			"terminalReconnection" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		 */
-		const data = {
-			count: reconnectCounter
-		};
-		this._telemetryService.publicLog('terminalReconnection', data);
-		this._connectionState = TerminalConnectionState.Connected;
-		// now that terminals have been restored,
-		// attach listeners to update remote when terminals are changed
-		this.attachListeners(true);
-		this._onDidChangeConnectionState.fire();
+		return reconnectCounter;
 	}
 
 	private _reconnectToLocalTerminals(): void {
@@ -217,6 +222,17 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
+		this._recreateLocalTabs(layoutInfo);
+
+		this._connectionState = TerminalConnectionState.Connected;
+		// now that terminals have been restored,
+		// attach listeners to update local state when terminals are changed
+		this.attachListeners(false);
+		this._onDidChangeConnectionState.fire();
+	}
+
+	//TODO@meganrogge consolidate _recreateLocal/Remote Tabs functions
+	private _recreateLocalTabs(layoutInfo: any): void {
 		let activeTab: ITerminalTab | undefined;
 		if (layoutInfo) {
 			for (const layout of layoutInfo.tabs) {
@@ -246,11 +262,6 @@ export class TerminalService implements ITerminalService {
 				this.setActiveTabByIndex(activeTab ? this.terminalTabs.indexOf(activeTab) : 0);
 			}
 		}
-		this._connectionState = TerminalConnectionState.Connected;
-		// now that terminals have been restored,
-		// attach listeners to update local state when terminals are changed
-		this.attachListeners(false);
-		this._onDidChangeConnectionState.fire();
 	}
 
 	private attachListeners(isRemote: boolean): void {
