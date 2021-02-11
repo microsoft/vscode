@@ -19,7 +19,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalLaunchError, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -32,7 +31,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-
+import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalLaunchError, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, LinuxDistro } from 'vs/platform/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
 	resolve: () => void;
@@ -150,7 +150,7 @@ export class TerminalService implements ITerminalService {
 			this._connectionState = TerminalConnectionState.Connecting;
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
-			this.attachListeners(true);
+			this.attachProcessLayoutListeners(true);
 		}
 	}
 
@@ -170,7 +170,7 @@ export class TerminalService implements ITerminalService {
 		this._connectionState = TerminalConnectionState.Connected;
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
-		this.attachListeners(true);
+		this.attachProcessLayoutListeners(true);
 		this._onDidChangeConnectionState.fire();
 	}
 
@@ -219,7 +219,7 @@ export class TerminalService implements ITerminalService {
 
 		if (layoutInfo.tabs.length === 0) {
 			this.createTerminal();
-			this.attachListeners(false);
+			this.attachProcessLayoutListeners(false);
 			return;
 		}
 
@@ -228,7 +228,7 @@ export class TerminalService implements ITerminalService {
 		this._connectionState = TerminalConnectionState.Connected;
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
-		this.attachListeners(false);
+		this.attachProcessLayoutListeners(false);
 		this._onDidChangeConnectionState.fire();
 	}
 
@@ -265,16 +265,11 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private attachListeners(isRemote: boolean): void {
-		this.onActiveTabChanged(() => {
-			isRemote ? this._updateRemoteState() : this._updateLocalState();
-		});
-		this.onActiveInstanceChanged(() => {
-			isRemote ? this._updateRemoteState() : this._updateLocalState();
-		});
-		this.onInstancesChanged(() => {
-			isRemote ? this._updateRemoteState() : this._updateLocalState();
-		});
+	private attachProcessLayoutListeners(isRemote: boolean): void {
+		const callUpdate = isRemote ? this._updateRemoteState : this._updateLocalState;
+		this.onActiveTabChanged(() => callUpdate());
+		this.onActiveInstanceChanged(() => callUpdate());
+		this.onInstancesChanged(() => callUpdate());
 	}
 
 	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {

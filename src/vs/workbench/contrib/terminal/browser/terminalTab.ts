@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalTabLayoutInfoById, TERMINAL_VIEW_ID, IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { ITerminalTabLayoutInfoById, TERMINAL_VIEW_ID, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -302,7 +302,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {
 			isActive: isActive,
-			activeTerminalProcessId: isRemote ? this.activeInstance?.processId || 0 : this.activeInstance?.id || 0,
+			activeTerminalProcessId: this.activeInstance && isRemote ? this.activeInstance.processId : this.activeInstance ? this.activeInstance.id : undefined,
 			terminals: instances.map(t => {
 				return {
 					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,

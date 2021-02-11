@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
-import { ICommandTracker } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * The minimum size of the prompt in which to assume the line is a command.

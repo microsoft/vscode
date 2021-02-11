@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_COMMAND_ID } from 'vs/platform/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function setupTerminalMenu() {

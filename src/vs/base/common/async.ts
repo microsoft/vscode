@@ -366,6 +366,20 @@ export class Barrier {
 		return this._promise;
 	}
 }
+export class AutoOpenBarrier extends Barrier {
+
+	private readonly _timeout: any;
+
+	constructor(autoOpenTimeMs: number) {
+		super();
+		this._timeout = setTimeout(() => this.open(), autoOpenTimeMs);
+	}
+
+	open(): void {
+		clearTimeout(this._timeout);
+		super.open();
+	}
+}
 
 export function timeout(millis: number): CancelablePromise<void>;
 export function timeout(millis: number, token: CancellationToken): Promise<void>;

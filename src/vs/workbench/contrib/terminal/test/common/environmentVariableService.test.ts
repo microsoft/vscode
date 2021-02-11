@@ -6,12 +6,12 @@
 import { deepStrictEqual } from 'assert';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/platform/terminal/common/environmentVariable';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 class TestEnvironmentVariableService extends EnvironmentVariableService {
 	persistCollections(): void { this._persistCollections(); }

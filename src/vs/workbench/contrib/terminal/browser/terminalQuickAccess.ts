@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TERMINAL_COMMAND_ID } from 'vs/platform/terminal/common/terminal';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 

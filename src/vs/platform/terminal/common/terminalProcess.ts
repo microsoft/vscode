@@ -7,8 +7,6 @@ import { UriComponents } from 'vs/base/common/uri';
 import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
-export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
-
 export interface IShellLaunchConfigDto {
 	name?: string;
 	executable?: string;
@@ -68,15 +66,6 @@ export interface ICreateTerminalProcessArguments {
 	resolverEnv: { [key: string]: string | null; } | undefined
 }
 
-export interface ICreateTerminalProcessResult {
-	terminalId: number;
-	resolvedShellLaunchConfig: IShellLaunchConfigDto;
-}
-
-export interface IStartTerminalProcessArguments {
-	id: number;
-}
-
 export interface ISendInputToTerminalProcessArguments {
 	id: number;
 	data: string;
@@ -125,7 +114,7 @@ export interface IGetTerminalLayoutInfoArgs {
 	workspaceId: string;
 }
 
-export interface IRemoteTerminalDescriptionDto {
+export interface IPtyHostDescriptionDto {
 	id: number;
 	pid: number;
 	title: string;
@@ -135,7 +124,7 @@ export interface IRemoteTerminalDescriptionDto {
 	isOrphan: boolean;
 }
 
-export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IRemoteTerminalDescriptionDto>;
+export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IPtyHostDescriptionDto>;
 
 export interface ITriggerTerminalDataReplayArguments {
 	id: number;
@@ -146,45 +135,45 @@ export interface ISendCharCountToTerminalProcessArguments {
 	charCount: number;
 }
 
-export interface IRemoteTerminalProcessReadyEvent {
+export interface IPtyHostProcessReadyEvent {
 	type: 'ready';
 	pid: number;
 	cwd: string;
 }
-export interface IRemoteTerminalProcessTitleChangedEvent {
+export interface IPtyHostProcessTitleChangedEvent {
 	type: 'titleChanged';
 	title: string;
 }
-export interface IRemoteTerminalProcessDataEvent {
+export interface IPtyHostProcessDataEvent {
 	type: 'data';
 	data: string;
 }
 export interface ReplayEntry { cols: number; rows: number; data: string; }
-export interface IRemoteTerminalProcessReplayEvent {
+export interface IPtyHostProcessReplayEvent {
 	type: 'replay';
 	events: ReplayEntry[];
 }
-export interface IRemoteTerminalProcessExitEvent {
+export interface IPtyHostProcessExitEvent {
 	type: 'exit';
 	exitCode: number | undefined;
 }
-export interface IRemoteTerminalProcessExecCommandEvent {
+export interface IPtyHostProcessExecCommandEvent {
 	type: 'execCommand';
 	reqId: number;
 	commandId: string;
 	commandArgs?: any[];
 }
-export interface IRemoteTerminalProcessOrphanQuestionEvent {
+export interface IPtyHostProcessOrphanQuestionEvent {
 	type: 'orphan?';
 }
-export type IRemoteTerminalProcessEvent = (
-	IRemoteTerminalProcessReadyEvent
-	| IRemoteTerminalProcessTitleChangedEvent
-	| IRemoteTerminalProcessDataEvent
-	| IRemoteTerminalProcessReplayEvent
-	| IRemoteTerminalProcessExitEvent
-	| IRemoteTerminalProcessExecCommandEvent
-	| IRemoteTerminalProcessOrphanQuestionEvent
+export type IPtyHostProcessEvent = (
+	IPtyHostProcessReadyEvent
+	| IPtyHostProcessTitleChangedEvent
+	| IPtyHostProcessDataEvent
+	| IPtyHostProcessReplayEvent
+	| IPtyHostProcessExitEvent
+	| IPtyHostProcessExecCommandEvent
+	| IPtyHostProcessOrphanQuestionEvent
 );
 
 export interface IOnTerminalProcessEventArguments {

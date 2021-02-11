@@ -8,7 +8,7 @@ import * as paths from 'vs/base/common/path';
 import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/platform/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Schemas } from 'vs/base/common/network';

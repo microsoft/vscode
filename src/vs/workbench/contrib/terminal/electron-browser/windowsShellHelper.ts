@@ -5,7 +5,7 @@
 
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowsShellHelper } from 'vs/platform/terminal/common/terminal';
+import { IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';

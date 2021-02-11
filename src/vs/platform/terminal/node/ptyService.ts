@@ -5,17 +5,16 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime } from 'vs/platform/terminal/common/terminal';
-import { Queue, RunOnceScheduler } from 'vs/base/common/async';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime } from 'vs/platform/terminal/common/terminal';
+import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
-import { AutoOpenBarrier } from 'vs/platform/terminal/common/autoOpenBarrier';
-import { IRemoteTerminalProcessDataEvent, IRemoteTerminalProcessEvent, IRemoteTerminalProcessExitEvent, IRemoteTerminalProcessOrphanQuestionEvent, IRemoteTerminalProcessReadyEvent, IRemoteTerminalProcessTitleChangedEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 let currentPtyId = 0;
 
@@ -109,8 +108,8 @@ export class PtyService extends Disposable implements IPtyService {
 
 export class PersistentTerminalProcess extends Disposable {
 
-	private readonly _events: Emitter<IRemoteTerminalProcessEvent>;
-	public readonly events: Event<IRemoteTerminalProcessEvent>;
+	private readonly _events: Emitter<IPtyHostProcessEvent>;
+	public readonly events: Event<IPtyHostProcessEvent>;
 
 	private readonly _bufferer: TerminalDataBufferer;
 
@@ -163,7 +162,7 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, ProtocolConstants.ReconnectionShortGraceTime));
 
-		this._events = this._register(new Emitter<IRemoteTerminalProcessEvent>({
+		this._events = this._register(new Emitter<IPtyHostProcessEvent>({
 			onListenerDidAdd: () => {
 				this._disconnectRunner1.cancel();
 				this._disconnectRunner2.cancel();
@@ -184,7 +183,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this.events = this._events.event;
 
 		this._bufferer = new TerminalDataBufferer((id, data) => {
-			const ev: IRemoteTerminalProcessDataEvent = {
+			const ev: IPtyHostProcessDataEvent = {
 				type: 'data',
 				data: data
 			};
@@ -193,7 +192,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 		this._register(this._terminalProcess.onProcessReady((e: { pid: number, cwd: string; }) => {
 			this._pid = e.pid;
-			const ev: IRemoteTerminalProcessReadyEvent = {
+			const ev: IPtyHostProcessReadyEvent = {
 				type: 'ready',
 				pid: e.pid,
 				cwd: e.cwd
@@ -203,7 +202,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 		this._register(this._terminalProcess.onProcessTitleChanged((title) => {
 			this._title = title;
-			const ev: IRemoteTerminalProcessTitleChangedEvent = {
+			const ev: IPtyHostProcessTitleChangedEvent = {
 				type: 'titleChanged',
 				title: title
 			};
@@ -218,7 +217,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
 			this._bufferer.stopBuffering(this._id);
 
-			const ev: IRemoteTerminalProcessExitEvent = {
+			const ev: IPtyHostProcessExitEvent = {
 				type: 'exit',
 				exitCode: exitCode
 			};
@@ -311,7 +310,7 @@ export class PersistentTerminalProcess extends Disposable {
 			// the barrier opens after 4 seconds with or without a reply
 			this._orphanQuestionBarrier = new AutoOpenBarrier(4000);
 			this._orphanQuestionReplyTime = 0;
-			const ev: IRemoteTerminalProcessOrphanQuestionEvent = {
+			const ev: IPtyHostProcessOrphanQuestionEvent = {
 				type: 'orphan?'
 			};
 			this._events.fire(ev);

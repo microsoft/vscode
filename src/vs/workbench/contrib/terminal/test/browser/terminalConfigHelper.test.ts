@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { LinuxDistro } from 'vs/platform/terminal/common/terminal';
+import { LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 
 suite('Workbench - TerminalConfigHelper', () => {
 	let fixture: HTMLElement;

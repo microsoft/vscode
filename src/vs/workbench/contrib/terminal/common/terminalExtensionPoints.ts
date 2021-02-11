@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ITerminalTypeContribution, ITerminalContributions } from 'vs/platform/terminal/common/terminal';
+import { ITerminalTypeContribution, ITerminalContributions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { flatten } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminalContributionsDescriptor';

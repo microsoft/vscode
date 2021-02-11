@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride, IProcessDataEvent } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride, IProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 
 /**
