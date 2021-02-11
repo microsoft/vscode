@@ -7,7 +7,7 @@
 'use strict';
 
 const performance = require('./vs/base/common/performance');
-performance.mark('fork/start');
+performance.mark('code/fork/start');
 
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');

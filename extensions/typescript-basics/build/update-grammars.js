@@ -5,7 +5,7 @@
 // @ts-check
 'use strict';
 
-var updateGrammar = require('../../../build/npm/update-grammar');
+var updateGrammar = require('vscode-grammar-updater');
 
 function removeDom(grammar) {
 	grammar.repository['support-objects'].patterns = grammar.repository['support-objects'].patterns.filter(pattern => {
@@ -26,8 +26,8 @@ function removeNodeTypes(grammar) {
 		}
 		if (pattern.captures) {
 			if (Object.values(pattern.captures).some(capture =>
-				capture.name  && (capture.name.startsWith('support.variable.object.process')
-				|| capture.name.startsWith('support.class.console'))
+				capture.name && (capture.name.startsWith('support.variable.object.process')
+					|| capture.name.startsWith('support.class.console'))
 			)) {
 				return false;
 			}

@@ -9,6 +9,8 @@ import { isUNC } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { IHeaders } from 'vs/base/parts/request/common/request';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -18,38 +20,92 @@ import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes'
 export const webviewPartitionId = 'webview';
 
 export namespace WebviewResourceResponse {
-	export enum Type { Success, Failed, AccessDenied }
+	export enum Type { Success, Failed, AccessDenied, NotModified }
 
 	export class StreamSuccess {
 		readonly type = Type.Success;
 
 		constructor(
 			public readonly stream: VSBufferReadableStream,
-			public readonly mimeType: string
+			public readonly etag: string | undefined,
+			public readonly mimeType: string,
 		) { }
 	}
 
 	export const Failed = { type: Type.Failed } as const;
 	export const AccessDenied = { type: Type.AccessDenied } as const;
 
-	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied;
+	export class NotModified {
+		readonly type = Type.NotModified;
+
+		constructor(
+			public readonly mimeType: string,
+		) { }
+	}
+
+	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied | NotModified;
 }
 
-interface FileReader {
-	readFileStream(resource: URI): Promise<VSBufferReadableStream>;
+export namespace WebviewFileReadResponse {
+	export enum Type { Success, NotModified }
+
+	export class StreamSuccess {
+		readonly type = Type.Success;
+
+		constructor(
+			public readonly stream: VSBufferReadableStream,
+			public readonly etag: string | undefined
+		) { }
+	}
+
+	export const NotModified = { type: Type.NotModified } as const;
+
+	export type Response = StreamSuccess | typeof NotModified;
+}
+
+/**
+ * Wraps a call to `IFileService.readFileStream` and converts the result to a `WebviewFileReadResponse.Response`
+ */
+export async function readFileStream(
+	fileService: IFileService,
+	resource: URI,
+	etag: string | undefined,
+): Promise<WebviewFileReadResponse.Response> {
+	try {
+		const result = await fileService.readFileStream(resource, { etag });
+		return new WebviewFileReadResponse.StreamSuccess(result.value, result.etag);
+	} catch (e) {
+		if (e instanceof FileOperationError) {
+			const result = e.fileOperationResult;
+
+			// NotModified status is expected and can be handled gracefully
+			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+				return WebviewFileReadResponse.NotModified;
+			}
+		}
+
+		// Otherwise the error is unexpected. Re-throw and let caller handle it
+		throw e;
+	}
+}
+
+export interface WebviewResourceFileReader {
+	readFileStream(resource: URI, etag: string | undefined): Promise<WebviewFileReadResponse.Response>;
 }
 
 export async function loadLocalResource(
 	requestUri: URI,
+	ifNoneMatch: string | undefined,
 	options: {
 		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
 		rewriteUri?: (uri: URI) => URI,
 	},
-	fileReader: FileReader,
+	fileReader: WebviewResourceFileReader,
 	requestService: IRequestService,
 	logService: ILogService,
+	token: CancellationToken,
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
@@ -69,20 +125,45 @@ export async function loadLocalResource(
 	}
 
 	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
-		const response = await requestService.request({ url: resourceToLoad.toString(true) }, CancellationToken.None);
+		const headers: IHeaders = {};
+		if (ifNoneMatch) {
+			headers['If-None-Match'] = ifNoneMatch;
+		}
+
+		const response = await requestService.request({
+			url: resourceToLoad.toString(true),
+			headers: headers
+		}, token);
+
 		logService.debug(`loadLocalResource - Loaded over http(s). requestUri=${requestUri}, response=${response.res.statusCode}`);
 
-		if (response.res.statusCode === 200) {
-			return new WebviewResourceResponse.StreamSuccess(response.stream, mime);
+		switch (response.res.statusCode) {
+			case 200:
+				return new WebviewResourceResponse.StreamSuccess(response.stream, response.res.headers['etag'], mime);
+
+			case 304: // Not modified
+				return new WebviewResourceResponse.NotModified(mime);
+
+			default:
+				return WebviewResourceResponse.Failed;
 		}
-		return WebviewResourceResponse.Failed;
 	}
 
 	try {
-		const contents = await fileReader.readFileStream(resourceToLoad);
+		const contents = await fileReader.readFileStream(resourceToLoad, ifNoneMatch);
 		logService.debug(`loadLocalResource - Loaded using fileReader. requestUri=${requestUri}`);
 
-		return new WebviewResourceResponse.StreamSuccess(contents, mime);
+		switch (contents.type) {
+			case WebviewFileReadResponse.Type.Success:
+				return new WebviewResourceResponse.StreamSuccess(contents.stream, contents.etag, mime);
+
+			case WebviewFileReadResponse.Type.NotModified:
+				return new WebviewResourceResponse.NotModified(mime);
+
+			default:
+				logService.error(`loadLocalResource - Unknown file read response`);
+				return WebviewResourceResponse.Failed;
+		}
 	} catch (err) {
 		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
 		console.log(err);

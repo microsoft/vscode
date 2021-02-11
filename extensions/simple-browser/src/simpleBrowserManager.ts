@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { SimpleBrowserView } from './simpleBrowserView';
+import { ShowOptions, SimpleBrowserView } from './simpleBrowserView';
 
 export class SimpleBrowserManager {
 
@@ -19,11 +19,11 @@ export class SimpleBrowserManager {
 		this._activeView = undefined;
 	}
 
-	public show(url: string): void {
+	public show(url: string, options?: ShowOptions): void {
 		if (this._activeView) {
-			this._activeView.show(url);
+			this._activeView.show(url, options);
 		} else {
-			const view = new SimpleBrowserView(this.extensionUri, url);
+			const view = new SimpleBrowserView(this.extensionUri, url, options);
 			view.onDispose(() => {
 				if (this._activeView === view) {
 					this._activeView = undefined;

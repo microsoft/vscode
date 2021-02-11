@@ -75,8 +75,8 @@ describe('API Integration Tests', function (): void {
 		await page.goto(APP);
 	});
 
-	it('Default initialization should be error-less', async function (): Promise<any> {
-		assert.equal(await page.evaluate(`monaco.editor.DefaultEndOfLine[1]`), 'LF');
+	it('`monaco` is not exposed as global', async function (): Promise<any> {
+		assert.equal(await page.evaluate(`typeof monaco`), 'undefined');
 	});
 
 	it('Focus and Type', async function (): Promise<any> {

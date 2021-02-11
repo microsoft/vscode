@@ -95,10 +95,6 @@ function prepareDebPackage(arch) {
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ARCHITECTURE@@', debArch))
-			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
-			.pipe(replace('@@REPOSITORY_NAME@@', arch === 'x64' ? 'vscode' : 'code'))
 			.pipe(rename('DEBIAN/postinst'));
 
 		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);

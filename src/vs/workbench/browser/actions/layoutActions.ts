@@ -12,14 +12,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -173,7 +172,18 @@ MenuRegistry.appendMenuItems([{
 			id: ToggleSidebarPositionAction.ID,
 			title: nls.localize('move sidebar right', "Move Side Bar Right")
 		},
-		when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
+		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar right', "Move Side Bar Right")
+		},
+		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
 	}
 }, {
@@ -184,7 +194,18 @@ MenuRegistry.appendMenuItems([{
 			id: ToggleSidebarPositionAction.ID,
 			title: nls.localize('move sidebar left', "Move Side Bar Left")
 		},
-		when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: nls.localize('move sidebar left', "Move Side Bar Left")
+		},
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
 	}
 }]);
@@ -274,7 +295,18 @@ MenuRegistry.appendMenuItems([{
 			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
 			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
 		},
-		when: SideBarVisibleContext,
+		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
+		order: 2
+	}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
+			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+		},
+		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 2
 	}
 }]);
@@ -408,32 +440,16 @@ export class ToggleMenuBarAction extends Action {
 	static readonly ID = 'workbench.action.toggleMenuBar';
 	static readonly LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
-
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
-		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
-		if (typeof currentVisibilityValue !== 'string') {
-			currentVisibilityValue = 'default';
-		}
-
-		let newVisibilityValue: string;
-		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'default') {
-			newVisibilityValue = 'toggle';
-		} else if (currentVisibilityValue === 'compact') {
-			newVisibilityValue = 'hidden';
-		} else {
-			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'default';
-		}
-
-		return this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue);
+	async run(): Promise<void> {
+		this.layoutService.toggleMenuBar();
 	}
 }
 
@@ -472,36 +488,6 @@ export class ResetViewLocationsAction extends Action {
 }
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetViewLocationsAction), 'View: Reset View Locations', CATEGORIES.View.value);
-
-// --- Toggle View with Command
-export class ToggleViewAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		private readonly viewId: string,
-		@IViewsService protected viewsService: IViewsService,
-		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IWorkbenchLayoutService private layoutService: IWorkbenchLayoutService,
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
-
-		if (focusedViewId === this.viewId) {
-			if (this.viewDescriptorService.getViewLocationById(this.viewId) === ViewContainerLocation.Sidebar) {
-				this.layoutService.setSideBarHidden(true);
-			} else {
-				this.layoutService.setPanelHidden(true);
-			}
-		} else {
-			this.viewsService.openView(this.viewId, true);
-		}
-	}
-}
 
 // --- Move View with Command
 export class MoveViewAction extends Action {
@@ -692,7 +678,7 @@ export class MoveFocusedViewAction extends Action {
 			.map(viewletId => {
 				return {
 					id: viewletId,
-					label: this.viewDescriptorService.getViewContainerById(viewletId)!.name
+					label: this.viewDescriptorService.getViewContainerById(viewletId)!.title
 				};
 			}));
 
@@ -713,7 +699,7 @@ export class MoveFocusedViewAction extends Action {
 			.map(panel => {
 				return {
 					id: panel.id,
-					label: this.viewDescriptorService.getViewContainerById(panel.id)!.name
+					label: this.viewDescriptorService.getViewContainerById(panel.id)!.title
 				};
 			}));
 

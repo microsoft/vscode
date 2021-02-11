@@ -80,6 +80,7 @@ import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQui
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -255,6 +256,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -911,7 +913,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
-					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, workspaceTasks);
+					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, this.workspaceTrustService, workspaceTasks);
 				});
 			}
 			return value;
@@ -1250,7 +1252,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 			}
-			promise = this.textFileService.create(workspaceFolder.toResource('.vscode/tasks.json'), content).then(() => { });
+			promise = this.textFileService.create([{ resource: workspaceFolder.toResource('.vscode/tasks.json'), value: content }]).then(() => { });
 		} else {
 			// We have a global task configuration
 			if ((index === -1) && properties) {
@@ -2822,8 +2824,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			if (!fileExists && content) {
-				return this.textFileService.create(resource, content).then((result): URI => {
-					return result.resource;
+				return this.textFileService.create([{ resource, value: content }]).then(result => {
+					return result[0].resource;
 				});
 			} else if (fileExists && (tasksExistInFile || content)) {
 				if (content) {

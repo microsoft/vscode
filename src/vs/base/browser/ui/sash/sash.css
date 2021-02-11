@@ -60,8 +60,7 @@
 	height: var(--sash-size);
 }
 
-.monaco-sash:not(.disabled).orthogonal-start::before,
-.monaco-sash:not(.disabled).orthogonal-end::after {
+.monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	content: " ";
 	height: calc(var(--sash-size) * 2);
 	width: calc(var(--sash-size) * 2);
@@ -71,30 +70,34 @@
 	position: absolute;
 }
 
-.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled).orthogonal-start::before,
-.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled).orthogonal-end::after {
+.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled)
+	> .orthogonal-drag-handle.start,
+.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled)
+	> .orthogonal-drag-handle.end {
 	cursor: nwse-resize;
 }
 
-.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled).orthogonal-end::after,
-.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled).orthogonal-start::before {
+.monaco-sash.horizontal.orthogonal-edge-north:not(.disabled)
+	> .orthogonal-drag-handle.end,
+.monaco-sash.horizontal.orthogonal-edge-south:not(.disabled)
+	> .orthogonal-drag-handle.start {
 	cursor: nesw-resize;
 }
 
-.monaco-sash.orthogonal-start.vertical::before {
-	left: -calc(var(--sash-size) / 2);
+.monaco-sash.vertical > .orthogonal-drag-handle.start {
+	left: calc(var(--sash-size) / -2);
 	top: calc(var(--sash-size) * -1);
 }
-.monaco-sash.orthogonal-end.vertical::after {
-	left: -calc(var(--sash-size) / 2);
+.monaco-sash.vertical > .orthogonal-drag-handle.end {
+	left: calc(var(--sash-size) / -2);
 	bottom: calc(var(--sash-size) * -1);
 }
-.monaco-sash.orthogonal-start.horizontal::before {
-	top: -calc(var(--sash-size) / 2);
+.monaco-sash.horizontal > .orthogonal-drag-handle.start {
+	top: calc(var(--sash-size) / -2);
 	left: calc(var(--sash-size) * -1);
 }
-.monaco-sash.orthogonal-end.horizontal::after {
-	top: -calc(var(--sash-size) / 2);
+.monaco-sash.horizontal > .orthogonal-drag-handle.end {
+	top: calc(var(--sash-size) / -2);
 	right: calc(var(--sash-size) * -1);
 }
 
@@ -113,7 +116,6 @@
 	background: rgba(0, 255, 255, 0.2);
 }
 
-.monaco-sash.debug:not(.disabled).orthogonal-start::before,
-.monaco-sash.debug:not(.disabled).orthogonal-end::after {
+.monaco-sash.debug:not(.disabled) > .orthogonal-drag-handle {
 	background: red;
 }

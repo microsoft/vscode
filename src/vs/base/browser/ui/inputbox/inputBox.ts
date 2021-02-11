@@ -292,6 +292,9 @@ export class InputBox extends Widget {
 
 		if (range) {
 			this.input.setSelectionRange(range.start, range.end);
+			if (range.end === this.input.value.length) {
+				this.input.scrollLeft = this.input.scrollWidth;
+			}
 		}
 	}
 
@@ -398,7 +401,7 @@ export class InputBox extends Widget {
 		return !!this.validation && !this.validation(this.value);
 	}
 
-	public validate(): boolean {
+	public validate(): MessageType | undefined {
 		let errorMsg: IMessage | null = null;
 
 		if (this.validation) {
@@ -414,7 +417,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		return !errorMsg;
+		return errorMsg?.type;
 	}
 
 	public stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {

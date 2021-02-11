@@ -283,6 +283,10 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	get trapsArrowNavigation(): boolean {
+		return true;
+	}
+
 	private clearFilterText(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.value = '';

@@ -10,17 +10,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function setupTerminalMenu() {
 
-	// View menu
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '4_panels',
-		command: {
-			id: TERMINAL_COMMAND_ID.TOGGLE,
-			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
-		},
-		order: 3
-	});
-
 	// Manage
 	const createGroup = '1_create';
 	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {

@@ -5,14 +5,15 @@
 
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env
+	TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
+	ShellQuotedString, ShellQuoting, commands, Location
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
-import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser';
 import { findPreferredPM } from './preferred-pm';
+import { readScripts } from './readScripts';
 
 const localize = nls.loadMessageBundle();
 
@@ -39,7 +40,7 @@ export interface TaskLocation {
 
 export interface TaskWithLocation {
 	task: Task,
-	location?: TaskLocation
+	location?: Location
 }
 
 export class NpmTaskProvider implements TaskProvider {
@@ -56,7 +57,7 @@ export class NpmTaskProvider implements TaskProvider {
 		return tasks.map(task => task.task);
 	}
 
-	public resolveTask(_task: Task): Promise<Task> | undefined {
+	public async resolveTask(_task: Task): Promise<Task | undefined> {
 		const npmTask = (<any>_task.definition).script;
 		if (npmTask) {
 			const kind: NpmTaskDefinition = (<any>_task.definition);
@@ -70,7 +71,11 @@ export class NpmTaskProvider implements TaskProvider {
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
-			return createTask(this.context, kind, `${kind.script === INSTALL_SCRIPT ? '' : 'run '}${kind.script}`, _task.scope, packageJsonUri);
+			const cmd = [kind.script];
+			if (kind.script !== INSTALL_SCRIPT) {
+				cmd.unshift('run');
+			}
+			return createTask(await getPackageManager(this.context, _task.scope.uri), kind, cmd, _task.scope, packageJsonUri);
 		}
 		return undefined;
 	}
@@ -273,29 +278,30 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 	const result: TaskWithLocation[] = [];
 
 	const prePostScripts = getPrePostScripts(scripts);
+	const packageManager = await getPackageManager(context, folder.uri, showWarning);
 
-	for (const each of scripts.keys()) {
-		const scriptValue = scripts.get(each)!;
-		const task = await createTask(context, each, `run ${each}`, folder!, packageJsonUri, showWarning, scriptValue.script);
-		const lowerCaseTaskName = each.toLowerCase();
+	for (const { name, value, nameRange } of scripts.scripts) {
+		const task = await createTask(packageManager, name, ['run', name], folder!, packageJsonUri, value);
+		const lowerCaseTaskName = name.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
 		} else if (isTestTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Test;
 		}
-		if (prePostScripts.has(each)) {
+		if (prePostScripts.has(name)) {
 			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
 		}
 
 		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
-		if (isDebugScript(scriptValue.script)) {
+		if (isDebugScript(value)) {
 			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
-		result.push({ task, location: scriptValue.location });
+
+		result.push({ task, location: new Location(packageJsonUri, nameRange) });
 	}
 
 	// always add npm install (without a problem matcher)
-	result.push({ task: await createTask(context, INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, showWarning, 'install dependencies from package', []) });
+	result.push({ task: await createTask(packageManager, INSTALL_SCRIPT, [INSTALL_SCRIPT], folder, packageJsonUri, 'install dependencies from package', []) });
 	return result;
 }
 
@@ -306,7 +312,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-export async function createTask(context: ExtensionContext, script: NpmTaskDefinition | string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, showWarning: boolean = true, detail?: string, matcher?: any): Promise<Task> {
+export async function createTask(packageManager: string, script: NpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Promise<Task> {
 	let kind: NpmTaskDefinition;
 	if (typeof script === 'string') {
 		kind = { type: 'npm', script: script };
@@ -314,12 +320,19 @@ export async function createTask(context: ExtensionContext, script: NpmTaskDefin
 		kind = script;
 	}
 
-	const packageManager = await getPackageManager(context, folder.uri, showWarning);
-	async function getCommandLine(cmd: string): Promise<string> {
-		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
-			return `${packageManager} --silent ${cmd}`;
+	function getCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
+		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
+		for (let i = 0; i < cmd.length; i++) {
+			if (/\s/.test(cmd[i])) {
+				result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
+			} else {
+				result[i] = cmd[i];
+			}
 		}
-		return `${packageManager} ${cmd}`;
+		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
+			result.unshift('--silent');
+		}
+		return result;
 	}
 
 	function getRelativePath(packageJsonUri: Uri): string {
@@ -334,7 +347,7 @@ export async function createTask(context: ExtensionContext, script: NpmTaskDefin
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(await getCommandLine(cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(cmd), { cwd: cwd }), matcher);
 	task.detail = detail;
 	return task;
 }
@@ -379,151 +392,39 @@ export async function runScript(context: ExtensionContext, script: string, docum
 	let uri = document.uri;
 	let folder = workspace.getWorkspaceFolder(uri);
 	if (folder) {
-		let task = await createTask(context, script, `run ${script}`, folder, uri);
+		const task = await createTask(await getPackageManager(context, folder.uri), script, ['run', script], folder, uri);
 		tasks.executeTask(task);
 	}
 }
 
 export async function startDebugging(context: ExtensionContext, scriptName: string, cwd: string, folder: WorkspaceFolder) {
-	const config: DebugConfiguration = {
-		type: 'pwa-node',
-		request: 'launch',
-		name: `Debug ${scriptName}`,
-		cwd,
-		runtimeExecutable: await getPackageManager(context, folder.uri),
-		runtimeArgs: [
-			'run',
-			scriptName,
-		],
-	};
-
-	if (folder) {
-		debug.startDebugging(folder, config);
-	}
+	commands.executeCommand(
+		'extension.js-debug.createDebuggerTerminal',
+		`${await getPackageManager(context, folder.uri)} run ${scriptName}`,
+		folder,
+		{ cwd },
+	);
 }
 
 
 export type StringMap = { [s: string]: string; };
 
-async function findAllScripts(document: TextDocument, buffer: string): Promise<Map<string, { script: string, location: TaskLocation }>> {
-	let scripts: Map<string, { script: string, location: TaskLocation }> = new Map();
-	let script: string | undefined = undefined;
-	let inScripts = false;
-	let scriptOffset = 0;
+export function findScriptAtPosition(document: TextDocument, buffer: string, position: Position): string | undefined {
+	const read = readScripts(document, buffer);
+	if (!read) {
+		return undefined;
+	}
 
-	let visitor: JSONVisitor = {
-		onError(_error: ParseErrorCode, _offset: number, _length: number) {
-			console.log(_error);
-		},
-		onObjectEnd() {
-			if (inScripts) {
-				inScripts = false;
-			}
-		},
-		onLiteralValue(value: any, _offset: number, _length: number) {
-			if (script) {
-				if (typeof value === 'string') {
-					scripts.set(script, { script: value, location: { document: document.uri, line: document.positionAt(scriptOffset) } });
-				}
-				script = undefined;
-			}
-		},
-		onObjectProperty(property: string, offset: number, _length: number) {
-			if (property === 'scripts') {
-				inScripts = true;
-			}
-			else if (inScripts && !script) {
-				script = property;
-				scriptOffset = offset;
-			} else { // nested object which is invalid, ignore the script
-				script = undefined;
-			}
+	for (const script of read.scripts) {
+		if (script.nameRange.start.isBeforeOrEqual(position) && script.valueRange.end.isAfterOrEqual(position)) {
+			return script.name;
 		}
-	};
-	visit(buffer, visitor);
-	return scripts;
+	}
+
+	return undefined;
 }
 
-export function findAllScriptRanges(buffer: string): Map<string, [number, number, string]> {
-	let scripts: Map<string, [number, number, string]> = new Map();
-	let script: string | undefined = undefined;
-	let offset: number;
-	let length: number;
-
-	let inScripts = false;
-
-	let visitor: JSONVisitor = {
-		onError(_error: ParseErrorCode, _offset: number, _length: number) {
-		},
-		onObjectEnd() {
-			if (inScripts) {
-				inScripts = false;
-			}
-		},
-		onLiteralValue(value: any, _offset: number, _length: number) {
-			if (script) {
-				scripts.set(script, [offset, length, value]);
-				script = undefined;
-			}
-		},
-		onObjectProperty(property: string, off: number, len: number) {
-			if (property === 'scripts') {
-				inScripts = true;
-			}
-			else if (inScripts) {
-				script = property;
-				offset = off;
-				length = len;
-			}
-		}
-	};
-	visit(buffer, visitor);
-	return scripts;
-}
-
-export function findScriptAtPosition(buffer: string, offset: number): string | undefined {
-	let script: string | undefined = undefined;
-	let foundScript: string | undefined = undefined;
-	let inScripts = false;
-	let scriptStart: number | undefined;
-	let visitor: JSONVisitor = {
-		onError(_error: ParseErrorCode, _offset: number, _length: number) {
-		},
-		onObjectEnd() {
-			if (inScripts) {
-				inScripts = false;
-				scriptStart = undefined;
-			}
-		},
-		onLiteralValue(value: any, nodeOffset: number, nodeLength: number) {
-			if (inScripts && scriptStart) {
-				if (typeof value === 'string' && offset >= scriptStart && offset < nodeOffset + nodeLength) {
-					// found the script
-					inScripts = false;
-					foundScript = script;
-				} else {
-					script = undefined;
-				}
-			}
-		},
-		onObjectProperty(property: string, nodeOffset: number) {
-			if (property === 'scripts') {
-				inScripts = true;
-			}
-			else if (inScripts) {
-				scriptStart = nodeOffset;
-				script = property;
-			} else { // nested object which is invalid, ignore the script
-				script = undefined;
-			}
-		}
-	};
-	visit(buffer, visitor);
-	return foundScript;
-}
-
-export async function getScripts(packageJsonUri: Uri): Promise<Map<string, { script: string, location: TaskLocation }> | undefined> {
-
+export async function getScripts(packageJsonUri: Uri) {
 	if (packageJsonUri.scheme !== 'file') {
 		return undefined;
 	}
@@ -535,9 +436,7 @@ export async function getScripts(packageJsonUri: Uri): Promise<Map<string, { scr
 
 	try {
 		const document: TextDocument = await workspace.openTextDocument(packageJsonUri);
-		let contents = document.getText();
-		let json = findAllScripts(document, contents);//JSON.parse(contents);
-		return json;
+		return readScripts(document);
 	} catch (e) {
 		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);
 		throw new Error(localizedParseError);

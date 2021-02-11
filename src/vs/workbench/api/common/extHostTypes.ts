@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { addIdToOutput, CellEditType, ICellEditOperation, IDisplayOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, ICellEditOperation, ICellOutputEdit, ITransformedDisplayOutputDto, notebookDocumentMetadataDefaults, NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -638,7 +638,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	// --- notebook
 
 	replaceNotebookMetadata(uri: URI, value: vscode.NotebookDocumentMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, notebookMetadata: value });
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: { ...notebookDocumentMetadataDefaults, ...value } }, notebookMetadata: value });
 	}
 
 	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -648,17 +648,27 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	replaceNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({
-			_type: FileEditType.Cell, metadata, uri, edit: {
-				editType: CellEditType.Output, index, outputs: outputs.map(output => {
-					if (NotebookCellOutput.isNotebookCellOutput(output)) {
-						return addIdToOutput(output.toJSON());
-					} else {
-						return addIdToOutput(output);
-					}
-				})
-			}
-		});
+		this._editNotebookCellOutput(uri, index, false, outputs, metadata);
+	}
+
+	appendNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._editNotebookCellOutput(uri, index, true, outputs, metadata);
+	}
+
+	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
+		const edit: ICellOutputEdit = {
+			editType: CellEditType.Output,
+			index,
+			append,
+			outputs: outputs.map(output => {
+				if (NotebookCellOutput.isNotebookCellOutput(output)) {
+					return output.toJSON();
+				} else {
+					return addIdToOutput(output);
+				}
+			})
+		};
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit });
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -1371,6 +1381,29 @@ export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,
 	ContentChange = 3,
+}
+
+
+export enum InlineHintKind {
+	Other = 0,
+	Type = 1,
+	Parameter = 2,
+}
+
+@es5ClassCompat
+export class InlineHint {
+	text: string;
+	range: Range;
+	kind?: vscode.InlineHintKind;
+	description?: string | vscode.MarkdownString;
+	whitespaceBefore?: boolean;
+	whitespaceAfter?: boolean;
+
+	constructor(text: string, range: Range, kind?: vscode.InlineHintKind) {
+		this.text = text;
+		this.range = range;
+		this.kind = kind;
+	}
 }
 
 export enum CompletionTriggerKind {
@@ -2298,9 +2331,6 @@ export class FunctionBreakpoint extends Breakpoint {
 
 	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		super(enabled, condition, hitCondition, logMessage);
-		if (!functionName) {
-			throw illegalArgument('functionName');
-		}
 		this.functionName = functionName;
 	}
 }
@@ -2783,6 +2813,72 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
+export class NotebookCellMetadata {
+
+	constructor(
+		readonly editable?: boolean,
+		readonly breakpointMargin?: boolean,
+		readonly runnable?: boolean,
+		readonly hasExecutionOrder?: boolean,
+		readonly executionOrder?: number,
+		readonly runState?: NotebookCellRunState,
+		readonly runStartTime?: number,
+		readonly statusMessage?: string,
+		readonly lastRunDuration?: number,
+		readonly inputCollapsed?: boolean,
+		readonly outputCollapsed?: boolean,
+		readonly custom?: Record<string, any>,
+	) { }
+
+	with(change: Partial<Omit<NotebookCellMetadata, 'with'>>): NotebookCellMetadata {
+		return new NotebookCellMetadata(
+			change.editable ?? this.editable,
+			change.breakpointMargin ?? this.breakpointMargin,
+			change.runnable ?? this.runnable,
+			change.hasExecutionOrder ?? this.hasExecutionOrder,
+			change.executionOrder ?? this.executionOrder,
+			change.runState ?? this.runState,
+			change.runStartTime ?? this.runStartTime,
+			change.statusMessage ?? this.statusMessage,
+			change.lastRunDuration ?? this.lastRunDuration,
+			change.inputCollapsed ?? this.inputCollapsed,
+			change.outputCollapsed ?? this.outputCollapsed,
+			change.custom ?? this.custom
+		);
+	}
+}
+
+export class NotebookDocumentMetadata {
+
+	constructor(
+		readonly editable: boolean = true,
+		readonly runnable: boolean = true,
+		readonly cellEditable: boolean = true,
+		readonly cellRunnable: boolean = true,
+		readonly cellHasExecutionOrder: boolean = true,
+		readonly displayOrder: vscode.GlobPattern[] = NOTEBOOK_DISPLAY_ORDER,
+		readonly custom: { [key: string]: any; } = {},
+		readonly runState: NotebookRunState = NotebookRunState.Idle,
+		readonly trusted: boolean = true,
+		readonly languages: string[] = [],
+	) { }
+
+	with(change: Partial<Omit<NotebookDocumentMetadata, 'with'>>) {
+		return new NotebookDocumentMetadata(
+			change.editable ?? this.editable,
+			change.runnable ?? this.runnable,
+			change.cellEditable ?? this.cellEditable,
+			change.cellRunnable ?? this.cellRunnable,
+			change.cellHasExecutionOrder ?? this.cellHasExecutionOrder,
+			change.displayOrder ?? this.displayOrder,
+			change.custom ?? this.custom,
+			change.runState ?? this.runState,
+			change.trusted ?? this.trusted,
+			change.languages ?? this.languages,
+		);
+	}
+}
+
 export class NotebookCellOutputItem {
 
 	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
@@ -2802,12 +2898,11 @@ export class NotebookCellOutput {
 		return obj instanceof NotebookCellOutput;
 	}
 
-	constructor(
-		readonly outputs: NotebookCellOutputItem[],
-		readonly metadata?: Record<string, string | number | boolean>
-	) { }
+	readonly id: string = generateUuid();
 
-	toJSON(): IDisplayOutput {
+	constructor(readonly outputs: NotebookCellOutputItem[]) { }
+
+	toJSON(): ITransformedDisplayOutputDto {
 		let data: { [key: string]: unknown; } = {};
 		let custom: { [key: string]: unknown; } = {};
 		let hasMetadata = false;
@@ -2820,6 +2915,7 @@ export class NotebookCellOutput {
 			}
 		}
 		return {
+			outputId: this.id,
 			outputKind: CellOutputKind.Rich,
 			data,
 			metadata: hasMetadata ? { custom } : undefined
@@ -2858,7 +2954,8 @@ export enum NotebookCellStatusBarAlignment {
 export enum NotebookEditorRevealType {
 	Default = 0,
 	InCenter = 1,
-	InCenterIfOutsideViewport = 2
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
 }
 
 
@@ -2939,40 +3036,21 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-@es5ClassCompat
-export class TestState {
-	#runState: TestRunState;
-	#duration?: number;
-	#messages: ReadonlyArray<Readonly<vscode.TestMessage>>;
+export type RequiredTestItem = vscode.RequiredTestItem;
 
-	public get runState() {
-		return this.#runState;
-	}
-
-	public get duration() {
-		return this.#duration;
-	}
-
-	public get messages() {
-		return this.#messages;
-	}
-
-	constructor(runState: TestRunState, messages: vscode.TestMessage[] = [], duration?: number) {
-		this.#runState = runState;
-		this.#messages = Object.freeze(messages.map(m => Object.freeze(m)));
-		this.#duration = duration;
-	}
-}
-
-type AllowedUndefined = 'description' | 'location';
-
-/**
- * Test item without any optional properties. Only some properties are
- * permitted to be undefined, but they must still exist.
- */
-export type RequiredTestItem = {
-	[K in keyof Required<vscode.TestItem>]: K extends AllowedUndefined ? vscode.TestItem[K] : Required<vscode.TestItem>[K]
-};
-
+export type TestItem = vscode.TestItem;
 
 //#endregion
+
+export enum ExternalUriOpenerPriority {
+	None = 0,
+	Option = 1,
+	Default = 2,
+	Preferred = 3,
+}
+
+export enum WorkspaceTrustState {
+	Untrusted = 0,
+	Trusted = 1,
+	Unknown = 2
+}

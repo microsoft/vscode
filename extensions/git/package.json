@@ -72,6 +72,11 @@
         "icon": "$(compare-changes)"
       },
       {
+        "command": "git.openAllChanges",
+        "title": "%command.openAllChanges%",
+        "category": "Git"
+      },
+      {
         "command": "git.openFile",
         "title": "%command.openFile%",
         "category": "Git",
@@ -1288,6 +1293,11 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
+          "command": "git.openFile",
+          "group": "navigation",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInNotebookTextDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
           "command": "git.openChange",
           "group": "navigation",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
@@ -1742,6 +1752,11 @@
           "description": "%config.ignoreLimitWarning%",
           "default": false
         },
+        "git.ignoreRebaseWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreRebaseWarning%",
+          "default": false
+        },
         "git.defaultCloneDirectory": {
           "type": [
             "string",
@@ -2050,6 +2065,11 @@
           "description": "%config.untrackedChanges%",
           "scope": "resource"
         },
+        "git.requireGitUserConfig": {
+          "type": "boolean",
+          "description": "%config.requireGitUserConfig%",
+          "default": true
+        },
         "git.showCommitInput": {
           "type": "boolean",
           "scope": "resource",
@@ -2121,6 +2141,15 @@
         }
       },
       {
+        "id": "gitDecoration.renamedResourceForeground",
+        "description": "%colors.renamed%",
+        "defaults": {
+          "light": "#007100",
+          "dark": "#73C991",
+          "highContrast": "#73C991"
+        }
+      },
+      {
         "id": "gitDecoration.untrackedResourceForeground",
         "description": "%colors.untracked%",
         "defaults": {
@@ -2160,9 +2189,9 @@
         "id": "gitDecoration.conflictingResourceForeground",
         "description": "%colors.conflict%",
         "defaults": {
-          "light": "#6c6cc4",
-          "dark": "#6c6cc4",
-          "highContrast": "#6c6cc4"
+          "light": "#ad0707",
+          "dark": "#e4676b",
+          "highContrast": "#c74e39"
         }
       },
       {
@@ -2322,5 +2351,9 @@
     "@types/mocha": "^8.2.0",
     "@types/node": "^12.19.9",
     "@types/which": "^1.0.28"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

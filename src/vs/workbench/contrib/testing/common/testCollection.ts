@@ -26,23 +26,11 @@ export interface RunTestsRequest {
  * Request from the main thread to run tests for a single provider.
  */
 export interface RunTestForProviderRequest {
+	runId: string;
 	providerId: string;
 	ids: string[];
 	debug: boolean;
 }
-
-/**
- * Response to a  {@link RunTestsRequest}
- */
-export interface RunTestsResult {
-	// todo
-}
-
-export const EMPTY_TEST_RESULT: RunTestsResult = {};
-
-export const collectTestResults = (results: ReadonlyArray<RunTestsResult>) => {
-	return results[0] || {}; // todo
-};
 
 export interface ITestMessage {
 	message: string | IMarkdownString;
@@ -53,7 +41,7 @@ export interface ITestMessage {
 }
 
 export interface ITestState {
-	runState: TestRunState;
+	state: TestRunState;
 	duration: number | undefined;
 	messages: ITestMessage[];
 }
@@ -62,13 +50,14 @@ export interface ITestState {
  * The TestItem from .d.ts, as a plain object without children.
  */
 export interface ITestItem {
+	/** ID of the test given by the test provider */
+	extId: string;
 	label: string;
 	children?: never;
 	location: ModeLocation | undefined;
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;
-	state: ITestState;
 }
 
 /**
@@ -81,16 +70,32 @@ export interface InternalTestItem {
 	item: ITestItem;
 }
 
+export interface InternalTestItemWithChildren extends InternalTestItem {
+	children: this[];
+}
+
+export interface InternalTestResults {
+	tests: InternalTestItemWithChildren[];
+}
+
 export const enum TestDiffOpType {
+	/** Adds a new test (with children) */
 	Add,
+	/** Shallow-updates an existing test */
 	Update,
+	/** Removes a test (and all its children) */
 	Remove,
+	/** Changes the number of providers running initial test discovery. */
+	DeltaDiscoverComplete,
+	/** Changes the number of providers who are yet to publish their collection roots. */
+	DeltaRootsComplete,
 }
 
 export type TestsDiffOp =
 	| [op: TestDiffOpType.Add, item: InternalTestItem]
 	| [op: TestDiffOpType.Update, item: InternalTestItem]
-	| [op: TestDiffOpType.Remove, itemId: string];
+	| [op: TestDiffOpType.Remove, itemId: string]
+	| [op: TestDiffOpType.DeltaDiscoverComplete | TestDiffOpType.DeltaRootsComplete, amount: number];
 
 /**
  * Utility function to get a unique string for a subscription to a resource,
@@ -213,11 +218,36 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 							}
 						}
 					}
+					break;
 				}
+
+				case TestDiffOpType.DeltaDiscoverComplete:
+					this.updateBusyProviders(op[1]);
+					break;
+
+				case TestDiffOpType.DeltaRootsComplete:
+					this.updatePendingRoots(op[1]);
+					break;
 			}
 		}
 
 		changes.complete();
+	}
+
+	/**
+	 * Updates the number of providers who are still discovering items.
+	 */
+	protected updateBusyProviders(delta: number) {
+		// no-op
+	}
+
+	/**
+	 * Updates the number of test root sources who are yet to report. When
+	 * the total pending test roots reaches 0, the roots for all providers
+	 * will exist in the collection.
+	 */
+	protected updatePendingRoots(delta: number) {
+		// no-op
 	}
 
 	/**

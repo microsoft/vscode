@@ -21,13 +21,13 @@ suite('SnippetController2', function () {
 			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
-		assert.equal(s.length, 0);
+		assert.strictEqual(s.length, 0);
 	}
 
 	function assertContextKeys(service: MockContextKeyService, inSnippet: boolean, hasPrev: boolean, hasNext: boolean): void {
-		assert.equal(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
+		assert.strictEqual(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
+		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
+		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
 	}
 
 	let editor: ICodeEditor;
@@ -40,7 +40,7 @@ suite('SnippetController2', function () {
 		model = createTextModel('if\n    $state\nfi');
 		editor = createTestCodeEditor({ model: model });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
-		assert.equal(model.getEOL(), '\n');
+		assert.strictEqual(model.getEOL(), '\n');
 	});
 
 	teardown(function () {
@@ -78,9 +78,9 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, false, false, false);
 
 		editor.trigger('test', 'type', { text: '\t' });
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
+		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), false);
+		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
+		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
 	});
 
 	test('insert, insert -> cursor moves out (left/right)', function () {
@@ -111,7 +111,7 @@ suite('SnippetController2', function () {
 		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
+		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), true);
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 
 		// bad selection change

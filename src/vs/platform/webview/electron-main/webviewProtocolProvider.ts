@@ -5,15 +5,18 @@
 
 import { protocol, session } from 'electron';
 import { Readable } from 'stream';
-import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import { listenStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { loadLocalResource, webviewPartitionId, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { loadLocalResource, readFileStream, WebviewFileReadResponse, webviewPartitionId, WebviewResourceFileReader, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { WebviewManagerDidLoadResourceResponse } from 'vs/platform/webview/common/webviewManagerService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 interface WebviewMetadata {
@@ -35,7 +38,7 @@ export class WebviewProtocolProvider extends Disposable {
 	private readonly webviewMetadata = new Map<string, WebviewMetadata>();
 
 	private requestIdPool = 1;
-	private readonly pendingResourceReads = new Map<number, { resolve: (content: VSBuffer | undefined) => void }>();
+	private readonly pendingResourceReads = new Map<number, { resolve: (content: WebviewManagerDidLoadResourceResponse) => void }>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -73,28 +76,27 @@ export class WebviewProtocolProvider extends Disposable {
 				if (!this.listening) {
 					this.listening = true;
 
-					// Data
-					stream.on('data', data => {
-						try {
-							if (!this.push(data.buffer)) {
-								stream.pause(); // pause the stream if we should not push anymore
+					listenStream(stream, {
+						onData: data => {
+							try {
+								if (!this.push(data.buffer)) {
+									stream.pause(); // pause the stream if we should not push anymore
+								}
+							} catch (error) {
+								this.emit(error);
 							}
-						} catch (error) {
-							this.emit(error);
+						},
+						onError: error => {
+							this.emit('error', error);
+						},
+						onEnd: () => {
+							try {
+								this.push(null); // signal EOS
+							} catch (error) {
+								this.emit(error);
+							}
 						}
 					});
-
-					// End
-					stream.on('end', () => {
-						try {
-							this.push(null); // signal EOS
-						} catch (error) {
-							this.emit(error);
-						}
-					});
-
-					// Error
-					stream.on('error', error => this.emit('error', error));
 				}
 
 				// ensure the stream is flowing
@@ -154,6 +156,7 @@ export class WebviewProtocolProvider extends Disposable {
 	) {
 		try {
 			const uri = URI.parse(request.url);
+			const ifNoneMatch = request.headers['If-None-Match'];
 
 			const id = uri.authority;
 			const metadata = this.webviewMetadata.get(id);
@@ -165,7 +168,11 @@ export class WebviewProtocolProvider extends Disposable {
 					rewriteUri = (uri) => {
 						if (metadata.remoteConnectionData) {
 							if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === Schemas.vscodeRemote)) {
-								return URI.parse(`http://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
+								let host = metadata.remoteConnectionData.host;
+								if (host && host.indexOf(':') !== -1) { // IPv6 address
+									host = `[${host}]`;
+								}
+								return URI.parse(`http://${host}:${metadata.remoteConnectionData.port}`).with({
 									path: '/vscode-remote-resource',
 									query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,
 								});
@@ -175,10 +182,10 @@ export class WebviewProtocolProvider extends Disposable {
 					};
 				}
 
-				const fileService = {
-					readFileStream: async (resource: URI): Promise<VSBufferReadableStream> => {
+				const fileReader: WebviewResourceFileReader = {
+					readFileStream: async (resource: URI, etag: string | undefined): Promise<WebviewFileReadResponse.Response> => {
 						if (resource.scheme === Schemas.file) {
-							return (await this.fileService.readFileStream(resource)).value;
+							return readFileStream(this.fileService, resource, etag);
 						}
 
 						// Unknown uri scheme. Try delegating the file read back to the renderer
@@ -190,42 +197,97 @@ export class WebviewProtocolProvider extends Disposable {
 						}
 
 						const requestId = this.requestIdPool++;
-						const p = new Promise<VSBuffer | undefined>(resolve => {
+						const p = new Promise<WebviewManagerDidLoadResourceResponse>(resolve => {
 							this.pendingResourceReads.set(requestId, { resolve });
 						});
 
 						window.send(`vscode:loadWebviewResource-${id}`, requestId, uri);
 
 						const result = await p;
-						if (!result) {
-							throw new FileOperationError('Could not read file', FileOperationResult.FILE_NOT_FOUND);
-						}
+						switch (result) {
+							case 'access-denied':
+								throw new FileOperationError('Could not read file', FileOperationResult.FILE_PERMISSION_DENIED);
 
-						return bufferToStream(result);
+							case 'not-found':
+								throw new FileOperationError('Could not read file', FileOperationResult.FILE_NOT_FOUND);
+
+							case 'not-modified':
+								return WebviewFileReadResponse.NotModified;
+
+							default:
+								return new WebviewFileReadResponse.StreamSuccess(bufferToStream(result.buffer), result.etag);
+						}
 					}
 				};
 
-				const result = await loadLocalResource(uri, {
+				const result = await loadLocalResource(uri, ifNoneMatch, {
 					extensionLocation: metadata.extensionLocation,
 					roots: metadata.localResourceRoots,
 					remoteConnectionData: metadata.remoteConnectionData,
 					rewriteUri,
-				}, fileService, this.requestService, this.logService);
+				}, fileReader, this.requestService, this.logService, CancellationToken.None);
 
-				if (result.type === WebviewResourceResponse.Type.Success) {
-					return callback({
-						statusCode: 200,
-						data: this.streamToNodeReadable(result.stream),
-						headers: {
-							'Content-Type': result.mimeType,
-							'Access-Control-Allow-Origin': '*',
+				switch (result.type) {
+					case WebviewResourceResponse.Type.Success:
+						{
+							const cacheHeaders: Record<string, string> = result.etag ? {
+								'ETag': result.etag,
+								'Cache-Control': 'no-cache'
+							} : {};
+
+							const ifNoneMatch = request.headers['If-None-Match'];
+							if (ifNoneMatch && result.etag === ifNoneMatch) {
+								/*
+								 * Note that the server generating a 304 response MUST
+								 * generate any of the following header fields that would
+								 * have been sent in a 200 (OK) response to the same request:
+								 * Cache-Control, Content-Location, Date, ETag, Expires, and Vary.
+								 * (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match)
+								 */
+								return callback({
+									statusCode: 304, // not modified
+									data: undefined, // The request fails if `data` is not set
+									headers: {
+										'Content-Type': result.mimeType,
+										'Access-Control-Allow-Origin': '*',
+										...cacheHeaders
+									}
+								});
+							}
+
+							return callback({
+								statusCode: 200,
+								data: this.streamToNodeReadable(result.stream),
+								headers: {
+									'Content-Type': result.mimeType,
+									'Access-Control-Allow-Origin': '*',
+									...cacheHeaders
+								}
+							});
 						}
-					});
-				}
-
-				if (result.type === WebviewResourceResponse.Type.AccessDenied) {
-					console.error('Webview: Cannot load resource outside of protocol root');
-					return callback({ data: undefined, statusCode: 401 });
+					case WebviewResourceResponse.Type.NotModified:
+						{
+							/*
+							 * Note that the server generating a 304 response MUST
+							 * generate any of the following header fields that would
+							 * have been sent in a 200 (OK) response to the same request:
+							 * Cache-Control, Content-Location, Date, ETag, Expires, and Vary.
+							 * (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/If-None-Match)
+							 */
+							return callback({
+								statusCode: 304, // not modified
+								data: undefined, // The request fails if `data` is not set
+								headers: {
+									'Content-Type': result.mimeType,
+									'Access-Control-Allow-Origin': '*',
+								}
+							});
+						}
+					case WebviewResourceResponse.Type.AccessDenied:
+						{
+							console.error('Webview: Cannot load resource outside of protocol root');
+							return callback({ data: undefined, statusCode: 401 });
+						}
 				}
 			}
 		} catch {
@@ -235,12 +297,12 @@ export class WebviewProtocolProvider extends Disposable {
 		return callback({ data: undefined, statusCode: 404 });
 	}
 
-	public didLoadResource(requestId: number, content: VSBuffer | undefined) {
+	public didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse) {
 		const pendingRead = this.pendingResourceReads.get(requestId);
 		if (!pendingRead) {
 			throw new Error('Unknown request');
 		}
 		this.pendingResourceReads.delete(requestId);
-		pendingRead.resolve(content);
+		pendingRead.resolve(response);
 	}
 }

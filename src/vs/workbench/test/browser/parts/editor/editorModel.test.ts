@@ -27,18 +27,32 @@ import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/work
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-class MyEditorModel extends EditorModel { }
-class MyTextEditorModel extends BaseTextEditorModel {
-	createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
-		return super.createTextEditorModel(value, resource, preferredMode);
-	}
-
-	isReadonly(): boolean {
-		return false;
-	}
-}
-
 suite('Workbench editor model', () => {
+
+	class MyEditorModel extends EditorModel { }
+	class MyTextEditorModel extends BaseTextEditorModel {
+		createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
+			return super.createTextEditorModel(value, resource, preferredMode);
+		}
+
+		isReadonly(): boolean {
+			return false;
+		}
+	}
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		const dialogService = new TestDialogService();
+		const notificationService = new TestNotificationService();
+		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
+		instantiationService.stub(IDialogService, dialogService);
+		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(IUndoRedoService, undoRedoService);
+		instantiationService.stub(IThemeService, new TestThemeService());
+
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 
 	let instantiationService: TestInstantiationService;
 	let modeService: IModeService;
@@ -51,44 +65,31 @@ suite('Workbench editor model', () => {
 	test('EditorModel', async () => {
 		let counter = 0;
 
-		let m = new MyEditorModel();
+		const model = new MyEditorModel();
 
-		m.onDispose(() => {
+		model.onDispose(() => {
 			assert(true);
 			counter++;
 		});
 
-		const model = await m.load();
-		assert(model === m);
-		assert.equal(model.isDisposed(), false);
-		assert.strictEqual(m.isResolved(), true);
-		m.dispose();
-		assert.equal(counter, 1);
-		assert.equal(model.isDisposed(), true);
+		const resolvedModel = await model.load();
+		assert(resolvedModel === model);
+		assert.strictEqual(resolvedModel.isDisposed(), false);
+		assert.strictEqual(model.isResolved(), true);
+		model.dispose();
+		assert.strictEqual(counter, 1);
+		assert.strictEqual(resolvedModel.isDisposed(), true);
 	});
 
 	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
-		let m = new MyTextEditorModel(modelService, modeService);
-		const model = await m.load() as MyTextEditorModel;
+		const model = new MyTextEditorModel(modelService, modeService);
+		const resolvedModel = await model.load() as MyTextEditorModel;
 
-		assert(model === m);
-		model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
-		assert.strictEqual(m.isResolved(), true);
-		m.dispose();
+		assert(resolvedModel === model);
+		resolvedModel.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
+		assert.strictEqual(model.isResolved(), true);
+		model.dispose();
 	});
-
-	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		const dialogService = new TestDialogService();
-		const notificationService = new TestNotificationService();
-		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
-		instantiationService.stub(IDialogService, dialogService);
-		instantiationService.stub(INotificationService, notificationService);
-		instantiationService.stub(IUndoRedoService, undoRedoService);
-		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
-	}
 });

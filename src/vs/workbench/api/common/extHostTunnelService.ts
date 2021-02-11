@@ -11,18 +11,27 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 
 export interface TunnelDto {
 	remoteAddress: { port: number, host: string };
 	localAddress: { port: number, host: string } | string;
+	public: boolean;
 }
 
 export namespace TunnelDto {
 	export function fromApiTunnel(tunnel: vscode.Tunnel): TunnelDto {
-		return { remoteAddress: tunnel.remoteAddress, localAddress: tunnel.localAddress };
+		return { remoteAddress: tunnel.remoteAddress, localAddress: tunnel.localAddress, public: !!tunnel.public };
 	}
 	export function fromServiceTunnel(tunnel: RemoteTunnel): TunnelDto {
-		return { remoteAddress: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, localAddress: tunnel.localAddress };
+		return {
+			remoteAddress: {
+				host: tunnel.tunnelRemoteHost,
+				port: tunnel.tunnelRemotePort
+			},
+			localAddress: tunnel.localAddress,
+			public: tunnel.public
+		};
 	}
 }
 
@@ -48,6 +57,9 @@ export class ExtHostTunnelService implements IExtHostTunnelService {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 	) {
+	}
+	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
+		return candidates;
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {

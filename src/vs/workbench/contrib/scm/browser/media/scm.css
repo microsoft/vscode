@@ -19,7 +19,7 @@
 }
 
 .scm-view .monaco-tl-contents > div {
-	margin-right: 12px;
+	padding-right: 12px;
 	overflow: hidden;
 }
 
@@ -88,6 +88,7 @@
 	margin: 0;
 	background-repeat: no-repeat;
 	background-position: center;
+	background-size: contain;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
@@ -190,7 +191,7 @@
 
 .scm-view .scm-input {
 	height: 100%;
-	margin-left: 9px;
+	padding-left: 8px;
 }
 
 .scm-view .scm-editor {

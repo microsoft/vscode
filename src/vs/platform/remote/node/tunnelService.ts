@@ -26,6 +26,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	public tunnelLocalPort!: number;
 	public tunnelRemoteHost: string;
 	public localAddress!: string;
+	public readonly public = false;
 
 	private readonly _options: IConnectionOptions;
 	private readonly _server: net.Server;
@@ -57,7 +58,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
 
-	public dispose(): void {
+	public async dispose(): Promise<void> {
 		super.dispose();
 		this._server.removeListener('listening', this._listeningListener);
 		this._server.removeListener('connection', this._connectionListener);
@@ -139,7 +140,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		super(logService);
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -147,15 +148,9 @@ export class BaseTunnelService extends AbstractTunnelService {
 		}
 
 		if (this._tunnelProvider) {
-			const preferredLocalPort = localPort === undefined ? remotePort : localPort;
-			const creationInfo = { elevationRequired: this.isPortPrivileged(preferredLocalPort) };
-			const tunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort };
-			const tunnel = this._tunnelProvider.forwardPort(tunnelOptions, creationInfo);
-			if (tunnel) {
-				this.addTunnelToMap(remoteHost, remotePort, tunnel);
-			}
-			return tunnel;
+			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
 		} else {
+			this.logService.trace(`Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,
 				socketFactory: this.socketFactory,
@@ -166,6 +161,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 			};
 
 			const tunnel = createRemoteTunnel(options, remoteHost, remotePort, localPort);
+			this.logService.trace('Tunnel created without provider.');
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;
 		}

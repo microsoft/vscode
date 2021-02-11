@@ -158,7 +158,7 @@ export class ContextMenuHandler {
 	}
 
 	private onDidActionRun(e: IRunEvent): void {
-		if (e.error && this.notificationService) {
+		if (e.error) {
 			this.notificationService.error(e.error);
 		}
 	}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { StorageScope, WillSaveStateReason, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
@@ -10,11 +11,11 @@ import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
 import { join } from 'vs/base/common/path';
-import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
+import { copy, exists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends AbstractStorageService {
 
@@ -59,7 +60,7 @@ export class NativeStorageService extends AbstractStorageService {
 	private async doInitialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
 
 		// Init all storage locations
-		await Promise.all([
+		await Promises.settled([
 			this.initializeGlobalStorage(),
 			payload ? this.initializeWorkspaceStorage(payload) : Promise.resolve()
 		]);
@@ -138,7 +139,7 @@ export class NativeStorageService extends AbstractStorageService {
 			return { path: workspaceStorageFolderPath, wasCreated: false };
 		}
 
-		await mkdirp(workspaceStorageFolderPath);
+		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder
 		this.ensureWorkspaceStorageFolderMeta(payload);
@@ -148,23 +149,22 @@ export class NativeStorageService extends AbstractStorageService {
 
 	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
 		let meta: object | undefined = undefined;
-		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
-			meta = { folder: payload.folder.toString() };
+		if (isSingleFolderWorkspaceIdentifier(payload)) {
+			meta = { folder: payload.uri.toString() };
 		} else if (isWorkspaceIdentifier(payload)) {
-			meta = { configuration: payload.configPath };
+			meta = { workspace: payload.configPath.toString() };
 		}
 
 		if (meta) {
-			const logService = this.logService;
-			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
-			(async function () {
+			(async () => {
 				try {
+					const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
 					const storageExists = await exists(workspaceStorageMetaPath);
 					if (!storageExists) {
 						await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
 					}
 				} catch (error) {
-					logService.error(error);
+					this.logService.error(error);
 				}
 			})();
 		}
@@ -210,7 +210,7 @@ export class NativeStorageService extends AbstractStorageService {
 			promises.push(this.workspaceStorage.whenFlushed());
 		}
 
-		await Promise.all(promises);
+		await Promises.settled(promises);
 	}
 
 	private doFlushWhenIdle(): void {
@@ -240,7 +240,7 @@ export class NativeStorageService extends AbstractStorageService {
 		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		// Do it
-		await Promise.all([
+		await Promises.settled([
 			this.globalStorage.close(),
 			this.workspaceStorage ? this.workspaceStorage.close() : Promise.resolve()
 		]);
@@ -268,7 +268,7 @@ export class NativeStorageService extends AbstractStorageService {
 		const newWorkspaceStoragePath = join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME);
 
 		// Copy current storage over to new workspace storage
-		await copy(assertIsDefined(this.workspaceStoragePath), newWorkspaceStoragePath);
+		await copy(assertIsDefined(this.workspaceStoragePath), newWorkspaceStoragePath, { preserveSymlinks: false });
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();

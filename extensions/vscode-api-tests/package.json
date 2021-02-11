@@ -5,6 +5,7 @@
   "publisher": "vscode",
   "license": "MIT",
   "enableProposedApi": true,
+  "requiresWorkspaceTrust": "onDemand",
   "private": true,
   "activationEvents": [],
   "main": "./out/extension",
@@ -36,6 +37,15 @@
           "default": "get-prop"
         }
       }
+    },
+    "views": {
+      "remote": [
+        {
+          "id": "test.treeId",
+          "name": "test-tree",
+          "when": "never"
+        }
+      ]
     },
     "configurationDefaults": {
       "[abcLang]": {
@@ -115,5 +125,9 @@
   "devDependencies": {
     "@types/mocha": "^8.2.0",
     "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

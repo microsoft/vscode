@@ -73,7 +73,9 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 	}
 
 	setEnablement(enabled: boolean): void {
-		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		if (this.canToggleEnablement()) {
+			this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		}
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {

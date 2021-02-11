@@ -17,7 +17,6 @@
   ],
   "dependencies": {
     "jsonc-parser": "^2.2.1",
-    "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "typescript-vscode-sh-plugin": "^0.6.14",
     "vscode-extension-telemetry": "0.1.1",
@@ -26,8 +25,7 @@
   "devDependencies": {
     "@types/node": "^12.19.9",
     "@types/rimraf": "^2.0.4",
-    "@types/semver": "^5.5.0",
-    "typescript-web": "npm:typescript@^4.2.0-dev.20201209"
+    "@types/semver": "^5.5.0"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features",
@@ -602,6 +600,18 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "javascript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+          "scope": "resource"
+        },
+        "typescript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
           "scope": "resource"
         },
         "typescript.locale": {
@@ -1200,5 +1210,9 @@
         "enableForWorkspaceTypeScriptVersions": true
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

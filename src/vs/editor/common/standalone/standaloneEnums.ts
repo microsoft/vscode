@@ -287,11 +287,12 @@ export enum EditorOption {
 	wrappingIndent = 117,
 	wrappingStrategy = 118,
 	showDeprecated = 119,
-	editorClassName = 120,
-	pixelRatio = 121,
-	tabFocusMode = 122,
-	layoutInfo = 123,
-	wrappingInfo = 124
+	inlineHints = 120,
+	editorClassName = 121,
+	pixelRatio = 122,
+	tabFocusMode = 123,
+	layoutInfo = 124,
+	wrappingInfo = 125
 }
 
 /**
@@ -348,6 +349,12 @@ export enum IndentAction {
 	 * Insert new line and outdent once (relative to the previous line's indentation).
 	 */
 	Outdent = 3
+}
+
+export enum InlineHintKind {
+	Other = 0,
+	Type = 1,
+	Parameter = 2
 }
 
 /**

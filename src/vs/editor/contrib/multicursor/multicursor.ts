@@ -850,7 +850,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 					this.updateSoon.schedule();
 				} else {
 					this._setState(null);
-
 				}
 			} else {
 				this._update();
@@ -1016,11 +1015,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		});
 
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
-
-		const currentFindState = CommonFindController.get(this.editor).getState();
-		if (currentFindState.isRegex || currentFindState.matchCase || currentFindState.wholeWord) {
-			CommonFindController.get(this.editor).highlightFindOptions(true);
-		}
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({

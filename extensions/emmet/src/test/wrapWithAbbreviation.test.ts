@@ -372,7 +372,7 @@ function testWrapWithAbbreviation(selections: Selection[], abbreviation: string,
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
 		if (!promise) {
-			assert.equal(1, 2, 'Wrap  with Abbreviation returned undefined.');
+			assert.equal(1, 2, 'Wrap with Abbreviation returned undefined.');
 			return Promise.resolve();
 		}
 

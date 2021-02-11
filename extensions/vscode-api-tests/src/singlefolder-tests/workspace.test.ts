@@ -5,14 +5,17 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled, revertAllDirty } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled, revertAllDirty, assertNoRpc } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 import { TestFS } from '../memfs';
 
 suite('vscode API - workspace', () => {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	test('MarkdownString', function () {
 		let md = new vscode.MarkdownString();
@@ -1006,7 +1009,6 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
-		this.skip();
 
 		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
 			let sub = vscode.workspace.onWillCreateFiles(e => {

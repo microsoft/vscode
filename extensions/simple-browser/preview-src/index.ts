@@ -37,6 +37,11 @@ window.addEventListener('message', e => {
 				iframe.focus();
 				break;
 			}
+		case 'didChangeFocusLockIndicatorEnabled':
+			{
+				toggleFocusLockIndicatorEnabled(e.data.enabled);
+				break;
+			}
 	}
 });
 
@@ -79,8 +84,26 @@ onceDocumentLoaded(() => {
 	});
 
 	navigateTo(settings.url);
+	input.value = settings.url;
 
-	function navigateTo(url: string): void {
-		iframe.src = url;
+	toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
+
+	function navigateTo(rawUrl: string): void {
+		try {
+			const url = new URL(rawUrl);
+
+			// Try to bust the cache for the iframe
+			// There does not appear to be any way to reliably do this except modifying the url
+			url.searchParams.append('vscodeBrowserReqId', Date.now().toString());
+
+			iframe.src = url.toString();
+		} catch {
+			iframe.src = rawUrl;
+		}
 	}
 });
+
+function toggleFocusLockIndicatorEnabled(enabled: boolean) {
+	document.body.classList.toggle('enable-focus-lock-indicator', enabled);
+}
+

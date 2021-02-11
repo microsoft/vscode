@@ -27,6 +27,7 @@ class ResourceStackElement {
 	public readonly type = UndoRedoElementType.Resource;
 	public readonly actual: IUndoRedoElement;
 	public readonly label: string;
+	public readonly confirmBeforeUndo: boolean;
 
 	public readonly resourceLabel: string;
 	public readonly strResource: string;
@@ -41,6 +42,7 @@ class ResourceStackElement {
 	constructor(actual: IUndoRedoElement, resourceLabel: string, strResource: string, groupId: number, groupOrder: number, sourceId: number, sourceOrder: number) {
 		this.actual = actual;
 		this.label = actual.label;
+		this.confirmBeforeUndo = actual.confirmBeforeUndo || false;
 		this.resourceLabel = resourceLabel;
 		this.strResource = strResource;
 		this.resourceLabels = [this.resourceLabel];
@@ -129,6 +131,7 @@ class WorkspaceStackElement {
 	public readonly type = UndoRedoElementType.Workspace;
 	public readonly actual: IWorkspaceUndoRedoElement;
 	public readonly label: string;
+	public readonly confirmBeforeUndo: boolean;
 
 	public readonly resourceLabels: string[];
 	public readonly strResources: string[];
@@ -142,6 +145,7 @@ class WorkspaceStackElement {
 	constructor(actual: IWorkspaceUndoRedoElement, resourceLabels: string[], strResources: string[], groupId: number, groupOrder: number, sourceId: number, sourceOrder: number) {
 		this.actual = actual;
 		this.label = actual.label;
+		this.confirmBeforeUndo = actual.confirmBeforeUndo || false;
 		this.resourceLabels = resourceLabels;
 		this.strResources = strResources;
 		this.groupId = groupId;
@@ -811,7 +815,7 @@ export class UndoRedoService implements IUndoRedoService {
 		if (element.canSplit()) {
 			this._splitPastWorkspaceElement(element, ignoreResources);
 			this._notificationService.info(message);
-			return new WorkspaceVerificationError(this._undo(strResource));
+			return new WorkspaceVerificationError(this._undo(strResource, 0, true));
 		} else {
 			// Cannot safely split this workspace element => flush all undo/redo stacks
 			for (const strResource of element.strResources) {
@@ -899,13 +903,13 @@ export class UndoRedoService implements IUndoRedoService {
 		return null;
 	}
 
-	private _workspaceUndo(strResource: string, element: WorkspaceStackElement): Promise<void> | void {
+	private _workspaceUndo(strResource: string, element: WorkspaceStackElement, undoConfirmed: boolean): Promise<void> | void {
 		const affectedEditStacks = this._getAffectedEditStacks(element);
 		const verificationError = this._checkWorkspaceUndo(strResource, element, affectedEditStacks, /*invalidated resources will be checked after the prepare call*/false);
 		if (verificationError) {
 			return verificationError.returnValue;
 		}
-		return this._confirmAndExecuteWorkspaceUndo(strResource, element, affectedEditStacks);
+		return this._confirmAndExecuteWorkspaceUndo(strResource, element, affectedEditStacks, undoConfirmed);
 	}
 
 	private _isPartOfUndoGroup(element: WorkspaceStackElement): boolean {
@@ -933,7 +937,7 @@ export class UndoRedoService implements IUndoRedoService {
 		return false;
 	}
 
-	private async _confirmAndExecuteWorkspaceUndo(strResource: string, element: WorkspaceStackElement, editStackSnapshot: EditStackSnapshot): Promise<void> {
+	private async _confirmAndExecuteWorkspaceUndo(strResource: string, element: WorkspaceStackElement, editStackSnapshot: EditStackSnapshot, undoConfirmed: boolean): Promise<void> {
 
 		if (element.canSplit() && !this._isPartOfUndoGroup(element)) {
 			// this element can be split
@@ -959,7 +963,7 @@ export class UndoRedoService implements IUndoRedoService {
 			if (result.choice === 1) {
 				// choice: undo this file
 				this._splitPastWorkspaceElement(element, null);
-				return this._undo(strResource);
+				return this._undo(strResource, 0, true);
 			}
 
 			// choice: undo in all files
@@ -969,6 +973,8 @@ export class UndoRedoService implements IUndoRedoService {
 			if (verificationError1) {
 				return verificationError1.returnValue;
 			}
+
+			undoConfirmed = true;
 		}
 
 		// prepare
@@ -989,10 +995,10 @@ export class UndoRedoService implements IUndoRedoService {
 		for (const editStack of editStackSnapshot.editStacks) {
 			editStack.moveBackward(element);
 		}
-		return this._safeInvokeWithLocks(element, () => element.actual.undo(), editStackSnapshot, cleanup, () => this._continueUndoInGroup(element.groupId));
+		return this._safeInvokeWithLocks(element, () => element.actual.undo(), editStackSnapshot, cleanup, () => this._continueUndoInGroup(element.groupId, undoConfirmed));
 	}
 
-	private _resourceUndo(editStack: ResourceEditStack, element: ResourceStackElement): Promise<void> | void {
+	private _resourceUndo(editStack: ResourceEditStack, element: ResourceStackElement, undoConfirmed: boolean): Promise<void> | void {
 		if (!element.isValid) {
 			// invalid element => immediately flush edit stack!
 			editStack.flushAllElements();
@@ -1008,7 +1014,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 		return this._invokeResourcePrepare(element, (cleanup) => {
 			editStack.moveBackward(element);
-			return this._safeInvokeWithLocks(element, () => element.actual.undo(), new EditStackSnapshot([editStack]), cleanup, () => this._continueUndoInGroup(element.groupId));
+			return this._safeInvokeWithLocks(element, () => element.actual.undo(), new EditStackSnapshot([editStack]), cleanup, () => this._continueUndoInGroup(element.groupId, undoConfirmed));
 		});
 	}
 
@@ -1037,29 +1043,29 @@ export class UndoRedoService implements IUndoRedoService {
 		return [matchedElement, matchedStrResource];
 	}
 
-	private _continueUndoInGroup(groupId: number): Promise<void> | void {
+	private _continueUndoInGroup(groupId: number, undoConfirmed: boolean): Promise<void> | void {
 		if (!groupId) {
 			return;
 		}
 
 		const [, matchedStrResource] = this._findClosestUndoElementInGroup(groupId);
 		if (matchedStrResource) {
-			return this._undo(matchedStrResource);
+			return this._undo(matchedStrResource, 0, undoConfirmed);
 		}
 	}
 
 	public undo(resourceOrSource: URI | UndoRedoSource): Promise<void> | void {
 		if (resourceOrSource instanceof UndoRedoSource) {
 			const [, matchedStrResource] = this._findClosestUndoElementWithSource(resourceOrSource.id);
-			return matchedStrResource ? this._undo(matchedStrResource, resourceOrSource.id) : undefined;
+			return matchedStrResource ? this._undo(matchedStrResource, resourceOrSource.id, false) : undefined;
 		}
 		if (typeof resourceOrSource === 'string') {
-			return this._undo(resourceOrSource);
+			return this._undo(resourceOrSource, 0, false);
 		}
-		return this._undo(this.getUriComparisonKey(resourceOrSource));
+		return this._undo(this.getUriComparisonKey(resourceOrSource), 0, false);
 	}
 
-	private _undo(strResource: string, sourceId: number = 0): Promise<void> | void {
+	private _undo(strResource: string, sourceId: number = 0, undoConfirmed: boolean): Promise<void> | void {
 		if (!this._editStacks.has(strResource)) {
 			return;
 		}
@@ -1075,20 +1081,21 @@ export class UndoRedoService implements IUndoRedoService {
 			const [matchedElement, matchedStrResource] = this._findClosestUndoElementInGroup(element.groupId);
 			if (element !== matchedElement && matchedStrResource) {
 				// there is an element in the same group that should be undone before this one
-				return this._undo(matchedStrResource);
+				return this._undo(matchedStrResource, sourceId, undoConfirmed);
 			}
 		}
 
-		if (element.sourceId !== sourceId) {
-			// Hit a different source, prompt for confirmation
-			return this._confirmDifferentSourceAndContinueUndo(strResource, element);
+		const shouldPromptForConfirmation = (element.sourceId !== sourceId || element.confirmBeforeUndo);
+		if (shouldPromptForConfirmation && !undoConfirmed) {
+			// Hit a different source or the element asks for prompt before undo, prompt for confirmation
+			return this._confirmAndContinueUndo(strResource, sourceId, element);
 		}
 
 		try {
 			if (element.type === UndoRedoElementType.Workspace) {
-				return this._workspaceUndo(strResource, element);
+				return this._workspaceUndo(strResource, element, undoConfirmed);
 			} else {
-				return this._resourceUndo(editStack, element);
+				return this._resourceUndo(editStack, element, undoConfirmed);
 			}
 		} finally {
 			if (DEBUG) {
@@ -1097,7 +1104,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 
-	private async _confirmDifferentSourceAndContinueUndo(strResource: string, element: StackElement): Promise<void> {
+	private async _confirmAndContinueUndo(strResource: string, sourceId: number, element: StackElement): Promise<void> {
 		const result = await this._dialogService.show(
 			Severity.Info,
 			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
@@ -1116,7 +1123,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		// choice: undo
-		return this._undo(strResource, element.sourceId);
+		return this._undo(strResource, sourceId, true);
 	}
 
 	private _findClosestRedoElementWithSource(sourceId: number): [StackElement | null, string | null] {

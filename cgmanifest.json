@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "dcfd8d6023038d7a33f7baf393dcd6b1dc93f3b5"
+					"commitHash": "c0dfcf99c0bbc9c4763c70e5034eb1a970a9ff3b"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "87.0.4280.88"
+			"version": "87.0.4280.141"
 		},
 		{
 			"component": {
@@ -60,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "101a2282ab3ae030ace05e70043739386c24b3cb"
+					"commitHash": "137f45750f7319442c511183c0ad0f3c4fe7e07a"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "11.1.0"
+			"version": "11.2.3"
 		},
 		{
 			"component": {
@@ -132,11 +132,11 @@
 				"git": {
 					"name": "vscode-codicons",
 					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
-					"commitHash": "f0caa623812a8ed5059516277675b4158d4c4867"
+					"commitHash": "ccdcf91d57d3a5a1d6b620d95d518bab4d75984d"
 				}
 			},
 			"license": "MIT and Creative Commons Attribution 4.0",
-			"version": "0.0.1"
+			"version": "0.0.14"
 		},
 		{
 			"component": {

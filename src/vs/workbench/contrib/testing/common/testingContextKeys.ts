@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TestExplorerViewMode, TestExplorerViewGrouping } from 'vs/workbench/contrib/testing/common/constants';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { TestExplorerViewMode, TestExplorerViewSorting } from 'vs/workbench/contrib/testing/common/constants';
 
 export namespace TestingContextKeys {
-	export const providerCount = new RawContextKey('testingProviderCount', 0);
-	export const viewMode = new RawContextKey('testExplorerViewMode', TestExplorerViewMode.List);
-	export const viewGrouping = new RawContextKey('testExplorerViewGrouping', TestExplorerViewGrouping.ByLocation);
-	export const isRunning = new RawContextKey('testIsrunning', false);
+	export const providerCount = new RawContextKey('testing.providerCount', 0);
+	export const viewMode = new RawContextKey('testing.explorerViewMode', TestExplorerViewMode.List);
+	export const viewSorting = new RawContextKey('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
+	export const isRunning = new RawContextKey('testing.isRunning', false);
+	export const isInPeek = new RawContextKey('testing.isInPeek', true);
+	export const isPeekVisible = new RawContextKey('testing.isPeekVisible', false);
+	export const explorerLocation = new RawContextKey('testing.explorerLocation', ViewContainerLocation.Sidebar);
 }
