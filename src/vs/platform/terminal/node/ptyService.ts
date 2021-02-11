@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, ReconnectConstants } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, LocalReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
@@ -38,14 +38,12 @@ export class PtyService extends Disposable implements IPtyService {
 	) {
 		super();
 	}
-	onPtyHostExit?: Event<number> | undefined;
-	onPtyHostStart?: Event<void> | undefined;
 
-	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
-		throw new Error('Method not implemented.');
+	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
+		return this._throwIfNoPty(id).acknowledgeCharCount(charCount);
 	}
 
-	getLatency(id: number): Promise<number> {
+	async getLatency(id: number): Promise<number> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -158,13 +156,13 @@ export class PersistentTerminalProcess extends Disposable {
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`The reconnection grace time of ${printTime(ReconnectConstants.ReconnectionGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
+			this._logService.info(`The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
 			this.shutdown(true);
-		}, ReconnectConstants.ReconnectionGraceTime));
+		}, LocalReconnectConstants.ReconnectionGraceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`The short reconnection grace time of ${printTime(ReconnectConstants.ReconnectionShortGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
+			this._logService.info(`The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
 			this.shutdown(true);
-		}, ReconnectConstants.ReconnectionShortGraceTime));
+		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
 		this._events = this._register(new Emitter<IPtyHostProcessEvent>({
 			onListenerDidAdd: () => {
