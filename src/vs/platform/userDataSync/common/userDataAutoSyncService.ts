@@ -18,7 +18,6 @@ import { localize } from 'vs/nls';
 import { toLocalISOString } from 'vs/base/common/date';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -52,9 +51,8 @@ export class UserDataAutoSyncEnablementService extends Disposable implements _IU
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IWorkspaceTrustService protected readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super();
 		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));

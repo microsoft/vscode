@@ -3,14 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnablementService {
 
-	private get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
 	private enabled: boolean | undefined = undefined;
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
+	) {
+		super(storageService, workbenchEnvironmentService, userDataSyncStoreManagementService);
+	}
 
 	canToggleEnablement(): boolean {
 		return this.isTrusted() && super.canToggleEnablement();

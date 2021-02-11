@@ -209,9 +209,13 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		}
 
 		// Signal from embedder
-		if (this.workbenchEnvironmentService.options?.workspaceProvider?.trusted !== undefined) {
-			return this.workbenchEnvironmentService.options.workspaceProvider.trusted ?
-				WorkspaceTrustState.Trusted : WorkspaceTrustState.Untrusted;
+		if (this.workbenchEnvironmentService.options?.workspaceProvider) {
+			if (this.workbenchEnvironmentService.options.workspaceProvider.trusted !== undefined) {
+				return this.workbenchEnvironmentService.options.workspaceProvider.trusted ?
+					WorkspaceTrustState.Trusted : WorkspaceTrustState.Untrusted;
+			} else {
+				return WorkspaceTrustState.Unknown;
+			}
 		}
 
 		// Empty workspace
@@ -275,7 +279,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request?.immediate) {
 			return this.currentTrustState;
 		}
-		if (this.workbenchEnvironmentService.options?.workspaceProvider?.trusted !== undefined) {
+		if (this.workbenchEnvironmentService.options?.workspaceProvider) {
 			return this.currentTrustState;
 		}
 
