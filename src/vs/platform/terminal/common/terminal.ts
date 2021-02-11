@@ -18,7 +18,7 @@ export enum TerminalIpcChannels {
 	PtyHost = 'ptyHost'
 }
 
-export interface ILocalPtyService {
+export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;

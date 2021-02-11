@@ -5,14 +5,14 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { Emitter } from 'vs/base/common/event';
 import { LogService, ConsoleLogger } from 'vs/platform/log/common/log';
 
 let currentPtyId = 0;
 
-export class PtyService extends Disposable implements ILocalPtyService {
+export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, ITerminalChildProcess> = new Map();
