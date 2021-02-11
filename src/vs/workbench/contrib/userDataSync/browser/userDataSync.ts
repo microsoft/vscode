@@ -54,7 +54,6 @@ import { UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_VIEW_ICON } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { isWeb } from 'vs/base/common/platform';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -325,10 +324,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 				return;
 			case UserDataSyncErrorCode.DefaultServiceChanged:
-				if (isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.insidersUrl) && isWeb) {
+				// Check if Settings Sync got turned off because default service has changed.
+				// Then ask user to turn on sync again.
+				if (!this.userDataAutoSyncEnablementService.isEnabled()) {
 					this.notificationService.notify({
 						severity: Severity.Info,
-						message: localize('switched to insiders', "Settings sync was turned off because VSCode Insiders now uses a separate service. Please turn on sync again."),
+						message: localize('switched to insiders', "Settings sync was turned off because VSCode now uses a separate service. Please turn on sync again."),
 						actions: {
 							primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
 						}
