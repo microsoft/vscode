@@ -15,7 +15,6 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
@@ -106,8 +105,7 @@ export class OpenerService implements IOpenerService {
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@ILogService private logService: ILogService
+		@ICommandService commandService: ICommandService
 	) {
 		// Default external opener is going through window.open()
 		this._defaultExternalOpener = {
@@ -169,7 +167,6 @@ export class OpenerService implements IOpenerService {
 		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
 		// validate against the original URI that this URI resolves to, if one exists
 		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? targetURI;
-		this.logService.trace(`OpenerService#open: ${targetURI.authority} validating via ${validationTarget.authority}`);
 		for (const validator of this._validators) {
 			if (!(await validator.shouldOpen(validationTarget))) {
 				return false;
@@ -192,7 +189,6 @@ export class OpenerService implements IOpenerService {
 			const result = await resolver.resolveExternalUri(resource, options);
 			if (result) {
 				if (!this._resolvedUriTargets.has(result.resolved)) {
-					this.logService.trace(`OpenerService#resolveExternalUri: ${resource.authority} resolved to ${result.resolved.authority}`);
 					this._resolvedUriTargets.set(result.resolved, resource);
 				}
 				return result;
