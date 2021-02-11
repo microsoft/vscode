@@ -74,8 +74,8 @@ export class GitHubAuthenticationProvider {
 			return;
 		}
 
-		const added: string[] = [];
-		const removed: string[] = [];
+		const added: vscode.AuthenticationSession[] = [];
+		const removed: vscode.AuthenticationSession[] = [];
 
 		storedSessions.forEach(session => {
 			const matchesExisting = this._sessions.some(s => s.id === session.id);
@@ -83,7 +83,7 @@ export class GitHubAuthenticationProvider {
 			if (!matchesExisting) {
 				Logger.info('Adding session found in keychain');
 				this._sessions.push(session);
-				added.push(session.id);
+				added.push(session);
 			}
 		});
 
@@ -97,7 +97,7 @@ export class GitHubAuthenticationProvider {
 					this._sessions.splice(sessionIndex, 1);
 				}
 
-				removed.push(session.id);
+				removed.push(session);
 			}
 		});
 
@@ -185,15 +185,18 @@ export class GitHubAuthenticationProvider {
 		await this.storeSessions();
 	}
 
-	public async logout(id: string) {
+	public async logout(id: string): Promise<vscode.AuthenticationSession | undefined> {
 		Logger.info(`Logging out of ${id}`);
 		const sessionIndex = this._sessions.findIndex(session => session.id === id);
+		let session: vscode.AuthenticationSession | undefined;
 		if (sessionIndex > -1) {
+			session = this._sessions[sessionIndex];
 			this._sessions.splice(sessionIndex, 1);
 		} else {
 			Logger.error('Session not found');
 		}
 
 		await this.storeSessions();
+		return session;
 	}
 }

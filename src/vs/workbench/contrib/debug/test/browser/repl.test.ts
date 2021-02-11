@@ -156,7 +156,7 @@ suite('Debug - REPL', () => {
 
 		session['raw'] = <any>rawSession;
 		const thread = new Thread(session, 'mockthread', 1);
-		const stackFrame = new StackFrame(thread, 1, <any>undefined, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		const stackFrame = new StackFrame(thread, 1, <any>undefined, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 		const replModel = new ReplModel(configurationService);
 		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
 		replModel.addReplExpression(session, stackFrame, 'myVariable').then();

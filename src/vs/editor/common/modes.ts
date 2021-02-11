@@ -1439,9 +1439,9 @@ export interface AuthenticationSession {
  * @internal
  */
 export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<string>;
-	removed: ReadonlyArray<string>;
-	changed: ReadonlyArray<string>;
+	added: ReadonlyArray<AuthenticationSession>;
+	removed: ReadonlyArray<AuthenticationSession>;
+	changed: ReadonlyArray<AuthenticationSession>;
 }
 
 /**

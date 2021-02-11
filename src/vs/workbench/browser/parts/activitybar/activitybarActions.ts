@@ -118,7 +118,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
-		super(action, { draggable: false, colors, icon: true }, themeService);
+		super(action, { draggable: false, colors, icon: true, hasPopup: true }, themeService);
 	}
 
 	render(container: HTMLElement): void {

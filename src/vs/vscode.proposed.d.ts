@@ -38,19 +38,19 @@ declare module 'vscode' {
 	*/
 	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been added.
 		*/
-		readonly added: ReadonlyArray<string>;
+		readonly added: ReadonlyArray<AuthenticationSession>;
 
 		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been removed.
 		 */
-		readonly removed: ReadonlyArray<string>;
+		readonly removed: ReadonlyArray<AuthenticationSession>;
 
 		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been changed.
 		 */
-		readonly changed: ReadonlyArray<string>;
+		readonly changed: ReadonlyArray<AuthenticationSession>;
 	}
 
 	/**
