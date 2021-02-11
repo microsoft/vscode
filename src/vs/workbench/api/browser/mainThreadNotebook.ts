@@ -23,7 +23,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, INotebookKernelInfo2, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -138,6 +138,21 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._modelReferenceCollection = new BoundModelReferenceCollection(this._uriIdentityService.extUri);
 		this._register(this._modelReferenceCollection);
 		this.registerListeners();
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		// remove all notebook providers
+		for (let item of this._notebookProviders.values()) {
+			item.disposable.dispose();
+		}
+
+		// remove all kernel providers
+		for (let item of this._notebookKernelProviders.values()) {
+			item.emitter.dispose();
+			item.provider.dispose();
+		}
 	}
 
 	async $tryApplyEdits(_viewType: string, resource: UriComponents, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean> {
@@ -512,38 +527,48 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void> {
 		const emitter = new Emitter<URI | undefined>();
 		const that = this;
+
 		const provider = this._notebookService.registerNotebookKernelProvider({
 			providerExtensionId: extension.id.value,
 			providerDescription: extension.description,
 			onDidChangeKernels: emitter.event,
 			selector: documentFilter,
-			provideKernels: async (uri: URI, token: CancellationToken) => {
-				const kernels = await that._proxy.$provideNotebookKernels(handle, uri, token);
-				return kernels.map(kernel => {
-					return {
-						...kernel,
-						providerHandle: handle
-					};
-				});
-			},
-			resolveKernel: (editorId: string, uri: URI, kernelId: string, token: CancellationToken) => {
-				return that._proxy.$resolveNotebookKernel(handle, editorId, uri, kernelId, token);
-			},
-			executeNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined) => {
-				this.logService.debug('MainthreadNotebooks.registerNotebookKernelProvider#executeNotebook', uri.path, kernelId, cellHandle);
-				return that._proxy.$executeNotebookKernelFromProvider(handle, uri, kernelId, cellHandle);
-			},
-			cancelNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined) => {
-				this.logService.debug('MainthreadNotebooks.registerNotebookKernelProvider#cancelNotebook', uri.path, kernelId, cellHandle);
-				return that._proxy.$cancelNotebookKernelFromProvider(handle, uri, kernelId, cellHandle);
-			},
-		});
-		this._notebookKernelProviders.set(handle, {
-			extension,
-			emitter,
-			provider
-		});
+			provideKernels: async (uri: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> => {
+				const result: INotebookKernelInfo2[] = [];
+				const kernelsDto = await that._proxy.$provideNotebookKernels(handle, uri, token);
+				for (const dto of kernelsDto) {
 
+					result.push({
+						id: dto.id,
+						friendlyId: dto.friendlyId,
+						label: dto.label,
+						extension: dto.extension,
+						extensionLocation: dto.extensionLocation,
+						providerHandle: dto.providerHandle,
+						description: dto.description,
+						detail: dto.detail,
+						isPreferred: dto.isPreferred,
+						preloads: dto.preloads,
+						supportedLanguages: dto.supportedLanguages,
+
+						resolve: (uri: URI, editorId: string, token: CancellationToken): Promise<void> => {
+							this.logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
+							return this._proxy.$resolveNotebookKernel(handle, editorId, uri, dto.friendlyId, token);
+						},
+						executeNotebookCell: (uri: URI, cellHandle: number | undefined): Promise<void> => {
+							this.logService.debug('MainthreadNotebooks.executeNotebookCell', uri.path, dto.friendlyId, cellHandle);
+							return this._proxy.$executeNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellHandle);
+						},
+						cancelNotebookCell: (uri: URI, cellHandle: number | undefined): Promise<void> => {
+							this.logService.debug('MainthreadNotebooks.cancelNotebookCell', uri.path, dto.friendlyId, cellHandle);
+							return this._proxy.$cancelNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellHandle);
+						}
+					});
+				}
+				return result;
+			}
+		});
+		this._notebookKernelProviders.set(handle, { extension, emitter, provider });
 		return;
 	}
 

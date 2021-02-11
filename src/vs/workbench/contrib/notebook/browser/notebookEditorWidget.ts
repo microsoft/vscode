@@ -774,7 +774,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._contributedKernelsComputePromise = createCancelablePromise(token => {
-			return this.notebookService.getContributedNotebookKernels(this.viewModel!.viewType, this.viewModel!.uri, token);
+			return this.notebookService.getNotebookKernels(this.viewModel!.viewType, this.viewModel!.uri, token);
 		});
 
 		const result = await this._contributedKernelsComputePromise;

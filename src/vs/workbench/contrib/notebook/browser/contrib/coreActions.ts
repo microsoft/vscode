@@ -2108,7 +2108,7 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 	const notebookService = accessor.get<INotebookService>(INotebookService);
 	const uri = URI.revive(args.uri as UriComponents);
 	const source = new CancellationTokenSource();
-	const kernels = await notebookService.getContributedNotebookKernels(args.viewType, uri, source.token);
+	const kernels = await notebookService.getNotebookKernels(args.viewType, uri, source.token);
 	source.dispose();
 
 	return kernels.map(provider => ({

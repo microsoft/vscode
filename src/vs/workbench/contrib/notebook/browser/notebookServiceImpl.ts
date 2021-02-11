@@ -695,39 +695,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		});
 	}
 
-	async getContributedNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> {
+	async getNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> {
 		const filteredProvider = this.notebookKernelProviderInfoStore.get(viewType, resource);
 		const result = new Array<INotebookKernelInfo2[]>(filteredProvider.length);
-
 		const promises = filteredProvider.map(async (provider, index) => {
 			const data = await provider.provideKernels(resource, token);
-			result[index] = data.map(dto => {
-				return {
-					id: dto.id,
-					extension: dto.extension,
-					extensionLocation: URI.revive(dto.extensionLocation),
-					friendlyId: dto.friendlyId,
-					label: dto.label,
-					description: dto.description,
-					detail: dto.detail,
-					isPreferred: dto.isPreferred,
-					preloads: dto.preloads,
-					providerHandle: dto.providerHandle,
-					resolve: async (uri: URI, editorId: string, token: CancellationToken) => {
-						return provider.resolveKernel(editorId, uri, dto.friendlyId, token);
-					},
-					executeNotebookCell: async (uri: URI, handle: number | undefined) => {
-						return provider.executeNotebook(uri, dto.friendlyId, handle);
-					},
-					cancelNotebookCell: (uri: URI, handle: number | undefined): Promise<void> => {
-						return provider.cancelNotebook(uri, dto.friendlyId, handle);
-					}
-				};
-			});
+			result[index] = data;
 		});
-
 		await Promise.all(promises);
-
 		return flatten(result);
 	}
 
