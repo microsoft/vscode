@@ -300,6 +300,12 @@ export class AzureActiveDirectoryService {
 		return Promise.all(this._tokens.map(token => this.convertToSession(token)));
 	}
 
+	async getSessions(scopes: string[]): Promise<vscode.AuthenticationSession[]> {
+		const orderedScopes = scopes.sort().join(' ');
+		const matchingTokens = this._tokens.filter(token => token.scope === orderedScopes);
+		return Promise.all(this._tokens.map(token => this.convertToSession(token)));
+	}
+
 	public async login(scope: string): Promise<vscode.AuthenticationSession> {
 		Logger.info('Logging in...');
 		if (!scope.includes('offline_access')) {

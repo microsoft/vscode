@@ -110,8 +110,8 @@ export interface IAuthenticationService {
 	unregisterAuthenticationProvider(id: string): void;
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean;
 	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
-	selectSession(providerId: string, extensionId: string, extensionName: string, possibleSessions: AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, possibleSessions: AuthenticationSession[]): void;
+	selectSession(providerId: string, extensionId: string, extensionName: string, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, possibleSessions: readonly AuthenticationSession[]): void;
 	completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string): Promise<void>
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
 	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
@@ -124,7 +124,8 @@ export interface IAuthenticationService {
 	declaredProviders: AuthenticationProviderInformation[];
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
 
-	getSessions(providerId: string, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopes: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getAllSessions(providerId: string, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
 	login(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
@@ -694,10 +695,19 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return Promise.race([didRegister, didTimeout]);
 	}
 
-	async getSessions(id: string, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getAllSessions(id: string, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		try {
 			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
-			return await authProvider.getSessions();
+			return await authProvider.getAllSessions();
+		} catch (_) {
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
+		}
+	}
+
+	async getSessions(id: string, scopes: string[], activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+		try {
+			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+			return await authProvider.getSessions(scopes);
 		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

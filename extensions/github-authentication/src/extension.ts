@@ -24,7 +24,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('github', 'GitHub', {
 		onDidChangeSessions: onDidChangeSessions.event,
-		getSessions: () => Promise.resolve(loginService.sessions),
+		getAllSessions: () => Promise.resolve(loginService.sessions),
+		getSessions: (scopes: string[]) => loginService.getSessions(scopes),
 		login: async (scopeList: string[]) => {
 			try {
 				/* __GDPR__

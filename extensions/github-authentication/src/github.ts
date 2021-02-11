@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import { Keychain } from './common/keychain';
 import { GitHubServer, NETWORK_ERROR } from './githubServer';
 import Logger from './common/logger';
+import { arrayEquals } from './common/utils';
 
 export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
@@ -41,6 +42,10 @@ export class GitHubAuthenticationProvider {
 		}
 
 		context.subscriptions.push(context.secrets.onDidChange(() => this.checkForUpdates()));
+	}
+
+	async getSessions(scopes: string[]): Promise<vscode.AuthenticationSession[]> {
+		return this._sessions.filter(session => arrayEquals(session.scopes, scopes));
 	}
 
 	private async verifySessions(): Promise<void> {

@@ -19,7 +19,6 @@ import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensi
 
 export class MainThreadAuthenticationProvider extends Disposable {
 	private _accounts = new Map<string, string[]>(); // Map account name to session ids
-	private _sessions = new Map<string, string>(); // Map account id to name
 
 	private _hasInitializedSessions = false;
 
@@ -35,10 +34,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	) {
 		super();
 	}
-	public hasSessions(): boolean {
-		return !!this._sessions.size;
-	}
-
 	public manageTrustedExtensions(accountName: string) {
 		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
 
@@ -81,8 +76,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	private registerSession(session: modes.AuthenticationSession) {
-		this._sessions.set(session.id, session.account.label);
-
 		const existingSessionsForAccount = this._accounts.get(session.account.label);
 		if (existingSessionsForAccount) {
 			this._accounts.set(session.account.label, existingSessionsForAccount.concat(session.id));
@@ -110,8 +103,12 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		}
 	}
 
-	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		const sessions = await this._proxy.$getSessions(this.id);
+	async getSessions(scopes: string[]) {
+		return this._proxy.$getSessions(this.id, scopes);
+	}
+
+	async getAllSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
+		const sessions = await this._proxy.$getAllSessions(this.id);
 		if (!this._hasInitializedSessions) {
 			sessions.forEach(session => this.registerSession(session));
 			this._hasInitializedSessions = true;
@@ -125,12 +122,11 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 		removed.forEach(session => {
 			const sessionId = session.id;
-			const accountName = this._sessions.get(sessionId);
+			const accountName = session.account.label;
 			if (accountName) {
-				this._sessions.delete(sessionId);
 				let sessionsForAccount = this._accounts.get(accountName) || [];
 				const sessionIndex = sessionsForAccount.indexOf(sessionId);
-				sessionsForAccount.splice(sessionIndex);
+				sessionsForAccount.splice(sessionIndex, 1);
 
 				if (!sessionsForAccount.length) {
 					this._accounts.delete(accountName);
@@ -230,7 +226,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	}
 
-	private async selectSession(providerId: string, extensionId: string, extensionName: string, potentialSessions: modes.AuthenticationSession[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
+	private async selectSession(providerId: string, extensionId: string, extensionName: string, potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
 		if (!potentialSessions.length) {
 			throw new Error('No potential sessions found');
 		}
@@ -259,8 +255,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
-		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await this.authenticationService.getSessions(providerId, true)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
 
 		const silent = !options.createIfNone;
 		let session: modes.AuthenticationSession | undefined;

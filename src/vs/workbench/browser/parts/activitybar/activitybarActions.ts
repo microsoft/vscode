@@ -210,7 +210,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		const providers = this.authenticationService.getProviderIds();
 		const allSessions = providers.map(async providerId => {
 			try {
-				const sessions = await this.authenticationService.getSessions(providerId);
+				const sessions = await this.authenticationService.getAllSessions(providerId);
 
 				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
 				sessions.forEach(session => {

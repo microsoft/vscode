@@ -65,9 +65,18 @@ declare module 'vscode' {
 
 		/**
 		 * Returns an array of current sessions.
+		 *
+		 * TODO @RMacfarlane finish deprecating this and remove it
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getAllSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
+
+
+		/**
+		 * Returns an array of current sessions.
+		 */
+		// eslint-disable-next-line vscode-dts-provider-naming
+		getSessions(scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.

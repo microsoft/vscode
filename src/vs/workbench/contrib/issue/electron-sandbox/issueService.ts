@@ -54,7 +54,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			};
 		});
 		const experiments = await this.experimentService.getCurrentExperiments();
-		const githubSessions = await this.authenticationService.getSessions('github');
+		const githubSessions = await this.authenticationService.getAllSessions('github');
 		const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
