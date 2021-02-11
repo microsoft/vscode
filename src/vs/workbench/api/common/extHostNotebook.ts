@@ -126,7 +126,8 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				description: kernel.description,
 				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
-				preloads: kernel.preloads
+				preloads: kernel.preloads,
+				supportedLanguages: kernel.supportedLanguages
 			};
 		});
 

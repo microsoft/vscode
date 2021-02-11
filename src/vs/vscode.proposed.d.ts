@@ -1586,7 +1586,8 @@ declare module 'vscode' {
 		// todo@API
 		// languages supported by kernel
 		// first is preferred
-		// languages: string[];
+		// `undefined` means all languages available in the editor
+		supportedLanguages?: string[];
 
 		// @roblourens
 		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
