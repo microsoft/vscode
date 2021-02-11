@@ -8,12 +8,10 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, ReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent } from 'vs/platform/terminal/common/terminalProcess';
-import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 
 let currentPtyId = 0;
@@ -39,6 +37,16 @@ export class PtyService extends Disposable implements IPtyService {
 		private readonly _logService: ILogService
 	) {
 		super();
+	}
+	onPtyHostExit?: Event<number> | undefined;
+	onPtyHostStart?: Event<void> | undefined;
+
+	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	getLatency(id: number): Promise<number> {
+		throw new Error('Method not implemented.');
 	}
 
 	dispose() {
