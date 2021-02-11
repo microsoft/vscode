@@ -451,6 +451,7 @@ class BackspacePrediction implements IPrediction {
 	constructor(private readonly terminal: Terminal) { }
 
 	public apply(_: IBuffer, cursor: Cursor) {
+		this.appliedHere = cursor.coordinate;
 		// at eol if everything to the right is whitespace (zsh will emit a "clear line" code in this case)
 		// todo: can be optimized if `getTrimmedLength` is exposed from xterm
 		const isLastChar = !cursor.getLine()?.translateToString(undefined, cursor.x).trim();
@@ -461,7 +462,6 @@ class BackspacePrediction implements IPrediction {
 			? { isLastChar, pos, oldAttributes: attributesToSeq(cell), oldChar: cell.getChars() }
 			: { isLastChar, pos, oldAttributes: '', oldChar: '' };
 
-		this.appliedHere = this.appliedAt.pos;
 
 		return move + DELETE_CHAR;
 	}
@@ -483,20 +483,27 @@ class BackspacePrediction implements IPrediction {
 		return '';
 	}
 
-	public matches(input: StringReader) {
-		if (this.appliedAt?.isLastChar) {
-			const r1 = input.eatGradually(`\b${CSI}K`);
-			if (r1 !== MatchResult.Failure) {
-				return r1;
-			}
+	public matches(input: StringReader, lookBehind?: IPrediction, cursor?: Cursor) {
+		return cursor?.coordinate.x === this.appliedHere?.x
+			&& cursor?.coordinate.y === this.appliedHere?.y
+			&& cursor?.coordinate.baseY === this.appliedHere?.baseY
+			? MatchResult.Success
+			: MatchResult.Failure;
 
-			const r2 = input.eatGradually(`\b \b`);
-			if (r2 !== MatchResult.Failure) {
-				return r2;
-			}
-		}
 
-		return MatchResult.Failure;
+		// if (this.appliedAt?.isLastChar) {
+		// 	const r1 = input.eatGradually(`\b${CSI}K`);
+		// 	if (r1 !== MatchResult.Failure) {
+		// 		return r1;
+		// 	}
+
+		// 	const r2 = input.eatGradually(`\b \b`);
+		// 	if (r2 !== MatchResult.Failure) {
+		// 		return r2;
+		// 	}
+		// }
+
+		// return MatchResult.Failure;
 	}
 }
 
@@ -504,8 +511,8 @@ class NewlinePrediction implements IPrediction {
 	public appliedHere: ICoordinate | undefined;
 
 	public apply(_: IBuffer, cursor: Cursor) {
-		this.appliedHere = cursor.coordinate;
 		cursor.move(0, cursor.y + 1);
+		this.appliedHere = cursor.coordinate;
 		return '\r\n';
 	}
 
@@ -602,7 +609,7 @@ class CursorMovePrediction implements IPrediction {
 		return ''; // does not need to rewrite
 	}
 
-	public matches(input: StringReader) {
+	public matches(input: StringReader, lookBehind?: IPrediction, cursor?: Cursor) {
 		if (!this.applied) {
 			return MatchResult.Failure;
 		}
@@ -859,9 +866,13 @@ export class PredictionTimeline {
 			// Ignore things we don't care about
 			output += emitPredictionOmitted(reader);
 
-			const thing = this.CoordinateToPrediction.get(`${cursor.coordinate.x}/${cursor.coordinate.baseY + cursor.coordinate.y}`);
+			let thing = this.CoordinateToPrediction.get(`${cursor.coordinate.x}/${cursor.coordinate.baseY + cursor.coordinate.y}`);
 
-			if (!thing || !checkInstanceOf(thing.prediction, CursorMovePrediction)) {
+			if (!thing && /^\r\n/.test(reader.rest)) {
+				thing = this.CoordinateToPrediction.get(`0/${cursor.coordinate.baseY + cursor.coordinate.y + 1}`);
+			}
+
+			if (!checkInstanceOf(thing?.prediction, CursorMovePrediction)) {
 				// Handle movement
 				const cursorMove = reader.eatRe(CSI_CURSOR_POSITION_RE);
 				if (cursorMove) {
@@ -878,14 +889,13 @@ export class PredictionTimeline {
 				}
 			}
 
-			const ansi = reader.eatRe(ANSI_RE);
-			if (ansi) {
-				output += ansi;
-				continue;
-				// log?
-			}
-
-			if (!thing || (!checkInstanceOf(thing.prediction, CharacterPrediction) && !checkInstanceOf(thing.prediction, NewlinePrediction))) {
+			if (!thing) {
+				const ansi = reader.eatRe(ANSI_RE);
+				if (ansi) {
+					output += ansi;
+					continue;
+					// log?
+				}
 
 				const char = cursor.getCell()?.getChars();
 				if (char) {
@@ -895,12 +905,19 @@ export class PredictionTimeline {
 						break ReadLoop;
 					}
 
+					output += char;
 					cursor.shift(char.length);
 					continue;
 				}
 
 				const nextChar = reader.eatRe(/./);
-				cursor.shift(nextChar?.length);
+				if (nextChar) {
+					output += nextChar[0];
+					cursor.shift(nextChar?.length);
+				} else {
+					cursor.shift(1);
+				}
+
 				continue;
 			}
 
@@ -938,6 +955,11 @@ export class PredictionTimeline {
 					break ReadLoop;
 			}
 		}
+
+		// on a buffer, store the remaining data and completely read data
+		// to be output as normal.
+		// this.inputBuffer = input.slice(reader.index);
+		// reader.index = input.length;
 
 		// Extra data (like the result of running a command) should cause us to
 		// reset the cursor
@@ -1579,8 +1601,10 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 				continue;
 			}
 
-			if (reader.eatChar('\r') && buffer.cursorY < terminal.rows - 1) {
-				this.timeline.addPrediction(buffer, new NewlinePrediction());
+			if (reader.eatChar('\r')) {
+				if (buffer.cursorY < terminal.rows - 1) {
+					this.timeline.addPrediction(buffer, new NewlinePrediction());
+				}
 				continue;
 			}
 
