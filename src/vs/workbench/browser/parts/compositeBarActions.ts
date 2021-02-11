@@ -202,7 +202,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		if (this.options.hasPopup) {
 			this.container.setAttribute('role', 'button');
-			this.container.setAttribute('aria-haspopup', 'menu');
+			this.container.setAttribute('aria-haspopup', 'true');
 		} else {
 			this.container.setAttribute('role', 'tab');
 		}
