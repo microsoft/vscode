@@ -366,6 +366,11 @@ export class Barrier {
 		return this._promise;
 	}
 }
+
+/**
+ * A barrier that is initially closed and then becomes opened permanently after a certain period of
+ * time or when open is called explicitly
+ */
 export class AutoOpenBarrier extends Barrier {
 
 	private readonly _timeout: any;
