@@ -10,9 +10,9 @@ import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process
- * created from the main process.
+ * created on the local pty host.
  */
-export class TerminalProcessMainProxy extends Disposable implements ITerminalChildProcess {
+export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	public readonly onProcessData: Event<IProcessDataEvent | string> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());

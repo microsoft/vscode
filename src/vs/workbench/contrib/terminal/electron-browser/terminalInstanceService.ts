@@ -23,7 +23,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
-import { TerminalProcessMainProxy } from 'vs/workbench/contrib/terminal/electron-browser/terminalProcessMainProxy';
+import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -98,7 +98,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<ITerminalChildProcess> {
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
-		return this._instantiationService.createInstance(TerminalProcessMainProxy, id);
+		return this._instantiationService.createInstance(LocalPty, id);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {
