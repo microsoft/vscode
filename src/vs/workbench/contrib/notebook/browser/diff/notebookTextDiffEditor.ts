@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -132,6 +132,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		if (isInit) {
 			this._onDidDynamicOutputRendered.fire({ cell, output });
 		}
+	}
+
+	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -587,6 +600,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
 			}
 		});
+	}
+
+	updateMarkdownCellHeight() {
+		// TODO
 	}
 
 	getCellByInfo(cellInfo: IDiffCellInfo): IGenericCellViewModel {

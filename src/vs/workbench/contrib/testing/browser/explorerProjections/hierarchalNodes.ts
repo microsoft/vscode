@@ -41,6 +41,7 @@ export class HierarchicalElement implements ITestTreeElement {
 	}
 
 	public state = TestRunState.Unset;
+	public retired = false;
 	public ownState = TestRunState.Unset;
 
 	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchicalFolder | HierarchicalElement) {
@@ -73,6 +74,7 @@ export class HierarchicalFolder implements ITestTreeElement {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
 	}
 
+	public retired = false;
 	public state = TestRunState.Unset;
 	public ownState = TestRunState.Unset;
 

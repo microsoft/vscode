@@ -54,7 +54,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		if (visible) {
 			this.badgeDisposable.value = this.activityService.showGlobalActivity({
 				badge: new IconBadge(workspaceTrustIcon, () => localize('requestTrustIconText', "Some features require workspace trust.")),
-				priority: 0
+				priority: 10
 			});
 		}
 	}

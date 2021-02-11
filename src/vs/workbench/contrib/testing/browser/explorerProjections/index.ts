@@ -33,6 +33,11 @@ export interface ITestTreeProjection extends IDisposable {
 	getTestAtPosition(uri: URI, position: Position): ITestTreeElement | undefined;
 
 	/**
+	 * Gets whether any test is defined in the given URI.
+	 */
+	hasTestInDocument(uri: URI): boolean;
+
+	/**
 	 * Applies pending update to the tree.
 	 */
 	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;
@@ -81,6 +86,11 @@ export interface ITestTreeElement {
 	 * Element state to display.
 	 */
 	state: TestRunState;
+
+	/**
+	 * Whether the node's test result is 'retired' -- from an outdated test run.
+	 */
+	readonly retired: boolean;
 
 	readonly ownState: TestRunState;
 	readonly label: string;

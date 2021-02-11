@@ -182,6 +182,7 @@ export default class FileConfigurationManager extends Disposable {
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
+			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 		};
 
 		return preferences;
