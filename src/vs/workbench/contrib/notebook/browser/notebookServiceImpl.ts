@@ -27,12 +27,12 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { CellEditState, getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, getActiveNotebookEditor, ICellViewModel, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellKind, CellOutputKind, DisplayOrderKey, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
