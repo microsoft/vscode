@@ -9,7 +9,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { IDisplayMainService } from 'vs/platform/display/common/displayMainService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 
 class DisplayChangeRemeasureFonts extends Disposable implements IWorkbenchContribution {
@@ -18,7 +18,7 @@ class DisplayChangeRemeasureFonts extends Disposable implements IWorkbenchContri
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
 		super();
-		const displayMainService = createChannelSender<IDisplayMainService>(mainProcessService.getChannel('display'));
+		const displayMainService = ProxyChannel.toService<IDisplayMainService>(mainProcessService.getChannel('display'));
 		displayMainService.onDidDisplayChanged(() => {
 			clearAllFontInfos();
 		});

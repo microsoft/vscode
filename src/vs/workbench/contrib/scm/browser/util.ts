@@ -7,14 +7,15 @@ import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/w
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Action, IAction, IActionViewItemProvider } from 'vs/base/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
 import { reset } from 'vs/base/browser/dom';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
@@ -107,10 +108,12 @@ class StatusBarActionViewItem extends ActionViewItem {
 	}
 }
 
-export function getStatusBarActionViewItem(action: IAction): IActionViewItem | undefined {
-	if (action instanceof StatusBarAction) {
-		return new StatusBarActionViewItem(action);
-	}
+export function getActionViewItemProvider(instaService: IInstantiationService): IActionViewItemProvider {
+	return action => {
+		if (action instanceof StatusBarAction) {
+			return new StatusBarActionViewItem(action);
+		}
 
-	return undefined;
+		return createActionViewItem(instaService, action);
+	};
 }

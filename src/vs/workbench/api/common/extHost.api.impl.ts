@@ -48,7 +48,7 @@ import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { throwProposedApiError, checkProposedApiEnabled, checkRequiresWorkspaceTrust } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
@@ -881,11 +881,23 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeTunnels: (listener, thisArg?, disposables?) => {
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
-
 			},
 			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
+			},
+			get trustState() {
+				checkProposedApiEnabled(extension);
+				checkRequiresWorkspaceTrust(extension);
+				return extHostWorkspace.trustState;
+			},
+			requireWorkspaceTrust: (message?: string) => {
+				checkProposedApiEnabled(extension);
+				checkRequiresWorkspaceTrust(extension);
+				return extHostWorkspace.requireWorkspaceTrust(message);
+			},
+			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
+				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
 			}
 		};
 
@@ -1166,7 +1178,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
-			InlineHint: extHostTypes.InlineHint,
 			Location: extHostTypes.Location,
 			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: OverviewRulerLane,
@@ -1216,6 +1227,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
+			get InlineHint() {
+				return extHostTypes.InlineHint;
+			},
+			get InlineHintKind() {
+				return extHostTypes.InlineHintKind;
+			},
 			get RemoteAuthorityResolverError() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.RemoteAuthorityResolverError;
@@ -1280,10 +1297,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TestMessageSeverity;
 			},
-			get TestState() {
+			get WorkspaceTrustState() {
 				// checkProposedApiEnabled(extension);
-				return extHostTypes.TestState;
-			},
+				return extHostTypes.WorkspaceTrustState;
+			}
 		};
 	};
 }

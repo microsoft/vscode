@@ -44,6 +44,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 const ItemHeight = 22;
 
@@ -888,6 +889,7 @@ export class TimelinePane extends ViewPane {
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
+			multipleSelectionSupport: true,
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),
 			}
@@ -900,14 +902,29 @@ export class TimelinePane extends ViewPane {
 				return;
 			}
 
-			const item = e.element;
+			const selection = this.tree.getSelection();
+			let item;
+			if (selection.length === 1) {
+				item = selection[0];
+			}
+
+			// const item = e.element;
 			if (item === null) {
 				return;
 			}
 
 			if (isTimelineItem(item)) {
 				if (item.command) {
-					this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
+					let args = item.command.arguments ?? [];
+					if (item.command.id === API_OPEN_EDITOR_COMMAND_ID || item.command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
+						// Some commands owned by us should receive the
+						// `IOpenEvent` as context to open properly
+						args = [...args, e];
+					}
+
+					this.commandService.executeCommand(item.command.id, ...args);
+
+					// this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
 				}
 			}
 			else if (isLoadMoreCommand(item)) {

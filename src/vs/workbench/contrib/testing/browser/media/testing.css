@@ -41,6 +41,10 @@
 	margin-right: 0.25em;
 }
 
+.test-explorer .computed-state.retired {
+	opacity: 0.7;
+}
+
 .test-explorer .test-explorer-messages {
 	padding: 0 12px 8px;
 }
@@ -90,6 +94,27 @@
 
 .testing-filter-action-item .testing-filter-wrapper {
 	flex-grow: 1;
+}
+
+.testing-filter-action-item .testing-filter-wrapper input {
+	padding-right: 30px !important;
+}
+
+.testing-filter-action-item .monaco-action-bar {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+}
+
+.testing-filter-action-item > .monaco-action-bar .action-item .action-label.codicon.testing-filter-button {
+	line-height: 20px;
+	height: 20px;
+	min-width: 22px;
+	margin-left: 4px;
+	justify-content: center;
 }
 
 /** -- decorations  */

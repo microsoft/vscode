@@ -326,7 +326,6 @@ suite('ExtHost Testing', () => {
 				assert.strictEqual(testItem.label, wrapper.label);
 				assert.strictEqual(testItem.location, wrapper.location);
 				assert.strictEqual(testItem.runnable, wrapper.runnable);
-				assert.strictEqual(testItem.state, wrapper.state);
 			});
 
 			test('gets no children if nothing matches Uri filter', () => {

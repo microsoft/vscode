@@ -28,8 +28,8 @@ import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/work
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { IncrementalTestCollectionItem, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
-import { maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
@@ -39,6 +39,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITestService private readonly testService: ITestService,
+		@ITestResultService private readonly results: ITestResultService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -62,6 +63,15 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		}
 
 		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri));
+		this._register(this.results.onTestChanged(([, changed]) => {
+			if (changed.item.location?.uri.toString() === uri.toString()) {
+				this.setDecorations(uri);
+			}
+		}));
+		this._register(this.results.onResultsChanged(() => {
+			this.setDecorations(uri);
+		}));
+
 		this.setDecorations(uri);
 	}
 
@@ -74,19 +84,25 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
 			for (const test of ref.object.all) {
+				const stateLookup = this.results.getStateByExtId(test.item.extId);
 				if (hasValidLocation(uri, test.item)) {
 					newDecorations.push(this.instantiationService.createInstance(
-						RunTestDecoration, test, ref.object, test.item.location, this.editor));
+						RunTestDecoration, test, ref.object, test.item.location, this.editor, stateLookup?.[1].computedState));
 				}
 
-				for (let i = 0; i < test.item.state.messages.length; i++) {
-					const m = test.item.state.messages[i];
+				if (!stateLookup) {
+					continue;
+				}
+
+				const [result, stateItem] = stateLookup;
+				for (let i = 0; i < stateItem.state.messages.length; i++) {
+					const m = stateItem.state.messages[i];
 					if (hasValidLocation(uri, m)) {
 						const uri = buildTestUri({
-							type: TestUriType.LiveMessage,
+							type: TestUriType.ResultActualOutput,
 							messageIndex: i,
-							providerId: test.providerId,
-							testId: test.id,
+							resultId: result.id,
+							testId: stateItem.item.extId,
 						});
 
 						newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
@@ -138,7 +154,7 @@ const firstLineRange = (originalRange: IRange) => ({
 	endColumn: 1,
 });
 
-class RunTestDecoration implements ITestDecoration {
+class RunTestDecoration extends Disposable implements ITestDecoration {
 	/**
 	 * @inheritdoc
 	 */
@@ -156,25 +172,16 @@ class RunTestDecoration implements ITestDecoration {
 		private readonly collection: IMainThreadTestCollection,
 		private readonly location: ModeLocation,
 		private readonly editor: ICodeEditor,
+		computedState: TestRunState | undefined,
 		@ITestService private readonly testService: ITestService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
+		super();
 		this.line = location.range.startLineNumber;
 
-		const queue = [test.children];
-		let state = this.test.item.state.runState;
-		while (queue.length) {
-			for (const child of queue.pop()!) {
-				const node = collection.getNodeById(child);
-				if (node) {
-					state = maxPriority(node.item.state.runState, state);
-				}
-			}
-		}
-
-		const icon = state !== TestRunState.Unset
-			? testingStatesToIcons.get(state)!
+		const icon = computedState !== undefined && computedState !== TestRunState.Unset
+			? testingStatesToIcons.get(computedState)!
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
 
 		this.editorDecoration = {

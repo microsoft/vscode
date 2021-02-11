@@ -30,7 +30,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
-	usePolling: boolean;
+	usePolling: boolean | string[];
 }
 
 export interface IDiskFileSystemProviderOptions {

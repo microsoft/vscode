@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IChannel, IServerChannel, IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, createChannelReceiver, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, IServerChannel, IMessagePassingProtocol, IPCServer, ClientConnectionEvent, IPCClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -332,10 +332,10 @@ suite('Base IPC', function () {
 			const testServer = new TestIPCServer();
 			server = testServer;
 
-			server.registerChannel(TestChannelId, createChannelReceiver(service));
+			server.registerChannel(TestChannelId, ProxyChannel.fromService(service));
 
 			client = testServer.createConnection('client1');
-			ipcService = createChannelSender(client.getChannel(TestChannelId));
+			ipcService = ProxyChannel.toService(client.getChannel(TestChannelId));
 		});
 
 		teardown(function () {
@@ -398,10 +398,10 @@ suite('Base IPC', function () {
 			const testServer = new TestIPCServer();
 			server = testServer;
 
-			server.registerChannel(TestChannelId, createChannelReceiver(service));
+			server.registerChannel(TestChannelId, ProxyChannel.fromService(service));
 
 			client = testServer.createConnection('client1');
-			ipcService = createChannelSender(client.getChannel(TestChannelId), { context: 'Super Context' });
+			ipcService = ProxyChannel.toService(client.getChannel(TestChannelId), { context: 'Super Context' });
 		});
 
 		teardown(function () {

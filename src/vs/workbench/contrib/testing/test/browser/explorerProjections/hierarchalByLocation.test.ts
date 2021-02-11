@@ -13,7 +13,11 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	const folder1 = makeTestWorkspaceFolder('f1');
 	const folder2 = makeTestWorkspaceFolder('f2');
 	setup(() => {
-		harness = new TestTreeTestHarness(l => new HierarchicalByLocationProjection(l));
+		harness = new TestTreeTestHarness(l => new HierarchicalByLocationProjection(l, {
+			onResultsChanged: () => undefined,
+			onTestChanged: () => undefined,
+			getStateByExtId: () => ({ state: { state: 0 }, computedState: 0 }),
+		} as any));
 	});
 
 	teardown(() => {

@@ -21,9 +21,10 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { TestExplorerViewGrouping, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { EMPTY_TEST_RESULT, InternalTestItem, RunTestsResult, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestExplorerViewSorting, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestResult, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
@@ -101,10 +102,10 @@ abstract class RunOrDebugAction extends ViewAction<TestingExplorerView> {
 	/**
 	 * @override
 	 */
-	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<RunTestsResult> {
+	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
 		const tests = this.getActionableTests(accessor.get(IWorkspaceTestCollectionService), view.viewModel);
 		if (!tests.length) {
-			return Promise.resolve(EMPTY_TEST_RESULT);
+			return Promise.resolve(undefined);
 		}
 
 		return accessor.get(ITestService).runTests({ tests, debug: this.debug });
@@ -327,18 +328,18 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 }
 
 
-export class TestingGroupByLocationAction extends ViewAction<TestingExplorerView> {
+export class TestingSortByNameAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
-			id: 'testing.groupByLocation',
+			id: 'testing.sortByName',
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.groupByLocation', "Sort by Name"),
+			title: localize('testing.sortByName', "Sort by Name"),
 			f1: false,
-			toggled: TestingContextKeys.viewGrouping.isEqualTo(TestExplorerViewGrouping.ByLocation),
+			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByName),
 			menu: {
 				id: MenuId.ViewTitle,
 				order: 10,
-				group: 'groupBy',
+				group: 'sortBy',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
 		});
@@ -348,22 +349,22 @@ export class TestingGroupByLocationAction extends ViewAction<TestingExplorerView
 	 * @override
 	 */
 	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.viewGrouping = TestExplorerViewGrouping.ByLocation;
+		view.viewModel.viewSorting = TestExplorerViewSorting.ByName;
 	}
 }
 
-export class TestingGroupByStatusAction extends ViewAction<TestingExplorerView> {
+export class TestingSortByLocationAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
-			id: 'testing.groupByStatus',
+			id: 'testing.sortByLocation',
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.groupByStatus', "Sort by Status"),
+			title: localize('testing.sortByLocation', "Sort by Location"),
 			f1: false,
-			toggled: TestingContextKeys.viewGrouping.isEqualTo(TestExplorerViewGrouping.ByStatus),
+			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByLocation),
 			menu: {
 				id: MenuId.ViewTitle,
 				order: 10,
-				group: 'groupBy',
+				group: 'sortBy',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
 		});
@@ -373,7 +374,7 @@ export class TestingGroupByStatusAction extends ViewAction<TestingExplorerView> 
 	 * @override
 	 */
 	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		view.viewModel.viewGrouping = TestExplorerViewGrouping.ByStatus;
+		view.viewModel.viewSorting = TestExplorerViewSorting.ByLocation;
 	}
 }
 
@@ -424,6 +425,24 @@ export class RefreshTestsAction extends Action2 {
 	 */
 	public run(accessor: ServicesAccessor) {
 		accessor.get(ITestService).resubscribeToAllTests();
+	}
+}
+
+export class ClearTestResultsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.clearTestResults',
+			title: localize('testing.clearResults', "Clear All Results"),
+			category,
+			f1: true
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public run(accessor: ServicesAccessor) {
+		accessor.get(ITestResultService).clear();
 	}
 }
 

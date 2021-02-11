@@ -719,7 +719,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleEditorGroupLayout',
-			title: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"),
+			title: { value: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"), original: 'Toggle Vertical/Horizontal Editor Layout' },
 			f1: true,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0,
@@ -756,7 +756,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.files.saveAll',
-			title: SAVE_ALL_LABEL,
+			title: { value: SAVE_ALL_LABEL, original: 'Save All' },
 			f1: true,
 			icon: Codicon.saveAll,
 			menu: {

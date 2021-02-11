@@ -75,10 +75,10 @@ jsonc-parser@^2.3.0:
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.3.1.tgz#59549150b133f2efacca48fe9ce1ec0659af2342"
   integrity sha512-H8jvkz1O50L3dMZCsLqiuB2tA7muqbSg1AtGEkN0leAqGjsUzDJir3Zwr02BhqdcITPg3ei3mZ+HjMocAknhhg==
 
-vscode-emmet-helper@2.2.4-3:
-  version "2.2.4-3"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.2.4-3.tgz#b1aed7eaaf0ecc2480c65c819f6e9d42d2d3cf5a"
-  integrity sha512-M+pAiAro8nRiHb0/9lRoRzBod6DPlSwhOX26ZfM8n9a7/zr9ZJojxohDyGmnsApU5xVPhcrsNVI/fEagSeeO0Q==
+vscode-emmet-helper@2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.2.4.tgz#8ab86d2b7fe9e6270b4c77c9fd8d1eb8f3f4c401"
+  integrity sha512-1N6bMzP1ZzkDGzamvsKxQ/lOmBc4+OQdj0dA2C9A5PSeYV9gh5xbJ061sm+VyFHOGZE+VyUQq5m/WFmFsLbKnA==
   dependencies:
     emmet "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
     jsonc-parser "^2.3.0"

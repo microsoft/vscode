@@ -1021,6 +1021,7 @@ export namespace InlineHint {
 		return {
 			text: hint.text,
 			range: Range.from(hint.range),
+			kind: InlineHintKind.from(hint.kind ?? types.InlineHintKind.Other),
 			description: hint.description && MarkdownString.fromStrict(hint.description),
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter
@@ -1028,13 +1029,24 @@ export namespace InlineHint {
 	}
 
 	export function to(hint: modes.InlineHint): vscode.InlineHint {
-		return new types.InlineHint(
+		const res = new types.InlineHint(
 			hint.text,
 			Range.to(hint.range),
-			htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description,
-			hint.whitespaceBefore,
-			hint.whitespaceAfter
+			InlineHintKind.to(hint.kind)
 		);
+		res.whitespaceAfter = hint.whitespaceAfter;
+		res.whitespaceBefore = hint.whitespaceBefore;
+		res.description = htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description;
+		return res;
+	}
+}
+
+export namespace InlineHintKind {
+	export function from(kind: vscode.InlineHintKind): modes.InlineHintKind {
+		return kind;
+	}
+	export function to(kind: modes.InlineHintKind): vscode.InlineHintKind {
+		return kind;
 	}
 }
 
@@ -1380,22 +1392,22 @@ export namespace NotebookDecorationRenderOptions {
 export namespace TestState {
 	export function from(item: vscode.TestState): ITestState {
 		return {
-			runState: item.runState,
+			state: item.state,
 			duration: item.duration,
-			messages: item.messages.map(message => ({
+			messages: item.messages?.map(message => ({
 				message: MarkdownString.fromStrict(message.message) || '',
 				severity: message.severity,
 				expectedOutput: message.expectedOutput,
 				actualOutput: message.actualOutput,
 				location: message.location ? location.from(message.location) : undefined,
-			})),
+			})) ?? [],
 		};
 	}
 
 	export function to(item: ITestState): vscode.TestState {
-		return new types.TestState(
-			item.runState,
-			item.messages.map(message => ({
+		return {
+			state: item.state,
+			messages: item.messages.map(message => ({
 				message: typeof message.message === 'string' ? message.message : MarkdownString.to(message.message),
 				severity: message.severity,
 				expectedOutput: message.expectedOutput,
@@ -1405,8 +1417,8 @@ export namespace TestState {
 					uri: URI.revive(message.location.uri)
 				}),
 			})),
-			item.duration,
-		);
+			duration: item.duration,
+		};
 	}
 }
 
@@ -1420,7 +1432,6 @@ export namespace TestItem {
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
-			state: TestState.from(item.state),
 		};
 	}
 
@@ -1435,7 +1446,6 @@ export namespace TestItem {
 			debuggable: item.debuggable,
 			description: item.description,
 			runnable: item.runnable,
-			state: TestState.to(item.state),
 		};
 	}
 }

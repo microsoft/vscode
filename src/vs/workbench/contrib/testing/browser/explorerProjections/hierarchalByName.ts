@@ -10,6 +10,7 @@ import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } 
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 /**
@@ -64,9 +65,9 @@ export class HierarchicalByNameElement extends HierarchicalElement {
 	/**
 	 * @override
 	 */
-	public update(actual: InternalTestItem, addUpdated: (n: ITestTreeElement) => void) {
+	public update(actual: InternalTestItem) {
 		const wasRunnable = this.test.item.runnable;
-		super.update(actual, addUpdated);
+		super.update(actual);
 
 		if (this.test.item.runnable !== wasRunnable) {
 			this.updateLeafTestState();
@@ -117,8 +118,8 @@ export class HierarchicalByNameElement extends HierarchicalElement {
  * test root rather than the heirarchal parent.
  */
 export class HierarchicalByNameProjection extends HierarchicalByLocationProjection {
-	constructor(listener: TestSubscriptionListener) {
-		super(listener);
+	constructor(listener: TestSubscriptionListener, @ITestResultService results: ITestResultService) {
+		super(listener, results);
 
 		const originalRenderNode = this.renderNode.bind(this);
 		this.renderNode = (node, recurse) => {

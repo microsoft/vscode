@@ -371,7 +371,9 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			existingTunnel.name = name;
+			if (name) {
+				existingTunnel.name = name;
+			}
 			this._onForwardPort.fire();
 			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
 		}
@@ -524,6 +526,7 @@ export interface IRemoteExplorerService {
 	enablePortsFeatures(): void;
 	onEnabledPortsFeatures: Event<void>;
 	portsFeaturesEnabled: boolean;
+	readonly namedProcesses: Map<number, string>;
 }
 
 class RemoteExplorerService implements IRemoteExplorerService {
@@ -538,6 +541,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	private readonly _onEnabledPortsFeatures: Emitter<void> = new Emitter();
 	public readonly onEnabledPortsFeatures: Event<void> = this._onEnabledPortsFeatures.event;
 	private _portsFeaturesEnabled: boolean = false;
+	public readonly namedProcesses = new Map<number, string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
