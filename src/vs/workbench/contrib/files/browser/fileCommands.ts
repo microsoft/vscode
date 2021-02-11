@@ -41,7 +41,6 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 
@@ -359,7 +358,7 @@ CommandsRegistry.registerCommand({
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
 			const input = editorService.createEditorInput({ resource: uri });
-			openEditorWith(accessor, input, undefined, undefined, editorGroupsService.activeGroup);
+			editorGroupsService.activeGroup.openEditorWith(input, undefined, undefined);
 		}
 	}
 });
@@ -679,8 +678,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 
 			const textInput = editorService.createEditorInput({ options: { pinned: true } });
-			const group = editorGroupsService.activeGroup;
-			await openEditorWith(accessor, textInput, args.viewType, { pinned: true }, group);
+			await editorGroupsService.activeGroup.openEditorWith(textInput, args.viewType, { pinned: true });
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}

@@ -82,7 +82,7 @@ import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/b
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
+import { Direction, LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
@@ -631,6 +631,13 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 export class TestEditorGroupView implements IEditorGroupView {
 
 	constructor(public id: number) { }
+	preferredHeight?: number | undefined;
+	preferredWidth?: number | undefined;
+	priority?: LayoutPriority | undefined;
+	snap?: boolean | undefined;
+	openEditorWith(editor: IEditorInput, id: string | undefined, options: ITextEditorOptions | IEditorOptions | undefined): Promise<IEditorPane | undefined> {
+		throw new Error('Method not implemented.');
+	}
 
 	get group(): EditorGroup { throw new Error('not implemented'); }
 	activeEditorPane!: IVisibleEditorPane;

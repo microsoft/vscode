@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorInput, getTargetGroup, CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId, getAllAvailableEditors } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
@@ -16,7 +16,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, OpenEditorContext, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
@@ -40,17 +40,19 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
-import { extname } from 'vs/base/common/resources';
+import { basename, extname } from 'vs/base/common/resources';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOpenContext, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IQuickPickItem, IKeyMods, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -138,7 +140,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
 	) {
 		super(themeService);
 
@@ -892,6 +897,147 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Proceed with opening
 		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
+	}
+
+	/**
+	 * Try to open an resource with a given editor.
+	 *
+	 * @param input Resource to open.
+	 * @param id Id of the editor to use. If not provided, the user is prompted for which editor to use.
+	 */
+	async openEditorWith(
+		input: IEditorInput,
+		id: string | undefined,
+		options: IEditorOptions | ITextEditorOptions | undefined,
+	): Promise<IEditorPane | undefined> {
+
+		const resource = input.resource;
+		if (!resource) {
+			return;
+		}
+
+		const overrideOptions = { ...options, override: id };
+
+		const allEditorOverrides = getAllAvailableEditors(resource, id, overrideOptions, this, this.editorService);
+		if (!allEditorOverrides.length) {
+			return;
+		}
+
+		let overrideToUse;
+		if (typeof id === 'string') {
+			overrideToUse = allEditorOverrides.find(([_, entry]) => entry.id === id);
+		} else if (allEditorOverrides.length === 1) {
+			overrideToUse = allEditorOverrides[0];
+		}
+		if (overrideToUse) {
+			return overrideToUse[0].open(input, overrideOptions, this, OpenEditorContext.NEW_EDITOR)?.override;
+		}
+
+		// Prompt
+		const originalResource = EditorResourceAccessor.getOriginalUri(input) || resource;
+		const resourceExt = extname(originalResource);
+
+		const items: (IQuickPickItem & { handler: IOpenEditorOverrideHandler })[] = allEditorOverrides.map(([handler, entry]) => {
+			return {
+				handler: handler,
+				id: entry.id,
+				label: entry.label,
+				description: entry.active ? localize('promptOpenWith.currentlyActive', 'Currently Active') : undefined,
+				detail: entry.detail,
+				buttons: resourceExt ? [{
+					iconClass: Codicon.gear.classNames,
+					tooltip: localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
+				}] : undefined
+			};
+		});
+		type QuickPickItem = IQuickPickItem & {
+			readonly handler: IOpenEditorOverrideHandler;
+		};
+
+		const picker = this.quickInputService.createQuickPick<QuickPickItem>();
+		picker.items = items;
+		if (items.length) {
+			picker.selectedItems = [items[0]];
+		}
+		picker.placeholder = localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(originalResource));
+		picker.canAcceptInBackground = true;
+
+		type PickedResult = {
+			readonly item: QuickPickItem;
+			readonly keyMods?: IKeyMods;
+			readonly openInBackground: boolean;
+		};
+
+		const openEditor = (picked: PickedResult) => {
+			const targetGroup = getTargetGroup(this, picked.keyMods, this.configurationService, this.editorGroupsService);
+
+			const openOptions: IEditorOptions = {
+				...options,
+				override: picked.item.id,
+				preserveFocus: picked.openInBackground || options?.preserveFocus,
+			};
+			return picked.item.handler.open(input, openOptions, targetGroup, OpenEditorContext.NEW_EDITOR)?.override;
+		};
+
+		let picked: PickedResult | undefined;
+		try {
+			picked = await new Promise<PickedResult | undefined>(resolve => {
+				picker.onDidAccept(e => {
+					if (picker.selectedItems.length === 1) {
+						const result: PickedResult = {
+							item: picker.selectedItems[0],
+							keyMods: picker.keyMods,
+							openInBackground: e.inBackground
+						};
+
+						if (e.inBackground) {
+							openEditor(result);
+						} else {
+							resolve(result);
+						}
+					} else {
+						resolve(undefined);
+					}
+				});
+
+				picker.onDidTriggerItemButton(e => {
+					const pick = e.item;
+					const id = pick.id;
+					resolve({ item: pick, openInBackground: false }); // open the view
+					picker.dispose();
+
+					// And persist the setting
+					if (pick && id) {
+						const newAssociation: CustomEditorAssociation = { viewType: id, filenamePattern: '*' + resourceExt };
+						const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
+
+						// First try updating existing association
+						for (let i = 0; i < currentAssociations.length; ++i) {
+							const existing = currentAssociations[i];
+							if (existing.filenamePattern === newAssociation.filenamePattern) {
+								currentAssociations.splice(i, 1, newAssociation);
+								this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+								return;
+							}
+						}
+
+						// Otherwise, create a new one
+						currentAssociations.unshift(newAssociation);
+						this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+					}
+				});
+
+				picker.show();
+			});
+		} finally {
+			picker.dispose();
+		}
+
+		if (!picked) {
+			return undefined;
+		}
+
+		return openEditor(picked);
 	}
 
 	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {

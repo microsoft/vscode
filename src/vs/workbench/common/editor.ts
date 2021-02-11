@@ -14,15 +14,20 @@ import { IInstantiationService, IConstructorSignature0, ServicesAccessor, Brande
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, ICustomEditorInfo, IEditorService, IOpenEditorOverrideEntry, IOpenEditorOverrideHandler, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
-import { IExtUri } from 'vs/base/common/resources';
+import { IExtUri, isEqual } from 'vs/base/common/resources';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 // Editor State Context Keys
 export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false);
@@ -1549,9 +1554,9 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true,
 			override: path.overrideId
 		} : {
-				pinned: true,
-				override: path.overrideId
-			};
+			pinned: true,
+			override: path.overrideId
+		};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
@@ -1637,3 +1642,147 @@ export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService
 }
 
 //#endregion
+
+////#region editorOpenWith
+
+/**
+ * Get the group to open the editor in by looking at the pressed keys from the picker.
+ */
+export function getTargetGroup(
+	startingGroup: IEditorGroup,
+	keyMods: IKeyMods | undefined,
+	configurationService: IConfigurationService,
+	editorGroupsService: IEditorGroupsService,
+) {
+	if (keyMods?.alt || keyMods?.ctrlCmd) {
+		const direction = preferredSideBySideGroupDirection(configurationService);
+		const targetGroup = editorGroupsService.findGroup({ direction }, startingGroup.id);
+		return targetGroup ?? editorGroupsService.addGroup(startingGroup, direction);
+	}
+	return startingGroup;
+}
+
+/**
+ * Id of the default editor for open with.
+ */
+export const DEFAULT_EDITOR_ID = 'default';
+
+const builtinProviderDisplayName = localize('builtinProviderDisplayName', "Built-in");
+
+export const defaultEditorOverrideEntry = Object.freeze({
+	id: DEFAULT_EDITOR_ID,
+	label: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	detail: builtinProviderDisplayName
+});
+
+/**
+ * Get a list of all available editors, including the default text editor.
+ */
+export function getAllAvailableEditors(
+	resource: URI,
+	id: string | undefined,
+	options: IEditorOptions | ITextEditorOptions | undefined,
+	group: IEditorGroup,
+	editorService: IEditorService
+): Array<[IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]> {
+	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories).getFileEditorInputFactory();
+	const overrides = editorService.getEditorOverrides(resource, options, group);
+	if (!overrides.some(([_, entry]) => entry.id === DEFAULT_EDITOR_ID)) {
+		overrides.unshift([
+			{
+				open: (input: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
+					const resource = EditorResourceAccessor.getOriginalUri(input);
+					if (!resource) {
+						return;
+					}
+
+					const fileEditorInput = editorService.createEditorInput({ resource, forceFile: true });
+					const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
+					return {
+						override: (async () => {
+							// Try to replace existing editors for resource
+							const existingEditor = firstOrDefault(editorService.findEditors(resource, group));
+							if (existingEditor && !fileEditorInput.matches(existingEditor)) {
+								await editorService.replaceEditors([{
+									editor: existingEditor,
+									replacement: fileEditorInput,
+									options: options ? EditorOptions.create(options) : undefined,
+								}], group);
+							}
+
+							return editorService.openEditor(fileEditorInput, textOptions, group);
+						})()
+					};
+				}
+			},
+			{
+				...defaultEditorOverrideEntry,
+				active: fileEditorInputFactory.isFileEditorInput(editorService.activeEditor) && isEqual(editorService.activeEditor.resource, resource),
+			}]);
+	}
+
+	return overrides;
+}
+
+export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
+
+export const viewTypeSchemaAddition: IJSONSchema = {
+	type: 'string',
+	enum: []
+};
+
+export type CustomEditorAssociation = {
+	readonly viewType: string;
+	readonly filenamePattern?: string;
+};
+
+export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
+
+export const editorAssociationsConfigurationNode: IConfigurationNode = {
+	...workbenchConfigurationNodeBase,
+	properties: {
+		[customEditorsAssociationsSettingId]: {
+			type: 'array',
+			markdownDescription: localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
+			items: {
+				type: 'object',
+				defaultSnippets: [{
+					body: {
+						'viewType': '$1',
+						'filenamePattern': '$2'
+					}
+				}],
+				properties: {
+					'viewType': {
+						anyOf: [
+							{
+								type: 'string',
+								description: localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
+							},
+							viewTypeSchemaAddition
+						]
+					},
+					'filenamePattern': {
+						type: 'string',
+						description: localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
+					}
+				}
+			}
+		}
+	}
+};
+
+export const DEFAULT_CUSTOM_EDITOR: ICustomEditorInfo = {
+	id: 'default',
+	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	providerDisplayName: builtinProviderDisplayName
+};
+
+export function updateViewTypeSchema(enumValues: string[], enumDescriptions: string[]): void {
+	viewTypeSchemaAddition.enum = enumValues;
+	viewTypeSchemaAddition.enumDescriptions = enumDescriptions;
+
+	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+		.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
+}
+////#endregion

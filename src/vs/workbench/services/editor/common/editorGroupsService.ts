@@ -473,6 +473,14 @@ export interface IEditorGroup {
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null>;
 
 	/**
+	 * Open an editor with a given ID, if none is passed in we prompt the user to select it based on available overrides
+	 *
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened
+	 */
+	openEditorWith(editor: IEditorInput, id: string | undefined, options: IEditorOptions | ITextEditorOptions | undefined): Promise<IEditorPane | undefined>;
+
+	/**
 	 * Opens editors in this group.
 	 *
 	 * @returns a promise that resolves around an IEditor instance unless

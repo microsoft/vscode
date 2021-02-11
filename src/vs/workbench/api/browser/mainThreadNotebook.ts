@@ -15,7 +15,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { viewColumnToEditorGroup } from 'vs/workbench/common/editor';
@@ -27,7 +26,6 @@ import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICell
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
@@ -130,8 +128,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@ILogService private readonly logService: ILogService,
 		@INotebookCellStatusBarService private readonly cellStatusBarService: INotebookCellStatusBarService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -680,7 +677,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const input = this.editorService.createEditorInput({ resource: URI.revive(resource), options: editorOptions });
 
 		// TODO: handle options.selection
-		const editorPane = await this._instantiationService.invokeFunction(openEditorWith, input, viewType, options, group);
+		const editorPane = await group.openEditorWith(input, viewType, options);
 		const notebookEditor = (editorPane as unknown as { isNotebookEditor?: boolean })?.isNotebookEditor ? (editorPane!.getControl() as INotebookEditor) : undefined;
 
 		if (notebookEditor) {
