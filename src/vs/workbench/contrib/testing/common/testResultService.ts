@@ -93,6 +93,7 @@ const itemToNode = (
 		item: { ...item.item },
 		state: unsetState,
 		computedState: TestRunState.Unset,
+		retired: false,
 	};
 
 	byExtId.set(n.item.extId, n);
@@ -154,6 +155,7 @@ interface ISerializedResults {
 interface TestResultItem extends IncrementalTestCollectionItem {
 	state: ITestState;
 	computedState: TestRunState;
+	retired: boolean;
 }
 
 /**
@@ -301,6 +303,28 @@ export class LiveTestResult implements ITestResult {
 	}
 
 	/**
+	 * Marks a test as retired. This can trigger it to be re-run in live mode.
+	 */
+	public retire(extId: string) {
+		const root = this.testByExtId.get(extId);
+		if (!root || root.retired) {
+			return;
+		}
+
+		const queue: Iterable<string>[] = [[root.id]];
+		while (queue.length) {
+			for (const id of queue.pop()!) {
+				const entry = this.testByInternalId.get(id);
+				if (entry && !entry.retired) {
+					entry.retired = true;
+					queue.push(entry.children);
+					this.changeEmitter.fire(entry);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Adds a test, by its ID, to the test run. This can end up being called
 	 * if tests were started while discovery was still happening, so initially
 	 * we didn't serialize/capture the test.
@@ -363,6 +387,7 @@ class HydratedTestResult implements ITestResult {
 		for (const [key, value] of serialized.items) {
 			this.map.set(key, value);
 
+			value.retired = true;
 			for (const message of value.state.messages) {
 				if (message.location) {
 					message.location.uri = URI.revive(message.location.uri);

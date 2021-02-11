@@ -186,7 +186,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
 				shellLaunchConfig.flowControl = false;
-				// TODO: Create TerminalProcessMainProxy
 				this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 			}
 		}

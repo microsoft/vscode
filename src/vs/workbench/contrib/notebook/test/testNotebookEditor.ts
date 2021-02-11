@@ -12,7 +12,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookEditorCreationOptions, NotebookEditorOptions, ICellOutputViewModel, IInsetRenderOutput, IDisplayOutputViewModel, ICommonCellInfo, IGenericCellViewModel, INotebookCellOutputLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookEditorCreationOptions, NotebookEditorOptions, ICellOutputViewModel, IInsetRenderOutput, IDisplayOutputViewModel, ICommonCellInfo, IGenericCellViewModel, INotebookCellOutputLayoutInfo, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -85,6 +85,18 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
+		throw new Error('Method not implemented.');
+	}
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+		throw new Error('Method not implemented.');
+	}
+	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+		throw new Error('Method not implemented.');
+	}
+	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
 		throw new Error('Method not implemented.');
 	}
 	async beginComputeContributedKernels(): Promise<INotebookKernelInfo2[]> {
@@ -302,6 +314,18 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 	createInset(cell: CellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		return Promise.resolve();
+	}
+	createMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		return Promise.resolve();
+	}
+	hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		return Promise.resolve();
+	}
+	removeMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		return Promise.resolve();
+	}
+	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void {
+		// noop
 	}
 	removeInset(output: ICellOutputViewModel): void {
 		// throw new Error('Method not implemented.');

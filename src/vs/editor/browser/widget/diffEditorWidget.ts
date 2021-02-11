@@ -1140,15 +1140,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const clonedOptions = { ...options };
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.automaticLayout = false;
-		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
+		// Clone scrollbar options before changing them
+		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = this._diffCodeLens;
 		clonedOptions.fixedOverflowWidgets = true;
 		// clonedOptions.lineDecorationsWidth = '2ch';
-		if (!clonedOptions.minimap) {
-			clonedOptions.minimap = {};
-		}
+		// Clone minimap options before changing them
+		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
 		return clonedOptions;
 	}

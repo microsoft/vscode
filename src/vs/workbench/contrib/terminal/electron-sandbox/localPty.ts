@@ -10,9 +10,9 @@ import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process
- * created from the main process.
+ * created on the local pty host.
  */
-export class TerminalProcessMainProxy extends Disposable implements ITerminalChildProcess {
+export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	public readonly onProcessData: Event<IProcessDataEvent | string> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
@@ -37,6 +37,11 @@ export class TerminalProcessMainProxy extends Disposable implements ITerminalChi
 		this._localPtyService.onProcessTitleChanged(e => e.id === this._localPtyId && this._onProcessTitleChanged.fire(e.event));
 		this._localPtyService.onProcessOverrideDimensions(e => e.id === this._localPtyId && this._onProcessOverrideDimensions.fire(e.event));
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => e.id === this._localPtyId && this._onProcessResolvedShellLaunchConfig.fire(e.event));
+		if (this._localPtyService.onPtyHostExit) {
+			this._localPtyService.onPtyHostExit(() => {
+				this._onProcessExit.fire(undefined);
+			});
+		}
 	}
 
 	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {

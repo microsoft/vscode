@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime } from 'vs/platform/terminal/common/terminal';
 import { Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
@@ -19,7 +19,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 
 let currentPtyId = 0;
 
-export class PtyService extends Disposable implements ILocalPtyService {
+export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();

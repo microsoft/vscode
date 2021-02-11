@@ -575,8 +575,11 @@ export enum TerminalIpcChannels {
 	PtyHost = 'ptyHost'
 }
 
-export interface ILocalPtyService {
+export interface IPtyService {
 	readonly _serviceBrand: undefined;
+
+	readonly onPtyHostExit?: Event<number>;
+	readonly onPtyHostStart?: Event<void>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
@@ -591,7 +594,6 @@ export interface ILocalPtyService {
 		cols: number,
 		rows: number,
 		env: IProcessEnvironment,
-		// TODO: Is executableEnv required? Can the main processes' environment be used instead?
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean
 	): Promise<number>;

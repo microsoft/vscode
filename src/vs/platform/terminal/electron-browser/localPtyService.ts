@@ -5,18 +5,30 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 
-export class LocalPtyService extends Disposable implements ILocalPtyService {
+enum Constants {
+	MaxRestarts = 5
+}
+
+export class LocalPtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
-	private readonly _proxy: ILocalPtyService;
+	private _proxy: IPtyService;
+
+	private _restartCount = 0;
+	private _isDisposed = false;
+
+	private readonly _onPtyHostExit = this._register(new Emitter<number>());
+	readonly onPtyHostExit = this._onPtyHostExit.event;
+	private readonly _onPtyHostStart = this._register(new Emitter<void>());
+	readonly onPtyHostStart = this._onPtyHostStart.event;
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
@@ -36,6 +48,10 @@ export class LocalPtyService extends Disposable implements ILocalPtyService {
 	) {
 		super();
 
+		this._proxy = this._startPtyHost();
+	}
+
+	private _startPtyHost(): IPtyService {
 		const client = this._register(new Client(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
@@ -48,30 +64,34 @@ export class LocalPtyService extends Disposable implements ILocalPtyService {
 				}
 			}
 		));
+		this._onPtyHostStart.fire();
 
-		// TODO: Handle exit gracefully
 		this._register(client.onDidProcessExit(e => {
-			this._logService.info('ptyHost exit', e);
-			// 	// our watcher app should never be completed because it keeps on watching. being in here indicates
-			// 	// that the watcher process died and we want to restart it here. we only do it a max number of times
-			// 	if (!this.isDisposed) {
-			// 		if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-			// 			this.error('terminated unexpectedly and is restarted again...');
-			// 			this.restartCounter++;
-			// 			this.startWatching();
-			// 		} else {
-			// 			this.error('failed to start after retrying for some time, giving up. Please report this as a bug report!');
-			// 		}
-			// 	}
+			this._onPtyHostExit.fire(e.code);
+			if (!this._isDisposed) {
+				if (this._restartCount <= Constants.MaxRestarts) {
+					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
+					this._restartCount++;
+					this._proxy = this._startPtyHost();
+				} else {
+					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
+				}
+			}
 		}));
 
-		this._proxy = ProxyChannel.toService(client.getChannel(TerminalIpcChannels.PtyHost));
-		this._register(this._proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(this._proxy.onProcessExit(e => this._onProcessExit.fire(e)));
-		this._register(this._proxy.onProcessReady(e => this._onProcessReady.fire(e)));
-		this._register(this._proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
-		this._register(this._proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
-		this._register(this._proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
+		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
+		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
+		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
+		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
+		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
+		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		return proxy;
+	}
+
+	dispose() {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
