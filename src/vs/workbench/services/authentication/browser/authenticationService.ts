@@ -318,7 +318,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			await provider.updateSessionItems(event);
 
 			if (event.added) {
-				await this.updateNewSessionRequests(provider);
+				await this.updateNewSessionRequests(provider, event.added);
 			}
 
 			if (event.removed) {
@@ -329,16 +329,14 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private async updateNewSessionRequests(provider: MainThreadAuthenticationProvider): Promise<void> {
+	private async updateNewSessionRequests(provider: MainThreadAuthenticationProvider, addedSessions: readonly AuthenticationSession[]): Promise<void> {
 		const existingRequestsForProvider = this._signInRequestItems.get(provider.id);
 		if (!existingRequestsForProvider) {
 			return;
 		}
 
-		const sessions = await provider.getSessions();
-
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (sessions.some(session => session.scopes.slice().sort().join('') === requestedScopes)) {
+			if (addedSessions.some(session => session.scopes.slice().sort().join('') === requestedScopes)) {
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
 				sessionRequest?.disposables.forEach(item => item.dispose());
 
@@ -352,12 +350,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		});
 	}
 
-	private async updateAccessRequests(providerId: string, removedSessionIds: readonly string[]) {
+	private async updateAccessRequests(providerId: string, removedSessions: readonly AuthenticationSession[]) {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId);
 		if (providerRequests) {
 			Object.keys(providerRequests).forEach(extensionId => {
-				removedSessionIds.forEach(removedId => {
-					const indexOfSession = providerRequests[extensionId].possibleSessions.findIndex(session => session.id === removedId);
+				removedSessions.forEach(removed => {
+					const indexOfSession = providerRequests[extensionId].possibleSessions.findIndex(session => session.id === removed.id);
 					if (indexOfSession) {
 						providerRequests[extensionId].possibleSessions.splice(indexOfSession, 1);
 					}
@@ -530,7 +528,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (session) {
 			addAccountUsage(this.storageService, providerId, session.account.label, extensionId, extensionName);
 			const providerName = this.getLabel(providerId);
-			this._onDidChangeSessions.fire({ providerId, label: providerName, event: { added: [], removed: [], changed: [session.id] } });
+			this._onDidChangeSessions.fire({ providerId, label: providerName, event: { added: [], removed: [], changed: [session] } });
 		}
 	}
 

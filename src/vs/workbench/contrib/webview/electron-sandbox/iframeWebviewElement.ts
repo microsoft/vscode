@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService } from 'vs/platform/notification/common/notification';

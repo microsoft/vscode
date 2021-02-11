@@ -10,7 +10,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression, RawContextKey, ContextKeyInfo } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -500,4 +500,17 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 
 CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
 	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
+});
+
+CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
+	const result: ContextKeyInfo[] = [];
+	const seen = new Set<string>();
+	for (let info of RawContextKey.all()) {
+		if (!seen.has(info.key)) {
+			seen.add(info.key);
+			result.push(info);
+		}
+	}
+	result.sort((a, b) => a.key.localeCompare(b.key));
+	console.log(JSON.stringify(result, undefined, 2));
 });

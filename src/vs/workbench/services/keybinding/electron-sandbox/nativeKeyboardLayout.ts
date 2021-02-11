@@ -13,7 +13,7 @@ import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IKeyboardLayoutMainService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 

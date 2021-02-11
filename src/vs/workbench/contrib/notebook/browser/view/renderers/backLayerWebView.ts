@@ -17,10 +17,10 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
-import { CellEditState, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellOutputKind, IDisplayOutput, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
@@ -116,11 +116,28 @@ export interface IClearMessage {
 	type: 'clear';
 }
 
+export interface IOutputRequestMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: unknown };
+}
+
+export interface IOutputRequestDto {
+	/**
+	 * { mime_type: value }
+	 */
+	data: { [key: string]: unknown; }
+
+	metadata?: IOutputRequestMetadata;
+	outputId: string;
+}
+
 export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; output: IDisplayOutput; mimeType: string };
+	| { type: RenderOutputType.Extension; output: IOutputRequestDto; mimeType: string };
 	cellId: string;
 	outputId: string;
 	top: number;
@@ -596,7 +613,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cellInfo: T, output: IDisplayOutputViewModel } | undefined {
+	private resolveOutputId(id: string): { cellInfo: T, output: ICellOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -859,7 +876,7 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: IGenericCellViewModel, output: IDisplayOutputViewModel, cellTop: number) {
+	shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1030,6 +1047,10 @@ var requirejs = (function() {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			renderer = content.renderer;
+			let data: { [key: string]: unknown } = {};
+			let metadata: { [key: string]: unknown } = {};
+			data[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.value || undefined;
+			metadata[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.metadata || undefined;
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1039,9 +1060,9 @@ var requirejs = (function() {
 					type: RenderOutputType.Extension,
 					mimeType: content.mimeType,
 					output: {
-						outputKind: CellOutputKind.Rich,
-						metadata: output.metadata,
-						data: output.data,
+						metadata: metadata,
+						data: data,
+						outputId: output.outputId
 					},
 				},
 			};
@@ -1062,7 +1083,7 @@ var requirejs = (function() {
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
-	removeInset(output: IDisplayOutputViewModel) {
+	removeInset(output: ICellOutputViewModel) {
 		if (this._disposed) {
 			return;
 		}
@@ -1085,7 +1106,7 @@ var requirejs = (function() {
 		this.reversedInsetMapping.delete(id);
 	}
 
-	hideInset(output: IDisplayOutputViewModel) {
+	hideInset(output: ICellOutputViewModel) {
 		if (this._disposed) {
 			return;
 		}

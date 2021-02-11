@@ -29,7 +29,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				telemetryReporter.sendTelemetryEvent('login');
 
 				const session = await loginService.login(scopes.sort().join(' '));
-				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
+				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 				return session;
 			} catch (e) {
 				/* __GDPR__
@@ -47,8 +47,10 @@ export async function activate(context: vscode.ExtensionContext) {
 				*/
 				telemetryReporter.sendTelemetryEvent('logout');
 
-				await loginService.logout(id);
-				onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
+				const session = await loginService.logout(id);
+				if (session) {
+					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+				}
 			} catch (e) {
 				/* __GDPR__
 					"logoutFailed" : { }

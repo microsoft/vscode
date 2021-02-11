@@ -1257,10 +1257,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.CellKind;
 			},
-			get CellOutputKind() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.CellOutputKind;
-			},
 			get NotebookCellRunState() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellRunState;

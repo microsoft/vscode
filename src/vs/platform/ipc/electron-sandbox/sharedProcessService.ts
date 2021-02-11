@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ipcMessagePort } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
@@ -12,16 +11,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-
-export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
-
-export interface ISharedProcessService {
-
-	readonly _serviceBrand: undefined;
-
-	getChannel(channelName: string): IChannel;
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
-}
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 

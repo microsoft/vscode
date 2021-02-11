@@ -33,7 +33,7 @@ import { CodeApplication } from 'vs/code/electron-main/app';
 import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -47,7 +47,6 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { isNumber } from 'vs/base/common/types';
 import { rtrim, trim } from 'vs/base/common/strings';
 import { basename, join, resolve } from 'vs/base/common/path';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -56,10 +55,14 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 
-class ExpectedError extends Error {
-	readonly isExpected = true;
-}
-
+/**
+ * The main VS Code entry point.
+ *
+ * Note: This class can exist more than once for example when VS Code is already
+ * running and a second instance is started from the command line. It will always
+ * try to communicate with an existing instance to prevent that 2 VS Code instances
+ * are running at the same time.
+ */
 class CodeMain {
 
 	main(): void {
@@ -101,43 +104,40 @@ class CodeMain {
 
 	private async startup(args: NativeParsedArgs): Promise<void> {
 
-		// We need to buffer the spdlog logs until we are sure
-		// we are the only instance running, otherwise we'll have concurrent
-		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
-		const bufferLogService = new BufferLogService();
+		// Create services
+		const [instantiationService, instanceEnvironment, environmentService, configurationService, stateService, bufferLogService] = this.createServices(args);
 
-		const [instantiationService, instanceEnvironment, environmentService] = this.createServices(args, bufferLogService);
 		try {
 
 			// Init services
-			await instantiationService.invokeFunction(async accessor => {
-				const configurationService = accessor.get(IConfigurationService);
-				const stateService = accessor.get(IStateService);
+			try {
+				await this.initServices(environmentService, configurationService, stateService);
+			} catch (error) {
 
-				try {
-					await this.initServices(environmentService, configurationService as ConfigurationService, stateService as StateService);
-				} catch (error) {
+				// Show a dialog for errors that can be resolved by the user
+				this.handleStartupDataDirError(environmentService, error);
 
-					// Show a dialog for errors that can be resolved by the user
-					this.handleStartupDataDirError(environmentService, error);
-
-					throw error;
-				}
-			});
+				throw error;
+			}
 
 			// Startup
 			await instantiationService.invokeFunction(async accessor => {
 				const logService = accessor.get(ILogService);
 				const lifecycleMainService = accessor.get(ILifecycleMainService);
 				const fileService = accessor.get(IFileService);
-				const configurationService = accessor.get(IConfigurationService);
 
+				// Create the main IPC server by trying to be the server
+				// If this throws an error it means we are not the first
+				// instance of VS Code running and so we would quit.
 				const mainIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, true);
 
+				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 				bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, 'main.log'), true, bufferLogService.getLevel());
+
+				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(() => {
 					fileService.dispose();
-					(configurationService as ConfigurationService).dispose();
+					configurationService.dispose();
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
@@ -147,35 +147,76 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: NativeParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService] {
+	private createServices(args: NativeParsedArgs): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogService] {
 		const services = new ServiceCollection();
 
+		// Environment
 		const environmentService = new EnvironmentMainService(args);
 		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentService, environmentService);
 		services.set(IEnvironmentMainService, environmentService);
 
+		// Log: We need to buffer the spdlog logs until we are sure
+		// we are the only instance running, otherwise we'll have concurrent
+		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
+		const bufferLogService = new BufferLogService();
 		const logService = new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentService)), bufferLogService]);
 		process.once('exit', () => logService.dispose());
 		services.set(ILogService, logService);
 
+		// Files
 		const fileService = new FileService(logService);
 		services.set(IFileService, fileService);
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// Logger
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
-		services.set(IConfigurationService, new ConfigurationService(environmentService.settingsResource, fileService));
+		// Configuration
+		const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
+		services.set(IConfigurationService, configurationService);
+
+		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
-		services.set(IStateService, new SyncDescriptor(StateService));
+
+		// State
+		const stateService = new StateService(environmentService, logService);
+		services.set(IStateService, stateService);
+
+		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestMainService));
+
+		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
+
+		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService));
+
+		// Product
 		services.set(IProductService, { _serviceBrand: undefined, ...product });
+
+		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentService, configurationService, stateService, bufferLogService];
+	}
+
+	private patchEnvironment(environmentService: IEnvironmentMainService): IProcessEnvironment {
+		const instanceEnvironment: IProcessEnvironment = {
+			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
+		};
+
+		['VSCODE_NLS_CONFIG', 'VSCODE_PORTABLE'].forEach(key => {
+			const value = process.env[key];
+			if (typeof value === 'string') {
+				instanceEnvironment[key] = value;
+			}
+		});
+
+		Object.assign(process.env, instanceEnvironment);
+
+		return instanceEnvironment;
 	}
 
 	private initServices(environmentService: IEnvironmentMainService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
@@ -197,23 +238,6 @@ class CodeMain {
 		const stateServiceInitialization = stateService.init();
 
 		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
-	}
-
-	private patchEnvironment(environmentService: IEnvironmentMainService): IProcessEnvironment {
-		const instanceEnvironment: IProcessEnvironment = {
-			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
-		};
-
-		['VSCODE_NLS_CONFIG', 'VSCODE_PORTABLE'].forEach(key => {
-			const value = process.env[key];
-			if (typeof value === 'string') {
-				instanceEnvironment[key] = value;
-			}
-		});
-
-		Object.assign(process.env, instanceEnvironment);
-
-		return instanceEnvironment;
 	}
 
 	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<NodeIPCServer> {
@@ -405,7 +429,7 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
-	//#region Helpers
+	//#region Path Helpers
 
 	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
 
@@ -486,11 +510,11 @@ class CodeMain {
 	private toPath(pathWithLineAndCol: IPathWithLineAndColumn): string {
 		const segments = [pathWithLineAndCol.path];
 
-		if (isNumber(pathWithLineAndCol.line)) {
+		if (typeof pathWithLineAndCol.line === 'number') {
 			segments.push(String(pathWithLineAndCol.line));
 		}
 
-		if (isNumber(pathWithLineAndCol.column)) {
+		if (typeof pathWithLineAndCol.column === 'number') {
 			segments.push(String(pathWithLineAndCol.column));
 		}
 

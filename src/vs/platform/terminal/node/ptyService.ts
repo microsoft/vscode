@@ -13,6 +13,8 @@ import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBu
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { Emitter } from 'vs/base/common/event';
+import { ILogService } from 'vs/platform/log/common/log';
 
 let currentPtyId = 0;
 
@@ -39,18 +41,16 @@ export class PtyService extends Disposable implements IPtyService {
 		super();
 	}
 
-	getLatency(id: number): Promise<number> {
-		throw new Error('Method not implemented.');
-	}
-
-	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
-		throw new Error('Method not implemented.');
+	dispose() {
+		for (const pty of this._ptys.values()) {
+			pty.shutdown(true);
+		}
+		this._ptys.clear();
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
 		const id = ++currentPtyId;
-		// TODO: Impl proper logging, level doesn't get passed over
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, new LogService(new ConsoleLogger()));
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
 		process.onProcessReady(event => this._onProcessReady.fire({ id, event }));

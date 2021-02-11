@@ -70,14 +70,14 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 		label: 'notebookSmokeTest',
 		isPreferred: true,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
+			const edit = new vscode.WorkspaceEdit();
 			for (let i = 0; i < _document.cells.length; i++) {
-				_document.cells[i].outputs = [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/html': ['test output']
-					}
-				}];
+				edit.replaceNotebookCellOutput(_document.uri, i, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+				])]);
 			}
+
+			await vscode.workspace.applyEdit(edit);
 		},
 		cancelAllCellsExecution: async () => { },
 		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined) => {
@@ -85,12 +85,11 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 				_cell = _document.cells[0];
 			}
 
-			_cell.outputs = [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/html': ['test output']
-				}
-			}];
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookCellOutput(_document.uri, _cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+			])]);
+			await vscode.workspace.applyEdit(edit);
 			return;
 		},
 		cancelCellExecution: async () => { }

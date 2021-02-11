@@ -31,7 +31,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { CellOutputKind, IDisplayOutput, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellDto2, INotebookDecorationRenderOptions, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
@@ -545,6 +545,60 @@ export namespace WorkspaceEdit {
 						edit: entry.edit,
 						notebookMetadata: entry.notebookMetadata,
 						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
+					});
+
+				} else if (entry._type === types.FileEditType.CellOutput) {
+					if (entry.newOutputs) {
+						result.edits.push({
+							_type: extHostProtocol.WorkspaceEditType.Cell,
+							metadata: entry.metadata,
+							resource: entry.uri,
+							edit: {
+								editType: CellEditType.Output,
+								index: entry.index,
+								append: entry.append,
+								outputs: entry.newOutputs.map(NotebookCellOutput.from)
+							}
+						});
+					}
+					// todo@joh merge metadata and output edit?
+					if (entry.newMetadata) {
+						result.edits.push({
+							_type: extHostProtocol.WorkspaceEditType.Cell,
+							metadata: entry.metadata,
+							resource: entry.uri,
+							edit: {
+								editType: CellEditType.Metadata,
+								index: entry.index,
+								metadata: entry.newMetadata
+							}
+						});
+					}
+				} else if (entry._type === types.FileEditType.CellReplace) {
+					result.edits.push({
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
+						resource: entry.uri,
+						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version,
+						edit: {
+							editType: CellEditType.Replace,
+							index: entry.index,
+							count: entry.count,
+							cells: entry.cells.map(NotebookCellData.from)
+						}
+					});
+				} else if (entry._type === types.FileEditType.CellOutputItem) {
+					result.edits.push({
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
+						resource: entry.uri,
+						edit: {
+							editType: CellEditType.OutputItems,
+							index: entry.index,
+							outputId: entry.outputId,
+							items: entry.newOutputItems?.map(item => ({ mime: item.mime, value: item.value, metadata: item.metadata })) || [],
+							append: entry.append
+						}
 					});
 				}
 			}
@@ -1290,21 +1344,53 @@ export namespace LanguageSelector {
 	}
 }
 
-export namespace NotebookCellOutput {
-	export function from(output: types.NotebookCellOutput): IDisplayOutput {
-		return output.toJSON();
-	}
-}
+export namespace NotebookCellData {
 
-export namespace NotebookCellOutputItem {
-	export function from(output: types.NotebookCellOutputItem): IDisplayOutput {
+	export function from(data: vscode.NotebookCellData): ICellDto2 {
 		return {
-			outputKind: CellOutputKind.Rich,
-			data: { [output.mime]: output.value },
-			metadata: output.metadata && { custom: output.metadata }
+			cellKind: data.cellKind,
+			language: data.language,
+			source: data.source,
+			metadata: data.metadata,
+			outputs: data.outputs.map(output => ({
+				outputId: output.id, outputs: (output.outputs || []).map(op => ({
+					mime: op.mime,
+					value: op.value,
+					metadata: op.metadata
+				}))
+			}))
 		};
 	}
 }
+
+export namespace NotebookCellOutput {
+	export function from(output: types.NotebookCellOutput): IOutputDto {
+
+		const data = Object.create(null);
+		const custom = Object.create(null);
+
+		for (let item of output.outputs) {
+			data[item.mime] = item.value;
+			custom[item.mime] = item.metadata;
+		}
+
+		return {
+			outputId: output.id,
+			outputs: (output.outputs || []).map(op => ({
+				mime: op.mime,
+				value: op.value,
+				metadata: op.metadata
+			})) || [],
+			// metadata: isEmptyObject(custom) ? undefined : { custom }
+		};
+	}
+
+	export function to(output: IOutputDto): vscode.NotebookCellOutput {
+		const items: types.NotebookCellOutputItem[] = output.outputs.map(op => new types.NotebookCellOutputItem(op.mime, op.value, op.metadata));
+		return new types.NotebookCellOutput(items, output.outputId);
+	}
+}
+
 
 export namespace NotebookExclusiveDocumentPattern {
 	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };

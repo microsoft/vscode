@@ -11,6 +11,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 
 enum Constants {
 	MaxRestarts = 5
@@ -66,6 +67,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		));
 		this._onPtyHostStart.fire();
 
+		// Handle exit
+		this._register({ dispose: () => client.dispose() });
 		this._register(client.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
@@ -79,6 +82,13 @@ export class LocalPtyService extends Disposable implements IPtyService {
 			}
 		}));
 
+		// Setup logging
+		const logChannel = client.getChannel(TerminalIpcChannels.Log);
+		this._register(this._logService.onDidChangeLogLevel(() => {
+			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
+		}));
+
+		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
 		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));

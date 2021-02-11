@@ -61,15 +61,12 @@ export function activate(context: vscode.ExtensionContext): any {
 		label: 'Notebook Test Kernel',
 		isPreferred: true,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
-			const cell = _document.cells[0];
+			const edit = new vscode.WorkspaceEdit();
 
-			cell.outputs = [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/plain': ['my output']
-				}
-			}];
-			return;
+			edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+			])]);
+			return vscode.workspace.applyEdit(edit);
 		},
 		cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
 		executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
@@ -78,26 +75,21 @@ export function activate(context: vscode.ExtensionContext): any {
 			}
 
 			if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-				cell.outputs = [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/custom': 'test'
-					}
-				}];
+				const edit = new vscode.WorkspaceEdit();
+				edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
+				])]);
 
-				return;
+				return vscode.workspace.applyEdit(edit);
 			}
 
+			const edit = new vscode.WorkspaceEdit();
 			// const previousOutputs = cell.outputs;
-			const newOutputs: vscode.CellOutput[] = [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/plain': ['my output']
-				}
-			}];
+			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+			])]);
 
-			cell.outputs = newOutputs;
-			return;
+			return vscode.workspace.applyEdit(edit);
 		},
 		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
 	};
@@ -107,15 +99,12 @@ export function activate(context: vscode.ExtensionContext): any {
 		label: 'Notebook Secondary Test Kernel',
 		isPreferred: false,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
-			const cell = _document.cells[0];
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+			])]);
 
-			cell.outputs = [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/plain': ['my second output']
-				}
-			}];
-			return;
+			return vscode.workspace.applyEdit(edit);
 		},
 		cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
 		executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
@@ -123,26 +112,19 @@ export function activate(context: vscode.ExtensionContext): any {
 				cell = document.cells[0];
 			}
 
-			if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-				cell.outputs = [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/custom': 'test 2'
-					}
-				}];
+			const edit = new vscode.WorkspaceEdit();
 
-				return;
+			if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
+				edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/custom', ['test 2'], undefined)
+				])]);
+			} else {
+				edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+				])]);
 			}
 
-			const newOutputs: vscode.CellOutput[] = [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/plain': ['my second output']
-				}
-			}];
-
-			cell.outputs = newOutputs;
-			return;
+			return vscode.workspace.applyEdit(edit);
 		},
 		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
 	};

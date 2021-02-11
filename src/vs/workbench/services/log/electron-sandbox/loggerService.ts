@@ -6,7 +6,7 @@
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { LogLevel, ILoggerService, ILogger, AbstractMessageLogger, ILoggerOptions } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export class LoggerService implements ILoggerService {
 
