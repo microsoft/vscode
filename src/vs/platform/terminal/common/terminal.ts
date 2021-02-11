@@ -21,6 +21,9 @@ export enum TerminalIpcChannels {
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
+	readonly onPtyHostExit?: Event<number>;
+	readonly onPtyHostStart?: Event<void>;
+
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;

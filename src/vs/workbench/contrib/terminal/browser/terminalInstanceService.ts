@@ -13,16 +13,19 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
 let Unicode11Addon: typeof XTermUnicode11Addon;
 let WebglAddon: typeof XTermWebglAddon;
 
-export class TerminalInstanceService implements ITerminalInstanceService {
+export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
 
-	private readonly _onRequestDefaultShellAndArgs = new Emitter<IDefaultShellAndArgsRequest>();
+	private readonly _onPtyHostExit = this._register(new Emitter<void>());
+	readonly onPtyHostExit = this._onPtyHostExit.event;
+	private readonly _onRequestDefaultShellAndArgs = this._register(new Emitter<IDefaultShellAndArgsRequest>());
 	public get onRequestDefaultShellAndArgs(): Event<IDefaultShellAndArgsRequest> { return this._onRequestDefaultShellAndArgs.event; }
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {

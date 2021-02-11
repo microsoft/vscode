@@ -24,14 +24,20 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcessMainProxy } from 'vs/workbench/contrib/terminal/electron-browser/terminalProcessMainProxy';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
 let Unicode11Addon: typeof XTermUnicode11Addon;
 let WebglAddon: typeof XTermWebglAddon;
 
-export class TerminalInstanceService implements ITerminalInstanceService {
+export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
+
+	private readonly _onPtyHostExit = this._register(new Emitter<void>());
+	readonly onPtyHostExit = this._onPtyHostExit.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -42,7 +48,20 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService,
+		@INotificationService notificationService: INotificationService
 	) {
+		super();
+		if (this._localPtyService.onPtyHostExit) {
+			this._localPtyService.onPtyHostExit(e => {
+				this._onPtyHostExit.fire();
+				notificationService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
+			});
+		}
+		if (this._localPtyService.onPtyHostStart) {
+			this._localPtyService.onPtyHostStart(() => {
+				this._logService.info(`ptyHost restarted`);
+			});
+		}
 	}
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {

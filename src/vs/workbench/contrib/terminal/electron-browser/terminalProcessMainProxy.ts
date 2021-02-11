@@ -37,6 +37,11 @@ export class TerminalProcessMainProxy extends Disposable implements ITerminalChi
 		this._localPtyService.onProcessTitleChanged(e => e.id === this._localPtyId && this._onProcessTitleChanged.fire(e.event));
 		this._localPtyService.onProcessOverrideDimensions(e => e.id === this._localPtyId && this._onProcessOverrideDimensions.fire(e.event));
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => e.id === this._localPtyId && this._onProcessResolvedShellLaunchConfig.fire(e.event));
+		if (this._localPtyService.onPtyHostExit) {
+			this._localPtyService.onPtyHostExit(() => {
+				this._onProcessExit.fire(undefined);
+			});
+		}
 	}
 
 	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {
