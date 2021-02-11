@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 // @ts-ignore: interface is implemented via proxy
-export class LocalPtyService implements ILocalPtyService {
+export class LocalPtyServiceProxy implements ILocalPtyService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createChannelSender<ILocalPtyService>(mainProcessService.getChannel('localPty'));
+	constructor(
+		@ISharedProcessService sharedProcessService: ISharedProcessService
+	) {
+		return ProxyChannel.toService<LocalPtyServiceProxy & ILocalPtyService>(sharedProcessService.getChannel(TerminalIpcChannels.LocalPty));
 	}
 }

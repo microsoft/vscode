@@ -81,6 +81,9 @@ import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProc
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { join } from 'vs/base/common/path';
+import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { LocalPtyService } from 'vs/platform/terminal/electron-browser/localPtyService';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 
 class SharedProcessMain extends Disposable {
 
@@ -259,6 +262,9 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncResourceEnablementService, new SyncDescriptor(UserDataSyncResourceEnablementService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
+		// Terminal
+		services.set(ILocalPtyService, new SyncDescriptor(LocalPtyService));
+
 		return new InstantiationService(services);
 	}
 
@@ -304,6 +310,11 @@ class SharedProcessMain extends Disposable {
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+
+		// Terminal
+		const localPtyService = accessor.get(ILocalPtyService);
+		const localPtyChannel = ProxyChannel.fromService(localPtyService);
+		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

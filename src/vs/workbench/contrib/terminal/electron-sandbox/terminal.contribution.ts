@@ -5,6 +5,6 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { LocalPtyService } from 'vs/workbench/contrib/terminal/electron-sandbox/localPtyService';
+import { LocalPtyServiceProxy } from 'vs/workbench/contrib/terminal/electron-sandbox/localPtyServiceProxy';
 
-registerSingleton(ILocalPtyService, LocalPtyService, true);
+registerSingleton(ILocalPtyService, LocalPtyServiceProxy, true);

@@ -89,7 +89,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
-import { ILocalPtyMainService, LocalPtyMainService } from 'vs/platform/terminal/electron-main/localPtyMainService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -528,7 +527,6 @@ export class CodeApplication extends Disposable {
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
-		services.set(ILocalPtyMainService, new SyncDescriptor(LocalPtyMainService));
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
@@ -615,10 +613,6 @@ export class CodeApplication extends Disposable {
 		const updateService = accessor.get(IUpdateService);
 		const updateChannel = new UpdateChannel(updateService);
 		electronIpcServer.registerChannel('update', updateChannel);
-
-		const localPtyMainService = accessor.get(ILocalPtyMainService);
-		const localPtyChannel = createChannelReceiver(localPtyMainService);
-		electronIpcServer.registerChannel('localPty', localPtyChannel);
 
 		const issueMainService = accessor.get(IIssueMainService);
 		const issueChannel = ProxyChannel.fromService(issueMainService);

@@ -3,24 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ICommonLocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { ILocalPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
+import { Emitter } from 'vs/base/common/event';
+import { LogService, ConsoleLogger } from 'vs/platform/log/common/log';
 
-export const ILocalPtyMainService = createDecorator<ILocalPtyMainService>('localPtyMainService');
+let currentPtyId = 0;
 
-export interface ILocalPtyMainService extends ICommonLocalPtyService { }
-
-let currentLocalPtyId = 0;
-
-export class LocalPtyMainService extends Disposable implements ICommonLocalPtyService {
+export class PtyService extends Disposable implements ILocalPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _localPtys: Map<number, ITerminalChildProcess> = new Map();
+	private readonly _ptys: Map<number, ITerminalChildProcess> = new Map();
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
@@ -36,14 +31,14 @@ export class LocalPtyMainService extends Disposable implements ICommonLocalPtySe
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
-		const id = ++currentLocalPtyId;
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
+		const id = ++currentPtyId;
+		// TODO: Impl proper logging, level doesn't get passed over
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, new LogService(new ConsoleLogger()));
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
 		process.onProcessReady(event => this._onProcessReady.fire({ id, event }));
@@ -54,7 +49,7 @@ export class LocalPtyMainService extends Disposable implements ICommonLocalPtySe
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		this._localPtys.set(id, process);
+		this._ptys.set(id, process);
 		return id;
 	}
 
@@ -91,7 +86,7 @@ export class LocalPtyMainService extends Disposable implements ICommonLocalPtySe
 	}
 
 	private _throwIfNoPty(id: number): ITerminalChildProcess {
-		const pty = this._localPtys.get(id);
+		const pty = this._ptys.get(id);
 		if (!pty) {
 			throw new Error(`Could not find pty with id "${id}"`);
 		}
