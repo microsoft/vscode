@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { addIdToOutput, CellEditType, ICellEditOperation, ICellOutputEdit, ITransformedDisplayOutputDto, notebookDocumentMetadataDefaults, NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, notebookDocumentMetadataDefaults, NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -585,7 +585,10 @@ export interface IFileOperationOptions {
 export const enum FileEditType {
 	File = 1,
 	Text = 2,
-	Cell = 3
+	Cell = 3,
+	CellOutput = 4,
+	CellReplace = 5,
+	CellOutputItem = 6
 }
 
 export interface IFileOperation {
@@ -611,13 +614,45 @@ export interface IFileCellEdit {
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
+export interface ICellEdit {
+	_type: FileEditType.CellReplace;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+	uri: URI;
+	index: number;
+	count: number;
+	cells: vscode.NotebookCellData[];
+}
+
+export interface ICellOutputEdit {
+	_type: FileEditType.CellOutput;
+	uri: URI;
+	index: number;
+	append: boolean;
+	newOutputs?: NotebookCellOutput[];
+	newMetadata?: vscode.NotebookCellMetadata;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+export interface ICellOutputItemsEdit {
+	_type: FileEditType.CellOutputItem;
+	uri: URI;
+	index: number;
+	outputId: string;
+	append: boolean;
+	newOutputItems?: NotebookCellOutputItem[];
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit | ICellOutputEdit | ICellOutputItemsEdit;
+
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private readonly _edits = new Array<IFileOperation | IFileTextEdit | IFileCellEdit>();
+	private readonly _edits: WorkspaceEditEntry[] = [];
 
 
-	_allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation | IFileCellEdit> {
+	_allEntries(): ReadonlyArray<WorkspaceEditEntry> {
 		return this._edits;
 	}
 
@@ -643,32 +678,33 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		if (start !== end || cells.length > 0) {
-			this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+			this._edits.push({ _type: FileEditType.CellReplace, uri, index: start, count: end - start, cells, metadata });
 		}
 	}
 
-	replaceNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.NotebookCellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._editNotebookCellOutput(uri, index, false, outputs, metadata);
 	}
 
-	appendNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	appendNotebookCellOutput(uri: URI, index: number, outputs: vscode.NotebookCellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._editNotebookCellOutput(uri, index, true, outputs, metadata);
 	}
 
-	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		const edit: ICellOutputEdit = {
-			editType: CellEditType.Output,
-			index,
-			append,
-			outputs: outputs.map(output => {
-				if (NotebookCellOutput.isNotebookCellOutput(output)) {
-					return output.toJSON();
-				} else {
-					return addIdToOutput(output);
-				}
-			})
-		};
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit });
+	replaceNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._editNotebookCellOutputItems(uri, index, outputId, false, items, metadata);
+	}
+
+	appendNotebookCellOutputItems(uri: URI, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._editNotebookCellOutputItems(uri, index, outputId, true, items, metadata);
+	}
+
+	private _editNotebookCellOutputItems(uri: URI, index: number, id: string, append: boolean, items: vscode.NotebookCellOutputItem[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
+		this._edits.push({ _type: FileEditType.CellOutputItem, metadata, uri, index, outputId: id, append, newOutputItems: items });
+	}
+
+	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: vscode.NotebookCellOutput[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
+		let newOutputs: NotebookCellOutput[] = outputs;
+		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs, newMetadata: undefined });
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -2888,50 +2924,20 @@ export class NotebookCellOutputItem {
 	constructor(
 		readonly mime: string,
 		readonly value: unknown, // JSON'able
-		readonly metadata?: Record<string, string | number | boolean>
+		readonly metadata?: any
 	) { }
 }
 
 export class NotebookCellOutput {
-
-	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
-		return obj instanceof NotebookCellOutput;
-	}
-
-	readonly id: string = generateUuid();
-
-	constructor(readonly outputs: NotebookCellOutputItem[]) { }
-
-	toJSON(): ITransformedDisplayOutputDto {
-		let data: { [key: string]: unknown; } = {};
-		let custom: { [key: string]: unknown; } = {};
-		let hasMetadata = false;
-
-		for (let item of this.outputs) {
-			data[item.mime] = item.value;
-			if (item.metadata) {
-				custom[item.mime] = item.metadata;
-				hasMetadata = true;
-			}
-		}
-		return {
-			outputId: this.id,
-			outputKind: CellOutputKind.Rich,
-			data,
-			metadata: hasMetadata ? { custom } : undefined
-		};
-	}
+	constructor(
+		readonly outputs: NotebookCellOutputItem[],
+		readonly id: string = generateUuid()
+	) { }
 }
 
 export enum CellKind {
 	Markdown = 1,
 	Code = 2
-}
-
-export enum CellOutputKind {
-	Text = 1,
-	Error = 2,
-	Rich = 3
 }
 
 export enum NotebookCellRunState {

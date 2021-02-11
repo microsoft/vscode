@@ -316,7 +316,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkIfOutputsModified() {
-		return !this.mainDocumentTextModel.transientOptions.transientOutputs && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
+		return !this.mainDocumentTextModel.transientOptions.transientOutputs && hash(this.original?.outputs.map(op => op.outputs) ?? []) !== hash(this.modified?.outputs.map(op => op.outputs) ?? []);
 	}
 
 	checkMetadataIfModified(): boolean {
@@ -370,7 +370,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
-		throw new Error('Method not implemented.');
+		return diffSide === DiffSide.Original ? this.original : this.modified;
 	}
 
 	getCellByUri(cellUri: URI): IGenericCellViewModel {

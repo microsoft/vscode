@@ -8,9 +8,15 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { addIdToOutput, CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
+import { CellEditType, ICellEditOperation, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
+
+interface INotebookEditData {
+	documentVersionId: number;
+	cellEdits: ICellEditOperation[];
+}
 
 class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
@@ -54,17 +60,13 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceCellOutput(index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[]): void {
+	replaceCellOutput(index: number, outputs: vscode.NotebookCellOutput[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Output,
 			index,
 			outputs: outputs.map(output => {
-				if (extHostTypes.NotebookCellOutput.isNotebookCellOutput(output)) {
-					return addIdToOutput(output.toJSON());
-				} else {
-					return addIdToOutput(output);
-				}
+				return extHostConverter.NotebookCellOutput.from(output);
 			})
 		});
 	}
@@ -78,12 +80,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 			editType: CellEditType.Replace,
 			index: from,
 			count: to - from,
-			cells: cells.map(data => {
-				return {
-					...data,
-					outputs: data.outputs.map(output => addIdToOutput(output)),
-				};
-			})
+			cells: cells.map(extHostConverter.NotebookCellData.from)
 		});
 	}
 }

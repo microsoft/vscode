@@ -189,7 +189,7 @@
 	width: 100%;
 	padding: 4px 8px 4px 32px;
 	box-sizing: border-box;
-	overflow-x: hidden;
+	overflow: hidden;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left {

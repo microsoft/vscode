@@ -51,7 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -745,7 +745,7 @@ export interface ICellDto {
 	source: string[];
 	language: string;
 	cellKind: CellKind;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -758,7 +758,7 @@ export type NotebookCellsSplice = [
 export type NotebookCellOutputsSplice = [
 	number /* start */,
 	number /* delete count */,
-	IProcessedOutput[]
+	IOutputDto[]
 ];
 
 export enum NotebookEditorRevealType {
@@ -790,7 +790,6 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$onNotebookKernelChange(handle: number, uri: UriComponents | undefined): void;
 	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
-	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
 	$tryOpenDocument(uriComponents: UriComponents, viewType?: string): Promise<URI>;

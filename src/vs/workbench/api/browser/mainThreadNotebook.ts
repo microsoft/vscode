@@ -23,7 +23,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, NotebookCellOutputsSplice, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -567,29 +567,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this.logService.debug('MainThreadNotebooks#updateNotebookLanguages', resource.path, languages);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateLanguages(languages);
-	}
-
-	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {
-		this.logService.debug('MainThreadNotebooks#spliceNotebookCellOutputs', resource.path, cellHandle);
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-
-		if (!textModel) {
-			return;
-		}
-
-		const cell = textModel.cells.find(cell => cell.handle === cellHandle);
-
-		if (!cell) {
-			return;
-		}
-
-		textModel.applyEdits(textModel.versionId, [
-			{
-				editType: CellEditType.OutputsSplice,
-				index: textModel.cells.indexOf(cell),
-				splices
-			}
-		], true, undefined, () => undefined, undefined);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {

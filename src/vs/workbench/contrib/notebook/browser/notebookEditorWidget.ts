@@ -41,7 +41,7 @@ import { IEditorMemento } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_OUTPUT_PADDING, CELL_RUN_GUTTER, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -1080,7 +1080,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				if (this._webview?.insetMapping) {
 					const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-					const removedItems: IDisplayOutputViewModel[] = [];
+					const removedItems: ICellOutputViewModel[] = [];
 					this._webview?.insetMapping.forEach((value, key) => {
 						const cell = this.viewModel?.getCellByHandle(value.cellInfo.cellHandle);
 						if (!cell || !(cell instanceof CodeCellViewModel)) {
@@ -2041,10 +2041,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	removeInset(output: ICellOutputViewModel) {
-		if (!output.isDisplayOutput()) {
-			return;
-		}
-
 		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
 			if (!this._webview || !this._webviewResolved) {
 				return;
@@ -2055,10 +2051,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	hideInset(output: ICellOutputViewModel) {
 		if (!this._webview || !this._webviewResolved) {
-			return;
-		}
-
-		if (!output.isDisplayOutput()) {
 			return;
 		}
 
@@ -2100,7 +2092,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.viewCells.find(vc => vc.handle === cellHandle) as CodeCellViewModel;
 	}
 
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, outputHeight: number, isInit: boolean): void {
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
