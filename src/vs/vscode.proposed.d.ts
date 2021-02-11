@@ -1583,10 +1583,11 @@ declare module 'vscode' {
 		isPreferred?: boolean;
 		preloads?: Uri[];
 
-		// todo@API
-		// languages supported by kernel
-		// first is preferred
-		// `undefined` means all languages available in the editor
+		/**
+		 * languages supported by kernel
+		 * - first is preferred
+		 * - `undefined` means all languages available in the editor
+		 */
 		supportedLanguages?: string[];
 
 		// @roblourens
