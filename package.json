@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.54.0",
-  "distro": "1bc28dd86603be17b5bf6ffa9370864f58e0ef77",
+  "distro": "4e0b11c36e1bc4032ef3c28c82fdf336f7f48cf3",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -195,7 +195,7 @@
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
-    "vscode-debugprotocol": "1.44.0",
+    "vscode-debugprotocol": "1.45.0-pre.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.6.0",
     "webpack": "^4.43.0",

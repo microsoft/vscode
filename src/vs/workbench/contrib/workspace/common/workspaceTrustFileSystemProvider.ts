@@ -10,7 +10,7 @@ import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { WORKSPACE_TRUST_STORAGE_KEY } from 'vs/platform/workspace/common/workspaceTrust';
+import { WORKSPACE_TRUST_STORAGE_KEY } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 const WORKSPACE_TRUST_SCHEMA = 'workspaceTrust';
 

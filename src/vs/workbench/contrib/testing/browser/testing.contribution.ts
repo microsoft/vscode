@@ -83,13 +83,14 @@ registerAction2(Action.TestingViewAsTreeAction);
 registerAction2(Action.CancelTestRunAction);
 registerAction2(Action.RunSelectedAction);
 registerAction2(Action.DebugSelectedAction);
-registerAction2(Action.TestingGroupByLocationAction);
-registerAction2(Action.TestingGroupByStatusAction);
+registerAction2(Action.TestingSortByNameAction);
+registerAction2(Action.TestingSortByLocationAction);
 registerAction2(Action.RefreshTestsAction);
 registerAction2(Action.CollapseAllAction);
 registerAction2(Action.RunAllAction);
 registerAction2(Action.DebugAllAction);
 registerAction2(Action.EditFocusedTest);
+registerAction2(Action.ClearTestResultsAction);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
@@ -115,8 +116,8 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, path: string[]) => {
-		accessor.get(ITestExplorerFilterState).reveal = path;
+	handler: async (accessor: ServicesAccessor, extId: string) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = extId;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
 	}
 });

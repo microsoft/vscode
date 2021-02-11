@@ -9,6 +9,7 @@ import { bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import { listenStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -75,28 +76,27 @@ export class WebviewProtocolProvider extends Disposable {
 				if (!this.listening) {
 					this.listening = true;
 
-					// Data
-					stream.on('data', data => {
-						try {
-							if (!this.push(data.buffer)) {
-								stream.pause(); // pause the stream if we should not push anymore
+					listenStream(stream, {
+						onData: data => {
+							try {
+								if (!this.push(data.buffer)) {
+									stream.pause(); // pause the stream if we should not push anymore
+								}
+							} catch (error) {
+								this.emit(error);
 							}
-						} catch (error) {
-							this.emit(error);
+						},
+						onError: error => {
+							this.emit('error', error);
+						},
+						onEnd: () => {
+							try {
+								this.push(null); // signal EOS
+							} catch (error) {
+								this.emit(error);
+							}
 						}
 					});
-
-					// End
-					stream.on('end', () => {
-						try {
-							this.push(null); // signal EOS
-						} catch (error) {
-							this.emit(error);
-						}
-					});
-
-					// Error
-					stream.on('error', error => this.emit('error', error));
 				}
 
 				// ensure the stream is flowing

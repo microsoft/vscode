@@ -192,7 +192,8 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	private readonly menuActions: ViewMenuActions;
+	readonly menuActions: ViewMenuActions;
+
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
 
@@ -478,7 +479,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()));
+			this.toolbar.setActions(prepareActions(this.menuActions.getPrimaryActions()), prepareActions(this.menuActions.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
@@ -494,18 +495,6 @@ export abstract class ViewPane extends Pane implements IView {
 	protected updateActions(): void {
 		this.setActions();
 		this._onDidChangeTitleArea.fire();
-	}
-
-	getActions(): IAction[] {
-		return this.menuActions.getPrimaryActions();
-	}
-
-	getSecondaryActions(): IAction[] {
-		return this.menuActions.getSecondaryActions();
-	}
-
-	getContextMenuActions(): IAction[] {
-		return this.menuActions.getContextMenuActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {

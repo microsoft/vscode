@@ -16,11 +16,11 @@ import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTes
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestItem, TestState } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, InternalTestItemWithChildren, InternalTestResults, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, InternalTestItemWithChildren, InternalTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -93,9 +93,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				// Find workspace items first, then owned tests, then document tests.
 				// If a test instance exists in both the workspace and document, prefer
 				// the workspace because it's less ephemeral.
-				.map(test => this.workspaceObservers.getMirroredTestDataByReference(test)
-					?? mapFind(this.testSubscriptions.values(), c => c.collection.getTestByReference(test))
-					?? this.textDocumentObservers.getMirroredTestDataByReference(test))
+				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
 				.map(item => ({ providerId: item.providerId, testId: item.id })),
 			debug: req.debug
@@ -172,6 +170,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				collection.addRoot(hierarchy.root, id);
 				Promise.resolve(hierarchy.discoveredInitialTests).then(() => collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
+				hierarchy.onDidInvalidateTest?.(e => {
+					const internal = collection.getTestByReference(e);
+					if (!internal) {
+						console.warn(`Received a TestProvider.onDidInvalidateTest for a test that does not currently exist.`);
+					} else {
+						this.proxy.$retireTest(internal.item.extId);
+					}
+				});
 			} catch (e) {
 				console.error(e);
 			}
@@ -219,10 +225,10 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * providers to be run.
 	 * @override
 	 */
-	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<RunTestsResult> {
+	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<void> {
 		const provider = this.providers.get(req.providerId);
 		if (!provider || !provider.runTests) {
-			return EMPTY_TEST_RESULT;
+			return;
 		}
 
 		const tests = req.ids.map(id => this.ownedTests.getTestById(id)?.actual)
@@ -230,16 +236,25 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			// Only send the actual TestItem's to the user to run.
 			.map(t => t instanceof TestItemFilteredWrapper ? t.actual : t);
 		if (!tests.length) {
-			return EMPTY_TEST_RESULT;
+			return;
 		}
 
 		try {
-			await provider.runTests({ tests, debug: req.debug }, cancellation);
+			await provider.runTests({
+				setState: (test, state) => {
+					const internal = this.getInternalTestForReference(test);
+					if (internal) {
+						this.flushCollectionDiffs();
+						this.proxy.$updateTestStateInRun(req.runId, internal.id, TestState.from(state));
+					}
+				}, tests, debug: req.debug
+			}, cancellation);
+
 			for (const { collection } of this.testSubscriptions.values()) {
 				collection.flushDiff(); // ensure all states are updated
 			}
 
-			return EMPTY_TEST_RESULT;
+			return;
 		} catch (e) {
 			console.error(e); // so it appears to attached debuggers
 			throw e;
@@ -254,6 +269,28 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		const { actual, previousChildren, previousEquals, ...item } = owned;
 		return Promise.resolve(item);
+	}
+
+	/**
+	 * Flushes diff information for all collections to ensure state in the
+	 * main thread is updated.
+	 */
+	private flushCollectionDiffs() {
+		for (const { collection } of this.testSubscriptions.values()) {
+			collection.flushDiff();
+		}
+	}
+
+	/**
+	 * Gets the internal test item associated with the reference from the extension.
+	 */
+	private getInternalTestForReference(test: vscode.TestItem) {
+		// Find workspace items first, then owned tests, then document tests.
+		// If a test instance exists in both the workspace and document, prefer
+		// the workspace because it's less ephemeral.
+		return this.workspaceObservers.getMirroredTestDataByReference(test)
+			?? mapFind(this.testSubscriptions.values(), c => c.collection.getTestByReference(test))
+			?? this.textDocumentObservers.getMirroredTestDataByReference(test);
 	}
 
 	private createDefaultDocumentTestHierarchy(provider: vscode.TestProvider, document: vscode.TextDocument, folder: vscode.WorkspaceFolder | undefined): vscode.TestHierarchy<vscode.TestItem> | undefined {
@@ -359,10 +396,6 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 
 	public get runnable() {
 		return this.actual.runnable;
-	}
-
-	public get state() {
-		return this.actual.state;
 	}
 
 	public get children() {
@@ -645,7 +678,6 @@ class TestItemFromMirror implements vscode.RequiredTestItem {
 	public get id() { return this.#internal.revived.id!; }
 	public get label() { return this.#internal.revived.label; }
 	public get description() { return this.#internal.revived.description; }
-	public get state() { return this.#internal.revived.state; }
 	public get location() { return this.#internal.revived.location; }
 	public get runnable() { return this.#internal.revived.runnable ?? true; }
 	public get debuggable() { return this.#internal.revived.debuggable ?? false; }
@@ -665,7 +697,6 @@ class TestItemFromMirror implements vscode.RequiredTestItem {
 			id: this.id,
 			label: this.label,
 			description: this.description,
-			state: this.state,
 			location: this.location,
 			runnable: this.runnable,
 			debuggable: this.debuggable,

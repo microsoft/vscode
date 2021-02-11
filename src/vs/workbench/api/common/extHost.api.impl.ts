@@ -1297,10 +1297,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TestMessageSeverity;
 			},
-			get TestState() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.TestState;
-			},
 			get WorkspaceTrustState() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.WorkspaceTrustState;

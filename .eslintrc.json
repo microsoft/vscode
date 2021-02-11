@@ -268,7 +268,6 @@
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
 					"**/vs/platform/*/{common,node,electron-main}/**",
-					"**/vs/code/**",
 					"*" // node modules
 				]
 			},
@@ -807,7 +806,6 @@
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/workbench/**/{common,node}/**",
 					"**/vs/server/**",
-					"**/vs/code/**/{common,node}/**",
 					"*" // node modules
 				]
 			},
@@ -1009,6 +1007,7 @@
 							"end",
 							"expand",
 							"hide",
+							"invalidate",
 							"open",
 							"override",
 							"receive",
