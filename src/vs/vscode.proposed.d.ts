@@ -963,11 +963,10 @@ declare module 'vscode' {
 		Code = 2
 	}
 
-	export enum NotebookCellRunState {
-		Running = 1,
-		Idle = 2,
-		Success = 3,
-		Error = 4
+	export interface NotebookCellPreviousRunResult {
+		success?: boolean;
+		duration?: number;
+		executionOrder?: number;
 	}
 
 	export enum NotebookRunState {
@@ -1021,6 +1020,7 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 		readonly metadata: NotebookCellMetadata
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
+		readonly previousResult: NotebookCellPreviousRunResult;
 	}
 
 	export class NotebookDocumentMetadata {
@@ -1483,7 +1483,7 @@ declare module 'vscode' {
 	// exec.dispose();
 
 	// export interface NotebookCellExecution {
-	// 	dispose(): void;
+	// 	resolve(result: NotebookCellPreviousResult): void; // or just stop time, extension can set error outputs or not, and return a success bool
 	// 	clearOutput(): void;
 	// 	appendOutput(out: NotebookCellOutput): void;
 	// 	replaceOutput(out: NotebookCellOutput): void;
@@ -1491,9 +1491,12 @@ declare module 'vscode' {
 	//  replaceOutputItems(output:string, items: NotebookCellOutputItem[]):void;
 	// }
 
-	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellExecution;
-	// export const onDidStartNotebookCellExecution: Event<any>;
-	// export const onDidStopNotebookCellExecution: Event<any>;
+	// export interface NotebookCellPending {
+	// 	 start(): NotebookCellExecution; // throws if called twice
+	// }
+
+	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellPending;
+	// export const onDidChangeNotebookCellExecutionState: Event<any>; // idle -> pending -> executing -> idle
 
 	export interface NotebookKernel {
 
@@ -1522,7 +1525,8 @@ declare module 'vscode' {
 		// @roblourens
 		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
 		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741
-		// interrupt?():void;
+		// interrupt?():void; // Maybe this is preferred
+		// todo@API how can Jupyter ensure that the document-level cancel button shows whenever any cell is running?
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;
 		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
 		executeAllCells(document: NotebookDocument): void;
