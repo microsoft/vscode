@@ -15,6 +15,7 @@ import { IRemoteTerminalProcessDataEvent, IRemoteTerminalProcessEvent, IRemoteTe
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 
 let currentPtyId = 0;
 
@@ -35,11 +36,12 @@ export class PtyService extends Disposable implements ILocalPtyService {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-
-	constructor(
-		@ILogService private readonly _logService: ILogService
-	) {
+	private _logService: ILogService;
+	private _instantiationService: InstantiationService;
+	constructor() {
 		super();
+		this._instantiationService = new InstantiationService();
+		this._logService = this._instantiationService.createInstance(ILogService);
 	}
 
 	getLatency(id: number): Promise<number> {
