@@ -27,6 +27,10 @@ export const locationsEqual = (a: ModeLocation | undefined, b: ModeLocation | un
 export class TestLocationStore<T extends { location?: ModeLocation, depth: number }> {
 	private readonly itemsByUri = new Map<string, T[]>();
 
+	public hasTestInDocument(uri: URI) {
+		return !!this.itemsByUri.get(uri.toString())?.length;
+	}
+
 	public getTestAtPosition(uri: URI, position: Position) {
 		const tests = this.itemsByUri.get(uri.toString());
 		if (!tests) {

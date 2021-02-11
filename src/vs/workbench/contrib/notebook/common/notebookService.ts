@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, IEditor, INotebookKernelProvider, INotebookKernel, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, IEditor, INotebookKernelProvider, INotebookKernel, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -53,6 +53,7 @@ export interface INotebookService {
 	getContributedNotebookKernelProviders(): Promise<INotebookKernelProvider[]>;
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
+	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[];
 
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;

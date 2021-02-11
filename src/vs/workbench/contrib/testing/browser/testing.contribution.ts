@@ -116,8 +116,8 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, path: string[]) => {
-		accessor.get(ITestExplorerFilterState).reveal = path;
+	handler: async (accessor: ServicesAccessor, extId: string) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = extId;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
 	}
 });

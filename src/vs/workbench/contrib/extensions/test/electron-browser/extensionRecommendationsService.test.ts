@@ -40,7 +40,7 @@ import { IExperimentService } from 'vs/workbench/contrib/experiments/common/expe
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { IFileService } from 'vs/platform/files/common/files';

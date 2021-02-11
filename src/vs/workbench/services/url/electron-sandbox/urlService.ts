@@ -5,7 +5,7 @@
 
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';

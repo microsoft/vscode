@@ -131,6 +131,13 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string): boolean;
 }
 
+export interface INotebookMarkdownRendererInfo {
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+	readonly extensionId: ExtensionIdentifier;
+	readonly extensionIsBuiltin: boolean;
+}
+
 export interface NotebookCellOutputMetadata {
 	/**
 	 * Additional attributes of a cell metadata.

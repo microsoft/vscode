@@ -21,6 +21,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	private _accounts = new Map<string, string[]>(); // Map account name to session ids
 	private _sessions = new Map<string, string>(); // Map account id to name
 
+	private _hasInitializedSessions = false;
+
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
@@ -33,11 +35,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	) {
 		super();
 	}
-
-	public async initialize(): Promise<void> {
-		return this.registerCommandsAndContextMenuItems();
-	}
-
 	public hasSessions(): boolean {
 		return !!this._sessions.size;
 	}
@@ -83,15 +80,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	private async registerCommandsAndContextMenuItems(): Promise<void> {
-		try {
-			const sessions = await this._proxy.$getSessions(this.id);
-			sessions.forEach(session => this.registerSession(session));
-		} catch (_) {
-			// Ignore
-		}
-	}
-
 	private registerSession(session: modes.AuthenticationSession) {
 		this._sessions.set(session.id, session.account.label);
 
@@ -123,7 +111,13 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		return this._proxy.$getSessions(this.id);
+		const sessions = await this._proxy.$getSessions(this.id);
+		if (!this._hasInitializedSessions) {
+			sessions.forEach(session => this.registerSession(session));
+			this._hasInitializedSessions = true;
+		}
+
+		return sessions;
 	}
 
 	async updateSessionItems(event: modes.AuthenticationSessionsChangeEvent): Promise<void> {
@@ -195,7 +189,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, this.storageService, this.quickInputService, this.dialogService);
-		await provider.initialize();
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
