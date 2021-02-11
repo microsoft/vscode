@@ -3,88 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import * as modes from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import type * as vscode from 'vscode';
-import { Cache } from './cache';
-import { ChainedCacheId, ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol';
+import { ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol';
+
 
 export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 
-	private static HandlePool = 0;
+	private static readonly supportedSchemes = new Set<string>([Schemas.http, Schemas.https]);
 
 	private readonly _proxy: MainThreadUriOpenersShape;
-	private readonly _commands: ExtHostCommands;
 
-	private readonly _cache = new Cache<vscode.Command>('CodeAction');
-	private readonly _openers = new Map<number, { schemes: ReadonlySet<string>, opener: vscode.ExternalUriOpener }>();
+	private readonly _openers = new Map<string, vscode.ExternalUriOpener>();
 
 	constructor(
 		mainContext: IMainContext,
-		commands: ExtHostCommands,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadUriOpeners);
-		this._commands = commands;
 	}
 
-	registerUriOpener(
+	registerExternalUriOpener(
 		extensionId: ExtensionIdentifier,
-		schemes: readonly string[],
+		id: string,
 		opener: vscode.ExternalUriOpener,
+		metadata: vscode.ExternalUriOpenerMetadata,
 	): vscode.Disposable {
-		const handle = ExtHostUriOpeners.HandlePool++;
-
-		this._openers.set(handle, { opener, schemes: new Set(schemes) });
-		this._proxy.$registerUriOpener(handle, schemes);
-
-		return toDisposable(() => {
-			this._openers.delete(handle);
-			this._proxy.$unregisterUriOpener(handle);
-		});
-	}
-
-	async $getOpenersForUri(uriComponents: UriComponents, token: CancellationToken): Promise<{ cacheId: number, openers: Array<{ id: number, title: string }> }> {
-		const uri = URI.revive(uriComponents);
-
-		const promises = Array.from(this._openers.values()).map(async ({ schemes, opener }): Promise<vscode.Command | undefined> => {
-			if (!schemes.has(uri.scheme)) {
-				return undefined;
-			}
-
-			try {
-				const result = await opener.openExternalUri(uri, {}, token);
-
-				if (result) {
-					return result;
-				}
-			} catch (e) {
-				// noop
-			}
-			return undefined;
-		});
-
-		const commands = coalesce(await Promise.all(promises));
-		const cacheId = this._cache.add(commands);
-		return {
-			cacheId,
-			openers: commands.map((command, i) => ({ title: command.title, id: i })),
-		};
-	}
-
-	async $openUri(id: ChainedCacheId, uri: UriComponents): Promise<void> {
-		const command = this._cache.get(id[0], id[1]);
-		if (!command) {
-			return;
+		if (this._openers.has(id)) {
+			throw new Error(`Opener with id '${id}' already registered`);
 		}
 
-		return this._commands.executeCommand(command.command, URI.revive(uri), ...(command.arguments || []));
+		const invalidScheme = metadata.schemes.find(scheme => !ExtHostUriOpeners.supportedSchemes.has(scheme));
+		if (invalidScheme) {
+			throw new Error(`Scheme '${invalidScheme}' is not supported. Only http and https are currently supported.`);
+		}
+
+		this._openers.set(id, opener);
+		this._proxy.$registerUriOpener(id, metadata.schemes, extensionId, metadata.label);
+
+		return toDisposable(() => {
+			this._openers.delete(id);
+			this._proxy.$unregisterUriOpener(id);
+		});
 	}
 
-	$releaseOpener(cacheId: number): void {
-		this._cache.delete(cacheId);
+	async $canOpenUri(id: string, uriComponents: UriComponents, token: CancellationToken): Promise<modes.ExternalUriOpenerPriority> {
+		const opener = this._openers.get(id);
+		if (!opener) {
+			throw new Error(`Unknown opener with id: ${id}`);
+		}
+
+		const uri = URI.revive(uriComponents);
+		return opener.canOpenExternalUri(uri, token);
+	}
+
+	async $openUri(id: string, context: { resolvedUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void> {
+		const opener = this._openers.get(id);
+		if (!opener) {
+			throw new Error(`Unknown opener id: '${id}'`);
+		}
+
+		return opener.openExternalUri(URI.revive(context.resolvedUri), {
+			sourceUri: URI.revive(context.sourceUri)
+		}, token);
 	}
 }

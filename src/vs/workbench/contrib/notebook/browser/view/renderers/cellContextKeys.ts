@@ -5,7 +5,6 @@
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotebookTextModel, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_FOCUSED, INotebookEditor, NOTEBOOK_CELL_EDITOR_FOCUSED, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
@@ -32,7 +31,7 @@ export class CellContextKeyManager extends Disposable {
 		private readonly contextKeyService: IContextKeyService,
 		private readonly notebookEditor: INotebookEditor,
 		private readonly notebookTextModel: INotebookTextModel,
-		private element: BaseCellViewModel
+		private element: CodeCellViewModel | MarkdownCellViewModel
 	) {
 		super();
 
@@ -53,7 +52,7 @@ export class CellContextKeyManager extends Disposable {
 		});
 	}
 
-	public updateForElement(element: BaseCellViewModel) {
+	public updateForElement(element: MarkdownCellViewModel | CodeCellViewModel) {
 		this.elementDisposables.clear();
 		this.elementDisposables.add(element.onDidChangeState(e => this.onDidChangeState(e)));
 
@@ -138,7 +137,7 @@ export class CellContextKeyManager extends Disposable {
 
 	private updateForOutputs() {
 		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasOutputs.set(this.element.outputs.length > 0);
+			this.cellHasOutputs.set(this.element.outputsViewModels.length > 0);
 		} else {
 			this.cellHasOutputs.set(false);
 		}

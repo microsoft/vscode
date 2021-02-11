@@ -34,7 +34,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
 	private updateMode: string | undefined;
-	private debugConsoleWordWrap: boolean | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 
 	constructor(
@@ -51,12 +50,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
-
-		// Debug console word wrap
-		if (typeof config.debug?.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
-			this.debugConsoleWordWrap = config.debug.console.wordWrap;
-			changed = true;
-		}
 
 		if (isNative) {
 

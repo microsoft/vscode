@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as errors from 'vs/base/common/errors';
@@ -150,7 +151,7 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			const cacheRawContents = await pfs.readFile(cacheFile, 'utf8');
+			const cacheRawContents = await fs.promises.readFile(cacheFile, 'utf8');
 			return JSON.parse(cacheRawContents);
 		} catch (err) {
 			// That's ok...
@@ -164,7 +165,7 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			await pfs.mkdirp(cacheFolder);
+			await fs.promises.mkdir(cacheFolder, { recursive: true });
 		} catch (err) {
 			// That's ok...
 		}
@@ -183,7 +184,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			const folderStat = await pfs.stat(input.absoluteFolderPath);
+			const folderStat = await fs.promises.stat(input.absoluteFolderPath);
 			input.mtime = folderStat.mtime.getTime();
 		} catch (err) {
 			// That's ok...
@@ -223,7 +224,7 @@ export class CachedExtensionScanner {
 	private static async _readTranslationConfig(): Promise<Translations> {
 		if (platform.translationsConfigFile) {
 			try {
-				const content = await pfs.readFile(platform.translationsConfigFile, 'utf8');
+				const content = await fs.promises.readFile(platform.translationsConfigFile, 'utf8');
 				return JSON.parse(content) as Translations;
 			} catch (err) {
 				// no problemo
@@ -262,7 +263,7 @@ export class CachedExtensionScanner {
 			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(productService.builtInExtensions || []);
 
 			const controlFilePath = joinPath(environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
-			const controlFile = pfs.readFile(controlFilePath, 'utf8')
+			const controlFile = fs.promises.readFile(controlFilePath, 'utf8')
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
 			const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);

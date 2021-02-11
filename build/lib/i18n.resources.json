@@ -219,11 +219,19 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/workspace",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/workspaces",
 			"project": "vscode-workbench"
 		},
 		{
 			"name": "vs/workbench/contrib/customEditor",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/externalUriOpener",
 			"project": "vscode-workbench"
 		},
 		{

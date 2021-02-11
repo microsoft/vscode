@@ -56,6 +56,10 @@ parameters:
     displayName: "🎯 macOS arm64"
     type: boolean
     default: true
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    displayName: "🎯 macOS universal"
+    type: boolean
+    default: true
   - name: VSCODE_BUILD_WEB
     displayName: "🎯 Web"
     type: boolean
@@ -80,6 +84,8 @@ parameters:
 variables:
   - name: ENABLE_TERRAPIN
     value: ${{ eq(parameters.ENABLE_TERRAPIN, true) }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -94,6 +100,8 @@ variables:
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    value: ${{ and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
 
 resources:
   containers:
@@ -188,7 +196,8 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
+        # TODO@joaomoreno: We don't ship ARM snaps for now
+        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
           - job: LinuxSnapArmhf
             dependsOn:
               - LinuxArmhf
@@ -207,7 +216,8 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
+        # TODO@joaomoreno: We don't ship ARM snaps for now
+        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
           - job: LinuxSnapArm64
             dependsOn:
               - LinuxArm64
@@ -253,8 +263,19 @@ stages:
             steps:
               - template: darwin/product-build-darwin.yml
 
+        - ${{ if eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true) }}:
+          - job: macOSUniversal
+            dependsOn:
+              - macOS
+              - macOSARM64
+            timeoutInMinutes: 90
+            variables:
+              VSCODE_ARCH: universal
+            steps:
+              - template: darwin/product-build-darwin.yml
+
   - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
-    - stage: Publish
+    - stage: Mooncake
       dependsOn:
         - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
           - Windows
@@ -271,8 +292,19 @@ stages:
           steps:
             - template: sync-mooncake.yml
 
-        - ${{ if or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
-          - job: ReleaseBuild
-            displayName: Release Build
-            steps:
-              - template: release.yml
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true)))) }}:
+    - stage: Release
+      dependsOn:
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
+          - Windows
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+          - Linux
+        - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+          - macOS
+      pool:
+        vmImage: "Ubuntu-18.04"
+      jobs:
+        - job: ReleaseBuild
+          displayName: Release Build
+          steps:
+            - template: release.yml

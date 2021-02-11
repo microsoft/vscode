@@ -18,12 +18,12 @@ suite('Editor Modes - Auto Indentation', () => {
 
 	function testDoesNothing(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number): void {
 		let actual = _testOnElectricCharacter(electricCharacterSupport, line, character, offset);
-		assert.deepEqual(actual, null);
+		assert.deepStrictEqual(actual, null);
 	}
 
 	function testMatchBracket(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number, matchOpenBracket: string): void {
 		let actual = _testOnElectricCharacter(electricCharacterSupport, line, character, offset);
-		assert.deepEqual(actual, { matchOpenBracket: matchOpenBracket });
+		assert.deepStrictEqual(actual, { matchOpenBracket: matchOpenBracket });
 	}
 
 	test('getElectricCharacters uses all sources and dedups', () => {
@@ -34,7 +34,7 @@ suite('Editor Modes - Auto Indentation', () => {
 			])
 		);
 
-		assert.deepEqual(sup.getElectricCharacters(), ['}', ')']);
+		assert.deepStrictEqual(sup.getElectricCharacters(), ['}', ')']);
 	});
 
 	test('matchOpenBracket', () => {

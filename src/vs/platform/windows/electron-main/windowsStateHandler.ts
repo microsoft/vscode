@@ -8,14 +8,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { defaultWindowState } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { defaultWindowState, ICodeWindow, IWindowsMainService, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
@@ -198,10 +197,10 @@ export class WindowsStateHandler extends Disposable {
 		}
 
 		// Any non extension host window with same workspace or folder
-		else if (!window.isExtensionDevelopmentHost && (!!window.openedWorkspace || !!window.openedFolderUri)) {
+		else if (!window.isExtensionDevelopmentHost && window.openedWorkspace) {
 			this._state.openedWindows.forEach(openedWindow => {
-				const sameWorkspace = window.openedWorkspace && openedWindow.workspace && openedWindow.workspace.id === window.openedWorkspace.id;
-				const sameFolder = window.openedFolderUri && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedFolderUri);
+				const sameWorkspace = isWorkspaceIdentifier(window.openedWorkspace) && openedWindow.workspace?.id === window.openedWorkspace.id;
+				const sameFolder = isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedWorkspace.uri);
 
 				if (sameWorkspace || sameFolder) {
 					openedWindow.uiState = state.uiState;
@@ -220,8 +219,8 @@ export class WindowsStateHandler extends Disposable {
 
 	private toWindowState(window: ICodeWindow): IWindowState {
 		return {
-			workspace: window.openedWorkspace,
-			folderUri: window.openedFolderUri,
+			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
+			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
 			uiState: window.serializeWindowState()
@@ -272,16 +271,16 @@ export class WindowsStateHandler extends Disposable {
 
 			// Known Workspace - load from stored settings
 			const workspace = configuration.workspace;
-			if (workspace) {
-				const stateForWorkspace = this.state.openedWindows.filter(openedWindow => openedWindow.workspace && openedWindow.workspace.id === workspace.id).map(o => o.uiState);
+			if (isWorkspaceIdentifier(workspace)) {
+				const stateForWorkspace = this.state.openedWindows.filter(openedWindow => openedWindow.workspace && openedWindow.workspace.id === workspace.id).map(openedWindow => openedWindow.uiState);
 				if (stateForWorkspace.length) {
 					return stateForWorkspace[0];
 				}
 			}
 
 			// Known Folder - load from stored settings
-			if (configuration.folderUri) {
-				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, configuration.folderUri)).map(o => o.uiState);
+			if (isSingleFolderWorkspaceIdentifier(workspace)) {
+				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, workspace.uri)).map(openedWindow => openedWindow.uiState);
 				if (stateForFolder.length) {
 					return stateForFolder[0];
 				}
@@ -289,7 +288,7 @@ export class WindowsStateHandler extends Disposable {
 
 			// Empty windows with backups
 			else if (configuration.backupPath) {
-				const stateForEmptyWindow = this.state.openedWindows.filter(openedWindow => openedWindow.backupPath === configuration.backupPath).map(o => o.uiState);
+				const stateForEmptyWindow = this.state.openedWindows.filter(openedWindow => openedWindow.backupPath === configuration.backupPath).map(openedWindow => openedWindow.uiState);
 				if (stateForEmptyWindow.length) {
 					return stateForEmptyWindow[0];
 				}

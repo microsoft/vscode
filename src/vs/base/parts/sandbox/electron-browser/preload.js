@@ -77,6 +77,33 @@
 			}
 		},
 
+		ipcMessagePort: {
+
+			/**
+			 * @param {string} channelRequest
+			 * @param {string} channelResponse
+			 * @param {string} requestNonce
+			 */
+			connect(channelRequest, channelResponse, requestNonce) {
+				if (validateIPC(channelRequest) && validateIPC(channelResponse)) {
+					const responseListener = (/** @type {import('electron').IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
+						// validate that the nonce from the response is the same
+						// as when requested. and if so, use `postMessage` to
+						// send the `MessagePort` safely over, even when context
+						// isolation is enabled
+						if (requestNonce === responseNonce) {
+							ipcRenderer.off(channelResponse, responseListener);
+							window.postMessage(requestNonce, '*', e.ports);
+						}
+					};
+
+					// request message port from main and await result
+					ipcRenderer.on(channelResponse, responseListener);
+					ipcRenderer.send(channelRequest, requestNonce);
+				}
+			}
+		},
+
 		/**
 		 * Support for subset of methods of Electron's `webFrame` type.
 		 */
@@ -114,6 +141,7 @@
 		 */
 		process: {
 			get platform() { return process.platform; },
+			get arch() { return process.arch; },
 			get env() { return process.env; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },

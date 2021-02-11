@@ -18,8 +18,7 @@ import { MainThreadTelemetryShape, IInitData } from 'vs/workbench/api/common/ext
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
-import { promisify } from 'util';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 interface ConnectionResult {
@@ -88,7 +87,7 @@ function setupProxyResolution(
 			oldCache = cache;
 			cache = new Map();
 			cacheRolls++;
-			extHostLogService.trace('ProxyResolver#cacheProxy cacheRolls', cacheRolls);
+			extHostLogService.debug('ProxyResolver#cacheProxy cacheRolls', cacheRolls);
 		}
 	}
 
@@ -140,14 +139,16 @@ function setupProxyResolution(
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
 		}
 
+		const stackText = extHostLogService.getLevel() === LogLevel.Trace ? '\n' + new Error('Error for stack trace').stack : '';
+
 		const useHostProxy = initData.environment.useHostProxy;
 		const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 		useSystemCertificates(extHostLogService, flags.useSystemCertificates, opts, () => {
-			useProxySettings(doUseHostProxy, flags.useProxySettings, req, opts, url, callback);
+			useProxySettings(doUseHostProxy, flags.useProxySettings, req, opts, url, stackText, callback);
 		});
 	}
 
-	function useProxySettings(useHostProxy: boolean, useProxySettings: boolean, req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
+	function useProxySettings(useHostProxy: boolean, useProxySettings: boolean, req: http.ClientRequest, opts: http.RequestOptions, url: string, stackText: string, callback: (proxy?: string) => void) {
 
 		if (!useProxySettings) {
 			callback('DIRECT');
@@ -160,28 +161,28 @@ function setupProxyResolution(
 		if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '::ffff:127.0.0.1') {
 			localhostCount++;
 			callback('DIRECT');
-			extHostLogService.trace('ProxyResolver#resolveProxy localhost', url, 'DIRECT');
+			extHostLogService.debug('ProxyResolver#resolveProxy localhost', url, 'DIRECT', stackText);
 			return;
 		}
 
 		if (typeof hostname === 'string' && envNoProxy(hostname, String(parsedUrl.port || (<any>opts.agent).defaultPort))) {
 			envNoProxyCount++;
 			callback('DIRECT');
-			extHostLogService.trace('ProxyResolver#resolveProxy envNoProxy', url, 'DIRECT');
+			extHostLogService.debug('ProxyResolver#resolveProxy envNoProxy', url, 'DIRECT', stackText);
 			return;
 		}
 
 		if (settingsProxy) {
 			settingsCount++;
 			callback(settingsProxy);
-			extHostLogService.trace('ProxyResolver#resolveProxy settings', url, settingsProxy);
+			extHostLogService.debug('ProxyResolver#resolveProxy settings', url, settingsProxy, stackText);
 			return;
 		}
 
 		if (envProxy) {
 			envCount++;
 			callback(envProxy);
-			extHostLogService.trace('ProxyResolver#resolveProxy env', url, envProxy);
+			extHostLogService.debug('ProxyResolver#resolveProxy env', url, envProxy, stackText);
 			return;
 		}
 
@@ -191,13 +192,13 @@ function setupProxyResolution(
 			cacheCount++;
 			collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
 			callback(proxy);
-			extHostLogService.trace('ProxyResolver#resolveProxy cached', url, proxy);
+			extHostLogService.debug('ProxyResolver#resolveProxy cached', url, proxy, stackText);
 			return;
 		}
 
 		if (!useHostProxy) {
 			callback('DIRECT');
-			extHostLogService.trace('ProxyResolver#resolveProxy unconfigured', url, 'DIRECT');
+			extHostLogService.debug('ProxyResolver#resolveProxy unconfigured', url, 'DIRECT', stackText);
 			return;
 		}
 
@@ -209,14 +210,14 @@ function setupProxyResolution(
 					collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
 				}
 				callback(proxy);
-				extHostLogService.debug('ProxyResolver#resolveProxy', url, proxy);
+				extHostLogService.debug('ProxyResolver#resolveProxy', url, proxy, stackText);
 			}).then(() => {
 				count++;
 				duration = Date.now() - start + duration;
 			}, err => {
 				errorCount++;
 				callback();
-				extHostLogService.error('ProxyResolver#resolveProxy', toErrorMessage(err));
+				extHostLogService.error('ProxyResolver#resolveProxy', toErrorMessage(err), stackText);
 			});
 	}
 
@@ -416,7 +417,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 		.then(extensionPaths => {
 			const node_module = <any>require.__$__nodeRequire('module');
 			const original = node_module._load;
-			node_module._load = function load(request: string, parent: any, isMain: any) {
+			node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
 				if (request === 'tls') {
 					return lookup.tls;
 				}
@@ -540,7 +541,7 @@ const linuxCaCertificatePaths = [
 async function readLinuxCaCertificates() {
 	for (const certPath of linuxCaCertificatePaths) {
 		try {
-			const content = await promisify(fs.readFile)(certPath, { encoding: 'utf8' });
+			const content = await fs.promises.readFile(certPath, { encoding: 'utf8' });
 			const certs = new Set(content.split(/(?=-----BEGIN CERTIFICATE-----)/g)
 				.filter(pem => !!pem.length));
 			return {

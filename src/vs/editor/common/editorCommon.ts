@@ -606,6 +606,7 @@ export interface IThemeDecorationRenderOptions {
 
 	fontStyle?: string;
 	fontWeight?: string;
+	fontSize?: string;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -630,13 +631,17 @@ export interface IContentDecorationRenderOptions {
 
 	border?: string;
 	borderColor?: string | ThemeColor;
+	borderRadius?: string;
 	fontStyle?: string;
 	fontWeight?: string;
+	fontSize?: string;
+	fontFamily?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
 
 	margin?: string;
+	padding?: string;
 	width?: string;
 	height?: string;
 }
@@ -695,6 +700,7 @@ export const enum Handler {
 	CompositionEnd = 'compositionEnd',
 	Type = 'type',
 	ReplacePreviousChar = 'replacePreviousChar',
+	CompositionType = 'compositionType',
 	Paste = 'paste',
 	Cut = 'cut',
 }
@@ -712,6 +718,16 @@ export interface TypePayload {
 export interface ReplacePreviousCharPayload {
 	text: string;
 	replaceCharCnt: number;
+}
+
+/**
+ * @internal
+ */
+export interface CompositionTypePayload {
+	text: string;
+	replacePrevCharCnt: number;
+	replaceNextCharCnt: number;
+	positionDelta: number;
 }
 
 /**

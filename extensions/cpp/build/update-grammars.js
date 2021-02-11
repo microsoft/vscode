@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-var updateGrammar = require('../../../build/npm/update-grammar');
+var updateGrammar = require('vscode-grammar-updater');
 
 updateGrammar.update('jeff-hykin/cpp-textmate-grammar', 'syntaxes/c.tmLanguage.json', './syntaxes/c.tmLanguage.json', undefined, 'master', 'source/languages/cpp/');
 updateGrammar.update('jeff-hykin/cpp-textmate-grammar', 'syntaxes/cpp.tmLanguage.json', './syntaxes/cpp.tmLanguage.json', undefined, 'master', 'source/languages/cpp/');

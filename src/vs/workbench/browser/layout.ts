@@ -47,6 +47,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -78,7 +79,9 @@ enum Storage {
 
 	GRID_LAYOUT = 'workbench.grid.layout',
 	GRID_WIDTH = 'workbench.grid.width',
-	GRID_HEIGHT = 'workbench.grid.height'
+	GRID_HEIGHT = 'workbench.grid.height',
+
+	MENU_VISIBILITY = 'window.menuBarVisibility'
 }
 
 enum Classes {
@@ -177,7 +180,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		windowBorder: false,
 
 		menuBar: {
-			visibility: 'default' as MenuBarVisibility,
+			visibility: 'classic' as MenuBarVisibility,
 			toggled: false
 		},
 
@@ -318,12 +321,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (visible !== this.state.menuBar.toggled) {
 			this.state.menuBar.toggled = visible;
 
-			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
-				// Propagate to grid
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
-				this.layout();
+			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
+			if (isWeb && this.state.menuBar.visibility === 'toggle') {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 			}
+			// The menu bar toggles the title bar in full screen for toggle and classic settings
+			else if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'classic')) {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+			}
+
+			// Move layout call to any time the menubar
+			// is toggled to update consumers of offset
+			// see issue #115267
+			this.layout();
 		}
 	}
 
@@ -622,7 +633,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this._openedDefaultEditors;
 	}
 
-	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
+	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
 		if (defaultLayout?.editors?.length && this.storageService.isNew(StorageScope.WORKSPACE)) {
 			this._openedDefaultEditors = true;
@@ -677,9 +688,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.state.views.defaults?.length) {
 				mark('code/willOpenDefaultViews');
 
-				let locationsRestored: { id: string; order: number }[] = [];
+				let locationsRestored: { id: string; order: number; }[] = [];
 
-				const tryOpenView = (view: { id: string; order: number }): boolean => {
+				const tryOpenView = (view: { id: string; order: number; }): boolean => {
 					const location = this.viewDescriptorService.getViewLocationById(view.id);
 					if (location !== null) {
 						const container = this.viewDescriptorService.getViewContainerByViewId(view.id);
@@ -789,7 +800,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Await restore to be done
-		await Promise.all(restorePromises);
+		await Promises.settled(restorePromises);
 	}
 
 	private updatePanelPosition() {
@@ -878,19 +889,35 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
+				// Using the native title bar, don't ever show the custom one
 				if (getTitleBarStyle(this.configurationService) === 'native') {
 					return false;
-				} else if (!this.state.fullscreen && !isWeb) {
-					return true;
-				} else if (isMacintosh && isNative) {
-					return false;
-				} else if (this.state.menuBar.visibility === 'visible') {
-					return true;
-				} else if (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default') {
-					return this.state.menuBar.toggled;
 				}
 
-				return false;
+				// macOS desktop does not need a title bar when full screen
+				if (isMacintosh && isNative) {
+					return !this.state.fullscreen;
+				}
+
+				// non-fullscreen native must show the title bar
+				if (isNative && !this.state.fullscreen) {
+					return true;
+				}
+
+				// remaining behavior is based on menubar visibility
+				switch (this.state.menuBar.visibility) {
+					case 'classic':
+						return !this.state.fullscreen || this.state.menuBar.toggled;
+					case 'compact':
+					case 'hidden':
+						return false;
+					case 'toggle':
+						return this.state.menuBar.toggled;
+					case 'visible':
+						return true;
+					default:
+						return isWeb ? false : !this.state.fullscreen || this.state.menuBar.toggled;
+				}
 			case Parts.SIDEBAR_PART:
 				return !this.state.sideBar.hidden;
 			case Parts.PANEL_PART:
@@ -1128,7 +1155,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.STATUSBAR_PART]: this.statusBarPartView
 		};
 
-		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
+		const fromJSON = ({ type }: { type: Parts; }) => viewMap[type];
 		const workbenchGrid = SerializableGrid.deserialize(
 			this.createGridDescriptor(),
 			{ fromJSON },
@@ -1549,6 +1576,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	getMenubarVisibility(): MenuBarVisibility {
 		return this.state.menuBar.visibility;
+	}
+
+	toggleMenuBar(): void {
+		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
+		if (typeof currentVisibilityValue !== 'string') {
+			currentVisibilityValue = 'classic';
+		}
+
+		let newVisibilityValue: string;
+		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
+			newVisibilityValue = 'toggle';
+		} else if (currentVisibilityValue === 'compact') {
+			newVisibilityValue = 'hidden';
+		} else {
+			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'classic';
+		}
+
+		this.configurationService.updateValue(Storage.MENU_VISIBILITY, newVisibilityValue);
 	}
 
 	getPanelPosition(): Position {

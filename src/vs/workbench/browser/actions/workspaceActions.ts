@@ -12,9 +12,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId, SyncActionDescriptor, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -23,6 +23,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_URI } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export class OpenFileAction extends Action {
 
@@ -249,6 +250,25 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		return this.hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
 	}
 }
+
+class WorkspaceTrustManageAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.manageTrust',
+			title: { value: nls.localize('manageTrustAction', "Manage Workspace Trust"), original: 'Manage Workspace Trust' },
+			precondition: ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true),
+			category: nls.localize('workspacesCategory', "Workspaces"),
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		editorService.openEditor({ resource: WORKSPACE_TRUST_URI, mode: 'jsonc', options: { pinned: true } });
+	}
+}
+
+registerAction2(WorkspaceTrustManageAction);
 
 // --- Actions Registration
 

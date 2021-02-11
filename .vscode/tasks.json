@@ -62,7 +62,8 @@
 			"group": {
 				"kind": "build",
 				"isDefault": true
-			}
+			},
+			"problemMatcher": []
 		},
 		{
 			"type": "npm",
@@ -90,7 +91,8 @@
 				"Kill Build VS Code Core",
 				"Kill Build VS Code Extensions"
 			],
-			"group": "build"
+			"group": "build",
+			"problemMatcher": []
 		},
 		{
 			"type": "npm",
@@ -203,7 +205,7 @@
 					"base": "$tsc",
 					"applyTo": "allDocuments",
 					"owner": "tsec"
-				},
+				}
 			],
 			"group": "build",
 			"label": "npm: tsec-compile-check",

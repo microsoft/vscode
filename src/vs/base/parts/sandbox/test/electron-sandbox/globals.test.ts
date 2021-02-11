@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ipcRenderer, crashReporter, context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer, crashReporter, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 suite('Sandbox', () => {
 	test('globals', () => {
-		assert.ok(typeof ipcRenderer.send === 'function');
+		assert.ok(typeof ipcRenderer.invoke === 'function');
 		assert.ok(typeof crashReporter.addExtraParameter === 'function');
-		assert.ok(context);
-		assert.ok(process);
+		assert.ok(typeof process.platform === 'string');
 	});
 });

@@ -41,7 +41,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 	}
 
-	applyToProcessEnvironment(env: IProcessEnvironment): void {
+	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: (str: string) => string): void {
 		let lowerToActualVariableNames: { [lowerKey: string]: string | undefined } | undefined;
 		if (isWindows) {
 			lowerToActualVariableNames = {};
@@ -50,15 +50,16 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		this.map.forEach((mutators, variable) => {
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			mutators.forEach(mutator => {
+				const value = variableResolver ? variableResolver(mutator.value) : mutator.value;
 				switch (mutator.type) {
 					case EnvironmentVariableMutatorType.Append:
-						env[actualVariable] = (env[actualVariable] || '') + mutator.value;
+						env[actualVariable] = (env[actualVariable] || '') + value;
 						break;
 					case EnvironmentVariableMutatorType.Prepend:
-						env[actualVariable] = mutator.value + (env[actualVariable] || '');
+						env[actualVariable] = value + (env[actualVariable] || '');
 						break;
 					case EnvironmentVariableMutatorType.Replace:
-						env[actualVariable] = mutator.value;
+						env[actualVariable] = value;
 						break;
 				}
 			});

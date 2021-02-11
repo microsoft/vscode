@@ -83,7 +83,7 @@ export const enum AccountStatus {
 
 export const SYNC_TITLE = localize('sync category', "Settings Sync");
 
-export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the settings sync view.'));
+export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));
 
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);

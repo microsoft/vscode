@@ -21,6 +21,7 @@ class TestViewlet implements IViewlet {
 	readonly onDidBlur = Event.None;
 	readonly onDidFocus = Event.None;
 
+	hasFocus() { return false; }
 	getId(): string { return this.id; }
 	getTitle(): string { return this.id; }
 	getActions(): IAction[] { return []; }

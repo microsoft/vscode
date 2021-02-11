@@ -309,11 +309,11 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 }
 
 export async function startExtensionHostProcess(): Promise<void> {
-	performance.mark(`extHost/willConnectToRenderer`);
+	performance.mark(`code/extHost/willConnectToRenderer`);
 	const protocol = await createExtHostProtocol();
-	performance.mark(`extHost/didConnectToRenderer`);
+	performance.mark(`code/extHost/didConnectToRenderer`);
 	const renderer = await connectToRenderer(protocol);
-	performance.mark(`extHost/didWaitForInitData`);
+	performance.mark(`code/extHost/didWaitForInitData`);
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)

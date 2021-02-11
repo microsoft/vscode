@@ -299,13 +299,13 @@ export class MoveLinesCommand implements ICommand {
 		}
 	}
 
-	private matchEnterRule(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, oneLineAboveText?: string) {
+	private matchEnterRule(model: ITextModel, indentConverter: IIndentConverter, tabSize: number, line: number, oneLineAbove: number, previousLineText?: string) {
 		let validPrecedingLine = oneLineAbove;
 		while (validPrecedingLine >= 1) {
 			// ship empty lines as empty lines just inherit indentation
 			let lineContent;
-			if (validPrecedingLine === oneLineAbove && oneLineAboveText !== undefined) {
-				lineContent = oneLineAboveText;
+			if (validPrecedingLine === oneLineAbove && previousLineText !== undefined) {
+				lineContent = previousLineText;
 			} else {
 				lineContent = model.getLineContent(validPrecedingLine);
 			}

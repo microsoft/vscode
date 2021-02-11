@@ -78,7 +78,6 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 			this.element.classList.add(...classNames);
 
-			this.element.tabIndex = 0;
 			this.element.setAttribute('role', 'button');
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');
@@ -176,7 +175,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 					return [this._action, ...(Array.isArray(actionsProvider) ? actionsProvider : actionsProvider.getActions())];
 				}
 			};
-			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(new Action('dropdownAction', undefined), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
+			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', undefined)), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
 			this.dropdownMenuActionViewItem.render(this.element);
 		}
 	}

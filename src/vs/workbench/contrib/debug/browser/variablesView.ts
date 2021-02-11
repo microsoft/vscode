@@ -35,6 +35,7 @@ import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/m
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
+import { coalesce } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -393,35 +394,37 @@ CommandsRegistry.registerCommand({
 export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 CommandsRegistry.registerCommand({
 	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor, element: Variable | Expression | unknown) => {
+	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | unknown, ctx?: (Variable | Expression)[]) => {
 		const debugService = accessor.get(IDebugService);
 		const clipboardService = accessor.get(IClipboardService);
 		let elementContext = '';
-		if (element instanceof Variable || element instanceof Expression) {
+		let elements: (Variable | Expression)[];
+		if (arg instanceof Variable || arg instanceof Expression) {
 			elementContext = 'watch';
+			elements = ctx ? ctx : [];
 		} else {
-			element = variableInternalContext;
 			elementContext = 'variables';
+			elements = variableInternalContext ? [variableInternalContext] : [];
 		}
 
 		const stackFrame = debugService.getViewModel().focusedStackFrame;
 		const session = debugService.getViewModel().focusedSession;
-		if (!stackFrame || !session || !(element instanceof Variable || element instanceof Expression)) {
+		if (!stackFrame || !session || elements.length === 0) {
 			return;
 		}
 
-		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : elementContext;
-		const toEvaluate = element instanceof Variable ? (element.evaluateName || element.value) : element.name;
+		const evalContext = session.capabilities.supportsClipboardContext ? 'clipboard' : elementContext;
+		const toEvaluate = elements.map(element => element instanceof Variable ? (element.evaluateName || element.value) : element.name);
 
 		try {
-			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
-			if (evaluation) {
-				clipboardService.writeText(evaluation.body.result);
+			const evaluations = await Promise.all(toEvaluate.map(expr => session.evaluate(expr, stackFrame.frameId, evalContext)));
+			const result = coalesce(evaluations).map(evaluation => evaluation.body.result);
+			if (result.length) {
+				clipboardService.writeText(result.join('\n'));
 			}
 		} catch (e) {
-			if (element instanceof Variable || element instanceof Expression) {
-				clipboardService.writeText(element.value);
-			}
+			const result = elements.map(element => element.value);
+			clipboardService.writeText(result.join('\n'));
 		}
 	}
 });
@@ -475,4 +478,3 @@ registerAction2(class extends ViewAction<VariablesView> {
 		view.collapseAll();
 	}
 });
-

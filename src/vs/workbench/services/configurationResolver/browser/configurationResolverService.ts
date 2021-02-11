@@ -27,7 +27,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
-		context: { getExecPath: () => string | undefined },
+		context: {
+			getAppRoot: () => string | undefined,
+			getExecPath: () => string | undefined
+		},
 		envVariables: IProcessEnvironment,
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
@@ -46,6 +49,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			},
 			getConfigurationValue: (folderUri: uri | undefined, suffix: string): string | undefined => {
 				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : {});
+			},
+			getAppRoot: (): string | undefined => {
+				return context.getAppRoot();
 			},
 			getExecPath: (): string | undefined => {
 				return context.getExecPath();
@@ -364,7 +370,7 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IQuickInputService quickInputService: IQuickInputService,
 		@ILabelService labelService: ILabelService
 	) {
-		super({ getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
 

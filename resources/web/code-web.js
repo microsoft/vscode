@@ -21,6 +21,7 @@ const vfs = require('vinyl-fs');
 const uuid = require('uuid');
 
 const extensions = require('../../build/lib/extensions');
+const { getBuiltInExtensions } = require('../../build/lib/builtInExtensions');
 
 const APP_ROOT = path.join(__dirname, '..', '..');
 const BUILTIN_EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
@@ -45,7 +46,6 @@ const args = minimist(process.argv, {
 		'verbose',
 		'wrap-iframe',
 		'enable-sync',
-		'trusted-types'
 	],
 	string: [
 		'scheme',
@@ -62,7 +62,6 @@ if (args.help) {
 		'yarn web [options]\n' +
 		' --no-launch      Do not open VSCode web in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
-		' --trusted-types  Enable trusted types (report only)\n' +
 		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
@@ -90,6 +89,8 @@ const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
 
 async function getBuiltInExtensionInfos() {
+	await getBuiltInExtensions();
+
 	const allExtensions = [];
 	/** @type {Object.<string, string>} */
 	const locations = {};
@@ -400,8 +401,8 @@ async function handleRoot(req, res) {
 
 	const secondaryHost = (
 		req.headers['host']
-		? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
-		: `${HOST}:${SECONDARY_PORT}`
+			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
+			: `${HOST}:${SECONDARY_PORT}`
 	);
 	const webConfigJSON = {
 		folderUri: folderUri,
@@ -432,12 +433,10 @@ async function handleRoot(req, res) {
 		.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
 		.replace('{{WEBVIEW_ENDPOINT}}', '');
 
-
-	const headers = { 'Content-Type': 'text/html' };
-	if (args['trusted-types']) {
-		headers['Content-Security-Policy-Report-Only'] = 'require-trusted-types-for \'script\';';
-	}
-
+	const headers = {
+		'Content-Type': 'text/html',
+		'Content-Security-Policy': 'require-trusted-types-for \'script\';'
+	};
 	res.writeHead(200, headers);
 	return res.end(data);
 }

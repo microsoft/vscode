@@ -11,7 +11,7 @@ suite('KeybindingLabels', () => {
 
 	function assertUSLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
 		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-		assert.equal(usResolvedKeybinding.getLabel(), expected);
+		assert.strictEqual(usResolvedKeybinding.getLabel(), expected);
 	}
 
 	test('Windows US label', () => {
@@ -116,7 +116,7 @@ suite('KeybindingLabels', () => {
 	test('Aria label', () => {
 		function assertAriaLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
 			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-			assert.equal(usResolvedKeybinding.getAriaLabel(), expected);
+			assert.strictEqual(usResolvedKeybinding.getAriaLabel(), expected);
 		}
 
 		assertAriaLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Control+Shift+Alt+Windows+A');
@@ -127,7 +127,7 @@ suite('KeybindingLabels', () => {
 	test('Electron Accelerator label', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string | null): void {
 			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-			assert.equal(usResolvedKeybinding.getElectronAccelerator(), expected);
+			assert.strictEqual(usResolvedKeybinding.getElectronAccelerator(), expected);
 		}
 
 		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'Ctrl+Shift+Alt+Super+A');
@@ -154,7 +154,7 @@ suite('KeybindingLabels', () => {
 	test('User Settings label', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string): void {
 			const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-			assert.equal(usResolvedKeybinding.getUserSettingsLabel(), expected);
+			assert.strictEqual(usResolvedKeybinding.getUserSettingsLabel(), expected);
 		}
 
 		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KEY_A, 'ctrl+shift+alt+win+a');

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname, join, basename } from 'vs/base/common/path';
-import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { promises } from 'fs';
 import { localize } from 'vs/nls';
+import { dirname, join, basename } from 'vs/base/common/path';
+import { exists, readdir, rimraf } from 'vs/base/node/pfs';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -52,7 +53,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 		const prefix = basename(profileFilenamePrefix);
 
 		const removeArgs: string[] = ['--prof-startup'];
-		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
+		const markerFile = promises.readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
 			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
 			.then(() => new Promise<void>(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {

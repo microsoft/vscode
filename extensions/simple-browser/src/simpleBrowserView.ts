@@ -11,6 +11,7 @@ const localize = nls.loadMessageBundle();
 
 export interface ShowOptions {
 	readonly preserveFocus?: boolean;
+	readonly viewColumn?: vscode.ViewColumn;
 }
 
 export class SimpleBrowserView extends Disposable {
@@ -31,11 +32,14 @@ export class SimpleBrowserView extends Disposable {
 		super();
 
 		this._webviewPanel = this._register(vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
-			viewColumn: vscode.ViewColumn.Active,
+			viewColumn: showOptions?.viewColumn ?? vscode.ViewColumn.Active,
 			preserveFocus: showOptions?.preserveFocus
 		}, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
+			localResourceRoots: [
+				vscode.Uri.joinPath(extensionUri, 'media')
+			]
 		}));
 
 		this._register(this._webviewPanel.webview.onDidReceiveMessage(e => {
@@ -75,7 +79,7 @@ export class SimpleBrowserView extends Disposable {
 
 	public show(url: string, options?: ShowOptions) {
 		this._webviewPanel.webview.html = this.getHtml(url);
-		this._webviewPanel.reveal(undefined, options?.preserveFocus);
+		this._webviewPanel.reveal(options?.viewColumn, options?.preserveFocus);
 	}
 
 	private getHtml(url: string) {
@@ -85,8 +89,8 @@ export class SimpleBrowserView extends Disposable {
 
 		const mainJs = this.extensionResourceUrl('media', 'index.js');
 		const mainCss = this.extensionResourceUrl('media', 'main.css');
-		const codiconsUri = this.extensionResourceUrl('node_modules', 'vscode-codicons', 'dist', 'codicon.css');
-		const codiconsFontUri = this.extensionResourceUrl('node_modules', 'vscode-codicons', 'dist', 'codicon.ttf');
+		const codiconsUri = this.extensionResourceUrl('media', 'codicon.css');
+		const codiconsFontUri = this.extensionResourceUrl('media', 'codicon.ttf');
 
 		return /* html */ `<!DOCTYPE html>
 			<html>
@@ -125,7 +129,7 @@ export class SimpleBrowserView extends Disposable {
 							class="reload-button icon"><i class="codicon codicon-refresh"></i></button>
 					</nav>
 
-					<input class="url-input" type="text" value=${url}>
+					<input class="url-input" type="text">
 
 					<nav class="controls">
 						<button

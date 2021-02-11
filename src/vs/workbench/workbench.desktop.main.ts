@@ -23,13 +23,6 @@ import 'vs/workbench/workbench.sandbox.main';
 //#endregion
 
 
-//#region --- workbench actions
-
-import 'vs/workbench/electron-browser/actions/developerActions';
-
-//#endregion
-
-
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
 // NOTE: Please do NOT register services here. Use `registerSingleton()`
@@ -68,19 +61,7 @@ import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
-import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
-import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
 import 'vs/workbench/services/backup/electron-browser/backupFileService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreManagementService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
-import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
-import 'vs/workbench/services/localizations/electron-browser/localizationsService';
-import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
@@ -116,9 +97,6 @@ registerSingleton(ITunnelService, TunnelService);
 
 
 //#region --- workbench contributions
-
-// Output
-import 'vs/workbench/contrib/output/electron-browser/outputChannelModelService';
 
 // Tags
 import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
@@ -183,8 +161,6 @@ import 'vs/workbench/contrib/cli/node/cli.contribution';
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 
-// User Data Sync
-import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

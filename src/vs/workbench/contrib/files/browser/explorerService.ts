@@ -19,7 +19,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
@@ -110,7 +110,7 @@ export class ExplorerService implements IExplorerService {
 			});
 			if (affected) {
 				if (this.view) {
-					await this.view.refresh(true);
+					await this.view.setTreeInput();
 				}
 			}
 		}));
@@ -140,19 +140,20 @@ export class ExplorerService implements IExplorerService {
 		return this.view.getContext(respectMultiSelection);
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string }): Promise<void> {
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
-		const promise = this.progressService.withProgress({
-			location: ProgressLocation.Window,
-			delay: 500,
+		const promise = this.progressService.withProgress(<IProgressNotificationOptions | IProgressCompositeOptions>{
+			location: options.progressLocation || ProgressLocation.Window,
 			title: options.progressLabel,
-			cancellable: edit.length > 1 // Only allow cancellation when there is more than one edit. Since cancelling will not actually stop the current edit that is in progress.
+			cancellable: edit.length > 1, // Only allow cancellation when there is more than one edit. Since cancelling will not actually stop the current edit that is in progress.
+			delay: 500,
 		}, async progress => {
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
 				progress,
-				token: cancellationTokenSource.token
+				token: cancellationTokenSource.token,
+				confirmBeforeUndo: options.confirmBeforeUndo
 			});
 		}, () => cancellationTokenSource.cancel());
 		await this.progressService.withProgress({ location: ProgressLocation.Explorer, delay: 500 }, () => promise);

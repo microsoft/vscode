@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
@@ -114,6 +114,9 @@ export class NativeWindow extends Disposable {
 	}
 
 	private registerListeners(): void {
+
+		// Layout
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
@@ -326,6 +329,24 @@ export class NativeWindow extends Disposable {
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onPanelPositionChange(pos => this.onDidPanelPositionChange(positionFromString(pos))));
 		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
+	}
+
+	private onWindowResize(e: UIEvent, retry: boolean): void {
+		if (e.target === window) {
+			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
+				// TODO@bpasero this is an electron issue on macOS when simple fullscreen is enabled
+				// where for some reason the window clientWidth is reported as 0 when switching
+				// between simple fullscreen and normal screen. In that case we schedule the layout
+				// call at the next animation frame once, in the hope that the dimensions are
+				// proper then.
+				if (retry) {
+					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+				}
+				return;
+			}
+
+			this.layoutService.layout();
+		}
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {

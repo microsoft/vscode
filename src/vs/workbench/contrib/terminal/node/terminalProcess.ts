@@ -11,10 +11,9 @@ import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, FlowControlConstants } from 'vs/workbench/contrib/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
-import { stat } from 'vs/base/node/pfs';
 import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -40,6 +39,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+
+	private _isPtyPaused: boolean = false;
+	private _unacknowledgedCharCount: number = 0;
 
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
@@ -98,6 +100,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}));
 		}
 	}
+	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
@@ -117,7 +121,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
 		try {
-			const result = await stat(this._initialCwd);
+			const result = await fs.promises.stat(this._initialCwd);
 			if (!result.isDirectory()) {
 				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
 			}
@@ -135,7 +139,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
 		try {
-			const result = await stat(slc.executable);
+			const result = await fs.promises.stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file of a symlink", slc.executable) };
 			}
@@ -162,6 +166,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(data => {
+			if (this._shellLaunchConfig.flowControl) {
+				this._unacknowledgedCharCount += data.length;
+				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
+					this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
+					this._isPtyPaused = true;
+					ptyProcess.pause();
+				}
+			}
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
@@ -324,6 +336,33 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
+	public acknowledgeDataEvent(charCount: number): void {
+		if (!this._shellLaunchConfig.flowControl) {
+			return;
+		}
+		// Prevent lower than 0 to heal from errors
+		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
+		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
+		if (this._isPtyPaused && this._unacknowledgedCharCount < FlowControlConstants.LowWatermarkChars) {
+			this._logService.trace(`Flow control: Resume (${this._unacknowledgedCharCount} < ${FlowControlConstants.LowWatermarkChars})`);
+			this._ptyProcess?.resume();
+			this._isPtyPaused = false;
+		}
+	}
+
+	public clearUnacknowledgedChars(): void {
+		if (!this._shellLaunchConfig.flowControl) {
+			return;
+		}
+
+		this._unacknowledgedCharCount = 0;
+		this._logService.trace(`Flow control: Cleared all unacknowledged chars, forcing resume`);
+		if (this._isPtyPaused) {
+			this._ptyProcess?.resume();
+			this._isPtyPaused = false;
+		}
+	}
+
 	public getInitialCwd(): Promise<string> {
 		return Promise.resolve(this._initialCwd);
 	}
@@ -341,8 +380,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					}
 					this._logService.trace('IPty#pid');
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-						if (stdout !== '') {
+						if (!error && stdout !== '') {
 							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+						} else {
+							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
+							resolve(this._initialCwd);
 						}
 					});
 				});

@@ -451,7 +451,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
-					if (inputBox.validate()) {
+					if (!inputBox.validate()) {
 						done(true, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
@@ -626,7 +626,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			stat.isExcluded = true;
 			return false;
 		}
-		if (this.explorerService.getEditableData(stat) || stat.isRoot) {
+		if (this.explorerService.getEditableData(stat)) {
 			return true; // always visible
 		}
 

@@ -66,13 +66,16 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 	if [ ! -f $CODE_SOURCE_PART ]; then
 		# Write source list if it does not exist
 		WRITE_SOURCE=1
-	elif grep -q "# disabled on upgrade to" /etc/apt/sources.list.d/vscode.list; then
+	elif grep -Eq "http:\/\/packages\.microsoft\.com\/repos\/vscode" $CODE_SOURCE_PART; then
+		# Migrate from old repository
+		WRITE_SOURCE=1
+	elif grep -q "# disabled on upgrade to" $CODE_SOURCE_PART; then
 		# Write source list if it was disabled by OS upgrade
 		WRITE_SOURCE=1
 	fi
 	if [ "$WRITE_SOURCE" -eq "1" ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
-deb [arch=amd64,arm64,armhf] http://packages.microsoft.com/repos/@@REPOSITORY_NAME@@ stable main" > $CODE_SOURCE_PART
+deb [arch=amd64,arm64,armhf] http://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
 	fi
 fi

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProcessExtHostProxy, ISpawnExtHostProcessRequest, ITerminalDimensions, IAvailableShellsRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, IShellLaunchConfigDto, TerminalLaunchConfig, ITerminalDimensionsDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
@@ -16,6 +16,7 @@ import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/termi
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -46,6 +47,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
@@ -259,7 +261,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			executable: request.shellLaunchConfig.executable,
 			args: request.shellLaunchConfig.args,
 			cwd: request.shellLaunchConfig.cwd,
-			env: request.shellLaunchConfig.env
+			env: request.shellLaunchConfig.env,
+			flowControl: this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).flowControl
 		};
 
 		this._logService.trace('Spawning ext host process', { terminalId: proxy.terminalId, shellLaunchConfigDto, request });
@@ -272,6 +275,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			request.isWorkspaceShellAllowed
 		).then(request.callback, request.callback);
 
+		proxy.onAcknowledgeDataEvent(charCount => this._proxy.$acceptProcessAckDataEvent(proxy.terminalId, charCount));
 		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.terminalId, data));
 		proxy.onResize(dimensions => this._proxy.$acceptProcessResize(proxy.terminalId, dimensions.cols, dimensions.rows));
 		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.terminalId, immediate));
@@ -356,7 +360,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
 		const instance = this._terminalService.getInstanceFromId(terminalId);
 		if (instance) {
-			this._getTerminalProcess(terminalId).emitResolvedShellLaunchConfig(shellLaunchConfig);
+			this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
 		}
 	}
 
@@ -369,7 +373,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			sw.stop();
 			sum += sw.elapsed();
 		}
-		this._getTerminalProcess(terminalId).emitLatency(sum / COUNT);
+		this._getTerminalProcess(terminalId)?.emitLatency(sum / COUNT);
 	}
 
 	private _isPrimaryExtHost(): boolean {
@@ -394,10 +398,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	private _getTerminalProcess(terminalId: number): ITerminalProcessExtHostProxy {
+	private _getTerminalProcess(terminalId: number): ITerminalProcessExtHostProxy | undefined {
 		const terminal = this._terminalProcessProxies.get(terminalId);
 		if (!terminal) {
-			throw new Error(`Unknown terminal: ${terminalId}`);
+			this._logService.error(`Unknown terminal: ${terminalId}`);
+			return undefined;
 		}
 		return terminal;
 	}

@@ -258,7 +258,7 @@ export const editorInfoBorder = registerColor('editorInfo.border', { dark: null,
 export const editorHintForeground = registerColor('editorHint.foreground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hc: null }, nls.localize('editorHint.foreground', 'Foreground color of hint squigglies in the editor.'));
 export const editorHintBorder = registerColor('editorHint.border', { dark: null, light: null, hc: Color.fromHex('#eeeeee').transparent(0.8) }, nls.localize('hintBorder', 'Border color of hint boxes in the editor.'));
 
-export const sashHoverBorder = registerColor('sash.hoverBorder', { dark: null, light: null, hc: null }, nls.localize('sashActiveBorder', "Border color of active sashes."));
+export const sashHoverBorder = registerColor('sash.hoverBorder', { dark: focusBorder, light: focusBorder, hc: focusBorder }, nls.localize('sashActiveBorder', "Border color of active sashes."));
 
 /**
  * Editor background color.
@@ -331,6 +331,12 @@ export const editorHoverStatusBarBackground = registerColor('editorHoverWidget.s
  * Editor link colors
  */
 export const editorActiveLinkForeground = registerColor('editorLink.activeForeground', { dark: '#4E94CE', light: Color.blue, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
+
+/**
+ * Inline hints
+ */
+export const editorInlineHintForeground = registerColor('editorInlineHint.foreground', { dark: editorWidgetBackground, light: editorWidgetForeground, hc: editorWidgetBackground }, nls.localize('editorInlineHintForeground', 'Foreground color of inline hints'));
+export const editorInlineHintBackground = registerColor('editorInlineHint.background', { dark: editorWidgetForeground, light: editorWidgetBackground, hc: editorWidgetForeground }, nls.localize('editorInlineHintBackground', 'Background color of inline hints'));
 
 /**
  * Editor lighbulb icon colors

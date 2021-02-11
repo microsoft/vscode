@@ -8,7 +8,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow, WebContents } from 'electron';
@@ -45,6 +45,14 @@ export interface IWindowState {
 	display?: number;
 }
 
+export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
+	return {
+		width: 1024,
+		height: 768,
+		mode
+	};
+};
+
 export const enum WindowMode {
 	Maximized,
 	Normal,
@@ -65,8 +73,8 @@ export interface ICodeWindow extends IDisposable {
 	readonly win: BrowserWindow;
 	readonly config: INativeWindowConfiguration | undefined;
 
-	readonly openedFolderUri?: URI;
-	readonly openedWorkspace?: IWorkspaceIdentifier;
+	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
 	readonly backupPath?: string;
 
 	readonly remoteAuthority?: string;
@@ -84,7 +92,7 @@ export interface ICodeWindow extends IDisposable {
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: INativeWindowConfiguration, isReload?: boolean): void;
+	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
 	reload(cli?: NativeParsedArgs): void;
 
 	focus(options?: { force: boolean }): void;

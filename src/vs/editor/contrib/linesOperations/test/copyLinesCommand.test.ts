@@ -207,8 +207,8 @@ suite('Editor Contrib - Duplicate Selection', () => {
 		withTestCodeEditor(lines.join('\n'), {}, (editor) => {
 			editor.setSelections(selections);
 			duplicateSelectionAction.run(null!, editor, {});
-			assert.deepEqual(editor.getValue(), expectedLines.join('\n'));
-			assert.deepEqual(editor.getSelections()!.map(s => s.toString()), expectedSelections.map(s => s.toString()));
+			assert.deepStrictEqual(editor.getValue(), expectedLines.join('\n'));
+			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 		});
 	}
 

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { LogLevel, ILogService, DelegatedLogService } from 'vs/platform/log/common/log';
+import { LogLevel, ILogService, LogService, ILoggerService, ILogger, AbstractMessageLogger, ILoggerOptions } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
-export class LoggerChannel implements IServerChannel {
+export class LogLevelChannel implements IServerChannel {
 
 	onDidChangeLogLevel: Event<LogLevel>;
 
@@ -23,35 +24,83 @@ export class LoggerChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	async call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'setLevel': this.service.setLevel(arg); return Promise.resolve();
-			case 'consoleLog': this.consoleLog(arg[0], arg[1]); return Promise.resolve();
+			case 'setLevel': return this.service.setLevel(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
 	}
 
-	private consoleLog(severity: string, args: string[]): void {
-		let consoleFn = console.log;
+}
 
-		switch (severity) {
-			case 'error':
-				consoleFn = console.error;
-				break;
-			case 'warn':
-				consoleFn = console.warn;
-				break;
-			case 'info':
-				consoleFn = console.info;
-				break;
+export class LoggerChannel implements IServerChannel {
+
+	private consoleLogger: ILogger | undefined;
+	private readonly loggers = new Map<string, ILogger>();
+
+	constructor(private readonly loggerService: ILoggerService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	async call(_: unknown, command: string, arg?: any): Promise<any> {
+		switch (command) {
+			case 'createConsoleLogger': return this.createConsoleLogger();
+			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1]); return;
+			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
 		}
 
-		consoleFn.call(console, ...args);
+		throw new Error(`Call not found: ${command}`);
+	}
+
+	private createConsoleLogger(): void {
+		this.consoleLogger = new class extends AbstractMessageLogger {
+			protected log(level: LogLevel, message: string) {
+				let consoleFn = console.log;
+
+				switch (level) {
+					case LogLevel.Error:
+						consoleFn = console.error;
+						break;
+					case LogLevel.Warning:
+						consoleFn = console.warn;
+						break;
+					case LogLevel.Info:
+						consoleFn = console.info;
+						break;
+				}
+
+				consoleFn.call(console, message);
+			}
+		}();
+	}
+
+	private createLogger(file: URI, options: ILoggerOptions): void {
+		this.loggers.set(file.toString(), this.loggerService.createLogger(file, options));
+	}
+
+	private log(file: URI | undefined, messages: [LogLevel, string][]): void {
+		const logger = file ? this.loggers.get(file.toString()) : this.consoleLogger;
+		if (!logger) {
+			throw new Error('Create the logger before logging');
+		}
+		for (const [level, message] of messages) {
+			switch (level) {
+				case LogLevel.Trace: logger.trace(message); break;
+				case LogLevel.Debug: logger.debug(message); break;
+				case LogLevel.Info: logger.info(message); break;
+				case LogLevel.Warning: logger.warn(message); break;
+				case LogLevel.Error: logger.error(message); break;
+				case LogLevel.Critical: logger.critical(message); break;
+				default: throw new Error('Invalid log level');
+			}
+		}
 	}
 }
 
-export class LoggerChannelClient {
+export class LogLevelChannelClient {
 
 	constructor(private channel: IChannel) { }
 
@@ -60,22 +109,19 @@ export class LoggerChannelClient {
 	}
 
 	setLevel(level: LogLevel): void {
-		LoggerChannelClient.setLevel(this.channel, level);
+		LogLevelChannelClient.setLevel(this.channel, level);
 	}
 
 	public static setLevel(channel: IChannel, level: LogLevel): Promise<void> {
 		return channel.call('setLevel', level);
 	}
 
-	consoleLog(severity: string, args: string[]): void {
-		this.channel.call('consoleLog', [severity, args]);
-	}
 }
 
-export class FollowerLogService extends DelegatedLogService implements ILogService {
+export class FollowerLogService extends LogService implements ILogService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private parent: LoggerChannelClient, logService: ILogService) {
+	constructor(private parent: LogLevelChannelClient, logService: ILogService) {
 		super(logService);
 		this._register(parent.onDidChangeLogLevel(level => logService.setLevel(level)));
 	}

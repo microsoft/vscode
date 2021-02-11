@@ -165,7 +165,8 @@ function minifyTask(src, sourceMapBaseUrl) {
     const esbuild = require('esbuild');
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
     return cb => {
-        const minifyCSS = require('gulp-cssnano');
+        const cssnano = require('cssnano');
+        const postcss = require('gulp-postcss');
         const sourcemaps = require('gulp-sourcemaps');
         const jsFilter = filter('**/*.js', { restore: true });
         const cssFilter = filter('**/*.css', { restore: true });
@@ -185,7 +186,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 f.sourceMap = JSON.parse(sourceMapFile.text);
                 cb(undefined, f);
             }, cb);
-        }), jsFilter.restore, cssFilter, minifyCSS({ reduceIdents: false }), cssFilter.restore, sourcemaps.mapSources((sourcePath) => {
+        }), jsFilter.restore, cssFilter, postcss([cssnano({ preset: 'default' })]), cssFilter.restore, sourcemaps.mapSources((sourcePath) => {
             if (sourcePath === 'bootstrap-fork.js') {
                 return 'bootstrap-fork.orig.js';
             }

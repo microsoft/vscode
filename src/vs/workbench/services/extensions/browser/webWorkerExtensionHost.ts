@@ -229,7 +229,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const emitter = new Emitter<VSBuffer>();
 
 		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
-		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(url) as unknown as string : url, { name: 'WorkerExtensionHost' });
+		const worker = new Worker(ttPolicy?.createScriptURL(url) as unknown as string ?? url, { name: 'WorkerExtensionHost' });
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
@@ -365,7 +365,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
+				extensionTestsLocationURI: undefined, // never run extension tests in web worker extension host
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 				webviewResourceRoot: this._environmentService.webviewResourceRoot,

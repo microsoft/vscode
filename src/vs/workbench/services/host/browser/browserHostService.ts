@@ -25,6 +25,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -45,6 +46,11 @@ export interface IWorkspaceProvider {
 	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
 	 */
 	readonly payload?: object;
+
+	/**
+	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
+	 */
+	readonly trusted: boolean | undefined;
 
 	/**
 	 * Asks to open a workspace in the current or a new window.
@@ -102,6 +108,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		} else {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
 				readonly workspace = undefined;
+				readonly trusted = undefined;
 				async open() { }
 			};
 		}
@@ -338,7 +345,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: true });
+			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);

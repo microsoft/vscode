@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/** -- explorer */
+.test-explorer {
+	display: flex;
+	flex-direction: column;
+}
+
+.test-explorer > .test-explorer-tree {
+	flex-grow: 1;
+	height: 0px;
+}
+
 .test-explorer .test-item {
 	display: flex;
 	align-items: center;
@@ -30,6 +41,14 @@
 	margin-right: 0.25em;
 }
 
+.test-explorer .computed-state.retired {
+	opacity: 0.7;
+}
+
+.test-explorer .test-explorer-messages {
+	padding: 0 12px 8px;
+}
+
 .monaco-workbench
 	.test-explorer
 	.monaco-action-bar
@@ -44,4 +63,70 @@
 .codicon-testing-loading-icon::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
 	animation: codicon-spin 1.25s steps(30) infinite;
+}
+
+/** -- peek */
+.monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget {
+	border-top-width: 2px;
+	border-bottom-width: 2px;
+}
+
+.monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget .peekview-title .filename {
+	max-height: 29px;
+}
+
+/** -- filter  */
+.testing-filter-action-bar {
+	flex-shrink: 0;
+	margin: 4px 12px;
+}
+
+.testing-filter-action-item {
+	display: flex !important;
+	flex-grow: 1;
+	max-width: 400px;
+	align-items: center;
+}
+
+.testing-filter-action-bar .testing-filter-action-item {
+	max-width: none;
+}
+
+.testing-filter-action-item .testing-filter-wrapper {
+	flex-grow: 1;
+}
+
+.testing-filter-action-item .testing-filter-wrapper input {
+	padding-right: 30px !important;
+}
+
+.testing-filter-action-item .monaco-action-bar {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+}
+
+.testing-filter-action-item > .monaco-action-bar .action-item .action-label.codicon.testing-filter-button {
+	line-height: 20px;
+	height: 20px;
+	min-width: 22px;
+	margin-left: 4px;
+	justify-content: center;
+}
+
+/** -- decorations  */
+
+.monaco-editor .testing-run-glyph {
+	cursor: pointer;
+}
+
+.monaco-editor .testing-inline-message-content {
+	cursor: pointer;
+}
+
+.monaco-editor .testing-inline-message-line {
+	background: red;
 }

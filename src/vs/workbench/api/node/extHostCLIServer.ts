@@ -39,7 +39,15 @@ export interface RunCommandPipeArgs {
 	args: any[];
 }
 
-export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | RunCommandPipeArgs | OpenExternalCommandPipeArgs;
+export interface ExtensionManagementPipeArgs {
+	type: 'extensionManagement';
+	list?: { showVersions?: boolean, category?: string; };
+	install?: string[];
+	uninstall?: string[];
+	force?: boolean;
+}
+
+export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | RunCommandPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs;
 
 export interface ICommandsExecuter {
 	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
@@ -95,6 +103,10 @@ export class CLIServerBase {
 					this.runCommand(data, res)
 						.catch(this.logService.error);
 					break;
+				case 'extensionManagement':
+					this.manageExtensions(data, res)
+						.catch(this.logService.error);
+					break;
 				default:
 					res.writeHead(404);
 					res.write(`Unknown message type: ${data.type}`, err => {
@@ -143,11 +155,33 @@ export class CLIServerBase {
 		res.end();
 	}
 
-	private openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
-		for (const uri of data.uris) {
-			this._commands.executeCommand('_workbench.openExternal', URI.parse(uri), { allowTunneling: true });
+	private async openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
+		for (const uriString of data.uris) {
+			const uri = URI.parse(uriString);
+			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
+			await this._commands.executeCommand('_remoteCLI.openExternal', urioOpen);
 		}
 		res.writeHead(200);
+		res.end();
+	}
+
+	private async manageExtensions(data: ExtensionManagementPipeArgs, res: http.ServerResponse) {
+		console.log('server: manageExtensions');
+		try {
+			const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
+			const commandArgs = {
+				list: data.list,
+				install: toExtOrVSIX(data.install),
+				uninstall: toExtOrVSIX(data.uninstall),
+				force: data.force
+			};
+			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs, { allowTunneling: true });
+			res.writeHead(200);
+			res.write(output);
+		} catch (e) {
+			res.writeHead(500);
+			res.write(String(e));
+		}
 		res.end();
 	}
 
