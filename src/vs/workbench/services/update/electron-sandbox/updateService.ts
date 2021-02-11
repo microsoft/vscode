@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/common/services';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 
