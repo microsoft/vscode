@@ -368,7 +368,7 @@ export interface ITerminalChildProcess {
 	getLatency(): Promise<number>;
 }
 
-export const enum ReconnectConstants {
+export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
