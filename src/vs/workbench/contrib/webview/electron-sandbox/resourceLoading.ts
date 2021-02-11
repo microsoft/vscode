@@ -13,7 +13,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as modes from 'vs/editor/common/modes';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';

@@ -583,13 +583,13 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const result = [];
 		result.push(...this.menuActions.getPrimaryActions());
 		if (this.isViewMergedWithContainer()) {
-			result.push(...this.paneItems[0].pane.getActions());
+			result.push(...this.paneItems[0].pane.menuActions.getPrimaryActions());
 		}
 		return result;
 	}
 
 	getSecondaryActions(): IAction[] {
-		const viewPaneActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.getSecondaryActions() : [];
+		const viewPaneActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.menuActions.getSecondaryActions() : [];
 		let menuActions = this.menuActions.getSecondaryActions();
 
 		const viewsSubmenuActionIndex = menuActions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu);
@@ -768,7 +768,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const actions: IAction[] = viewPane.getContextMenuActions();
+		const actions: IAction[] = viewPane.menuActions.getContextMenuActions();
 
 		let anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({

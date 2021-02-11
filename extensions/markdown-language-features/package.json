@@ -30,6 +30,13 @@
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
   "contributes": {
+    "notebookMarkdownRenderer": [
+      {
+        "id": "markdownItRenderer",
+        "displayName": "Markdown it renderer",
+        "entrypoint": "./notebook-out/index.js"
+      }
+    ],
     "commands": [
       {
         "command": "markdown.showPreview",

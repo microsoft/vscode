@@ -8,7 +8,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { LogLevelChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LoggerService } from 'vs/workbench/services/log/electron-sandbox/loggerService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export class NativeLogService extends LogService {
 

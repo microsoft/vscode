@@ -6,7 +6,7 @@
 import { isMacintosh } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 

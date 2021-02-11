@@ -26,13 +26,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { CellEditState, getActiveNotebookEditor, ICellViewModel, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -235,11 +236,13 @@ class ModelData implements IDisposable {
 		this._modelEventListeners.dispose();
 	}
 }
+
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
 	declare readonly _serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription; }>();
 	notebookProviderInfoStore: NotebookProviderInfoStore;
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
+	private readonly markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
 	notebookKernelProviderInfoStore: NotebookKernelProviderInfoStore = new NotebookKernelProviderInfoStore();
 	private readonly _models = new ResourceMap<ModelData>();
 	private _onDidChangeActiveEditor = new Emitter<string | null>();
@@ -315,6 +318,32 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						entrypoint: notebookContribution.entrypoint,
 						displayName: notebookContribution.displayName,
 						mimeTypes: notebookContribution.mimeTypes || [],
+					}));
+				}
+			}
+		});
+
+		notebookMarkdownRendererExtensionPoint.setHandler((renderers) => {
+			this.markdownRenderersInfos.clear();
+
+			for (const extension of renderers) {
+				for (const notebookContribution of extension.value) {
+					if (!notebookContribution.entrypoint) { // avoid crashing
+						console.error(`Cannot register renderer for ${extension.description.identifier.value} since it did not have an entrypoint. This is now required: https://github.com/microsoft/vscode/issues/102644`);
+						continue;
+					}
+
+					const id = notebookContribution.id ?? notebookContribution.viewType;
+					if (!id) {
+						console.error(`Notebook renderer from ${extension.description.identifier.value} is missing an 'id'`);
+						continue;
+					}
+
+					this.markdownRenderersInfos.add(new NotebookMarkdownRendererInfo({
+						id,
+						extension: extension.description,
+						entrypoint: notebookContribution.entrypoint,
+						displayName: 'todo',
 					}));
 				}
 			}
@@ -496,14 +525,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							language: cell.language,
 							cellKind: cell.cellKind,
 							outputs: cell.outputs.map(output => {
-								if (output.outputKind === CellOutputKind.Rich) {
-									return {
-										...output,
-										outputId: UUID.generateUuid()
-									};
-								}
-
-								return output;
+								return {
+									...output,
+									// paste should generate new outputId
+									outputId: UUID.generateUuid()
+								};
 							}),
 							metadata: {
 								editable: cell.metadata?.editable,
@@ -535,14 +561,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							language: cell.language,
 							cellKind: cell.cellKind,
 							outputs: cell.outputs.map(output => {
-								if (output.outputKind === CellOutputKind.Rich) {
-									return {
-										...output,
-										outputId: UUID.generateUuid()
-									};
-								}
-
-								return output;
+								return {
+									...output,
+									outputId: UUID.generateUuid()
+								};
 							}),
 							metadata: {
 								editable: cell.metadata?.editable,
@@ -747,6 +769,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.get(id);
 	}
 
+	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[] {
+		return Array.from(this.markdownRenderersInfos);
+	}
+
 	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel> {
 
 		if (!await this.canResolve(viewType)) {
@@ -796,13 +822,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return Iterable.map(this._models.values(), data => data.model);
 	}
 
-	getMimeTypeInfo(textModel: NotebookTextModel, output: ITransformedDisplayOutputDto): readonly IOrderedMimeType[] {
+	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[] {
 		// TODO@rebornix no string[] casting
 		return this._getOrderedMimeTypes(textModel, output, textModel.metadata.displayOrder as string[] ?? []);
 	}
 
-	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IDisplayOutput, documentDisplayOrder: string[]): IOrderedMimeType[] {
-		const mimeTypes = Object.keys(output.data);
+	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IOutputDto, documentDisplayOrder: string[]): IOrderedMimeType[] {
+		const mimeTypeSet = new Set<string>();
+		let mimeTypes: string[] = [];
+		output.outputs.forEach(op => {
+			if (!mimeTypeSet.has(op.mime)) {
+				mimeTypeSet.add(op.mime);
+				mimeTypes.push(op.mime);
+			}
+		});
 		const coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
 

@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import * as UUID from 'vs/base/common/uuid';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -28,12 +27,6 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 export enum CellKind {
 	Markdown = 1,
 	Code = 2
-}
-
-export enum CellOutputKind {
-	Text = 1,
-	Error = 2,
-	Rich = 3
 }
 
 export const NOTEBOOK_DISPLAY_ORDER = [
@@ -140,25 +133,11 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string): boolean;
 }
 
-export interface IStreamOutput {
-	outputKind: CellOutputKind.Text;
-	text: string;
-}
-
-export interface IErrorOutput {
-	outputKind: CellOutputKind.Error;
-	/**
-	 * Exception Name
-	 */
-	ename: string;
-	/**
-	 * Exception Value
-	 */
-	evalue: string;
-	/**
-	 * Exception call stacks
-	 */
-	traceback: string[];
+export interface INotebookMarkdownRendererInfo {
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+	readonly extensionId: ExtensionIdentifier;
+	readonly extensionIsBuiltin: boolean;
 }
 
 export interface NotebookCellOutputMetadata {
@@ -168,99 +147,48 @@ export interface NotebookCellOutputMetadata {
 	custom?: { [key: string]: unknown };
 }
 
-export interface IDisplayOutput {
-	outputKind: CellOutputKind.Rich;
-	/**
-	 * { mime_type: value }
-	 */
-	data: { [key: string]: unknown; }
-
-	metadata?: NotebookCellOutputMetadata;
-}
-
-export enum MimeTypeRendererResolver {
-	Core,
-	Active,
-	Lazy
-}
-
 export interface IOrderedMimeType {
 	mimeType: string;
 	rendererId: string;
 	isTrusted: boolean;
 }
 
-export interface ITransformedDisplayOutputDto extends IDisplayOutput {
+export interface IOutputItemDto {
+	readonly mime: string;
+	readonly value: unknown;
+	readonly metadata?: Record<string, unknown>;
+}
+
+export interface IOutputDto {
+	outputs: IOutputItemDto[];
+	/**
+	 * { mime_type: value }
+	 */
+	// data: { [key: string]: unknown; }
+
+	// metadata?: NotebookCellOutputMetadata;
 	outputId: string;
 }
 
-export function isTransformedDisplayOutput(thing: unknown): thing is ITransformedDisplayOutputDto {
-	return (thing as ITransformedDisplayOutputDto).outputKind === CellOutputKind.Rich && !!(thing as ITransformedDisplayOutputDto).outputId;
-}
-
-
-export const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
-	? ({ ...output, outputId: id }) : output;
-
-
-export type IProcessedOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
-
-export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
-
-export interface IOutputRenderRequestOutputInfo {
-	index: number;
+export interface ICellOutput {
+	outputs: IOutputItemDto[];
+	// metadata?: NotebookCellOutsputMetadata;
 	outputId: string;
-	handlerId: string;
-	mimeType: string;
-	output?: IRawOutput;
+	onDidChangeData: Event<void>;
+	replaceData(items: IOutputItemDto[]): void;
+	appendData(items: IOutputItemDto[]): void;
 }
-
-export interface IOutputRenderRequestCellInfo<T> {
-	key: T;
-	outputs: IOutputRenderRequestOutputInfo[];
-}
-
-export interface IOutputRenderRequest<T> {
-	items: IOutputRenderRequestCellInfo<T>[];
-}
-
-export interface IOutputRenderResponseOutputInfo {
-	index: number;
-	outputId: string;
-	mimeType: string;
-	handlerId: string;
-	transformedOutput: string;
-}
-
-export interface IOutputRenderResponseCellInfo<T> {
-	key: T;
-	outputs: IOutputRenderResponseOutputInfo[];
-}
-
-
-export interface IOutputRenderResponse<T> {
-	items: IOutputRenderResponseCellInfo<T>[];
-}
-
 
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
 	language: string;
 	cellKind: CellKind;
-	outputs: IProcessedOutput[];
+	outputs: ICellOutput[];
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;
-}
-
-export interface LanguageInfo {
-	file_extension: string;
-}
-
-export interface IMetadata {
-	language_info: LanguageInfo;
 }
 
 export interface INotebookTextModel {
@@ -284,7 +212,7 @@ export type NotebookCellTextModelSplice<T> = [
 export type NotebookCellOutputsSplice = [
 	start: number /* start */,
 	deleteCount: number /* delete count */,
-	newOutputs: IProcessedOutput[]
+	newOutputs: ICellOutput[]
 ];
 
 export interface IMainCellDto {
@@ -294,7 +222,7 @@ export interface IMainCellDto {
 	eol: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -343,7 +271,7 @@ export interface NotebookCellsModelMoveEvent<T> {
 export interface NotebookOutputChangedEvent {
 	readonly kind: NotebookCellsChangeType.Output;
 	readonly index: number;
-	readonly outputs: IProcessedOutput[];
+	readonly outputs: IOutputDto[];
 }
 
 export interface NotebookCellsChangeLanguageEvent {
@@ -391,14 +319,15 @@ export const enum CellEditType {
 	OutputsSplice = 6,
 	Move = 7,
 	Unknown = 8,
-	CellContent = 9
+	CellContent = 9,
+	OutputItems = 10
 }
 
 export interface ICellDto2 {
 	source: string;
 	language: string;
 	cellKind: CellKind;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -412,8 +341,16 @@ export interface ICellReplaceEdit {
 export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
-	outputs: IProcessedOutput[];
+	outputs: IOutputDto[];
 	append?: boolean
+}
+
+export interface ICellOutputItemEdit {
+	editType: CellEditType.OutputItems;
+	index: number;
+	outputId: string;
+	items: IOutputItemDto[];
+	append?: boolean;
 }
 
 export interface ICellMetadataEdit {
@@ -434,12 +371,6 @@ export interface IDocumentMetadataEdit {
 	metadata: NotebookDocumentMetadata;
 }
 
-export interface ICellOutputsSpliceEdit {
-	editType: CellEditType.OutputsSplice;
-	index: number;
-	splices: NotebookCellOutputsSplice[];
-}
-
 export interface ICellMoveEdit {
 	editType: CellEditType.Move;
 	index: number;
@@ -447,12 +378,7 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit;
-
-export interface INotebookEditData {
-	documentVersionId: number;
-	cellEdits: ICellEditOperation[];
-}
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit;
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];

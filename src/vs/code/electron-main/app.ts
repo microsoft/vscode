@@ -12,7 +12,7 @@ import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
+import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { getDelayedChannel, StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
 import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
