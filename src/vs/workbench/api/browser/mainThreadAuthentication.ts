@@ -122,10 +122,9 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 	async updateSessionItems(event: modes.AuthenticationSessionsChangeEvent): Promise<void> {
 		const { added, removed } = event;
-		const session = await this._proxy.$getSessions(this.id);
-		const addedSessions = session.filter(session => added.some(id => id === session.id));
 
-		removed.forEach(sessionId => {
+		removed.forEach(session => {
+			const sessionId = session.id;
 			const accountName = this._sessions.get(sessionId);
 			if (accountName) {
 				this._sessions.delete(sessionId);
@@ -139,7 +138,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			}
 		});
 
-		addedSessions.forEach(session => this.registerSession(session));
+		added.forEach(session => this.registerSession(session));
 	}
 
 	login(scopes: string[]): Promise<modes.AuthenticationSession> {
