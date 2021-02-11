@@ -9,10 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import product from 'vs/platform/product/common/product';
+import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -28,10 +25,8 @@ registerAction2(class extends Action2 {
 			title: localize('Getting Started', "Getting Started"),
 			category: localize('help', "Help"),
 			f1: true,
-			precondition: ContextKeyExpr.has('config.workbench.experimental.gettingStarted'),
 			menu: {
 				id: MenuId.MenubarHelpMenu,
-				when: ContextKeyExpr.has('config.workbench.experimental.gettingStarted'),
 				group: '1_welcome',
 				order: 2,
 			}
@@ -54,19 +49,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
-
-if (product.quality !== 'stable') {
-	Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		properties: {
-			'workbench.experimental.gettingStarted': {
-				type: 'boolean',
-				description: localize('gettingStartedDescription', "Enables an experimental Getting Started page, available via the Help menu."),
-				default: false,
-			}
-		}
-	});
-}
 
 const category = localize('gettingStarted', "Getting Started");
 
