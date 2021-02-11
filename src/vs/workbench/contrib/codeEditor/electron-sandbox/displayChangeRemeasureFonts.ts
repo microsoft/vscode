@@ -7,7 +7,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IDisplayMainService } from 'vs/platform/display/common/displayMainService';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';

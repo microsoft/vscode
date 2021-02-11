@@ -411,6 +411,7 @@ export interface IExceptionBreakpoint extends IEnablement {
 	readonly filter: string;
 	readonly label: string;
 	readonly condition: string | undefined;
+	readonly description: string | undefined;
 }
 
 export interface IDataBreakpoint extends IBaseBreakpoint {

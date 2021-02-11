@@ -16,7 +16,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { createErrorWithActions } from 'vs/base/common/errors';
 import { IViewsService } from 'vs/workbench/common/views';
 
 function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {

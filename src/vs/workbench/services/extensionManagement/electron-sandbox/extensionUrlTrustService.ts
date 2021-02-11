@@ -6,7 +6,7 @@
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 class ExtensionUrlTrustService {
 

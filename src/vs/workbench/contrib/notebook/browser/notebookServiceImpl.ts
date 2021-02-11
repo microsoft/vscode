@@ -32,7 +32,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -525,14 +525,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							language: cell.language,
 							cellKind: cell.cellKind,
 							outputs: cell.outputs.map(output => {
-								if (output.outputKind === CellOutputKind.Rich) {
-									return {
-										...output,
-										outputId: UUID.generateUuid()
-									};
-								}
-
-								return output;
+								return {
+									...output,
+									// paste should generate new outputId
+									outputId: UUID.generateUuid()
+								};
 							}),
 							metadata: {
 								editable: cell.metadata?.editable,
@@ -564,14 +561,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							language: cell.language,
 							cellKind: cell.cellKind,
 							outputs: cell.outputs.map(output => {
-								if (output.outputKind === CellOutputKind.Rich) {
-									return {
-										...output,
-										outputId: UUID.generateUuid()
-									};
-								}
-
-								return output;
+								return {
+									...output,
+									outputId: UUID.generateUuid()
+								};
 							}),
 							metadata: {
 								editable: cell.metadata?.editable,
@@ -829,13 +822,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return Iterable.map(this._models.values(), data => data.model);
 	}
 
-	getMimeTypeInfo(textModel: NotebookTextModel, output: ITransformedDisplayOutputDto): readonly IOrderedMimeType[] {
+	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[] {
 		// TODO@rebornix no string[] casting
 		return this._getOrderedMimeTypes(textModel, output, textModel.metadata.displayOrder as string[] ?? []);
 	}
 
-	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IDisplayOutput, documentDisplayOrder: string[]): IOrderedMimeType[] {
-		const mimeTypes = Object.keys(output.data);
+	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IOutputDto, documentDisplayOrder: string[]): IOrderedMimeType[] {
+		const mimeTypeSet = new Set<string>();
+		let mimeTypes: string[] = [];
+		output.outputs.forEach(op => {
+			if (!mimeTypeSet.has(op.mime)) {
+				mimeTypeSet.add(op.mime);
+				mimeTypes.push(op.mime);
+			}
+		});
 		const coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
 

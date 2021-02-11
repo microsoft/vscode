@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { release } from 'os';
 import { statSync } from 'fs';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/electron-main/updateIpc';
+import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { getDelayedChannel, StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
 import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
@@ -90,6 +90,10 @@ import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/commo
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
 
+/**
+ * The main VS Code application. There will only ever be one instance,
+ * even if the user starts many instances (e.g. from the command line).
+ */
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private dialogMainService: IDialogMainService | undefined;

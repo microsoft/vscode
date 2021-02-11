@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CellKind, IProcessedOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
@@ -16,7 +16,7 @@ import { ITextCellEditingDelegate } from 'vs/workbench/contrib/notebook/common/m
 
 export interface IViewCellEditingDelegate extends ITextCellEditingDelegate {
 	createCellViewModel?(cell: NotebookCellTextModel): BaseCellViewModel;
-	createCell?(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IProcessedOutput[]): BaseCellViewModel;
+	createCell?(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[]): BaseCellViewModel;
 }
 
 export class JoinCellEdit implements IResourceUndoRedoElement {

@@ -164,7 +164,7 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .notebookOverlay .output > div.foreground > .output-inner-container {
+.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container {
 	width: 100%;
 	padding: 4px 8px;
 	box-sizing: border-box;
