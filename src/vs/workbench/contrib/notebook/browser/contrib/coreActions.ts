@@ -1625,7 +1625,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 		const quickInputService = accessor.get(IQuickInputService);
 
 		const providerLanguages = [
-			...(context.notebookEditor.activeKernel?.supportedLanguages ?? context.notebookEditor.viewModel.notebookDocument.resolvedLanguages),
+			...(context.notebookEditor.activeKernel?.supportedLanguages ?? modeService.getRegisteredModes()),
 			'markdown'
 		];
 		providerLanguages.forEach(languageId => {

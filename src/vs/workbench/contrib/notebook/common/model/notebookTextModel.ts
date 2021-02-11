@@ -220,7 +220,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this._languages;
 	}
 
-	get resolvedLanguages() {
+	/** @deprecated */
+	private get _resolvedLanguages() {
 		if (this._allLanguages) {
 			return this._modeService.getRegisteredModes();
 		}
@@ -456,7 +457,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._allLanguages = allLanguages !== undefined;
 		this._languages = languages;
 
-		const resolvedLanguages = this.resolvedLanguages;
+		const resolvedLanguages = this._resolvedLanguages;
 		if (resolvedLanguages.length && this._cells.length) {
 			this._cells[0].language = resolvedLanguages[0];
 		}

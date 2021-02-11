@@ -64,6 +64,7 @@ import { configureKernelIcon, errorStateIcon, successStateIcon } from 'vs/workbe
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extname } from 'vs/base/common/resources';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 const $ = DOM.$;
 
@@ -256,7 +257,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -1470,7 +1472,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const nextIndex = ui ? this.viewModel.getNextVisibleCellIndex(index) : index + 1;
 		let language;
 		if (type === CellKind.Code) {
-			const supportedLanguages = this._activeKernel?.supportedLanguages ?? this.viewModel.notebookDocument.resolvedLanguages;
+			const supportedLanguages = this._activeKernel?.supportedLanguages ?? this.modeService.getRegisteredModes();
 			const defaultLanguage = supportedLanguages[0] || 'plaintext';
 			if (cell?.cellKind === CellKind.Code) {
 				language = cell.language;
