@@ -90,7 +90,7 @@ export class FileProtocolHandler extends Disposable {
 				});
 			}
 
-			this.logService.error(`${Schemas.file}: Refused to load resource ${fileUri.fsPath}}`);
+			this.logService.error(`${Schemas.file}: Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
 
 			return callback({ error: -3 /* ABORTED */ });
 		}
@@ -98,7 +98,7 @@ export class FileProtocolHandler extends Disposable {
 		// isPreferringBrowserCodeLoad: true
 		// => block any file request
 		else {
-			this.logService.error(`Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol`);
+			this.logService.error(`Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
 
 			return callback({ error: -3 /* ABORTED */ });
 		}
@@ -116,7 +116,7 @@ export class FileProtocolHandler extends Disposable {
 				path: fileUri.fsPath
 			});
 		} else {
-			this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath}}`);
+			this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
 
 			return callback({ error: -3 /* ABORTED */ });
 		}
