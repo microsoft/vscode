@@ -110,17 +110,15 @@ class CodeMain {
 		try {
 
 			// Init services
-			await instantiationService.invokeFunction(async accessor => {
-				try {
-					await this.initServices(environmentService, configurationService, stateService);
-				} catch (error) {
+			try {
+				await this.initServices(environmentService, configurationService, stateService);
+			} catch (error) {
 
-					// Show a dialog for errors that can be resolved by the user
-					this.handleStartupDataDirError(environmentService, error);
+				// Show a dialog for errors that can be resolved by the user
+				this.handleStartupDataDirError(environmentService, error);
 
-					throw error;
-				}
-			});
+				throw error;
+			}
 
 			// Startup
 			await instantiationService.invokeFunction(async accessor => {
