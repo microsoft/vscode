@@ -67,7 +67,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
 	runState: NotebookRunState.Idle,
-	languages: [],
 	trusted: true
 };
 
@@ -80,7 +79,6 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
-	languages: string[];
 	trusted: boolean;
 }
 
@@ -190,8 +188,6 @@ export interface INotebookTextModel {
 	readonly uri: URI;
 	readonly versionId: number;
 
-	/** @deprecated */
-	languages: string[];
 	readonly cells: readonly ICell[];
 	onWillDispose(listener: () => void): IDisposable;
 }
@@ -375,7 +371,6 @@ export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetad
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
-	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
 }
 

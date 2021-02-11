@@ -735,13 +735,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			const dataDto = await provider.controller.resolveNotebookDocument(viewType, uri, backupId);
 			let cells = dataDto.data.cells.length ? dataDto.data.cells : (uri.scheme === Schemas.untitled ? [{
 				cellKind: CellKind.Code,
-				language: dataDto.data.languages.length ? dataDto.data.languages[0] : '',
+				language: 'plaintext', //TODO@jrieken unsure what this is
 				outputs: [],
 				metadata: undefined,
 				source: ''
 			}] : []);
 
-			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri, cells, dataDto.data.languages, dataDto.data.metadata, dataDto.transientOptions);
+			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri, cells, dataDto.data.metadata, dataDto.transientOptions);
 		}
 
 		// new notebook model created

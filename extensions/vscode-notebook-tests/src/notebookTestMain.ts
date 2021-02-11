@@ -10,17 +10,15 @@ export function activate(context: vscode.ExtensionContext): any {
 	smokeTestActivate(context);
 
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
-		openNotebook: async (_resource: vscode.Uri) => {
+		openNotebook: async (_resource: vscode.Uri): Promise<vscode.NotebookData> => {
 			if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
 				return {
-					languages: ['typescript'],
 					metadata: {},
 					cells: []
 				};
 			}
 
 			const dto: vscode.NotebookData = {
-				languages: ['typescript'],
 				metadata: {
 					custom: { testMetadata: false }
 				},
@@ -36,7 +34,6 @@ export function activate(context: vscode.ExtensionContext): any {
 					}
 				]
 			};
-
 			return dto;
 		},
 		resolveNotebook: async (_document: vscode.NotebookDocument) => {
@@ -60,6 +57,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		id: 'mainKernel',
 		label: 'Notebook Test Kernel',
 		isPreferred: true,
+		supportedLanguages: ['typescript'],
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			const edit = new vscode.WorkspaceEdit();
 
@@ -98,6 +96,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		id: 'secondaryKernel',
 		label: 'Notebook Secondary Test Kernel',
 		isPreferred: false,
+		supportedLanguages: ['typescript'],
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([

@@ -1468,7 +1468,13 @@ suite('regression', () => {
 
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'var abc = 0;');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+
+		// todo@jrieken enforce a kernel (how) and test that its language is picked
+		// assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
+
+		// no kernel -> no default language
+		assert.strictEqual(vscode.window.activeNotebookEditor!.kernel, undefined);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.language, 'plaintext');
 
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
 		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.path, resource.path);

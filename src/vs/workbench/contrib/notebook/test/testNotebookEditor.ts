@@ -34,7 +34,6 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ScrollEvent } from 'vs/base/common/scrollable';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class TestCell extends NotebookCellTextModel {
@@ -423,7 +422,6 @@ export function setupInstantiationService() {
 
 export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const textModelService = instantiationService.get(ITextModelService);
-	const modeService = instantiationService.get(IModeService);
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
@@ -435,7 +433,7 @@ export function withTestNotebook(instantiationService: TestInstantiationService,
 			outputs: cell[3],
 			metadata: cell[4]
 		};
-	}), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService, modeService);
+	}), notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
 	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);

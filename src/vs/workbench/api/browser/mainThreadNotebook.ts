@@ -460,7 +460,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			viewOptions: options.viewOptions,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
 				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
-				mainthreadTextModel.updateLanguages(data.languages);
 				mainthreadTextModel.metadata = data.metadata;
 				mainthreadTextModel.transientOptions = contentOptions;
 
@@ -585,12 +584,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const entry = this._notebookKernelProviders.get(handle);
 
 		entry?.emitter.fire(uriComponents ? URI.revive(uriComponents) : undefined);
-	}
-
-	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {
-		this.logService.debug('MainThreadNotebooks#updateNotebookLanguages', resource.path, languages);
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		textModel?.updateLanguages(languages);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {

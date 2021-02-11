@@ -454,7 +454,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				...notebookDocumentMetadataDefaults,
 				...data.metadata
 			},
-			languages: data.languages,
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
 		};
 	}
@@ -707,7 +706,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				}
 				const that = this;
 
-				const document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
+				const document = new ExtHostNotebookDocument(this._documentsAndEditors, {
 					emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
 						that._onDidChangeNotebookCells.fire(event);
 					},
