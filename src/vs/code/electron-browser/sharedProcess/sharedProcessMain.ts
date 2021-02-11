@@ -271,40 +271,32 @@ class SharedProcessMain extends Disposable {
 	private initChannels(accessor: ServicesAccessor): void {
 
 		// Extensions Management
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const channel = new ExtensionManagementChannel(extensionManagementService, () => null);
+		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
 		// Localizations
-		const localizationsService = accessor.get(ILocalizationsService);
-		const localizationsChannel = ProxyChannel.fromService(localizationsService);
+		const localizationsChannel = ProxyChannel.fromService(accessor.get(ILocalizationsService));
 		this.server.registerChannel('localizations', localizationsChannel);
 
 		// Diagnostics
-		const diagnosticsService = accessor.get(IDiagnosticsService);
-		const diagnosticsChannel = ProxyChannel.fromService(diagnosticsService);
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips
-		const extensionTipsService = accessor.get(IExtensionTipsService);
-		const extensionTipsChannel = new ExtensionTipsChannel(extensionTipsService);
+		const extensionTipsChannel = new ExtensionTipsChannel(accessor.get(IExtensionTipsService));
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
 		// Settings Sync
-		const userDataSyncMachinesService = accessor.get(IUserDataSyncMachinesService);
-		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(userDataSyncMachinesService);
+		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
 
-		const authTokenService = accessor.get(IUserDataSyncAccountService);
-		const authTokenChannel = new UserDataSyncAccountServiceChannel(authTokenService);
-		this.server.registerChannel('userDataSyncAccount', authTokenChannel);
+		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
+		this.server.registerChannel('userDataSyncAccount', userDataSyncAccountChannel);
 
-		const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
-		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(userDataSyncStoreManagementService);
+		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
 		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
 
-		const userDataSyncService = accessor.get(IUserDataSyncService);
-		const userDataSyncChannel = new UserDataSyncChannel(this.server, userDataSyncService, accessor.get(ILogService));
+		const userDataSyncChannel = new UserDataSyncChannel(this.server, accessor.get(IUserDataSyncService), accessor.get(ILogService));
 		this.server.registerChannel('userDataSync', userDataSyncChannel);
 
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
