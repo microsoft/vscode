@@ -763,7 +763,6 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		this.view.breakpointInputFocused.set(true);
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			placeholder: localize('exceptionBreakpointPlaceholder', "Break when expression evaluates to true"),
 			ariaLabel: localize('exceptionBreakpointAriaLabel', "Type exception breakpoint condition")
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
@@ -800,6 +799,8 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 	}
 
 	renderElement(exceptionBreakpoint: ExceptionBreakpoint, _index: number, data: IExceptionBreakpointInputTemplateData): void {
+		const placeHolder = exceptionBreakpoint.conditionDescription || localize('exceptionBreakpointPlaceholder', "Break when expression evaluates to true");
+		data.inputBox.setPlaceHolder(placeHolder);
 		data.breakpoint = exceptionBreakpoint;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 		data.checkbox.disabled = true;
