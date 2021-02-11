@@ -13,9 +13,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(
-		@ISharedProcessService sharedProcessService: ISharedProcessService
-	) {
+	constructor(@ISharedProcessService sharedProcessService: ISharedProcessService) {
 		return ProxyChannel.toService<IDiagnosticsService>(sharedProcessService.getChannel('diagnostics'));
 	}
 }

@@ -8,12 +8,13 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProces
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 
-export class NativeUpdateService extends UpdateChannelClient {
+// @ts-ignore: interface is implemented via channel client
+export class NativeUpdateService implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		super(mainProcessService.getChannel('update'));
+		return new UpdateChannelClient(mainProcessService.getChannel('update'));
 	}
 }
 
