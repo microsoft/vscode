@@ -270,7 +270,11 @@ export class GettingStartedPage extends EditorPane {
 			);
 
 		const gettingStartedPage =
-			$('.gettingStarted', { role: 'document' },
+			$('.gettingStarted.welcomePageFocusElement', {
+				role: 'document',
+				tabIndex: '0',
+				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+			},
 				$('.gettingStartedSlideCategory.gettingStartedSlide.categories'),
 				tasksSlide
 			);
@@ -344,7 +348,6 @@ export class GettingStartedPage extends EditorPane {
 			this.setSlide('details');
 			this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
 		} else {
-			this.focusFirstUncompletedCategory();
 			this.setSlide('categories');
 		}
 	}
@@ -521,6 +524,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.add('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
+			(this.container.querySelector('.welcomePageFocusElement') as HTMLElement)?.focus();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
