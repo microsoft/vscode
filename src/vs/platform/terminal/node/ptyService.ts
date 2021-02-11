@@ -36,6 +36,13 @@ export class PtyService extends Disposable implements IPtyService {
 		super();
 	}
 
+	dispose() {
+		for (const pty of this._ptys.values()) {
+			pty.shutdown(true);
+		}
+		this._ptys.clear();
+	}
+
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
 		const id = ++currentPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);

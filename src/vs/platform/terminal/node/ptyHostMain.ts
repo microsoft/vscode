@@ -18,3 +18,8 @@ server.registerChannel(TerminalIpcChannels.Log, logChannel);
 
 const service = new PtyService(logService);
 server.registerChannel(TerminalIpcChannels.PtyHost, ProxyChannel.fromService(service));
+
+process.once('exit', () => {
+	logService.dispose();
+	service.dispose();
+});
