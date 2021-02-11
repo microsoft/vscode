@@ -579,14 +579,14 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 				private async selectSettingsSyncService(dialogService: IDialogService): Promise<UserDataSyncStoreType | undefined> {
 					const res = await dialogService.show(
 						Severity.Info,
-						nls.localize('selectSyncService.message', "Choose the settings sync service to use"),
+						nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
 						[
 							nls.localize('use insiders', "Insiders"),
 							nls.localize('use stable', "Stable (current)"),
 							nls.localize('cancel', "Cancel"),
 						],
 						{
-							detail: nls.localize('selectSyncService.detail', "Switching to insiders version will synchronize your data using insiders settings sync service."),
+							detail: nls.localize('selectSyncService.detail', "Insiders version of VSCode will synchronize your settings, keybindings, extensions, snippets and UI State using separete insiders settings sync service by default."),
 							cancelId: 2
 						}
 					);
