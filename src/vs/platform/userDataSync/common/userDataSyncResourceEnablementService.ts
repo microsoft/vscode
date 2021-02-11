@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isWeb } from 'vs/base/common/platform';
 
 type SyncEnablementClassification = {
 	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -29,6 +30,14 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 	) {
 		super();
 		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+
+		for (const resource of ALL_SYNC_RESOURCES) {
+			const resourceEnablementKey = getEnablementKey(resource);
+			if (this.storageService.getBoolean(resourceEnablementKey, StorageScope.GLOBAL) === undefined) {
+				// Make sure the resource enablement storageKey is added to user/machine targets
+				this.storeResourceEnablement(resourceEnablementKey, true);
+			}
+		}
 	}
 
 	isResourceEnabled(resource: SyncResource): boolean {
@@ -39,8 +48,12 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 		if (this.isResourceEnabled(resource) !== enabled) {
 			const resourceEnablementKey = getEnablementKey(resource);
 			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
-			this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storeResourceEnablement(resourceEnablementKey, enabled);
 		}
+	}
+
+	private storeResourceEnablement(resourceEnablementKey: string, enabled: boolean): void {
+		this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {

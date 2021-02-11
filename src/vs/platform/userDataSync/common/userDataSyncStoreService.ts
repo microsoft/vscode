@@ -31,7 +31,7 @@ const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
 const REQUEST_SESSION_LIMIT = 100;
 const REQUEST_SESSION_INTERVAL = 1000 * 60 * 5; /* 5 minutes */
 
-type UserDataSyncStore = IUserDataSyncStore & { defaultType?: UserDataSyncStoreType; type?: UserDataSyncStoreType };
+type UserDataSyncStore = IUserDataSyncStore & { defaultType: UserDataSyncStoreType; type: UserDataSyncStoreType };
 
 export abstract class AbstractUserDataSyncStoreManagementService extends Disposable implements IUserDataSyncStoreManagementService {
 
@@ -42,6 +42,13 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	private _userDataSyncStore: UserDataSyncStore | undefined;
 	get userDataSyncStore(): UserDataSyncStore | undefined { return this._userDataSyncStore; }
 
+	private get userDataSyncStoreType(): UserDataSyncStoreType | undefined {
+		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType;
+	}
+	private set userDataSyncStoreType(type: UserDataSyncStoreType | undefined) {
+		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+	}
+
 	constructor(
 		@IProductService protected readonly productService: IProductService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -49,6 +56,9 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
+
+		// Make sure the userDataSyncStore type storageKey is added to user/machine targets
+		this.userDataSyncStoreType = this.userDataSyncStore?.type;
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -67,7 +77,8 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		) {
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
-			const type: UserDataSyncStoreType | undefined = canSwitch ? this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType : undefined;
+			const defaultType: UserDataSyncStoreType = syncStore.url === syncStore.insidersUrl ? 'insiders' : 'stable';
+			const type: UserDataSyncStoreType = this.userDataSyncStoreType || defaultType;
 			const url = configuredStore?.url ||
 				(type === 'insiders' ? syncStore.insidersUrl
 					: type === 'stable' ? syncStore.stableUrl
@@ -75,11 +86,11 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 			return {
 				url: URI.parse(url),
 				type,
-				defaultType: syncStore.url === syncStore.insidersUrl ? 'insiders' : syncStore.url === syncStore.stableUrl ? 'stable' : undefined,
+				defaultType,
 				defaultUrl: URI.parse(syncStore.url),
 				stableUrl: URI.parse(syncStore.stableUrl),
 				insidersUrl: URI.parse(syncStore.insidersUrl),
-				canSwitch: !!syncStore.canSwitch && !configuredStore?.url,
+				canSwitch,
 				authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
 					result.push({ id, scopes: syncStore!.authenticationProviders[id].scopes });
 					return result;
@@ -91,7 +102,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 
 	set(type: UserDataSyncStoreType) {
 		if (this.userDataSyncStore) {
-			this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.userDataSyncStoreType = type;
 		}
 	}
 
@@ -126,11 +137,7 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 
 	async switch(type: UserDataSyncStoreType): Promise<void> {
 		if (this.userDataSyncStore?.canSwitch && type !== this.userDataSyncStore.type) {
-			if (type === this.userDataSyncStore.defaultType) {
-				this.storageService.remove(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL);
-			} else {
-				this.set(type);
-			}
+			this.set(type);
 			this.updateUserDataSyncStore();
 		}
 	}
