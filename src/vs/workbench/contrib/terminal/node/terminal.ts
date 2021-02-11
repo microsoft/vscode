@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import { SymlinkSupport } from 'vs/base/node/pfs';
-import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { LinuxDistro, IShellDefinition } from 'vs/platform/terminal/common/terminal';
 import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';

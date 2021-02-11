@@ -15,7 +15,7 @@ import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/termi
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';

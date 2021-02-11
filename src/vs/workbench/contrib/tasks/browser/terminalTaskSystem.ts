@@ -27,7 +27,7 @@ import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService, ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind, ProblemHandlingStrategy } from 'vs/workbench/contrib/tasks/common/problemCollectors';
@@ -48,7 +48,6 @@ import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 
 interface TerminalData {
 	terminal: ITerminalInstance;

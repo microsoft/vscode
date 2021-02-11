@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWindowsShellHelper, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, IDefaultShellAndArgsRequest, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -12,7 +12,6 @@ import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
