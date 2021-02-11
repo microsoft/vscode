@@ -4,18 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IMainProcessService } from 'vs/platform/ipc/common/services';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { registerMainProcessRemoteService } from 'vs/platform/ipc/common/services';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 
-// @ts-ignore: interface is implemented via channel client
-export class NativeUpdateService implements IUpdateService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return new UpdateChannelClient(mainProcessService.getChannel('update'));
-	}
-}
-
-registerSingleton(IUpdateService, NativeUpdateService);
+registerMainProcessRemoteService(IUpdateService, 'update', { channelClientCtor: UpdateChannelClient });
