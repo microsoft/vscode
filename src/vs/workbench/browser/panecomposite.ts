@@ -13,9 +13,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer } from './parts/views/viewPaneContainer';
+import { ViewPaneContainer, ViewsSubMenu } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
+import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 
@@ -66,15 +67,52 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	getContextMenuActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer?.getContextMenuActions() ?? [];
+		return this.viewPaneContainer?.menuActions?.getContextMenuActions() ?? [];
 	}
 
 	getActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer?.getActions() ?? [];
+		const result = [];
+		if (this.viewPaneContainer?.menuActions) {
+			result.push(...this.viewPaneContainer.menuActions.getPrimaryActions());
+			if (this.viewPaneContainer.isViewMergedWithContainer()) {
+				result.push(...this.viewPaneContainer.panes[0].menuActions.getPrimaryActions());
+			}
+		}
+		return result;
 	}
 
 	getSecondaryActions(): ReadonlyArray<IAction> {
-		return this.viewPaneContainer?.getSecondaryActions() ?? [];
+		if (!this.viewPaneContainer?.menuActions) {
+			return [];
+		}
+
+		const viewPaneActions = this.viewPaneContainer.isViewMergedWithContainer() ? this.viewPaneContainer.panes[0].menuActions.getSecondaryActions() : [];
+		let menuActions = this.viewPaneContainer.menuActions.getSecondaryActions();
+
+		const viewsSubmenuActionIndex = menuActions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu);
+		if (viewsSubmenuActionIndex !== -1) {
+			const viewsSubmenuAction = <SubmenuItemAction>menuActions[viewsSubmenuActionIndex];
+			if (viewsSubmenuAction.actions.some(({ enabled }) => enabled)) {
+				if (menuActions.length === 1 && viewPaneActions.length === 0) {
+					menuActions = viewsSubmenuAction.actions.slice();
+				} else if (viewsSubmenuActionIndex !== 0) {
+					menuActions = [viewsSubmenuAction, ...menuActions.slice(0, viewsSubmenuActionIndex), ...menuActions.slice(viewsSubmenuActionIndex + 1)];
+				}
+			} else {
+				// Remove views submenu if none of the actions are enabled
+				menuActions.splice(viewsSubmenuActionIndex, 1);
+			}
+		}
+
+		if (menuActions.length && viewPaneActions.length) {
+			return [
+				...menuActions,
+				new Separator(),
+				...viewPaneActions
+			];
+		}
+
+		return menuActions.length ? menuActions : viewPaneActions;
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
