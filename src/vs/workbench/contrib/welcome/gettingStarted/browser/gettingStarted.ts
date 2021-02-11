@@ -26,6 +26,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Schemas } from 'vs/base/common/network';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 
@@ -34,7 +35,7 @@ export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput'
 export class GettingStartedInput extends EditorInput {
 
 	get resource(): URI | undefined {
-		return URI.from({ scheme: 'gettingStarted' });
+		return URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
 	}
 	getTypeId(): string {
 		return GettingStartedInput.ID;
