@@ -266,10 +266,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private attachProcessLayoutListeners(isRemote: boolean): void {
-		const callUpdate = isRemote ? this._updateRemoteState : this._updateLocalState;
-		this.onActiveTabChanged(() => callUpdate());
-		this.onActiveInstanceChanged(() => callUpdate());
-		this.onInstancesChanged(() => callUpdate());
+		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 	}
 
 	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {

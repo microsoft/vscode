@@ -485,10 +485,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (!this._splitPaneContainer) {
 			this._initialRelativeSizes = relativeSizes;
 			return;
-		} else if (!this._initialRelativeSizes) {
-			// for the local case
-			this._initialRelativeSizes = relativeSizes;
 		}
+		// for the local case
+		this._initialRelativeSizes = relativeSizes;
+
 		this._splitPaneContainer.resizePanes(relativeSizes);
 	}
 }
