@@ -5,108 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { IEnvironmentVariableInfo } from 'vs/platform/terminal/common/environmentVariable';
-
-export interface IProcessDataEvent {
-	data: string;
-	sync: boolean;
-}
-
-export type FontWeight = 'normal' | 'bold' | number;
-
-export interface ITerminalConfiguration {
-	shell: {
-		linux: string | null;
-		osx: string | null;
-		windows: string | null;
-	};
-	automationShell: {
-		linux: string | null;
-		osx: string | null;
-		windows: string | null;
-	};
-	shellArgs: {
-		linux: string[];
-		osx: string[];
-		windows: string[];
-	};
-	altClickMovesCursor: boolean;
-	macOptionIsMeta: boolean;
-	macOptionClickForcesSelection: boolean;
-	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
-	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
-	cursorBlinking: boolean;
-	cursorStyle: string;
-	cursorWidth: number;
-	drawBoldTextInBrightColors: boolean;
-	fastScrollSensitivity: number;
-	fontFamily: string;
-	fontWeight: FontWeight;
-	fontWeightBold: FontWeight;
-	minimumContrastRatio: number;
-	mouseWheelScrollSensitivity: number;
-	sendKeybindingsToShell: boolean;
-	// fontLigatures: boolean;
-	fontSize: number;
-	letterSpacing: number;
-	lineHeight: number;
-	detectLocale: 'auto' | 'off' | 'on';
-	scrollback: number;
-	commandsToSkipShell: string[];
-	allowChords: boolean;
-	allowMnemonics: boolean;
-	cwd: string;
-	confirmOnExit: boolean;
-	enableBell: boolean;
-	inheritEnv: boolean;
-	env: {
-		linux: { [key: string]: string };
-		osx: { [key: string]: string };
-		windows: { [key: string]: string };
-	};
-	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
-	showExitAlert: boolean;
-	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
-	windowsEnableConpty: boolean;
-	wordSeparators: string;
-	experimentalUseTitleEvent: boolean;
-	enableFileLinks: boolean;
-	unicodeVersion: '6' | '11';
-	experimentalLinkProvider: boolean;
-	localEchoLatencyThreshold: number;
-	localEchoExcludePrograms: ReadonlyArray<string>;
-	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
-	serverSpawn: boolean;
-	mainSpawn: boolean;
-	enablePersistentSessions: boolean;
-	flowControl: boolean;
-}
-
-export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
-
-export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
-
-	onWorkspacePermissionsChanged: Event<boolean>;
-
-	configFontIsMonospace(): boolean;
-	getFont(): ITerminalFont;
-	/** Sets whether a workspace shell configuration is allowed or not */
-	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
-	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
-}
-
-export interface ITerminalFont {
-	fontFamily: string;
-	fontSize: number;
-	letterSpacing: number;
-	lineHeight: number;
-	charWidth?: number;
-	charHeight?: number;
-}
 
 export interface IRemoteTerminalAttachTarget {
 	id: number;
@@ -123,7 +23,7 @@ export interface IRawTerminalInstanceLayoutInfo<T> {
 	terminal: T;
 }
 export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
-export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IRemoteTerminalAttachTarget>;
+export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget>;
 
 export interface IRawTerminalTabLayoutInfo<T> {
 	isActive: boolean;
@@ -132,13 +32,13 @@ export interface IRawTerminalTabLayoutInfo<T> {
 }
 
 export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
-export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
+export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IPtyHostAttachTarget | null>;
 
 export interface IRawTerminalsLayoutInfo<T> {
 	tabs: IRawTerminalTabLayoutInfo<T>[];
 }
 
-export interface IRemoteTerminalAttachTarget {
+export interface IPtyHostAttachTarget {
 	id: number;
 	pid: number;
 	title: string;
@@ -148,7 +48,7 @@ export interface IRemoteTerminalAttachTarget {
 	isOrphan: boolean;
 }
 
-export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IRemoteTerminalAttachTarget | null>;
+export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
 export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
 /**
@@ -194,56 +94,6 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-export interface ITerminalProcessManager extends IDisposable {
-	readonly processState: ProcessState;
-	readonly ptyProcessReady: Promise<void>;
-	readonly shellProcessId: number | undefined;
-	readonly remoteAuthority: string | undefined;
-	readonly os: OperatingSystem | undefined;
-	readonly userHome: string | undefined;
-	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-	readonly remoteTerminalId: number | undefined;
-	/** Whether the process has had data written to it yet. */
-	readonly hasWrittenData: boolean;
-
-	readonly onProcessReady: Event<void>;
-	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
-	readonly onProcessData: Event<IProcessDataEvent>;
-	readonly onProcessTitle: Event<string>;
-	readonly onProcessExit: Event<number | undefined>;
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
-	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
-	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
-
-	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
-	write(data: string): void;
-	setDimensions(cols: number, rows: number): void;
-	acknowledgeDataEvent(charCount: number): void;
-
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
-}
-
-export const enum ProcessState {
-	// The process has not been initialized yet.
-	UNINITIALIZED,
-	// The process is currently launching, the process is marked as launching
-	// for a short duration after being created and is helpful to indicate
-	// whether the process died as a result of bad shell and args.
-	LAUNCHING,
-	// The process is running normally.
-	RUNNING,
-	// The process was killed during launch, likely as a result of bad shell and
-	// args.
-	KILLED_DURING_LAUNCH,
-	// The process was killed by the user (the event originated from VS Code).
-	KILLED_BY_USER,
-	// The process was killed by itself, for example the shell crashed or `exit`
-	// was run.
-	KILLED_BY_PROCESS
-}
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
@@ -319,17 +169,6 @@ export interface IRawTerminalInstanceLayoutInfo<T> {
 	terminal: T;
 }
 
-
-export interface ITerminalContributions {
-	types?: ITerminalTypeContribution[];
-}
-
-export interface ITerminalTypeContribution {
-	title: string;
-	command: string;
-}
-
-
 export enum TerminalIpcChannels {
 	/**
 	 * Communicates between the renderer process and shared process.
@@ -338,7 +177,11 @@ export enum TerminalIpcChannels {
 	/**
 	 * Communicates between the shared process and the pty host process.
 	 */
-	PtyHost = 'ptyHost'
+	PtyHost = 'ptyHost',
+	/**
+	 * Deals with logging from the pty host process.
+	 */
+	Log = 'log'
 }
 
 export interface IPtyService {
@@ -523,6 +366,17 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
+}
+
+export const enum ReconnectConstants {
+	/**
+	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
+	*/
+	ReconnectionGraceTime = 5000, // 5 seconds
+	/**
+	 * Maximal grace time between the first and the last reconnection...
+	*/
+	ReconnectionShortGraceTime = 1000, // 1 second
 }
 
 export const enum FlowControlConstants {

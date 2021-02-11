@@ -5,13 +5,11 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
-
+import { IProcessDataEvent } from 'vs/platform/terminal/common/terminal';
 interface TerminalDataBuffer extends IDisposable {
 	data: string[];
 	timeoutId: any;
 }
-
 export class TerminalDataBufferer implements IDisposable {
 	private readonly _terminalBufferMap = new Map<number, TerminalDataBuffer>();
 

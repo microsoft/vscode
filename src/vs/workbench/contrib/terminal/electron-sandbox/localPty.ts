@@ -5,8 +5,9 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride, IProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalChildProcess } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process

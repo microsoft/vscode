@@ -5,15 +5,13 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, ReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 let currentPtyId = 0;
@@ -35,12 +33,10 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-	private _logService: ILogService;
-	private _instantiationService: InstantiationService;
-	constructor() {
+	constructor(
+		private readonly _logService: ILogService
+	) {
 		super();
-		this._instantiationService = new InstantiationService();
-		this._logService = this._instantiationService.createInstance(ILogService);
 	}
 
 	getLatency(id: number): Promise<number> {
@@ -154,13 +150,13 @@ export class PersistentTerminalProcess extends Disposable {
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`The reconnection grace time of ${printTime(ProtocolConstants.ReconnectionGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
+			this._logService.info(`The reconnection grace time of ${printTime(ReconnectConstants.ReconnectionGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
 			this.shutdown(true);
-		}, ProtocolConstants.ReconnectionGraceTime));
+		}, ReconnectConstants.ReconnectionGraceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`The short reconnection grace time of ${printTime(ProtocolConstants.ReconnectionShortGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
+			this._logService.info(`The short reconnection grace time of ${printTime(ReconnectConstants.ReconnectionShortGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
 			this.shutdown(true);
-		}, ProtocolConstants.ReconnectionShortGraceTime));
+		}, ReconnectConstants.ReconnectionShortGraceTime));
 
 		this._events = this._register(new Emitter<IPtyHostProcessEvent>({
 			onListenerDidAdd: () => {

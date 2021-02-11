@@ -151,11 +151,11 @@ export const enum ProtocolConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	 */
-	ReconnectionGraceTime = 5000, // 5 seconds
+	ReconnectionGraceTime = 3 * 60 * 60 * 1000, // 3hrs
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	 */
-	ReconnectionShortGraceTime = 5000, // 5 seconds
+	ReconnectionShortGraceTime = 5 * 60 * 1000, // 5min
 }
 
 class ProtocolMessage {
