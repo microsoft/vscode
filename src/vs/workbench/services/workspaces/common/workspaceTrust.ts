@@ -12,6 +12,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustModel, IWorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
@@ -170,6 +171,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		@IConfigurationService readonly configurationService: IConfigurationService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 	) {
 		super();
@@ -201,10 +203,18 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	private calculateWorkspaceTrustState(): WorkspaceTrustState {
+		// Feature disabled
 		if (!this.isWorkspaceTrustEnabled()) {
 			return WorkspaceTrustState.Trusted;
 		}
 
+		// Signal from embedder
+		if (this.workbenchEnvironmentService.options?.workspaceProvider?.trusted !== undefined) {
+			return this.workbenchEnvironmentService.options.workspaceProvider.trusted ?
+				WorkspaceTrustState.Trusted : WorkspaceTrustState.Untrusted;
+		}
+
+		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return WorkspaceTrustState.Trusted;
 		}
@@ -263,6 +273,9 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 			return this.currentTrustState;
 		}
 		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request?.immediate) {
+			return this.currentTrustState;
+		}
+		if (this.workbenchEnvironmentService.options?.workspaceProvider?.trusted !== undefined) {
 			return this.currentTrustState;
 		}
 

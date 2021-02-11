@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnablementService {
@@ -41,7 +42,7 @@ export class WebUserDataAutoSyncEnablementService extends UserDataAutoSyncEnable
 	}
 
 	private isTrusted(): boolean {
-		return !!this.workbenchEnvironmentService.options?.workspaceProvider?.trusted;
+		return this.workspaceTrustService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted;
 	}
 
 }
