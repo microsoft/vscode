@@ -8,7 +8,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { Emitter } from 'vs/base/common/event';
-import { LogService, ConsoleLogger } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 let currentPtyId = 0;
 
@@ -31,14 +31,14 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 
 	constructor(
+		private readonly _logService: ILogService
 	) {
 		super();
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
 		const id = ++currentPtyId;
-		// TODO: Impl proper logging, level doesn't get passed over
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, new LogService(new ConsoleLogger()));
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
 		process.onProcessReady(event => this._onProcessReady.fire({ id, event }));

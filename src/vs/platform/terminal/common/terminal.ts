@@ -15,7 +15,11 @@ export enum TerminalIpcChannels {
 	/**
 	 * Communicates between the shared process and the pty host process.
 	 */
-	PtyHost = 'ptyHost'
+	PtyHost = 'ptyHost',
+	/**
+	 * Deals with logging from the pty host process.
+	 */
+	Log = 'log'
 }
 
 export interface IPtyService {
