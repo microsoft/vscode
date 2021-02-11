@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./gettingStarted';
-import 'vs/workbench/contrib/welcome/gettingStarted/browser/vs_code_editor_getting_started';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -293,7 +292,7 @@ export class GettingStartedPage extends EditorPane {
 					category.content.type === 'items' ?
 						$('.category-description-container', {},
 							$('h3.category-title', {}, category.title),
-							$('.category-description.description', {}, category.description),
+							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
 							$('.category-progress', { 'x-data-category-id': category.id, },
 								$('.message'),
 								$('.progress-bar-outer', {},
@@ -301,7 +300,7 @@ export class GettingStartedPage extends EditorPane {
 						:
 						$('.category-description-container', {},
 							$('h3.category-title', {}, category.title),
-							$('.category-description.description', {}, category.description));
+							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
 
 				return $('button.getting-started-category',
 					{ 'x-dispatch': 'selectCategory:' + category.id, },
