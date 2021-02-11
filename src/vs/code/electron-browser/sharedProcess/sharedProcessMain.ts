@@ -263,7 +263,9 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
 		// Terminal
-		services.set(ILocalPtyService, new SyncDescriptor(LocalPtyService));
+		const localPtyService = this._register(new LocalPtyService(logService));
+		services.set(ILocalPtyService, localPtyService);
+		this._register(toDisposable(() => localPtyService.dispose()));
 
 		return new InstantiationService(services);
 	}
