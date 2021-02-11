@@ -16,7 +16,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -217,6 +216,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private openSettings2(options?: ISettingsEditorOptions): Promise<IEditorPane> {
 		const input = this.settingsEditor2Input;
+		options = {
+			...options,
+			focusSearch: true
+		};
 		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : undefined)
 			.then(() => this.editorGroupService.activeGroup.activeEditorPane!);
 	}
@@ -269,11 +272,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.openOrSwitchSettings2(ConfigurationTarget.WORKSPACE_FOLDER, folder, options, group);
 	}
 
-	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void> {
-		if (!jsonEditor) {
-			return this.doOpenSettings2(target, resource).then(() => undefined);
-		}
-
+	switchSettings(target: ConfigurationTarget, resource: URI): Promise<void> {
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane?.input instanceof PreferencesEditorInput) {
 			return this.doSwitchSettings(target, resource, activeEditorPane.input, activeEditorPane.group).then(() => undefined);
@@ -336,7 +335,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private openOrSwitchSettings2(configurationTarget: ConfigurationTarget, folderUri?: URI, options?: ISettingsEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): Promise<IEditorPane | undefined> {
-		return this.doOpenSettings2(configurationTarget, folderUri, options, group);
+		const settingsOptions: ISettingsEditorOptions = {
+			...options,
+			target: configurationTarget,
+			folderUri
+		};
+		return this.openSettings2(settingsOptions);
 	}
 
 	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
@@ -386,17 +390,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	public createSettings2EditorModel(): Settings2EditorModel {
 		return this.instantiationService.createInstance(Settings2EditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
-	}
-
-	private doOpenSettings2(target: ConfigurationTarget, folderUri: URI | undefined, options?: IEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined> {
-		const input = this.settingsEditor2Input;
-		const settingsOptions: ISettingsEditorOptions = {
-			...options,
-			target,
-			folderUri
-		};
-
-		return this.editorService.openEditor(input, SettingsEditorOptions.create(settingsOptions), group);
 	}
 
 	private async doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup, options?: ISettingsEditorOptions): Promise<IEditorPane> {

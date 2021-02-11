@@ -303,6 +303,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
+		if (options.focusSearch) {
+			this.focusSearch();
+		}
+
 		if (options.query) {
 			this.searchWidget.setValue(options.query);
 		}
