@@ -398,11 +398,6 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		'terminal.integrated.mainSpawn': {
-			description: localize('terminal.integrated.mainSpwan', "Experimental: spawn remote terminals from the main process"),
-			type: 'boolean',
-			default: true
-		},
 		'terminal.integrated.enablePersistentSessions': {
 			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
 			type: 'boolean',
