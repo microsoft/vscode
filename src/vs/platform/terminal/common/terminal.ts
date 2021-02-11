@@ -37,7 +37,6 @@ export interface IPtyService {
 		cols: number,
 		rows: number,
 		env: IProcessEnvironment,
-		// TODO: Is executableEnv required? Can the main processes' environment be used instead?
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean
 	): Promise<number>;
