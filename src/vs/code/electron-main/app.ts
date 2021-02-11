@@ -98,7 +98,7 @@ export class CodeApplication extends Disposable {
 	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
-		private readonly mainNodeIpcServer: NodeIPCServer,
+		private readonly mainProcessNodeIpcServer: NodeIPCServer,
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -434,7 +434,7 @@ export class CodeApplication extends Disposable {
 		const fileProtocolHandler = this._register(this.mainInstantiationService.createInstance(FileProtocolHandler));
 
 		// Main process server (electron IPC based)
-		const mainProcessServer = new ElectronIPCServer();
+		const mainProcessElectronServer = new ElectronIPCServer();
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
@@ -449,7 +449,7 @@ export class CodeApplication extends Disposable {
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
-			const server = await serveDriver(mainProcessServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService);
+			const server = await serveDriver(mainProcessElectronServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService);
 
 			this.logService.info('Driver started at:', this.environmentService.driverHandle);
 			this._register(server);
@@ -459,10 +459,10 @@ export class CodeApplication extends Disposable {
 		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
 
 		// Init Channels
-		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessServer, sharedProcessClient));
+		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessServer, fileProtocolHandler));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer, fileProtocolHandler));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
@@ -610,78 +610,81 @@ export class CodeApplication extends Disposable {
 		return this.mainInstantiationService.createChild(services);
 	}
 
-	private initChannels(accessor: ServicesAccessor, mainProcessServer: ElectronIPCServer, sharedProcessClient: Promise<MessagePortClient>): void {
+	private initChannels(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, sharedProcessClient: Promise<MessagePortClient>): void {
 
-		// Launch
+		// Launch: this one is explicitly registered to the node.js
+		// server because when a second instance starts up, that is
+		// the only possible connection between the first and the
+		// second instance. Electron IPC does not work across apps.
 		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
-		this.mainNodeIpcServer.registerChannel('launch', launchChannel);
+		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
-		mainProcessServer.registerChannel('update', updateChannel);
+		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Issues
 		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService));
-		mainProcessServer.registerChannel('issue', issueChannel);
+		mainProcessElectronServer.registerChannel('issue', issueChannel);
 
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
-		mainProcessServer.registerChannel('encryption', encryptionChannel);
+		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
 		// Keyboard Layout
 		const keyboardLayoutChannel = ProxyChannel.fromService(accessor.get(IKeyboardLayoutMainService));
-		mainProcessServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
+		mainProcessElectronServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
 
 		// Display
 		const displayChannel = ProxyChannel.fromService(accessor.get(IDisplayMainService));
-		mainProcessServer.registerChannel('display', displayChannel);
+		mainProcessElectronServer.registerChannel('display', displayChannel);
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService);
-		mainProcessServer.registerChannel('nativeHost', nativeHostChannel);
+		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
 		// Workspaces
 		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService));
-		mainProcessServer.registerChannel('workspaces', workspacesChannel);
+		mainProcessElectronServer.registerChannel('workspaces', workspacesChannel);
 
 		// Menubar
 		const menubarChannel = ProxyChannel.fromService(accessor.get(IMenubarMainService));
-		mainProcessServer.registerChannel('menubar', menubarChannel);
+		mainProcessElectronServer.registerChannel('menubar', menubarChannel);
 
 		// URL handling
 		const urlChannel = ProxyChannel.fromService(accessor.get(IURLService));
-		mainProcessServer.registerChannel('url', urlChannel);
+		mainProcessElectronServer.registerChannel('url', urlChannel);
 
 		// Extension URL Trust
 		const extensionUrlTrustChannel = ProxyChannel.fromService(accessor.get(IExtensionUrlTrustService));
-		mainProcessServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
+		mainProcessElectronServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
 
 		// Webview Manager
 		const webviewChannel = ProxyChannel.fromService(accessor.get(IWebviewManagerService));
-		mainProcessServer.registerChannel('webview', webviewChannel);
+		mainProcessElectronServer.registerChannel('webview', webviewChannel);
 
 		// Storage (main & shared process)
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
-		mainProcessServer.registerChannel('storage', storageChannel);
+		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
 		// Log Level (main & shared process)
 		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
-		mainProcessServer.registerChannel('logLevel', logLevelChannel);
+		mainProcessElectronServer.registerChannel('logLevel', logLevelChannel);
 		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
 
 		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
-		mainProcessServer.registerChannel('logger', loggerChannel);
+		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 
 		// Extension Host Debug Broadcasting
 		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
-		mainProcessServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
+		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, mainProcessServer: ElectronIPCServer, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
@@ -784,7 +787,7 @@ export class CodeApplication extends Disposable {
 		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
-		const urlHandlerChannel = mainProcessServer.getChannel('urlHandler', urlHandlerRouter);
+		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
