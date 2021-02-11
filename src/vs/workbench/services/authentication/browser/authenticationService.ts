@@ -132,7 +132,7 @@ export interface IAuthenticationService {
 	logout(providerId: string, sessionId: string): Promise<void>;
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
-	signOutOfAccount(providerId: string, accountName: string): Promise<void>;
+	signOutOfAccount(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
 }
 
 export interface AllowedExtension {
@@ -316,7 +316,6 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const provider = this._authenticationProviders.get(id);
 		if (provider) {
 			this._onDidChangeSessions.fire({ providerId: id, label: provider.label, event: event });
-			await provider.updateSessionItems(event);
 
 			if (event.added) {
 				await this.updateNewSessionRequests(provider, event.added);
@@ -740,10 +739,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async signOutOfAccount(id: string, accountName: string): Promise<void> {
+	async signOutOfAccount(id: string, accountName: string, sessions: AuthenticationSession[]): Promise<void> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.signOut(accountName);
+			return authProvider.signOut(accountName, sessions);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}

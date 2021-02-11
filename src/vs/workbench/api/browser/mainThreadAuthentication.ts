@@ -18,10 +18,6 @@ import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class MainThreadAuthenticationProvider extends Disposable {
-	private _accounts = new Map<string, string[]>(); // Map account name to session ids
-
-	private _hasInitializedSessions = false;
-
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
@@ -75,19 +71,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	private registerSession(session: modes.AuthenticationSession) {
-		const existingSessionsForAccount = this._accounts.get(session.account.label);
-		if (existingSessionsForAccount) {
-			this._accounts.set(session.account.label, existingSessionsForAccount.concat(session.id));
-			return;
-		} else {
-			this._accounts.set(session.account.label, [session.id]);
-		}
-	}
-
-	async signOut(accountName: string): Promise<void> {
+	async signOut(accountName: string, sessions: modes.AuthenticationSession[]): Promise<void> {
 		const accountUsages = readAccountUsages(this.storageService, this.id, accountName);
-		const sessionsForAccount = this._accounts.get(accountName);
 
 		const result = await this.dialogService.confirm({
 			title: nls.localize('signOutConfirm', "Sign out of {0}", accountName),
@@ -97,7 +82,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 
 		if (result.confirmed) {
-			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+			const logoutPromises = sessions.map(session => this.logout(session.id));
+			await Promise.all(logoutPromises);
 			removeAccountUsage(this.storageService, this.id, accountName);
 			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.GLOBAL);
 		}
@@ -108,33 +94,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	async getAllSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		const sessions = await this._proxy.$getAllSessions(this.id);
-		if (!this._hasInitializedSessions) {
-			sessions.forEach(session => this.registerSession(session));
-			this._hasInitializedSessions = true;
-		}
-
-		return sessions;
-	}
-
-	async updateSessionItems(event: modes.AuthenticationSessionsChangeEvent): Promise<void> {
-		const { added, removed } = event;
-
-		removed.forEach(session => {
-			const sessionId = session.id;
-			const accountName = session.account.label;
-			if (accountName) {
-				let sessionsForAccount = this._accounts.get(accountName) || [];
-				const sessionIndex = sessionsForAccount.indexOf(sessionId);
-				sessionsForAccount.splice(sessionIndex, 1);
-
-				if (!sessionsForAccount.length) {
-					this._accounts.delete(accountName);
-				}
-			}
-		});
-
-		added.forEach(session => this.registerSession(session));
+		return this._proxy.$getAllSessions(this.id);
 	}
 
 	login(scopes: string[]): Promise<modes.AuthenticationSession> {
