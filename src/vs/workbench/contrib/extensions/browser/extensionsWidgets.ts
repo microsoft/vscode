@@ -13,7 +13,7 @@ import { IExtensionManagementServerService } from 'vs/workbench/services/extensi
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,6 +21,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { installCountIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -368,3 +369,13 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 		this.element.classList.toggle('hide', !(this.extension && this.extension.state === ExtensionState.Installed && this.userDataAutoSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)));
 	}
 }
+
+// Rating icon
+export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hc: '#FF8E00' }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
+
+registerThemingParticipant((theme, collector) => {
+	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
+	if (extensionRatingIcon) {
+		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
+	}
+});
