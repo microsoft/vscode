@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { release } from 'os';
 import { statSync } from 'fs';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -90,6 +90,10 @@ import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/commo
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
 
+/**
+ * The main VS Code application. There will only ever be one instance,
+ * even if the user starts many instances (e.g. from the command line).
+ */
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private dialogMainService: IDialogMainService | undefined;

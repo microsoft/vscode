@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
 import * as fs from 'fs';
 import { release } from 'os';
 import { gracefulify } from 'graceful-fs';
 import { ipcRenderer } from 'electron';
+import product from 'vs/platform/product/common/product';
 import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
