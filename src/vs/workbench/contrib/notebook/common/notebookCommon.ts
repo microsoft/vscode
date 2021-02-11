@@ -713,7 +713,7 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	return false;
 }
 
-export interface INotebookKernelInfoDto2 {
+export interface INotebookKernel {
 	id?: string;
 	friendlyId: string;
 	label: string;
@@ -723,11 +723,9 @@ export interface INotebookKernelInfoDto2 {
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloads?: UriComponents[];
+	preloads?: URI[];
 	supportedLanguages?: string[]
-}
 
-export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
 	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
@@ -738,7 +736,7 @@ export interface INotebookKernelProvider {
 	providerDescription?: string;
 	selector: INotebookDocumentFilter;
 	onDidChangeKernels: Event<URI | undefined>;
-	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
+	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
 }
 
 export class CellSequence implements ISequence {

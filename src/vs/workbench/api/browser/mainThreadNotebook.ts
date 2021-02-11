@@ -23,7 +23,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, INotebookKernelInfo2, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -533,8 +533,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			providerDescription: extension.description,
 			onDidChangeKernels: emitter.event,
 			selector: documentFilter,
-			provideKernels: async (uri: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> => {
-				const result: INotebookKernelInfo2[] = [];
+			provideKernels: async (uri: URI, token: CancellationToken): Promise<INotebookKernel[]> => {
+				const result: INotebookKernel[] = [];
 				const kernelsDto = await that._proxy.$provideNotebookKernels(handle, uri, token);
 				for (const dto of kernelsDto) {
 
@@ -543,14 +543,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 						friendlyId: dto.friendlyId,
 						label: dto.label,
 						extension: dto.extension,
-						extensionLocation: dto.extensionLocation,
+						extensionLocation: URI.revive(dto.extensionLocation),
 						providerHandle: dto.providerHandle,
 						description: dto.description,
 						detail: dto.detail,
 						isPreferred: dto.isPreferred,
-						preloads: dto.preloads,
+						preloads: dto.preloads?.map(u => URI.revive(u)),
 						supportedLanguages: dto.supportedLanguages,
-
 						resolve: (uri: URI, editorId: string, token: CancellationToken): Promise<void> => {
 							this.logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
 							return this._proxy.$resolveNotebookKernel(handle, editorId, uri, dto.friendlyId, token);

@@ -18,7 +18,7 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, NotebookCellMetadata, ICellRange, INotebookKernelInfo2, notebookDocumentMetadataDefaults, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookEditorModel, NotebookCellMetadata, ICellRange, INotebookKernel, notebookDocumentMetadataDefaults, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { NotImplementedError } from 'vs/base/common/errors';
@@ -87,7 +87,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void {
 		throw new Error('Method not implemented.');
 	}
-	async beginComputeContributedKernels(): Promise<INotebookKernelInfo2[]> {
+	async beginComputeContributedKernels(): Promise<INotebookKernel[]> {
 		return [];
 	}
 	setEditorDecorations(key: string, range: ICellRange): void {
@@ -142,7 +142,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	cursorNavigationMode = false;
-	activeKernel: INotebookKernelInfo2 | undefined;
+	activeKernel: INotebookKernel | undefined;
 	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
 	activeCodeEditor: IEditor | undefined;
