@@ -10,7 +10,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustService, WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_URI, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -20,11 +20,11 @@ import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WorkspaceTrustFileSystemProvider } from 'vs/workbench/contrib/workspace/common/workspaceTrustFileSystemProvider';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_URI } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -54,7 +54,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		if (visible) {
 			this.badgeDisposable.value = this.activityService.showGlobalActivity({
 				badge: new IconBadge(workspaceTrustIcon, () => localize('requestTrustIconText', "Some features require workspace trust.")),
-				priority: 0
+				priority: 10
 			});
 		}
 	}
@@ -200,7 +200,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: WorkspaceTrustContext.PendingRequest,
-				group: '7_trust',
+				group: '6_workspace_trust',
 				order: 10
 			},
 		});
@@ -240,7 +240,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.GlobalActivity,
 				when: WorkspaceTrustContext.PendingRequest,
-				group: '7_trust',
+				group: '6_workspace_trust',
 				order: 20
 			},
 		});
@@ -264,53 +264,19 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Reset Workspace Trust
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.trust.reset',
-			title: {
-				original: 'Reset Workspace Trust',
-				value: localize('reset', "Reset Workspace Trust")
-			},
-			category: localize('workspacesCategory', "Workspaces"),
-			f1: true,
-			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('empty').negate(), WorkspaceTrustContext.TrustState.isEqualTo(WorkspaceTrustState.Unknown).negate())
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const dialogService = accessor.get(IDialogService);
-		const workspaceTrustService = accessor.get(IWorkspaceTrustService);
-
-		const result = await dialogService.confirm({
-			message: localize('reset', "Reset Workspace Trust"),
-			detail: localize('confirmResetWorkspaceTrust', "Resetting workspace trust to the workspace will disable features that may pose a security risk if the contents of the workspace cannot be trusted. Are you sure you want to reset trust this workspace?"),
-			primaryButton: localize('yesGrant', 'Yes'),
-			secondaryButton: localize('noGrant', 'No')
-		});
-
-		if (result.confirmed) {
-			workspaceTrustService.resetWorkspaceTrust();
-		}
-
-		return;
-	}
-});
-
 // Manage Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.trust.manage',
 			title: {
-				original: 'Manage Trusted Workspaces',
-				value: localize('manageWorkspaceTrust', "Manage Trusted Workspaces")
+				original: 'Manage Workspace Trust',
+				value: localize('manageWorkspaceTrust', "Manage Workspace Trust")
 			},
 			category: localize('workspacesCategory', "Workspaces"),
 			menu: {
 				id: MenuId.GlobalActivity,
-				group: '7_trust',
+				group: '6_workspace_trust',
 				order: 40,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest.negate())
 			},
@@ -327,9 +293,9 @@ registerAction2(class extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	command: {
 		id: 'workbench.trust.manage',
-		title: localize('manageWorkspaceTrustPending', "Manage Trusted Workspaces (1)"),
+		title: localize('manageWorkspaceTrustPending', "Manage Workspace Trust (1)"),
 	},
-	group: '7_trust',
+	group: '6_workspace_trust',
 	order: 40,
 	when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest)
 });

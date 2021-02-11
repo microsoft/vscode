@@ -86,6 +86,8 @@ module.exports.indentationFilter = [
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
 	'!extensions/markdown-language-features/media/*.js',
+	'!extensions/markdown-language-features/notebook-out/*.js',
+	'!extensions/markdown-notebook-math/notebook-out/*.js',
 	'!extensions/simple-browser/media/*.js',
 ];
 

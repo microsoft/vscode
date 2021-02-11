@@ -78,7 +78,6 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 
 			this.element.classList.add(...classNames);
 
-			this.element.tabIndex = 0;
 			this.element.setAttribute('role', 'button');
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');

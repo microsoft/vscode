@@ -164,6 +164,11 @@ export interface ICommonNotebookEditor {
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
+	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
+	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
+	markdownCellDrag(cellId: string, position: { clientY: number }): void;
+	markdownCellDragEnd(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
 }
 
 //#endregion
@@ -459,6 +464,10 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	 */
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
+	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	hideMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	removeMarkdownPreview(cell: ICellViewModel): Promise<void>;
+
 	/**
 	 * Render the output in webview layer
 	 */
@@ -681,6 +690,7 @@ export interface BaseCellRenderTemplate {
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
+	focusIndicatorBottom: HTMLElement;
 	currentEditor?: ICodeEditor;
 }
 

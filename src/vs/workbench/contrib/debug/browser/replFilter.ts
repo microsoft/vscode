@@ -165,6 +165,10 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		return this.filterInputBox.getHistory();
 	}
 
+	get trapsArrowNavigation(): boolean {
+		return true;
+	}
+
 	private clearFilterText(): void {
 		this.filterInputBox.value = '';
 	}

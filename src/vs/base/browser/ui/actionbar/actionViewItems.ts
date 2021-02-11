@@ -163,8 +163,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		this.actionRunner.run(this._action, context);
 	}
 
+	// Only set the tabIndex on the element once it is about to get focused
+	// That way this element wont be a tab stop when it is not needed #106441
 	focus(): void {
 		if (this.element) {
+			this.element.tabIndex = 0;
 			this.element.focus();
 			this.element.classList.add('focused');
 		}
@@ -173,8 +176,19 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	blur(): void {
 		if (this.element) {
 			this.element.blur();
+			this.element.tabIndex = -1;
 			this.element.classList.remove('focused');
 		}
+	}
+
+	setFocusable(): void {
+		if (this.element) {
+			this.element.tabIndex = 0;
+		}
+	}
+
+	get trapsArrowNavigation(): boolean {
+		return false;
 	}
 
 	protected updateEnabled(): void {
@@ -259,11 +273,24 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateChecked();
 	}
 
+	// Only set the tabIndex on the element once it is about to get focused
+	// That way this element wont be a tab stop when it is not needed #106441
 	focus(): void {
-		super.focus();
-
 		if (this.label) {
+			this.label.tabIndex = 0;
 			this.label.focus();
+		}
+	}
+
+	blur(): void {
+		if (this.label) {
+			this.label.tabIndex = -1;
+		}
+	}
+
+	setFocusable(): void {
+		if (this.label) {
+			this.label.tabIndex = 0;
 		}
 	}
 
@@ -320,7 +347,6 @@ export class ActionViewItem extends BaseActionViewItem {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
 				this.label.classList.remove('disabled');
-				this.label.tabIndex = 0;
 			}
 
 			if (this.element) {

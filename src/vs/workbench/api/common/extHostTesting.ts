@@ -170,6 +170,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				collection.addRoot(hierarchy.root, id);
 				Promise.resolve(hierarchy.discoveredInitialTests).then(() => collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
+				hierarchy.onDidInvalidateTest?.(e => {
+					const internal = collection.getTestByReference(e);
+					if (!internal) {
+						console.warn(`Received a TestProvider.onDidInvalidateTest for a test that does not currently exist.`);
+					} else {
+						this.proxy.$retireTest(internal.item.extId);
+					}
+				});
 			} catch (e) {
 				console.error(e);
 			}
