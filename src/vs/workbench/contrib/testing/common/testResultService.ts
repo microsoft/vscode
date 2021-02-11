@@ -189,9 +189,11 @@ export class LiveTestResult implements ITestResult {
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
+	private readonly retireEmitter = new Emitter<TestResultItem>();
 	private readonly changeEmitter = new Emitter<TestResultItem>();
 	private _complete = false;
 
+	public readonly onRetired = this.retireEmitter.event;
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 
@@ -311,6 +313,7 @@ export class LiveTestResult implements ITestResult {
 			return;
 		}
 
+		this.retireEmitter.fire(root);
 		const queue: Iterable<string>[] = [[root.id]];
 		while (queue.length) {
 			for (const id of queue.pop()!) {
@@ -429,6 +432,11 @@ export interface ITestResultService {
 	readonly onTestChanged: Event<[results: ITestResult, item: TestResultItem]>;
 
 	/**
+	 * Fired when a test is retired, in addition to `onTestChanged`.
+	 */
+	readonly onTestRetired: Event<TestResultItem>;
+
+	/**
 	 * List of known test results.
 	 */
 	readonly results: ReadonlyArray<ITestResult>;
@@ -461,6 +469,7 @@ const RETAIN_LAST_RESULTS = 64;
 export class TestResultService implements ITestResultService {
 	declare _serviceBrand: undefined;
 	private changeResultEmitter = new Emitter<ResultChangeEvent>();
+	private testRetiredEmitter = new Emitter<TestResultItem>();
 	private testChangeEmitter = new Emitter<[results: ITestResult, item: TestResultItem]>();
 
 	/**
@@ -477,6 +486,11 @@ export class TestResultService implements ITestResultService {
 	 * @inheritdoc
 	 */
 	public readonly onTestChanged = this.testChangeEmitter.event;
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly onTestRetired = this.testRetiredEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
 	private readonly serializedResults: StoredValue<ISerializedResults[]>;
@@ -519,6 +533,7 @@ export class TestResultService implements ITestResultService {
 
 		result.onComplete(() => this.onComplete(result));
 		result.onChange(t => this.testChangeEmitter.fire([result, t]), this.testChangeEmitter);
+		result.onRetired(this.testRetiredEmitter.fire, this.testRetiredEmitter);
 		this.isRunning.set(true);
 		this.changeResultEmitter.fire({ started: result });
 		result.setAllToState(queuedState, () => true);
