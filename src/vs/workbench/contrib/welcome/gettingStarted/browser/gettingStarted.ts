@@ -416,6 +416,7 @@ export class GettingStartedPage extends EditorPane {
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
+					$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", task.media.altText) }),
 					$('.actions', {},
 						...(
 							task.button
