@@ -64,17 +64,14 @@ export class CellDragAndDropController extends Disposable {
 		};
 
 		addCellDragListener(DOM.EventType.DRAG_OVER, event => {
-			console.log('dragOver');
 			event.browserEvent.preventDefault();
 			this.onCellDragover(event);
 		});
 		addCellDragListener(DOM.EventType.DROP, event => {
-			console.log('drop');
 			event.browserEvent.preventDefault();
 			this.onCellDrop(event);
 		});
 		addCellDragListener(DOM.EventType.DRAG_LEAVE, event => {
-			console.log('drag leave');
 			event.browserEvent.preventDefault();
 			this.onCellDragLeave(event);
 		});
@@ -304,11 +301,11 @@ export class CellDragAndDropController extends Disposable {
 		}
 	}
 
-	public endExplicitDrag(cell: ICellViewModel, position: { clientY: number }) {
+	public endExplicitDrag(cell: ICellViewModel, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }) {
 		this.currentDraggedCell = undefined;
 		this.setInsertIndicatorVisibility(false);
 
-		const target = this.list.elementAt(position.clientY);
+		const target = this.list.elementAt(ctx.clientY);
 		if (!target || target === cell) {
 			return;
 		}
@@ -316,16 +313,16 @@ export class CellDragAndDropController extends Disposable {
 		const cellTop = this.list.getAbsoluteTopOfElement(target);
 		const cellHeight = this.list.elementHeight(target);
 
-		const dragOffset = this.list.scrollTop + position.clientY - cellTop;
+		const dragOffset = this.list.scrollTop + ctx.clientY - cellTop;
 
 		const dragPosInElement = dragOffset - cellTop;
 		const dragPosRatio = dragPosInElement / cellHeight;
 
 		const dropDirection = this.getDropInsertDirection(dragPosRatio);
 
-		const isCopy = false; // TODO
+		const isCopy = (ctx.ctrlKey && !platform.isMacintosh) || (ctx.altKey && platform.isMacintosh);
 		if (isCopy) {
-			// this.copyCells(draggedCells, event.draggedOverCell, dropDirection);
+			this.copyCells([cell], target, dropDirection);
 		} else {
 			const viewModel = this.notebookEditor.viewModel!;
 			let originalToIdx = viewModel.getCellIndex(target);

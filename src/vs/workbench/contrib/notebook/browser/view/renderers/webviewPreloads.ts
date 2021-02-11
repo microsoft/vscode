@@ -659,6 +659,32 @@ function webviewPreloads() {
 		type: 'initialized'
 	});
 
+	document.addEventListener('dragover', e => {
+		// Allow dropping dragged markdown cells
+		e.preventDefault();
+	});
+
+	const markdownCellDragDataType = 'x-vscode-markdown-cell-drag';
+
+	document.addEventListener('drop', e => {
+		const data = e.dataTransfer?.getData(markdownCellDragDataType);
+		if (!data) {
+			return;
+		}
+		e.preventDefault();
+
+		const { cellId } = JSON.parse(data);
+		const msg: ICellDragEndMessage = {
+			__vscode_notebook_message: true,
+			type: 'cell-drag-end',
+			cellId: cellId,
+			ctrlKey: e.ctrlKey,
+			altKey: e.altKey,
+			position: { clientX: e.clientX, clientY: e.clientY },
+		};
+		vscode.postMessage(msg);
+	});
+
 	function createMarkdownPreview(cellId: string, content: string, top: number) {
 		let cellContainer = document.getElementById(cellId);
 		if (!cellContainer) {
@@ -685,6 +711,11 @@ function webviewPreloads() {
 			previewContainerNode.setAttribute('draggable', 'true');
 
 			previewContainerNode.addEventListener('dragstart', e => {
+				if (!e.dataTransfer) {
+					return;
+				}
+				e.dataTransfer.setData(markdownCellDragDataType, JSON.stringify({ cellId }));
+
 				(e.target as HTMLElement).classList.add('dragging');
 
 				const msg: ICellDragStartMessage = {
@@ -697,8 +728,6 @@ function webviewPreloads() {
 			});
 
 			previewContainerNode.addEventListener('drag', e => {
-				console.log('drag', e);
-
 				const msg: ICellDragMessage = {
 					__vscode_notebook_message: true,
 					type: 'cell-drag',
@@ -710,14 +739,6 @@ function webviewPreloads() {
 
 			previewContainerNode.addEventListener('dragend', e => {
 				(e.target as HTMLElement).classList.remove('dragging');
-
-				const msg: ICellDragEndMessage = {
-					__vscode_notebook_message: true,
-					type: 'cell-drag-end',
-					cellId: cellId,
-					position: { clientX: e.clientX, clientY: e.clientY },
-				};
-				vscode.postMessage(msg);
 			});
 
 			cellContainer.appendChild(previewContainerNode);

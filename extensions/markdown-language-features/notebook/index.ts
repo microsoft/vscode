@@ -20,10 +20,7 @@ type extendMarkdownItFnType = (
 	const notebook = acquireNotebookRendererApi('notebookCoreTestRenderer');
 
 	notebook.onDidCreateMarkdown(({ element, content }: any) => {
-		console.log('did create markdown cell');
 		const rendered = markdownIt.render(content);
 		element.innerHTML = rendered;
 	});
-
-	console.log('markdown-it');
 }());

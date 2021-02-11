@@ -2125,27 +2125,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+	markdownCellDragStart(cellId: string, ctx: { clientY: number }): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
 
 		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._dndController?.startExplicitDrag(cell, position);
+			this._dndController?.startExplicitDrag(cell, ctx);
 		}
 	}
 
-	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+	markdownCellDrag(cellId: string, ctx: { clientY: number }): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
 
 		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._dndController?.explicitDrag(cell, position);
+			this._dndController?.explicitDrag(cell, ctx);
 		}
 	}
 
-	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
+	markdownCellDragEnd(cellId: string, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
 
 		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._dndController?.endExplicitDrag(cell, position);
+			this._dndController?.endExplicitDrag(cell, ctx);
 		}
 	}
 

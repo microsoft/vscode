@@ -101,10 +101,15 @@ export interface ICellDragMessage {
 }
 
 export interface ICellDragEndMessage {
-	__vscode_notebook_message: boolean;
-	type: 'cell-drag-end';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly __vscode_notebook_message: boolean;
+	readonly type: 'cell-drag-end';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly position: {
+		readonly clientX: number;
+		readonly clientY: number;
+	};
 }
 
 export interface IClearMessage {
@@ -768,7 +773,11 @@ var requirejs = (function() {
 				} else if (data.type === 'cell-drag') {
 					this.notebookEditor.markdownCellDrag(data.cellId, data.position);
 				} else if (data.type === 'cell-drag-end') {
-					this.notebookEditor.markdownCellDragEnd(data.cellId, data.position);
+					this.notebookEditor.markdownCellDragEnd(data.cellId, {
+						clientY: data.position.clientY,
+						ctrlKey: data.ctrlKey,
+						altKey: data.altKey,
+					});
 				}
 				return;
 			}
