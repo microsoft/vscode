@@ -40,7 +40,7 @@ import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/co
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { IMainProcessService } from 'vs/platform/ipc/common/services';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';

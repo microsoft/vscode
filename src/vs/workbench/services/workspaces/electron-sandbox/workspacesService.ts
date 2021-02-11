@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IMainProcessService } from 'vs/platform/ipc/common/services';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';

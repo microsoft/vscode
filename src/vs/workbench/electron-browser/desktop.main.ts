@@ -28,7 +28,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
-import { IMainProcessService } from 'vs/platform/ipc/common/services';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';

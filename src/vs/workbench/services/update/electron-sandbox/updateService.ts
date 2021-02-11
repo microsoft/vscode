@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/common/services';
+import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 
 registerMainProcessRemoteService(IUpdateService, 'update', { channelClientCtor: UpdateChannelClient });

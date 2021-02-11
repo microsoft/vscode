@@ -19,7 +19,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService } from 'vs/platform/ipc/common/services';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';

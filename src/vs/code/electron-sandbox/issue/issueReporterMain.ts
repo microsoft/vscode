@@ -22,7 +22,7 @@ import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService } from 'vs/platform/ipc/common/services';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Codicon } from 'vs/base/common/codicons';

@@ -11,7 +11,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ISharedProcessService } from 'vs/platform/ipc/common/services';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 
