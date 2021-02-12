@@ -212,6 +212,11 @@
               "type": "number",
               "default": 0.3,
               "description": "%emmetPreferencesCssFuzzySearchMinScore%"
+            },
+            "output.reverseAttributes": {
+              "type": "boolean",
+              "default": false,
+              "description": "%emmetPreferencesOutputReverseAttributes%"
             }
           }
         },
