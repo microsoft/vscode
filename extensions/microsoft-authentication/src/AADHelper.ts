@@ -303,7 +303,7 @@ export class AzureActiveDirectoryService {
 	async getSessions(scopes: string[]): Promise<vscode.AuthenticationSession[]> {
 		const orderedScopes = scopes.sort().join(' ');
 		const matchingTokens = this._tokens.filter(token => token.scope === orderedScopes);
-		return Promise.all(this._tokens.map(token => this.convertToSession(token)));
+		return Promise.all(matchingTokens.map(token => this.convertToSession(token)));
 	}
 
 	public async createSession(scope: string): Promise<vscode.AuthenticationSession> {
