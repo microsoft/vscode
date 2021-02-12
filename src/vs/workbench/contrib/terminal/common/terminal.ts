@@ -169,10 +169,6 @@ export interface ITerminalFont {
 	charHeight?: number;
 }
 
-export interface ITerminalEnvironment {
-	[key: string]: string | null;
-}
-
 export interface IRemoteTerminalAttachTarget {
 	id: number;
 	pid: number;
@@ -203,9 +199,6 @@ export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAt
 export interface IRawTerminalsLayoutInfo<T> {
 	tabs: IRawTerminalTabLayoutInfo<T>[];
 }
-
-export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IRemoteTerminalAttachTarget | null>;
-export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
 
 /**
  * Provides access to native Windows calls that can be injected into non-native layers.

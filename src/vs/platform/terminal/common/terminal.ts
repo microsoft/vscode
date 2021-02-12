@@ -182,6 +182,10 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 
 	getLatency(id: number): Promise<number>;
+
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
+
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 export interface IShellLaunchConfig {

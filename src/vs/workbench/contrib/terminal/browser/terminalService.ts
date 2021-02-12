@@ -8,7 +8,6 @@ import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -33,6 +32,8 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalLaunchError, ITerminalProcessExtHostProxy, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, LinuxDistro } from 'vs/platform/terminal/common/terminal';
 import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
 	resolve: () => void;
@@ -67,6 +68,7 @@ export class TerminalService implements ITerminalService {
 	private _terminalContainer: HTMLElement | undefined;
 	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
+	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
@@ -120,7 +122,7 @@ export class TerminalService implements ITerminalService {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IStorageService private readonly _storageService: IStorageService
+		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -144,9 +146,13 @@ export class TerminalService implements ITerminalService {
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 		const serverSpawn = this.configHelper.config.serverSpawn;
-		//TODO@meganrogge move _reconnectToLocalTerminals call from initializeInstances to else if here
+
+		//TODO@meganrogge: deal with case where there are both local and remote terminals to reconnect
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
 			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+			this._connectionState = TerminalConnectionState.Connecting;
+		} else if (enableTerminalReconnection) {
+			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
 			this._connectionState = TerminalConnectionState.Connecting;
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
@@ -211,28 +217,27 @@ export class TerminalService implements ITerminalService {
 		return reconnectCounter;
 	}
 
-	private _reconnectToLocalTerminals(): void {
+	//TODO@meganrogge: GDPR?
+	private async _reconnectToLocalTerminals(): Promise<void> {
 		// Reattach to all local terminals
-		const defaultLayoutInfo = JSON.stringify({ tabs: [{ terminals: [], isActive: true }] });
-		const result = this._storageService.get('localTerminalLayoutInfo', StorageScope.WORKSPACE, defaultLayoutInfo);
-		const layoutInfo = JSON.parse(result);
+		const layoutInfo = await this._localPtyService.getTerminalLayoutInfo();
+		if (layoutInfo) {
+			if (layoutInfo.tabs.length === 0) {
+				this.createTerminal();
+				this.attachProcessLayoutListeners(false);
+				return;
+			}
 
-		if (layoutInfo.tabs.length === 0) {
-			this.createTerminal();
+			this._recreateLocalTabs(layoutInfo);
+
+			this._connectionState = TerminalConnectionState.Connected;
+			// now that terminals have been restored,
+			// attach listeners to update local state when terminals are changed
 			this.attachProcessLayoutListeners(false);
-			return;
+			this._onDidChangeConnectionState.fire();
 		}
-
-		this._recreateLocalTabs(layoutInfo);
-
-		this._connectionState = TerminalConnectionState.Connected;
-		// now that terminals have been restored,
-		// attach listeners to update local state when terminals are changed
-		this.attachProcessLayoutListeners(false);
-		this._onDidChangeConnectionState.fire();
 	}
 
-	//TODO@meganrogge consolidate _recreateLocal/Remote Tabs functions
 	private _recreateLocalTabs(layoutInfo: any): void {
 		let activeTab: ITerminalTab | undefined;
 		if (layoutInfo) {
@@ -383,7 +388,7 @@ export class TerminalService implements ITerminalService {
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab(), false))
 		};
-		this._storageService.store('localTerminalLayoutInfo', JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.USER);
+		this._localPtyService.setTerminalLayoutInfo(state);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
@@ -506,10 +511,16 @@ export class TerminalService implements ITerminalService {
 			await this._remoteTerminalsInitPromise;
 
 			if (!this.terminalTabs.length) {
-				this.createTerminal(undefined);
+				this.createTerminal();
 			}
+		} else if (this._localTerminalsInitPromise) {
+			await this._localTerminalsInitPromise;
+			if (!this.terminalTabs.length) {
+				this.createTerminal();
+			}
+		} else if (!this.terminalTabs.length) {
+			this.createTerminal();
 		}
-		this._reconnectToLocalTerminals();
 	}
 
 	private _getInstanceFromGlobalInstanceIndex(index: number): { tab: ITerminalTab, tabIndex: number, instance: ITerminalInstance, localInstanceIndex: number } | null {
@@ -785,7 +796,6 @@ export class TerminalService implements ITerminalService {
 	private _detectShells(): Promise<IShellDefinition[]> {
 		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
 	}
-
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance,

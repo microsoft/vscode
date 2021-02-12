@@ -25,8 +25,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IShellLaunchConfig, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 

@@ -5,14 +5,15 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, LocalReconnectConstants } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 let currentPtyId = 0;
 
@@ -20,6 +21,8 @@ export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
+
+	private readonly _workspaceLayoutInfos = new Map<string, ISetTerminalLayoutInfoArgs>();
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
@@ -34,7 +37,8 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	constructor(
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 	}
@@ -43,8 +47,9 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).acknowledgeCharCount(charCount);
 	}
 
+	// following suit with the remoteTerminalService impl
 	async getLatency(id: number): Promise<number> {
-		throw new Error('Method not implemented.');
+		return 0;
 	}
 
 	dispose() {
@@ -97,6 +102,56 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async getCwd(id: number): Promise<string> {
 		return this._throwIfNoPty(id).getCwd();
+	}
+
+	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
+		this._workspaceLayoutInfos.set(args.workspaceId, args);
+	}
+
+	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
+		const layout = this._workspaceLayoutInfos.get(this._workspaceContextService.getWorkspace().id);
+		if (layout) {
+			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
+			const filtered = expandedTabs.filter(t => t.terminals.length > 0);
+			this._logService.info(`Terminal layout retrieved: ${JSON.stringify(filtered.map(t => t.terminals.length))}`);
+
+			return {
+				tabs: filtered
+			};
+		}
+		return undefined;
+	}
+
+	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
+		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
+		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto>[];
+		return {
+			isActive: tab.isActive,
+			activeTerminalProcessId: tab.activeTerminalProcessId,
+			terminals: filtered
+		};
+	}
+
+	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
+		const persistentTerminalProcess = this._ptys.get(t.terminal);
+		const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
+		return {
+			terminal: termDto ?? null,
+			relativeSize: t.relativeSize
+		};
+	}
+
+	private async _terminalToDto(id: number, persistentTerminalProcess: PersistentTerminalProcess): Promise<IPtyHostDescriptionDto> {
+		const [cwd, isOrphan] = await Promise.all([persistentTerminalProcess.getCwd(), persistentTerminalProcess.isOrphaned()]);
+		return {
+			id,
+			title: persistentTerminalProcess.title,
+			pid: persistentTerminalProcess.pid,
+			workspaceId: persistentTerminalProcess.workspaceId,
+			workspaceName: persistentTerminalProcess.workspaceName,
+			cwd,
+			isOrphan
+		};
 	}
 
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {
