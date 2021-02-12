@@ -773,11 +773,10 @@ function getMultipleFilesOverwriteOrSkip(files: URI[]): { severity: Severity, me
 		buttons: [
 			localize({ key: 'replaceAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace all"),
 			localize({ key: 'skipAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Skip all"),
-			localize({ key: 'decideAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Decide invidivually"),
 			localize({ key: 'cancelButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
 		],
 		options: {
-			cancelId: 3,
+			cancelId: 2,
 			detail: getFileNamesMessage(files) + '\n' + localize('irreversible', "This action is irreversible!")
 		}
 	};
@@ -1537,20 +1536,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					}
 				}
 
-				const choice = overwrites.length <= 1 ? 2 : await this.showDialog(getMultipleFilesOverwriteOrSkip(overwrites.map(e => e.newResource!)));
-				if (choice === 1) { // skip (i.e. do not move conflicting files)
-					edits = edits.filter(e => overwrites.indexOf(e) < 0);
-				} else if (choice === 2) { // decide on each file individually
-					for (const overwrite of overwrites) {
-						const choice = await this.showDialog(getFileOverwriteOrSkip(overwrite.newResource!));
-						if (choice === 1) { // skip (i.e. do not move this file)
-							edits.splice(edits.indexOf(overwrite), 1);
-						} else if (choice === 2) { // cancel
-							return false;
-						}
+				if (overwrites.length > 0) {
+					const dialog = overwrites.length === 1 ? getFileOverwriteOrSkip(overwrites[0].newResource!) : getMultipleFilesOverwriteOrSkip(overwrites.map(e => e.newResource!));
+
+					const { choice } = await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options);
+					if (choice === 1) { // skip (i.e. do not move conflicting files)
+						edits = edits.filter(e => overwrites.indexOf(e) < 0);
+					} else if (choice === 2) { // cancel
+						return false;
 					}
-				} else if (choice === 3) { // cancel
-					return false;
 				}
 
 				try {
@@ -1586,10 +1580,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		edits.push(new ResourceFileEdit(edit.oldResource, undefined)); // delete the original folder (as it is already present in the target)
 		return edits;
-	}
-
-	private async showDialog(dialog: { severity: Severity, message: string, buttons: string[], options: IDialogOptions }): Promise<number> {
-		return (await this.dialogService.show(dialog.severity, dialog.message, dialog.buttons, dialog.options)).choice;
 	}
 
 	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {

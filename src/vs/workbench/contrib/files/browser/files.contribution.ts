@@ -479,7 +479,7 @@ configurationRegistry.registerConfiguration({
 		'explorer.onFolderConflict': {
 			enum: ['merge', 'replace'],
 			enumDescriptions: [
-				nls.localize('merge', "The conflict will be resolved recursively, meaning that all children will be moved individually. This is the default behavior in most operating systems"),
+				nls.localize('merge', "The conflict will be resolved recursively, meaning that files from both folders will be merged into the new destination folder"),
 				nls.localize('replace', "Completely replace the existing folder with the new folder, possibly deleting files")
 			],
 			description: nls.localize('explorer.onFolderConflict', "Controls what to do when moving a folder into a directory where a folder with the same name already exists."),
