@@ -112,23 +112,22 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
 	private readonly _proxy: ExtHostNotebookShape;
-	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
+	private readonly _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState?: DocumentAndEditorState;
-	private _editorEventListenersMapping: Map<string, DisposableStore> = new Map();
-	private _documentEventListenersMapping: ResourceMap<DisposableStore> = new ResourceMap();
+	private readonly _editorEventListenersMapping: Map<string, DisposableStore> = new Map();
+	private readonly _documentEventListenersMapping: ResourceMap<DisposableStore> = new ResourceMap();
 	private readonly _cellStatusBarEntries: Map<number, IDisposable> = new Map();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotebookService private _notebookService: INotebookService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILogService private readonly logService: ILogService,
-		@INotebookCellStatusBarService private readonly cellStatusBarService: INotebookCellStatusBarService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ILogService private readonly _logService: ILogService,
+		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -339,26 +338,26 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}));
 
 		const updateOrder = () => {
-			let userOrder = this.configurationService.getValue<string[]>(DisplayOrderKey);
+			let userOrder = this._configurationService.getValue<string[]>(DisplayOrderKey);
 			this._proxy.$acceptDisplayOrder({
-				defaultOrder: this.accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : NOTEBOOK_DISPLAY_ORDER,
+				defaultOrder: this._accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : NOTEBOOK_DISPLAY_ORDER,
 				userOrder: userOrder
 			});
 		};
 
 		updateOrder();
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.indexOf(DisplayOrderKey) >= 0) {
 				updateOrder();
 			}
 		}));
 
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			updateOrder();
 		}));
 
-		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
+		const activeEditorPane = this._editorService.activeEditorPane as any | undefined;
 		const notebookEditor = activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
 		this._updateState(notebookEditor);
 	}
@@ -371,7 +370,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			}),
 		));
 
-		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
+		const activeEditorPane = this._editorService.activeEditorPane as any | undefined;
 		const notebookEditor = activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
 		this._updateState(notebookEditor);
 	}
@@ -391,7 +390,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private async _updateState(focusedNotebookEditor?: IEditor) {
 		let activeEditor: string | null = null;
 
-		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
+		const activeEditorPane = this._editorService.activeEditorPane as any | undefined;
 		if (activeEditorPane?.isNotebookEditor) {
 			const notebookEditor = (activeEditorPane.getControl() as INotebookEditor);
 			activeEditor = notebookEditor && notebookEditor.hasModel() ? notebookEditor!.getId() : null;
@@ -408,7 +407,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		});
 
 		const visibleEditorsMap = new Map<string, IEditor>();
-		this.editorService.visibleEditorPanes.forEach(editor => {
+		this._editorService.visibleEditorPanes.forEach(editor => {
 			if ((editor as any).isNotebookEditor) {
 				const nbEditorWidget = (editor as any).getControl() as INotebookEditor;
 				if (nbEditorWidget && editors.has(nbEditorWidget.getId())) {
@@ -550,15 +549,15 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 						preloads: dto.preloads?.map(u => URI.revive(u)),
 						supportedLanguages: dto.supportedLanguages,
 						resolve: (uri: URI, editorId: string, token: CancellationToken): Promise<void> => {
-							this.logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
+							this._logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
 							return this._proxy.$resolveNotebookKernel(handle, editorId, uri, dto.friendlyId, token);
 						},
 						executeNotebookCell: (uri: URI, cellHandle: number | undefined): Promise<void> => {
-							this.logService.debug('MainthreadNotebooks.executeNotebookCell', uri.path, dto.friendlyId, cellHandle);
+							this._logService.debug('MainthreadNotebooks.executeNotebookCell', uri.path, dto.friendlyId, cellHandle);
 							return this._proxy.$executeNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellHandle);
 						},
 						cancelNotebookCell: (uri: URI, cellHandle: number | undefined): Promise<void> => {
-							this.logService.debug('MainthreadNotebooks.cancelNotebookCell', uri.path, dto.friendlyId, cellHandle);
+							this._logService.debug('MainthreadNotebooks.cancelNotebookCell', uri.path, dto.friendlyId, cellHandle);
 							return this._proxy.$cancelNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellHandle);
 						}
 					});
@@ -654,7 +653,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		if (statusBarEntry.visible) {
 			this._cellStatusBarEntries.set(
 				id,
-				this.cellStatusBarService.addEntry(statusBarEntry));
+				this._cellStatusBarService.addEntry(statusBarEntry));
 		}
 	}
 
@@ -678,23 +677,23 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			override: false,
 		};
 
-		const columnArg = viewColumnToEditorGroup(this._editorGroupService, options.position);
+		const columnArg = viewColumnToEditorGroup(this._editorGroupsService, options.position);
 
 		let group: IEditorGroup | undefined = undefined;
 
 		if (columnArg === SIDE_GROUP) {
-			const direction = preferredSideBySideGroupDirection(this.configurationService);
+			const direction = preferredSideBySideGroupDirection(this._configurationService);
 
-			let neighbourGroup = this.editorGroupsService.findGroup({ direction });
+			let neighbourGroup = this._editorGroupsService.findGroup({ direction });
 			if (!neighbourGroup) {
-				neighbourGroup = this.editorGroupsService.addGroup(this.editorGroupsService.activeGroup, direction);
+				neighbourGroup = this._editorGroupsService.addGroup(this._editorGroupsService.activeGroup, direction);
 			}
 			group = neighbourGroup;
 		} else {
-			group = this.editorGroupsService.getGroup(viewColumnToEditorGroup(this.editorGroupsService, columnArg)) ?? this.editorGroupsService.activeGroup;
+			group = this._editorGroupsService.getGroup(viewColumnToEditorGroup(this._editorGroupsService, columnArg)) ?? this._editorGroupsService.activeGroup;
 		}
 
-		const input = this.editorService.createEditorInput({ resource: URI.revive(resource), options: editorOptions });
+		const input = this._editorService.createEditorInput({ resource: URI.revive(resource), options: editorOptions });
 
 		// TODO: handle options.selection
 		const editorPane = await this._instantiationService.invokeFunction(openEditorWith, input, viewType, options, group);
