@@ -148,12 +148,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 				eventHandled = this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
-			} else if ((event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
-				if (event.equals(KeyCode.Tab)) {
-					this.focusNext();
-				} else {
-					this.focusPrevious();
-				}
+			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
+				this.focusNext();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
