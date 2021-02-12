@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="../../../typings/require.d.ts" />
+
 //@ts-check
 'use strict';
 
 /**
- * @param {typeof import("path")} path
- * @param {typeof import("os")} os
+ * @param {typeof import('path')} path
+ * @param {typeof import('os')} os
  * @param {string} productName
  */
 function factory(path, os, productName) {
@@ -50,10 +52,8 @@ function factory(path, os, productName) {
 	};
 }
 
-// @ts-ignore
 if (typeof define === 'function') {
-	// @ts-ignore
-	define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources'], function (require, /** @type {typeof import("path")} */ path, /** @type {typeof import("os")} */ os, /** @type {typeof import("../common/network")} */ network, /** @type {typeof import("../common/resources")} */ resources) {
+	define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources'], function (require, /** @type {typeof import('path')} */ path, /** @type {typeof import('os')} */ os, /** @type {typeof import('../common/network')} */ network, /** @type {typeof import("../common/resources")} */ resources) {
 		const rootPath = resources.dirname(network.FileAccess.asFileUri('', require));
 		const pkg = require.__$__nodeRequire(resources.joinPath(rootPath, 'package.json').fsPath);
 

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="../../../typings/require.d.ts" />
+
 //@ts-check
 'use strict';
 
@@ -242,12 +244,9 @@ function factory(nodeRequire, path, fs, perf) {
 	};
 }
 
-
-// @ts-ignore
 if (typeof define === 'function') {
 	// amd
-	// @ts-ignore
-	define(['path', 'fs', 'vs/base/common/performance'], function (path, fs, perf) { return factory(require.__$__nodeRequire, path, fs, perf); });
+	define(['require', 'path', 'fs', 'vs/base/common/performance'], function (require, /** @type {typeof import('path')} */ path, /** @type {typeof import('fs')} */ fs, /** @type {typeof import('../common/performance')} */ perf) { return factory(require.__$__nodeRequire, path, fs, perf); });
 } else if (typeof module === 'object' && typeof module.exports === 'object') {
 	const path = require('path');
 	const fs = require('fs');
