@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
-
 (function () {
+	'use strict';
+
 	const bootstrap = bootstrapLib();
 	const bootstrapWindow = bootstrapWindowLib();
 
@@ -38,5 +38,4 @@
 	}
 
 	//#endregion
-
 }());
