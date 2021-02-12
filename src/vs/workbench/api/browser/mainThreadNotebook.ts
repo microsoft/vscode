@@ -501,7 +501,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		const disposable = this._notebookService.registerNotebookController(viewType, extension, controller);
 		this._notebookProviders.set(viewType, { controller, disposable });
-		return;
 	}
 
 	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void> {

@@ -1105,6 +1105,7 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly version: number;
 		readonly fileName: string;
+		// todo@API should we really expose this?
 		readonly viewType: string;
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
@@ -1305,6 +1306,8 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
+		// todo@API should we really support to pass the viewType? We do NOT support
+		// to open the same file with different viewTypes at the same time
 		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
@@ -1330,6 +1333,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		// TODO@API add overload for just a URI
 		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 
