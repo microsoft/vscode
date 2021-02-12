@@ -36,7 +36,7 @@ import { assertNoRpc } from '../utils';
 			disposables.length = 0;
 		});
 
-		test.skip('sendText immediately after createTerminal should not throw', async () => {
+		test('sendText immediately after createTerminal should not throw', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -57,7 +57,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		(process.platform === 'linux' ? test.skip : test.skip)('echo works in the default shell', (done) => {
+		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
@@ -102,7 +102,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test.skip('onDidCloseTerminal event fires when terminal is disposed', async () => {
+		test('onDidCloseTerminal event fires when terminal is disposed', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
