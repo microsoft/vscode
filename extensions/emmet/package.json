@@ -216,7 +216,7 @@
             "output.reverseAttributes": {
               "type": "boolean",
               "default": false,
-              "description": "%emmetPreferencesCssOutputReverseAttributes%"
+              "description": "%emmetPreferencesOutputReverseAttributes%"
             }
           }
         },
