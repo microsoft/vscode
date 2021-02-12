@@ -5,14 +5,13 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
-// import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-// import { FileAccess } from 'vs/base/common/network';
-// import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { FileAccess } from 'vs/base/common/network';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
-// import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { PtyService } from 'vs/platform/terminal/node/ptyService';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 
 // enum Constants {
 // 	MaxRestarts = 5
@@ -54,51 +53,50 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): IPtyService {
-		// const client = this._register(new Client(
-		// 	FileAccess.asFileUri('bootstrap-fork', require).fsPath,
-		// 	{
-		// 		serverName: 'Pty Host',
-		// 		args: ['--type=ptyHost'],
-		// 		env: {
-		// 			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
-		// 			VSCODE_PIPE_LOGGING: 'true',
-		// 			VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
-		// 		}
-		// 	}
-		// ));
-		// this._onPtyHostStart.fire();
+		const client = this._register(new Client(
+			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			{
+				serverName: 'Pty Host',
+				args: ['--type=ptyHost'],
+				env: {
+					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+				}
+			}
+		));
+		this._onPtyHostStart.fire();
 
-		// // Handle exit
-		// this._register({
-		// 	dispose: () => {
-		// 		if (proxy.shutdownAll) {
-		// 			proxy.shutdownAll();
-		// 		}
-		// 		client.dispose();
-		// 	}
-		// });
-		// this._register(client.onDidProcessExit(e => {
-		// 	this._onPtyHostExit.fire(e.code);
-		// 	// if (!this._isDisposed) {
-		// 	// 	if (this._restartCount <= Constants.MaxRestarts) {
-		// 	// 		this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
-		// 	// 		this._restartCount++;
-		// 	// 		this._proxy = this._startPtyHost();
-		// 	// 	} else {
-		// 	// 		this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
-		// 	// 	}
-		// 	// }
-		// }));
+		// Handle exit
+		this._register({
+			dispose: () => {
+				if (proxy.shutdownAll) {
+					proxy.shutdownAll();
+				}
+				client.dispose();
+			}
+		});
+		this._register(client.onDidProcessExit(e => {
+			this._onPtyHostExit.fire(e.code);
+			// if (!this._isDisposed) {
+			// 	if (this._restartCount <= Constants.MaxRestarts) {
+			// 		this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
+			// 		this._restartCount++;
+			// 		this._proxy = this._startPtyHost();
+			// 	} else {
+			// 		this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
+			// 	}
+			// }
+		}));
 
 		// Setup logging
-		// const logChannel = client.getChannel(TerminalIpcChannels.Log);
-		// this._register(this._logService.onDidChangeLogLevel(() => {
-		// 	LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
-		// }));
+		const logChannel = client.getChannel(TerminalIpcChannels.Log);
+		this._register(this._logService.onDidChangeLogLevel(() => {
+			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
+		}));
 
 		// Create proxy and forward events
-		const proxy = new PtyService(this._logService);
-		// const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
+		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
 		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
