@@ -324,7 +324,7 @@ export class GettingStartedPage extends EditorPane {
 		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
 		categoryScrollContainer.appendChild(
 			$('.footer', {},
-				$('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip")),
+				// $('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip")),
 				$('p.showOnStartup', {},
 					showOnStartupCheckbox,
 					$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show Getting Started page on startup")))
