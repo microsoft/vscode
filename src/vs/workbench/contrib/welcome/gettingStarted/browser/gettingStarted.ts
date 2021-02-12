@@ -242,6 +242,11 @@ export class GettingStartedPage extends EditorPane {
 			mediaElement.setAttribute('src', '');
 			mediaElement.setAttribute('alt', '');
 		}
+		setTimeout(() => {
+			// rescan after animation finishes
+			this.detailsScrollbar?.scanDomNode();
+			this.detailImageScrollbar?.scanDomNode();
+		}, 100);
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
 	}
