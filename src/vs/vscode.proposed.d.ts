@@ -1522,16 +1522,44 @@ declare module 'vscode' {
 		// fired when properties like the supported languages etc change
 		// onDidChangeProperties?: Event<void>
 
-		// @roblourens
-		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
-		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741
-		// interrupt?():void; // Maybe this is preferred
 		// todo@API how can Jupyter ensure that the document-level cancel button shows whenever any cell is running?
-		executeCell(document: NotebookDocument, cell: NotebookCell): void;
-		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
-		executeAllCells(document: NotebookDocument): void;
-		cancelAllCellsExecution(document: NotebookDocument): void;
+		// Maybe this behavior is automatic for any kernel that implements interrupt
+		interrupt?(): void;
+		executeCells(document: NotebookDocument, cells: NotebookCellRange[], cellPending: NotebookCellPending): void;
+		// executeCell(document: NotebookDocument, cell: NotebookCell): void;
+		// cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
+		// executeAllCells(document: NotebookDocument): void;
+		// cancelAllCellsExecution(document: NotebookDocument): void;
 	}
+
+	// todo@API use the NotebookCellExecution-object as a container to model and enforce
+	// the flow of a cell execution
+
+	// kernel -> execute_info
+	// ext -> createNotebookCellExecution(cell)
+	// kernel -> done
+	// exec.dispose();
+
+	export interface NotebookCellExecution {
+		resolve(result: NotebookCellPreviousRunResult): void; // or just stop time, extension can set error outputs or not, and return a success bool
+		clearOutput(): void;
+		appendOutput(out: NotebookCellOutput): void;
+		replaceOutput(out: NotebookCellOutput): void;
+		appendOutputItems(output: string, items: NotebookCellOutputItem[]): void;
+		replaceOutputItems(output: string, items: NotebookCellOutputItem[]): void;
+		token: CancellationToken;
+	}
+
+	export interface NotebookCellPending {
+		start(): NotebookCellExecution; // throws if called twice
+		resolve(): void;
+		token: CancellationToken;
+	}
+
+	export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellPending;
+
+	// todo@API who needs this event?
+	export const onDidChangeNotebookCellExecutionState: Event<{ cell: NotebookCell, state: any }>; // idle -> pending -> executing -> idle
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
 
