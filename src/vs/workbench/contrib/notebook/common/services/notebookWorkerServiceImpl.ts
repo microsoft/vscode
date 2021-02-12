@@ -107,7 +107,6 @@ export class NotebookEditorModelManager extends Disposable {
 					outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
 					metadata: cell.metadata
 				})),
-				languages: model.languages,
 				metadata: model.metadata
 			}
 		);

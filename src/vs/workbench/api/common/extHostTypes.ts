@@ -2896,7 +2896,6 @@ export class NotebookDocumentMetadata {
 		readonly custom: { [key: string]: any; } = {},
 		readonly runState: NotebookRunState = NotebookRunState.Idle,
 		readonly trusted: boolean = true,
-		readonly languages: string[] = [],
 	) { }
 
 	with(change: Partial<Omit<NotebookDocumentMetadata, 'with'>>) {
@@ -2909,8 +2908,7 @@ export class NotebookDocumentMetadata {
 			change.displayOrder ?? this.displayOrder,
 			change.custom ?? this.custom,
 			change.runState ?? this.runState,
-			change.trusted ?? this.trusted,
-			change.languages ?? this.languages,
+			change.trusted ?? this.trusted
 		);
 	}
 }

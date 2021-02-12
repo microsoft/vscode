@@ -23,7 +23,6 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookSmokeTest', {
 		openNotebook: async (_resource: vscode.Uri) => {
 			const dto: vscode.NotebookData = {
-				languages: ['typescript'],
 				metadata: {},
 				cells: [
 					{

@@ -1089,11 +1089,6 @@ declare module 'vscode' {
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
 		trusted?: boolean;
-
-		/**
-		 * Languages the document supports
-		 */
-		languages?: string[];
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1119,10 +1114,6 @@ declare module 'vscode' {
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
 		readonly contentOptions: NotebookDocumentContentOptions;
-		// todo@API
-		// - move to kernel -> control runnable state of a cell
-		// - remove from this type
-		languages: string[];
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
@@ -1267,7 +1258,6 @@ declare module 'vscode' {
 
 	export interface NotebookData {
 		readonly cells: NotebookCellData[];
-		readonly languages: string[];
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
@@ -1592,10 +1582,13 @@ declare module 'vscode' {
 		isPreferred?: boolean;
 		preloads?: Uri[];
 
-		// todo@API
-		// languages supported by kernel
-		// first is preferred
-		// languages: string[];
+		// TODO@API control runnable state of cell
+		/**
+		 * languages supported by kernel
+		 * - first is preferred
+		 * - `undefined` means all languages available in the editor
+		 */
+		supportedLanguages?: string[];
 
 		// @roblourens
 		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
