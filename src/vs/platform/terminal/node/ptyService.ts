@@ -60,6 +60,10 @@ export class PtyService extends Disposable implements IPtyService {
 		return id;
 	}
 
+	async shutdownAll(): Promise<void> {
+		this.dispose();
+	}
+
 	async start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {
 		return this._throwIfNoPty(id).start();
 	}

@@ -68,7 +68,14 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._onPtyHostStart.fire();
 
 		// Handle exit
-		this._register({ dispose: () => client.dispose() });
+		this._register({
+			dispose: () => {
+				if (proxy.shutdownAll) {
+					proxy.shutdownAll();
+				}
+				client.dispose();
+			}
+		});
 		this._register(client.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {

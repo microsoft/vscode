@@ -45,6 +45,8 @@ export interface IPtyService {
 		windowsEnableConpty: boolean
 	): Promise<number>;
 
+	shutdownAll?(): Promise<void>;
+
 	start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined>;
 
 	shutdown(id: number, immediate: boolean): Promise<void>;
