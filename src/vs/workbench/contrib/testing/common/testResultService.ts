@@ -50,7 +50,7 @@ export interface ITestResult {
 	toJSON(): ISerializedResults;
 }
 
-const makeEmptyCounts = () => {
+export const makeEmptyCounts = () => {
 	const o: Partial<TestStateCount> = {};
 	for (const state of statesInOrder) {
 		o[state] = 0;
@@ -148,11 +148,10 @@ const makeNodeAndChildren = (
 
 interface ISerializedResults {
 	id: string;
-	counts: TestStateCount;
-	items: Iterable<[extId: string, item: TestResultItem]>;
+	items: (Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined })[];
 }
 
-interface TestResultItem extends IncrementalTestCollectionItem {
+export interface TestResultItem extends IncrementalTestCollectionItem {
 	state: ITestState;
 	computedState: TestRunState;
 	retired: boolean;
@@ -273,7 +272,7 @@ export class LiveTestResult implements ITestResult {
 	public setAllToState(state: ITestState, when: (_t: TestResultItem) => boolean) {
 		for (const test of this.testByInternalId.values()) {
 			if (when(test)) {
-				this.counts[state.state]--;
+				this.counts[test.state.state]--;
 				test.state = state;
 				this.counts[state.state]++;
 				refreshComputedState(this.computedStateAccessor, test, t => this.changeEmitter.fire(t));
@@ -336,7 +335,11 @@ export class LiveTestResult implements ITestResult {
 		for (const collection of this.collections) {
 			let test = collection.getNodeById(testId);
 			if (test) {
-				return makeNodeAndChildren(collection, test, this.testByExtId, this.testByInternalId);
+				const originalSize = this.testByExtId.size;
+				makeParents(collection, test, this.testByExtId, this.testByInternalId);
+				const node = makeNodeAndChildren(collection, test, this.testByExtId, this.testByInternalId);
+				this.counts[TestRunState.Unset] += this.testByExtId.size - originalSize;
+				return node;
 			}
 		}
 
@@ -361,7 +364,14 @@ export class LiveTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public toJSON(): ISerializedResults {
-		return { id: this.id, counts: this.counts, items: [...this.testByExtId.entries()] };
+		return {
+			id: this.id,
+			items: [...this.testByExtId.values()].map(entry => ({
+				...entry,
+				retired: undefined,
+				children: [...entry.children],
+			})),
+		};
 	}
 }
 
@@ -372,30 +382,33 @@ class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts = this.serialized.counts;
+	public readonly counts = makeEmptyCounts();
 
 	/**
 	 * @inheritdoc
 	 */
-	public readonly id = this.serialized.id;
+	public readonly id: string;
 
 	/**
 	 * @inheritdoc
 	 */
 	public readonly isComplete = true;
 
-	private readonly map = new Map<string, TestResultItem>();
+	private readonly byExtId = new Map<string, TestResultItem>();
 
 	constructor(private readonly serialized: ISerializedResults) {
-		for (const [key, value] of serialized.items) {
-			this.map.set(key, value);
+		this.id = serialized.id;
 
-			value.retired = true;
-			for (const message of value.state.messages) {
+		for (const item of serialized.items) {
+			const cast: TestResultItem = { ...item, retired: true, children: new Set(item.children) };
+			for (const message of cast.state.messages) {
 				if (message.location) {
 					message.location.uri = URI.revive(message.location.uri);
 				}
 			}
+
+			this.counts[item.state.state]++;
+			this.byExtId.set(item.item.extId, cast);
 		}
 	}
 
@@ -403,7 +416,7 @@ class HydratedTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public getStateByExtId(extTestId: string) {
-		return this.map.get(extTestId);
+		return this.byExtId.get(extTestId);
 	}
 
 	/**
@@ -568,7 +581,7 @@ export class TestResultService implements ITestResultService {
 
 	private onComplete(result: LiveTestResult) {
 		// move the complete test run down behind any still-running ones
-		for (let i = 0; i < this.results.length - 2; i++) {
+		for (let i = 0; i < this.results.length - 1; i++) {
 			if (this.results[i].isComplete && !this.results[i + 1].isComplete) {
 				[this.results[i], this.results[i + 1]] = [this.results[i + 1], this.results[i]];
 			}

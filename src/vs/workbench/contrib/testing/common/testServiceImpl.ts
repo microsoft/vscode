@@ -242,7 +242,7 @@ export class TestService extends Disposable implements ITestService {
 	}
 }
 
-class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
+export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private pendingRootChangeEmitter = new Emitter<number>();
 	private busyProvidersChangeEmitter = new Emitter<number>();
 	private _busyProviders = 0;
