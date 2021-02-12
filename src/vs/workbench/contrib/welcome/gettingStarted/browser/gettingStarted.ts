@@ -302,7 +302,9 @@ export class GettingStartedPage extends EditorPane {
 							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
 							$('.category-progress', { 'x-data-category-id': category.id, },
 								$('.message'),
-								$('.progress-bar-outer', {},
+								$('.progress-bar-outer', {
+									'role': 'progressbar'
+								},
 									$('.progress-bar-inner'))))
 						:
 						$('.category-description-container', {},
@@ -310,12 +312,15 @@ export class GettingStartedPage extends EditorPane {
 							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
 
 				return $('button.getting-started-category',
-					{ 'x-dispatch': 'selectCategory:' + category.id, },
+					{
+						'x-dispatch': 'selectCategory:' + category.id,
+						'role': 'listitem',
+					},
 					$(ThemeIcon.asCSSSelector(category.icon), {}), categoryDescriptionElement);
 			});
 
 		const categoryScrollContainer = $('.getting-started-categories-scrolling-container');
-		const categoriesContainer = $('.getting-started-categories-container');
+		const categoriesContainer = $('.getting-started-categories-container', { 'role': 'list' });
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
@@ -384,6 +389,10 @@ export class GettingStartedPage extends EditorPane {
 
 			const message = assertIsDefined(element.firstChild);
 			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
+			bar.setAttribute('aria-valuemin', '0');
+			bar.setAttribute('aria-valuenow', '' + numDone);
+			bar.setAttribute('aria-valuemax', '' + numTotal);
+
 			bar.style.width = `${(numDone / numTotal) * 100}%`;
 
 			if (numTotal === numDone) {
@@ -429,6 +438,7 @@ export class GettingStartedPage extends EditorPane {
 					'x-dispatch': 'selectTask:' + task.id,
 					'data-task-id': task.id,
 					'aria-expanded': 'false',
+					'role': 'listitem',
 				},
 				$('.codicon' + (task.done ? '.complete.codicon-pass-filled' : '.codicon-circle-large-outline'), { 'data-done-task-id': task.id }),
 				$('.task-description-container', {},
@@ -451,7 +461,7 @@ export class GettingStartedPage extends EditorPane {
 						))
 				)));
 
-		const detailContainer = $('.getting-started-detail-container');
+		const detailContainer = $('.getting-started-detail-container', { 'role': 'list' });
 		if (this.detailsScrollbar) { this.detailsScrollbar.getDomNode().remove(); this.detailsScrollbar.dispose(); }
 		this.detailsScrollbar = this._register(new DomScrollableElement(detailContainer, { className: 'full-height-scrollable' }));
 		categoryElements.forEach(element => detailContainer.appendChild(element));
