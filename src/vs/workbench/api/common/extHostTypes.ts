@@ -2933,7 +2933,7 @@ export class NotebookCellOutput {
 	) { }
 }
 
-export enum CellKind {
+export enum NotebookCellKind {
 	Markdown = 1,
 	Code = 2
 }

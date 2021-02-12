@@ -88,7 +88,7 @@ export class ExtHostCell extends Disposable {
 				get index() { return that._notebook.getCellIndex(that); },
 				notebook: that._notebook.notebookDocument,
 				uri: that.uri,
-				cellKind: this._cellData.cellKind,
+				cellKind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
 				document: data.document,
 				get language() { return data!.document.languageId; },
 				get outputs() { return that._outputs.map(extHostTypeConverters.NotebookCellOutput.to); },

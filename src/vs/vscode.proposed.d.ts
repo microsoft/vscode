@@ -1000,7 +1000,7 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
-	export enum CellKind {
+	export enum NotebookCellKind {
 		Markdown = 1,
 		Code = 2
 	}
@@ -1052,7 +1052,7 @@ declare module 'vscode' {
 		readonly index: number;
 		readonly notebook: NotebookDocument;
 		readonly uri: Uri;
-		readonly cellKind: CellKind;
+		readonly cellKind: NotebookCellKind;
 		readonly document: TextDocument;
 		readonly language: string;
 		readonly outputs: readonly NotebookCellOutput[];
@@ -1248,7 +1248,7 @@ declare module 'vscode' {
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCellData {
-		readonly cellKind: CellKind;
+		readonly cellKind: NotebookCellKind;
 		readonly source: string;
 		readonly language: string;
 		// todo@API maybe use a separate data type?

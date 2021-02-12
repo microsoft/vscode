@@ -418,7 +418,7 @@ suite('Notebook API tests', () => {
 
 		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.CellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
 		});
 
 		const cellChangeEventRet = await cellsChangeEvent;
@@ -561,13 +561,13 @@ suite('Notebook API tests', () => {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 0, [{
-				cellKind: vscode.CellKind.Markdown,
+				cellKind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new_markdown'
 			}, {
-				cellKind: vscode.CellKind.Code,
+				cellKind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -598,13 +598,13 @@ suite('Notebook API tests', () => {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 1, [{
-				cellKind: vscode.CellKind.Markdown,
+				cellKind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new2_markdown'
 			}, {
-				cellKind: vscode.CellKind.Code,
+				cellKind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -640,13 +640,13 @@ suite('Notebook API tests', () => {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(document.uri, 0, 0, [{
-			cellKind: vscode.CellKind.Markdown,
+			cellKind: vscode.NotebookCellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
 			source: 'new_markdown'
 		}, {
-			cellKind: vscode.CellKind.Code,
+			cellKind: vscode.NotebookCellKind.Code,
 			language: 'fooLang',
 			metadata: undefined,
 			outputs: [],
@@ -685,7 +685,7 @@ suite('Notebook API tests', () => {
 		const cellMetadataChangeEvent = getEventOncePromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.CellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
 			editBuilder.replaceCellMetadata(0, { runnable: false });
 		});
 
@@ -704,7 +704,7 @@ suite('Notebook API tests', () => {
 		const cellMetadataChangeEvent = getEventOncePromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.CellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
 			editBuilder.replaceCellMetadata(0, { runnable: false });
 		});
 

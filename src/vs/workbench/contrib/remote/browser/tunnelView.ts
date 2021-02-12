@@ -829,7 +829,7 @@ namespace LabelTunnelAction {
 					remoteExplorerService.setEditable(context, {
 						onFinish: async (value, success) => {
 							if (success) {
-								remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
+								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 							}
 							remoteExplorerService.setEditable(context, null);
 							resolve(success ? { port: context.remotePort, label: value } : undefined);

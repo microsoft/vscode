@@ -1253,9 +1253,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TimelineItem;
 			},
-			get CellKind() {
+			get NotebookCellKind() {
 				// checkProposedApiEnabled(extension);
-				return extHostTypes.CellKind;
+				return extHostTypes.NotebookCellKind;
 			},
 			get NotebookCellRunState() {
 				// checkProposedApiEnabled(extension);
