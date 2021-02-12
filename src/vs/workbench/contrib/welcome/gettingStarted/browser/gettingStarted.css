@@ -330,3 +330,7 @@
 	text-decoration: underline;
 	background: transparent;
 }
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
+	text-align: center;
+}

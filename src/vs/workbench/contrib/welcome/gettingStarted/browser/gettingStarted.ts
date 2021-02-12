@@ -26,8 +26,10 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
+const configurationKey = 'workbench.startupEditor';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -89,6 +91,7 @@ export class GettingStartedPage extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
@@ -318,7 +321,19 @@ export class GettingStartedPage extends EditorPane {
 		});
 
 		categoryScrollContainer.appendChild(categoriesContainer);
-		categoryScrollContainer.appendChild($('.footer', {}, $('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip"))));
+		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
+		categoryScrollContainer.appendChild(
+			$('.footer', {},
+				$('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip")),
+				$('p.showOnStartup', {},
+					showOnStartupCheckbox,
+					$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show Getting Started page on startup")))
+			));
+
+		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'gettingStarted';
+		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
+			this.configurationService.updateValue(configurationKey, showOnStartupCheckbox.checked ? 'gettingStarted' : 'welcomePage');
+		}));
 
 		if (this.categoriesScrollbar) { this.categoriesScrollbar.dispose(); }
 		this.categoriesScrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
