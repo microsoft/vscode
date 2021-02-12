@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/**
- * This code is also used by standalone cli's. Avoid adding dependencies to keep the size of the cli small.
- */
-import * as path from 'vs/base/common/path';
-import * as os from 'os';
 import * as fs from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'vs/base/common/path';
 
 export function createWaitMarkerFile(verbose?: boolean): string | undefined {
-	const randomWaitMarkerPath = path.join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
+	const randomWaitMarkerPath = join(tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
 
 	try {
 		fs.writeFileSync(randomWaitMarkerPath, ''); // use built-in fs to avoid dragging in more dependencies
