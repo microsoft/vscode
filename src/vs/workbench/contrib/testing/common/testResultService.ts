@@ -12,7 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IncrementalTestCollectionItem, ITestState, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, ITestState, RunTestsRequest } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
@@ -29,7 +29,7 @@ export const enum TestResultItemChangeReason {
 	OwnStateChange,
 }
 
-export type TestResultItemChange = { result: TestResultItem; } & (
+export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
 	| { reason: TestResultItemChangeReason.OwnStateChange; previous: ITestState }
 );
@@ -49,6 +49,11 @@ export interface ITestResult {
 	 * Gets whether the test run has finished.
 	 */
 	readonly isComplete: boolean;
+
+	/**
+	 * Whether this test result is triggered from an auto run.
+	 */
+	readonly isAutoRun?: boolean;
 
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
@@ -180,11 +185,11 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public static from(
 		collections: ReadonlyArray<IMainThreadTestCollection>,
-		tests: ReadonlyArray<TestIdWithProvider>,
+		req: RunTestsRequest,
 	) {
 		const testByExtId = new Map<string, TestResultItem>();
 		const testByInternalId = new Map<string, TestResultItem>();
-		for (const test of tests) {
+		for (const test of req.tests) {
 			for (const collection of collections) {
 				const node = collection.getNodeById(test.testId);
 				if (!node) {
@@ -196,7 +201,7 @@ export class LiveTestResult implements ITestResult {
 			}
 		}
 
-		return new LiveTestResult(collections, testByExtId, testByInternalId);
+		return new LiveTestResult(collections, testByExtId, testByInternalId, !!req.isAutoRun);
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
@@ -265,6 +270,7 @@ export class LiveTestResult implements ITestResult {
 		private readonly collections: ReadonlyArray<IMainThreadTestCollection>,
 		private readonly testByExtId: Map<string, TestResultItem>,
 		private readonly testByInternalId: Map<string, TestResultItem>,
+		public readonly isAutoRun: boolean,
 	) {
 		this.counts[TestRunState.Unset] = testByInternalId.size;
 	}
@@ -310,11 +316,11 @@ export class LiveTestResult implements ITestResult {
 			this.counts[previous.state]--;
 			this.counts[newState.state]++;
 			refreshComputedState(this.computedStateAccessor, entry, t => (
-				t !== entry && this.changeEmitter.fire({ result: t, reason: TestResultItemChangeReason.ComputedStateChange })
+				t !== entry && this.changeEmitter.fire({ item: t, result: this, reason: TestResultItemChangeReason.ComputedStateChange })
 			));
 		}
 
-		this.changeEmitter.fire({ result: entry, reason: TestResultItemChangeReason.OwnStateChange, previous });
+		this.changeEmitter.fire({ item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous });
 	}
 
 	/**
@@ -334,7 +340,8 @@ export class LiveTestResult implements ITestResult {
 					entry.retired = true;
 					queue.push(entry.children);
 					this.changeEmitter.fire({
-						result: entry,
+						result: this,
+						item: entry,
 						reason: entry === root
 							? TestResultItemChangeReason.Retired
 							: TestResultItemChangeReason.ParentRetired
@@ -523,8 +530,12 @@ export class TestResultService implements ITestResultService {
 			target: StorageTarget.MACHINE
 		}, storage);
 
-		for (const value of this.serializedResults.get([])) {
-			this.results.push(new HydratedTestResult(value));
+		try {
+			for (const value of this.serializedResults.get([])) {
+				this.results.push(new HydratedTestResult(value));
+			}
+		} catch (e) {
+			// outdated structure
 		}
 	}
 

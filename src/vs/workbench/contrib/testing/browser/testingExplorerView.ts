@@ -50,11 +50,10 @@ import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/b
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
@@ -230,6 +229,7 @@ export class TestingExplorerViewModel extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
+		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
 	) {
 		super();
 
@@ -386,35 +386,9 @@ export class TestingExplorerViewModel extends Disposable {
 	 */
 	private async tryPeekError(item: ITestTreeElement) {
 		const lookup = item.test && this.testResults.getStateByExtId(item.test.item.extId);
-		if (!lookup || !isFailedState(lookup[1].state.state)) {
-			return false;
-		}
-
-		const [result, test] = lookup;
-		const index = test.state.messages.findIndex(m => !!m.location);
-		if (index === -1) {
-			return;
-		}
-
-		const message = test.state.messages[index];
-		const pane = await this.editorService.openEditor({
-			resource: message.location!.uri,
-			options: { selection: message.location!.range, preserveFocus: true }
-		});
-
-		const control = pane?.getControl();
-		if (!isCodeEditor(control)) {
-			return false;
-		}
-
-		TestingOutputPeekController.get(control).show(buildTestUri({
-			type: TestUriType.ResultMessage,
-			messageIndex: index,
-			resultId: result.id,
-			testExtId: item.test!.item.extId,
-		}));
-
-		return true;
+		return lookup && isFailedState(lookup[1].state.state)
+			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })
+			: false;
 	}
 
 	private updatePreferredProjection() {

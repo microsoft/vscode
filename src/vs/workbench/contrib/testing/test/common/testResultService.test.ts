@@ -14,7 +14,7 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<InternalTestItem>) => [...it].map(t => t.item.label).sort();
 	const getChangeSummary = () => [...changed]
-		.map(c => ({ reason: c.reason, label: c.result.item.label }))
+		.map(c => ({ reason: c.reason, label: c.item.item.label }))
 		.sort((a, b) => a.label.localeCompare(b.label));
 
 	let r: LiveTestResult;
@@ -24,7 +24,7 @@ suite('Workbench - Test Results Service', () => {
 		changed = new Set();
 		r = LiveTestResult.from(
 			[getInitializedMainTestCollection()],
-			[{ providerId: 'provider', testId: '1' }]
+			{ tests: [{ providerId: 'provider', testId: '1' }], debug: false }
 		);
 
 		r.onChange(e => changed.add(e));
@@ -32,7 +32,7 @@ suite('Workbench - Test Results Service', () => {
 
 	suite('LiveTestResult', () => {
 		test('is empty if no tests are requesteed', () => {
-			const r = LiveTestResult.from([getInitializedMainTestCollection()], []);
+			const r = LiveTestResult.from([getInitializedMainTestCollection()], { tests: [], debug: false });
 			assert.deepStrictEqual(getLabelsIn(r.tests), []);
 		});
 
@@ -170,7 +170,7 @@ suite('Workbench - Test Results Service', () => {
 
 			const r2 = results.push(LiveTestResult.from(
 				[getInitializedMainTestCollection()],
-				[{ providerId: 'provider', testId: '1' }]
+				{ tests: [{ providerId: 'provider', testId: '1' }], debug: false }
 			));
 			results.clear();
 
@@ -181,7 +181,7 @@ suite('Workbench - Test Results Service', () => {
 			results.push(r);
 			const r2 = results.push(LiveTestResult.from(
 				[getInitializedMainTestCollection()],
-				[{ providerId: 'provider', testId: '1' }]
+				{ tests: [{ providerId: 'provider', testId: '1' }], debug: false }
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);

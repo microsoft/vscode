@@ -82,7 +82,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 			isRunning = true;
 			rerunIds.clear();
-			await this.testService.runTests({ debug: false, tests });
+			await this.testService.runTests({ debug: false, tests, isAutoRun: true });
 			isRunning = false;
 
 			if (rerunIds.size > 0) {
@@ -95,10 +95,10 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 				return;
 			}
 
-			const { extId } = evt.result.item;
+			const { extId } = evt.item.item;
 			const workspaceTest = mapFind(workspaceTests.workspaceFolderCollections,
-				([, c]) => c.getNodeById(evt.result.id) ?? Iterable.find(c.all, t => t.item.extId === extId));
-			const subject = workspaceTest ?? evt.result;
+				([, c]) => c.getNodeById(evt.item.id) ?? Iterable.find(c.all, t => t.item.extId === extId));
+			const subject = workspaceTest ?? evt.item;
 
 			rerunIds.set(subject.id, ({ testId: subject.id, providerId: subject.providerId }));
 

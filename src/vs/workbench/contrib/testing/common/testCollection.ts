@@ -15,11 +15,12 @@ export interface TestIdWithProvider {
 }
 
 /**
- * Request to them main thread to run a set of tests.
+ * Request to the main thread to run a set of tests.
  */
 export interface RunTestsRequest {
 	tests: TestIdWithProvider[];
 	debug: boolean;
+	isAutoRun?: boolean;
 }
 
 /**

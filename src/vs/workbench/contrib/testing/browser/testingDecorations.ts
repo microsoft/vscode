@@ -63,7 +63,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		}
 
 		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri));
-		this._register(this.results.onTestChanged(({ result }) => {
+		this._register(this.results.onTestChanged(({ item: result }) => {
 			if (result.item.location?.uri.toString() === uri.toString()) {
 				this.setDecorations(uri);
 			}

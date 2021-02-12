@@ -124,7 +124,7 @@ export class TestService extends Disposable implements ITestService {
 		const subscriptions = [...this.testSubscriptions.values()]
 			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
 			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri));
-		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req.tests));
+		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req));
 
 		try {
 			const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
