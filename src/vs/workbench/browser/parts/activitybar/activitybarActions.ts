@@ -240,7 +240,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 					}));
 
 					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), '', true, () => {
-						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName, sessionInfo.sessions[accountName]);
+						return this.authenticationService.removeAccountSessions(sessionInfo.providerId, accountName, sessionInfo.sessions[accountName]);
 					}));
 
 					const providerSubMenuActions = [manageExtensionsAction];

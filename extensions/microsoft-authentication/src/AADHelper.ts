@@ -144,7 +144,7 @@ export class AzureActiveDirectoryService {
 								this.pollForReconnect(session.id, session.refreshToken, session.scope);
 							}
 						} else {
-							await this.logout(session.id);
+							await this.removeSession(session.id);
 						}
 					}
 				});
@@ -193,7 +193,7 @@ export class AzureActiveDirectoryService {
 							if (e.message === REFRESH_NETWORK_FAILURE) {
 								// Ignore, will automatically retry on next poll.
 							} else {
-								await this.logout(session.id);
+								await this.removeSession(session.id);
 							}
 						}
 					}
@@ -202,7 +202,7 @@ export class AzureActiveDirectoryService {
 				promises = promises.concat(this._tokens.map(async token => {
 					const matchesExisting = sessions.some(session => token.scope === session.scope && token.sessionId === session.id);
 					if (!matchesExisting) {
-						await this.logout(token.sessionId);
+						await this.removeSession(token.sessionId);
 						removed.push(this.convertToSessionSync(token));
 					}
 				}));
@@ -306,7 +306,7 @@ export class AzureActiveDirectoryService {
 		return Promise.all(this._tokens.map(token => this.convertToSession(token)));
 	}
 
-	public async login(scope: string): Promise<vscode.AuthenticationSession> {
+	public async createSession(scope: string): Promise<vscode.AuthenticationSession> {
 		Logger.info('Logging in...');
 		if (!scope.includes('offline_access')) {
 			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
@@ -507,7 +507,7 @@ export class AzureActiveDirectoryService {
 							this.pollForReconnect(token.sessionId, token.refreshToken, token.scope);
 						}
 					} else {
-						await this.logout(token.sessionId);
+						await this.removeSession(token.sessionId);
 						onDidChangeSessions.fire({ added: [], removed: [this.convertToSessionSync(token)], changed: [] });
 					}
 				}
@@ -687,7 +687,7 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	public async logout(sessionId: string): Promise<vscode.AuthenticationSession | undefined> {
+	public async removeSession(sessionId: string): Promise<vscode.AuthenticationSession | undefined> {
 		Logger.info(`Logging out of session '${sessionId}'`);
 		const token = this.removeInMemorySessionData(sessionId);
 		let session: vscode.AuthenticationSession | undefined;

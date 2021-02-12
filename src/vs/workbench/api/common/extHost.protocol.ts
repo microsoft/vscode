@@ -168,7 +168,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent): void;
 	$getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean, clearSessionPreference?: boolean }): Promise<modes.AuthenticationSession | undefined>;
-	$logout(providerId: string, sessionId: string): Promise<void>;
+	$removeSession(providerId: string, sessionId: string): Promise<void>;
 }
 
 export interface MainThreadSecretStateShape extends IDisposable {
@@ -1128,8 +1128,8 @@ export interface ExtHostLabelServiceShape {
 export interface ExtHostAuthenticationShape {
 	$getAllSessions(id: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;
 	$getSessions(id: string, scopes: string[]): Promise<ReadonlyArray<modes.AuthenticationSession>>;
-	$login(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
-	$logout(id: string, sessionId: string): Promise<void>;
+	$createSession(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
+	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent): Promise<void>;
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
 	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;

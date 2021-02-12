@@ -26,14 +26,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		onDidChangeSessions: onDidChangeSessions.event,
 		getAllSessions: () => Promise.resolve(loginService.sessions),
 		getSessions: (scopes: string[]) => loginService.getSessions(scopes),
-		login: async (scopeList: string[]) => {
+		createSession: async (scopeList: string[]) => {
 			try {
 				/* __GDPR__
 					"login" : { }
 				*/
 				telemetryReporter.sendTelemetryEvent('login');
 
-				const session = await loginService.login(scopeList.sort().join(' '));
+				const session = await loginService.createSession(scopeList.sort().join(' '));
 				Logger.info('Login success!');
 				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 				return session;
@@ -57,14 +57,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				throw e;
 			}
 		},
-		logout: async (id: string) => {
+		removeSession: async (id: string) => {
 			try {
 				/* __GDPR__
 					"logout" : { }
 				*/
 				telemetryReporter.sendTelemetryEvent('logout');
 
-				const session = await loginService.logout(id);
+				const session = await loginService.removeSession(id);
 				if (session) {
 					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 				}

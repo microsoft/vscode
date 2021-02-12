@@ -71,7 +71,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	async signOut(accountName: string, sessions: modes.AuthenticationSession[]): Promise<void> {
+	async removeAccountSessions(accountName: string, sessions: modes.AuthenticationSession[]): Promise<void> {
 		const accountUsages = readAccountUsages(this.storageService, this.id, accountName);
 
 		const result = await this.dialogService.confirm({
@@ -82,8 +82,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 
 		if (result.confirmed) {
-			const logoutPromises = sessions.map(session => this.logout(session.id));
-			await Promise.all(logoutPromises);
+			const removeSessionPromises = sessions.map(session => this.removeSession(session.id));
+			await Promise.all(removeSessionPromises);
 			removeAccountUsage(this.storageService, this.id, accountName);
 			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.GLOBAL);
 		}
@@ -97,12 +97,12 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		return this._proxy.$getAllSessions(this.id);
 	}
 
-	login(scopes: string[]): Promise<modes.AuthenticationSession> {
-		return this._proxy.$login(this.id, scopes);
+	createSession(scopes: string[]): Promise<modes.AuthenticationSession> {
+		return this._proxy.$createSession(this.id, scopes);
 	}
 
-	async logout(sessionId: string): Promise<void> {
-		await this._proxy.$logout(this.id, sessionId);
+	async removeSession(sessionId: string): Promise<void> {
+		await this._proxy.$removeSession(this.id, sessionId);
 		this.notificationService.info(nls.localize('signedOut', "Successfully signed out."));
 	}
 }
@@ -159,8 +159,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
-	$logout(providerId: string, sessionId: string): Promise<void> {
-		return this.authenticationService.logout(providerId, sessionId);
+	$removeSession(providerId: string, sessionId: string): Promise<void> {
+		return this.authenticationService.removeSession(providerId, sessionId);
 	}
 	private async loginPrompt(providerName: string, extensionName: string): Promise<boolean> {
 		const { choice } = await this.dialogService.show(
@@ -247,7 +247,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					throw new Error('User did not consent to login.');
 				}
 
-				session = await this.authenticationService.login(providerId, scopes, true);
+				session = await this.authenticationService.createSession(providerId, scopes, true);
 				await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			} else {
 				await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);

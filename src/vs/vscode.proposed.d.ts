@@ -82,14 +82,14 @@ declare module 'vscode' {
 		 * Prompts a user to login.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		login(scopes: string[]): Thenable<AuthenticationSession>;
+		createSession(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
 		 * @param sessionId The session id to log out of
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		logout(sessionId: string): Thenable<void>;
+		removeSession(sessionId: string): Thenable<void>;
 	}
 
 	/**

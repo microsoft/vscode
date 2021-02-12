@@ -87,13 +87,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
 	}
 
-	async logout(providerId: string, sessionId: string): Promise<void> {
+	async removeSession(providerId: string, sessionId: string): Promise<void> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (!providerData) {
-			return this._proxy.$logout(providerId, sessionId);
+			return this._proxy.$removeSession(providerId, sessionId);
 		}
 
-		return providerData.provider.logout(sessionId);
+		return providerData.provider.removeSession(sessionId);
 	}
 
 	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
@@ -129,19 +129,19 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
+	$createSession(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.login(scopes));
+			return Promise.resolve(providerData.provider.createSession(scopes));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$logout(providerId: string, sessionId: string): Promise<void> {
+	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.logout(sessionId));
+			return Promise.resolve(providerData.provider.removeSession(sessionId));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);

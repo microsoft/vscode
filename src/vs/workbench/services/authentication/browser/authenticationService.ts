@@ -128,11 +128,11 @@ export interface IAuthenticationService {
 	getAllSessions(providerId: string, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
-	login(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
-	logout(providerId: string, sessionId: string): Promise<void>;
+	createSession(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
+	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
-	signOutOfAccount(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
+	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
 }
 
 export interface AllowedExtension {
@@ -473,7 +473,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
 
 			quickPick.onDidAccept(async _ => {
-				const session = quickPick.selectedItems[0].session ?? await this.login(providerId, availableSessions[0].scopes as string[]);
+				const session = quickPick.selectedItems[0].session ?? await this.createSession(providerId, availableSessions[0].scopes as string[]);
 				const accountName = session.account.label;
 
 				const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
@@ -610,7 +610,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				handler: async (accessor) => {
 					const authenticationService = accessor.get(IAuthenticationService);
 					const storageService = accessor.get(IStorageService);
-					const session = await authenticationService.login(providerId, scopes);
+					const session = await authenticationService.createSession(providerId, scopes);
 
 					// Add extension to allow list since user explicitly signed in on behalf of it
 					const allowList = readAllowedExtensions(storageService, providerId, session.account.label);
@@ -712,19 +712,19 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async login(id: string, scopes: string[], activateImmediate: boolean = false): Promise<AuthenticationSession> {
+	async createSession(id: string, scopes: string[], activateImmediate: boolean = false): Promise<AuthenticationSession> {
 		try {
 			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
-			return await authProvider.login(scopes);
+			return await authProvider.createSession(scopes);
 		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
-	async logout(id: string, sessionId: string): Promise<void> {
+	async removeSession(id: string, sessionId: string): Promise<void> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.logout(sessionId);
+			return authProvider.removeSession(sessionId);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
@@ -739,10 +739,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async signOutOfAccount(id: string, accountName: string, sessions: AuthenticationSession[]): Promise<void> {
+	async removeAccountSessions(id: string, accountName: string, sessions: AuthenticationSession[]): Promise<void> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.signOut(accountName, sessions);
+			return authProvider.removeAccountSessions(accountName, sessions);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
