@@ -64,29 +64,25 @@ declare module 'vscode' {
 		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 
 		/**
-		 * Returns an array of current sessions.
-		 *
-		 * TODO @RMacfarlane finish deprecating this and remove it
+		 * Get a list of sessions.
+		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
+		 * these permissions, otherwise all sessions should be returned.
+		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		getAllSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
-
-
-		/**
-		 * Returns an array of current sessions.
-		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		getSessions(scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
+		 * @param scopes A list of scopes, permissions, that the new session should be created with.
+		 * @returns A promise that resolves to an authentication session.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		createSession(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
-		 * @param sessionId The session id to log out of
+		 * @param sessionId The id of the session to remove.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		removeSession(sessionId: string): Thenable<void>;

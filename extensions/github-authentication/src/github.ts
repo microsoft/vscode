@@ -44,8 +44,10 @@ export class GitHubAuthenticationProvider {
 		context.subscriptions.push(context.secrets.onDidChange(() => this.checkForUpdates()));
 	}
 
-	async getSessions(scopes: string[]): Promise<vscode.AuthenticationSession[]> {
-		return this._sessions.filter(session => arrayEquals(session.scopes, scopes));
+	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+		return scopes
+			? this._sessions.filter(session => arrayEquals(session.scopes, scopes))
+			: this._sessions;
 	}
 
 	private async verifySessions(): Promise<void> {

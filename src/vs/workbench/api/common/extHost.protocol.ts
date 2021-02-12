@@ -1125,8 +1125,7 @@ export interface ExtHostLabelServiceShape {
 }
 
 export interface ExtHostAuthenticationShape {
-	$getAllSessions(id: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;
-	$getSessions(id: string, scopes: string[]): Promise<ReadonlyArray<modes.AuthenticationSession>>;
+	$getSessions(id: string, scopes?: string[]): Promise<ReadonlyArray<modes.AuthenticationSession>>;
 	$createSession(id: string, scopes: string[]): Promise<modes.AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent): Promise<void>;
