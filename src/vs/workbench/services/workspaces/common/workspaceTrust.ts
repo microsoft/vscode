@@ -12,6 +12,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustModel, IWorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
+import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 
 export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
@@ -84,9 +85,11 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void {
 		let changed = false;
 
+		const folderPath = folder.fsPath;
+
 		if (trustState === WorkspaceTrustState.Unknown) {
 			const before = this.trustStateInfo.localFolders.length;
-			this.trustStateInfo.localFolders = this.trustStateInfo.localFolders.filter(info => info.uri !== folder.toString());
+			this.trustStateInfo.localFolders = this.trustStateInfo.localFolders.filter(info => isEqual(URI.file(info.uri).fsPath, folderPath));
 
 			if (this.trustStateInfo.localFolders.length !== before) {
 				changed = true;
@@ -94,7 +97,7 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 		} else {
 			let found = false;
 			for (const trustInfo of this.trustStateInfo.localFolders) {
-				if (trustInfo.uri === folder.toString()) {
+				if (isEqual(URI.file(trustInfo.uri).fsPath, folderPath)) {
 					found = true;
 					if (trustInfo.trustState !== trustState) {
 						trustInfo.trustState = trustState;
@@ -104,7 +107,7 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 			}
 
 			if (!found) {
-				this.trustStateInfo.localFolders.push({ uri: folder.toString(), trustState });
+				this.trustStateInfo.localFolders.push({ uri: folderPath, trustState });
 				changed = true;
 			}
 		}
@@ -115,13 +118,22 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 	}
 
 	getFolderTrustState(folder: URI): WorkspaceTrustState {
+		let result = WorkspaceTrustState.Unknown;
+		let maxLength = -1;
+
+		const folderPath = folder.fsPath;
 		for (const trustInfo of this.trustStateInfo.localFolders) {
-			if (trustInfo.uri === folder.toString()) {
-				return trustInfo.trustState;
+			const trustInfoPath = URI.file(trustInfo.uri).fsPath;
+
+			if (isEqualOrParent(folderPath, trustInfoPath)) {
+				if (trustInfoPath.length > maxLength) {
+					maxLength = trustInfoPath.length;
+					result = trustInfo.trustState;
+				}
 			}
 		}
 
-		return WorkspaceTrustState.Unknown;
+		return result;
 	}
 }
 
