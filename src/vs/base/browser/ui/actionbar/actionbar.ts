@@ -35,7 +35,7 @@ export interface IActionBarOptions {
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
-	readonly ignoreOrientationForPreviousAndNextKey?: boolean;
+	readonly respectOrientationForPreviousAndNextKey?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -119,22 +119,22 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
