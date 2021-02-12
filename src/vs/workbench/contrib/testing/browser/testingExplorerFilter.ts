@@ -11,7 +11,7 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -20,9 +20,8 @@ import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/com
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -231,19 +230,4 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(): Promise<void> { }
-});
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.testing-filter-button.checked { border-color: ${inputActiveOptionBorderColor}; }`);
-	}
-	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
-	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.testing-filter-button.checked { color: ${inputActiveOptionForegroundColor}; }`);
-	}
-	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.testing-filter-button.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
-	}
 });

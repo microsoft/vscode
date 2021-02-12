@@ -23,13 +23,12 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookSmokeTest', {
 		openNotebook: async (_resource: vscode.Uri) => {
 			const dto: vscode.NotebookData = {
-				languages: ['typescript'],
 				metadata: {},
 				cells: [
 					{
 						source: 'code()',
 						language: 'typescript',
-						cellKind: vscode.CellKind.Code,
+						cellKind: vscode.NotebookCellKind.Code,
 						outputs: [],
 						metadata: {
 							custom: { testCellMetadata: 123 }
@@ -38,7 +37,7 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 					{
 						source: 'Markdown Cell',
 						language: 'markdown',
-						cellKind: vscode.CellKind.Markdown,
+						cellKind: vscode.NotebookCellKind.Markdown,
 						outputs: [],
 						metadata: {
 							custom: { testCellMetadata: 123 }

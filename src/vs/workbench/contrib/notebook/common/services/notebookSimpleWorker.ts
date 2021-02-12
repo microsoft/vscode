@@ -88,7 +88,6 @@ class MirrorNotebookDocument {
 	constructor(
 		readonly uri: URI,
 		public cells: MirrorCell[],
-		public languages: string[],
 		public metadata: NotebookDocumentMetadata,
 	) {
 	}
@@ -175,7 +174,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.cellKind,
 			dto.outputs,
 			dto.metadata
-		)), data.languages, data.metadata);
+		)), data.metadata);
 	}
 
 	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
@@ -266,4 +265,3 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 export function create(host: EditorWorkerHost): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }
-

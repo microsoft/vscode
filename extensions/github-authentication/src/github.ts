@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import { Keychain } from './common/keychain';
 import { GitHubServer, NETWORK_ERROR } from './githubServer';
 import Logger from './common/logger';
+import { arrayEquals } from './common/utils';
 
 export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
@@ -41,6 +42,10 @@ export class GitHubAuthenticationProvider {
 		}
 
 		context.subscriptions.push(context.secrets.onDidChange(() => this.checkForUpdates()));
+	}
+
+	async getSessions(scopes: string[]): Promise<vscode.AuthenticationSession[]> {
+		return this._sessions.filter(session => arrayEquals(session.scopes, scopes));
 	}
 
 	private async verifySessions(): Promise<void> {
@@ -153,7 +158,7 @@ export class GitHubAuthenticationProvider {
 		return this._sessions;
 	}
 
-	public async login(scopes: string): Promise<vscode.AuthenticationSession> {
+	public async createSession(scopes: string): Promise<vscode.AuthenticationSession> {
 		const token = await this._githubServer.login(scopes);
 		const session = await this.tokenToSession(token, scopes.split(' '));
 		await this.setToken(session);
@@ -185,7 +190,7 @@ export class GitHubAuthenticationProvider {
 		await this.storeSessions();
 	}
 
-	public async logout(id: string): Promise<vscode.AuthenticationSession | undefined> {
+	public async removeSession(id: string): Promise<vscode.AuthenticationSession | undefined> {
 		Logger.info(`Logging out of ${id}`);
 		const sessionIndex = this._sessions.findIndex(session => session.id === id);
 		let session: vscode.AuthenticationSession | undefined;

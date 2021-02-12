@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
+import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server as NodeIPCServer, serve as nodeIPCServe, connect as nodeIPCConnect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
@@ -66,43 +66,22 @@ import { LoggerService } from 'vs/platform/log/node/loggerService';
 class CodeMain {
 
 	main(): void {
+		try {
+			this.startup();
+		} catch (error) {
+			console.error(error.message);
+			app.exit(1);
+		}
+	}
+
+	private async startup(): Promise<void> {
 
 		// Set the error handler early enough so that we are not getting the
 		// default electron error dialog popping up
 		setUnexpectedErrorHandler(err => console.error(err));
 
-		// Parse arguments
-		let args: NativeParsedArgs;
-		try {
-			args = parseMainProcessArgv(process.argv);
-			args = this.validatePaths(args);
-		} catch (err) {
-			console.error(err.message);
-			app.exit(1);
-
-			return;
-		}
-
-		// If we are started with --wait create a random temporary file
-		// and pass it over to the starting instance. We can use this file
-		// to wait for it to be deleted to monitor that the edited file
-		// is closed and then exit the waiting process.
-		//
-		// Note: we are not doing this if the wait marker has been already
-		// added as argument. This can happen if Code was started from CLI.
-		if (args.wait && !args.waitMarkerFilePath) {
-			const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
-			if (waitMarkerFilePath) {
-				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
-				args.waitMarkerFilePath = waitMarkerFilePath;
-			}
-		}
-
-		// Launch
-		this.startup(args);
-	}
-
-	private async startup(args: NativeParsedArgs): Promise<void> {
+		// Resolve command line arguments
+		const args = this.resolveArgs();
 
 		// Create services
 		const [instantiationService, instanceEnvironment, environmentService, configurationService, stateService, bufferLogService] = this.createServices(args);
@@ -129,7 +108,7 @@ class CodeMain {
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
 				// instance of VS Code running and so we would quit.
-				const mainIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, true);
+				const mainProcessNodeIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, true);
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 				bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, 'main.log'), true, bufferLogService.getLevel());
@@ -140,7 +119,7 @@ class CodeMain {
 					configurationService.dispose();
 				});
 
-				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
+				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
 			});
 		} catch (error) {
 			instantiationService.invokeFunction(this.quit, error);
@@ -229,7 +208,7 @@ class CodeMain {
 			environmentService.globalStorageHome.fsPath,
 			environmentService.workspaceStorageHome.fsPath,
 			environmentService.backupHome
-		].map((path): undefined | Promise<void> => path ? promises.mkdir(path, { recursive: true }) : undefined));
+		].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Configuration service
 		const configurationServiceInitialization = configurationService.initialize();
@@ -245,10 +224,10 @@ class CodeMain {
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
 		// that another instance is already running.
-		let server: NodeIPCServer;
+		let mainProcessNodeIpcServer: NodeIPCServer;
 		try {
-			server = await nodeIPCServe(environmentService.mainIPCHandle);
-			once(lifecycleMainService.onWillShutdown)(() => server.dispose());
+			mainProcessNodeIpcServer = await nodeIPCServe(environmentService.mainIPCHandle);
+			once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that
@@ -362,7 +341,7 @@ class CodeMain {
 		// instance to startup. Otherwise we would wrongly overwrite the PID
 		process.env['VSCODE_PID'] = String(process.pid);
 
-		return server;
+		return mainProcessNodeIpcServer;
 	}
 
 	private handleStartupDataDirError(environmentService: IEnvironmentMainService, error: NodeJS.ErrnoException): void {
@@ -429,7 +408,30 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
-	//#region Path Helpers
+	//#region Command line arguments utilities
+
+	private resolveArgs(): NativeParsedArgs {
+
+		// Parse arguments
+		const args = this.validatePaths(parseMainProcessArgv(process.argv));
+
+		// If we are started with --wait create a random temporary file
+		// and pass it over to the starting instance. We can use this file
+		// to wait for it to be deleted to monitor that the edited file
+		// is closed and then exit the waiting process.
+		//
+		// Note: we are not doing this if the wait marker has been already
+		// added as argument. This can happen if Code was started from CLI.
+		if (args.wait && !args.waitMarkerFilePath) {
+			const waitMarkerFilePath = createWaitMarkerFile(args.verbose);
+			if (waitMarkerFilePath) {
+				addArg(process.argv, '--waitMarkerFilePath', waitMarkerFilePath);
+				args.waitMarkerFilePath = waitMarkerFilePath;
+			}
+		}
+
+		return args;
+	}
 
 	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
 

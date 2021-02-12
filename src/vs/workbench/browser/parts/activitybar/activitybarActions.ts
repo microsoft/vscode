@@ -210,7 +210,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		const providers = this.authenticationService.getProviderIds();
 		const allSessions = providers.map(async providerId => {
 			try {
-				const sessions = await this.authenticationService.getSessions(providerId);
+				const sessions = await this.authenticationService.getAllSessions(providerId);
 
 				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
 				sessions.forEach(session => {
@@ -240,7 +240,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 					}));
 
 					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), '', true, () => {
-						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
+						return this.authenticationService.removeAccountSessions(sessionInfo.providerId, accountName, sessionInfo.sessions[accountName]);
 					}));
 
 					const providerSubMenuActions = [manageExtensionsAction];
