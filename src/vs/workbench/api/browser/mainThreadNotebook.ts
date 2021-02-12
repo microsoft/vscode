@@ -152,6 +152,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			item.emitter.dispose();
 			item.provider.dispose();
 		}
+
+		dispose(this._editorEventListenersMapping.values());
+		dispose(this._documentEventListenersMapping.values());
 	}
 
 	async $tryApplyEdits(_viewType: string, resource: UriComponents, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean> {
