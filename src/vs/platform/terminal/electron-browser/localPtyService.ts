@@ -97,7 +97,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		// }));
 
 		// Create proxy and forward events
-		const proxy = this._register(new PtyService(this._logService));
+		const proxy = new PtyService(this._logService);
 		// const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
 		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
