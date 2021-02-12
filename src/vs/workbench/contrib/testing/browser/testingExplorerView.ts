@@ -51,7 +51,7 @@ import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/brows
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -257,7 +257,11 @@ export class TestingExplorerViewModel extends Disposable {
 				filter: this.filter,
 			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 
-		this._register(Event.any(filterState.currentDocumentOnly.onDidChange, filterState.text.onDidChange)(this.tree.refilter, this.tree));
+		this._register(Event.any(
+			filterState.currentDocumentOnly.onDidChange,
+			filterState.text.onDidChange,
+			filterState.stateFilter.onDidChange,
+		)(this.tree.refilter, this.tree));
 		this._register(editorService.onDidActiveEditorChange(() => {
 			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
 				if (this.projection.hasTestInDocument(editorService.activeEditor.resource)) {
@@ -523,13 +527,24 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 			this.setFilter(this.state.text.value);
 		}
 
-		switch (Math.min(this.testFilterText(element), this.testLocation(element))) {
+		switch (Math.min(this.testFilterText(element), this.testLocation(element), this.testState(element))) {
 			case FilterResult.Exclude:
 				return TreeVisibility.Hidden;
 			case FilterResult.Include:
 				return TreeVisibility.Visible;
 			default:
 				return TreeVisibility.Recurse;
+		}
+	}
+
+	private testState(element: ITestTreeElement): FilterResult {
+		switch (this.state.stateFilter.value) {
+			case TestExplorerStateFilter.All:
+				return FilterResult.Include;
+			case TestExplorerStateFilter.OnlyExecuted:
+				return element.ownState !== TestRunState.Unset ? FilterResult.Include : FilterResult.Inherit;
+			case TestExplorerStateFilter.OnlyFailed:
+				return isFailedState(element.ownState) ? FilterResult.Include : FilterResult.Inherit;
 		}
 	}
 
