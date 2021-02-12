@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext): any {
 					{
 						source: 'test',
 						language: 'typescript',
-						cellKind: vscode.CellKind.Code,
+						cellKind: vscode.NotebookCellKind.Code,
 						outputs: [],
 						metadata: {
 							custom: { testCellMetadata: 123 }

@@ -28,7 +28,7 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 					{
 						source: 'code()',
 						language: 'typescript',
-						cellKind: vscode.CellKind.Code,
+						cellKind: vscode.NotebookCellKind.Code,
 						outputs: [],
 						metadata: {
 							custom: { testCellMetadata: 123 }
@@ -37,7 +37,7 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 					{
 						source: 'Markdown Cell',
 						language: 'markdown',
-						cellKind: vscode.CellKind.Markdown,
+						cellKind: vscode.NotebookCellKind.Markdown,
 						outputs: [],
 						metadata: {
 							custom: { testCellMetadata: 123 }
