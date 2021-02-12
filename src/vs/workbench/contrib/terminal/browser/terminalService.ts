@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
@@ -32,7 +32,6 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IShellDefinition, IShellLaunchConfig, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalLaunchError, ITerminalProcessExtHostProxy, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, LinuxDistro } from 'vs/platform/terminal/common/terminal';
 import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -122,7 +121,7 @@ export class TerminalService implements ITerminalService {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
@@ -217,24 +216,19 @@ export class TerminalService implements ITerminalService {
 		return reconnectCounter;
 	}
 
-	//TODO@meganrogge: GDPR?
 	private async _reconnectToLocalTerminals(): Promise<void> {
 		// Reattach to all local terminals
-		const layoutInfo = await this._localPtyService.getTerminalLayoutInfo();
+		const layoutInfo = await this._terminalInstanceService.getTerminalLayoutInfo();
 		if (layoutInfo) {
-			if (layoutInfo.tabs.length === 0) {
-				this.createTerminal();
-				this.attachProcessLayoutListeners(false);
-				return;
-			}
-
 			this._recreateLocalTabs(layoutInfo);
-
 			this._connectionState = TerminalConnectionState.Connected;
 			// now that terminals have been restored,
 			// attach listeners to update local state when terminals are changed
 			this.attachProcessLayoutListeners(false);
 			this._onDidChangeConnectionState.fire();
+		} else {
+			this.createTerminal();
+			this.attachProcessLayoutListeners(false);
 		}
 	}
 
@@ -388,7 +382,7 @@ export class TerminalService implements ITerminalService {
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab(), false))
 		};
-		this._localPtyService.setTerminalLayoutInfo(state);
+		this._terminalInstanceService.setTerminalLayoutInfo(state);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {

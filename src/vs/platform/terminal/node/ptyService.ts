@@ -11,9 +11,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 let currentPtyId = 0;
 
@@ -37,8 +36,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	constructor(
-		private readonly _logService: ILogService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+		private readonly _logService: ILogService
 	) {
 		super();
 	}
@@ -104,20 +102,23 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).getCwd();
 	}
 
-	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
+	public async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
-	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		const layout = this._workspaceLayoutInfos.get(this._workspaceContextService.getWorkspace().id);
-		if (layout) {
-			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
-			const filtered = expandedTabs.filter(t => t.terminals.length > 0);
-			this._logService.info(`Terminal layout retrieved: ${JSON.stringify(filtered.map(t => t.terminals.length))}`);
+	public async getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		if (args) {
+			const layout = this._workspaceLayoutInfos.get(args.workspaceId);
+			if (layout) {
+				const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
+				const filtered = expandedTabs.filter(t => t.terminals.length > 0);
+				this._logService.info(`Terminal layout retrieved: ${JSON.stringify(filtered.map(t => t.terminals.length))}`);
 
-			return {
-				tabs: filtered
-			};
+				return {
+					tabs: filtered
+				};
+			}
+
 		}
 		return undefined;
 	}

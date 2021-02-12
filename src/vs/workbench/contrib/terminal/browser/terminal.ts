@@ -15,6 +15,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { URI } from 'vs/base/common/uri';
 import { IAvailableShellsRequest, ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalNativeWindowsDelegate } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -43,6 +44,9 @@ export interface ITerminalInstanceService {
 
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {

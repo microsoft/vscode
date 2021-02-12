@@ -13,6 +13,8 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo } from 'vs/platform/terminal/common/terminal';
+import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -20,6 +22,7 @@ let Unicode11Addon: typeof XTermUnicode11Addon;
 let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
+
 	public _serviceBrand: undefined;
 
 	private readonly _onPtyHostExit = this._register(new Emitter<void>());
@@ -72,6 +75,20 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return {};
+	}
+
+	getWorkspaceId(): string {
+		return '';
+	}
+
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById, id?: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getTerminalLayouts(): Map<string, ITerminalsLayoutInfo> {
+		return new Map<string, ITerminalsLayoutInfo>();
 	}
 }
 

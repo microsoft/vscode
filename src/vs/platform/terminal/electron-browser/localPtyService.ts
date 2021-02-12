@@ -5,13 +5,14 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IPtyService, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IPtyService, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 enum Constants {
 	MaxRestarts = 5
@@ -131,10 +132,11 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
 	}
-	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
-		return this._proxy.setTerminalLayoutInfo(layout);
+	public setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
+		return this._proxy.setTerminalLayoutInfo(args);
 	}
-	public getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		return this._proxy.getTerminalLayoutInfo();
+	public getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		console.log('localPtyService passing', args.workspaceId);
+		return this._proxy.getTerminalLayoutInfo({ workspaceId: args.workspaceId });
 	}
 }

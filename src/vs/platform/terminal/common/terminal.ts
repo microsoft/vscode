@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -183,9 +184,9 @@ export interface IPtyService {
 
 	getLatency(id: number): Promise<number>;
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
-
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById, workspaceId?: string): void;
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
+	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 export interface IShellLaunchConfig {

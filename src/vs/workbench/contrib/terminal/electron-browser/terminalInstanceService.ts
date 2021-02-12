@@ -22,11 +22,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILogService } from 'vs/platform/log/common/log';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { IDefaultShellAndArgsRequest, IShellLaunchConfig, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -63,6 +64,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			});
 		}
 	}
+
+	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest> | undefined;
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
@@ -135,4 +138,22 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	public getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return getMainProcessParentEnv();
 	}
+
+	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById, id?: string): void {
+		console.log(layout);
+		console.log(this._getWorkspaceId());
+		this._localPtyService.setTerminalLayoutInfo(layout, this._getWorkspaceId());
+	}
+
+	public async getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		console.log('get this workspace', this._getWorkspaceId());
+		let result = await this._localPtyService.getTerminalLayoutInfo({ workspaceId: this._getWorkspaceId() });
+		console.log(result);
+		return result;
+	}
+
+	private _getWorkspaceId(): string {
+		return this._workspaceContextService.getWorkspace().id;
+	}
+
 }
