@@ -13,9 +13,9 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 
-enum Constants {
-	MaxRestarts = 5
-}
+// enum Constants {
+// 	MaxRestarts = 5
+// }
 
 export class LocalPtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -23,8 +23,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private _proxy: IPtyService;
 
-	private _restartCount = 0;
-	private _isDisposed = false;
+	// private _restartCount = 0;
+	// private _isDisposed = false;
 
 	private readonly _onPtyHostExit = this._register(new Emitter<number>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
@@ -78,15 +78,15 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		});
 		this._register(client.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
-			if (!this._isDisposed) {
-				if (this._restartCount <= Constants.MaxRestarts) {
-					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
-					this._restartCount++;
-					this._proxy = this._startPtyHost();
-				} else {
-					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
-				}
-			}
+			// if (!this._isDisposed) {
+			// 	if (this._restartCount <= Constants.MaxRestarts) {
+			// 		this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
+			// 		this._restartCount++;
+			// 		this._proxy = this._startPtyHost();
+			// 	} else {
+			// 		this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
+			// 	}
+			// }
 		}));
 
 		// Setup logging
@@ -107,7 +107,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 
 	dispose() {
-		this._isDisposed = true;
+		// this._isDisposed = true;
 		super.dispose();
 	}
 
