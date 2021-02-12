@@ -446,6 +446,8 @@
 			host.onMessage('focus', () => {
 				const activeFrame = getActiveFrame();
 				if (!activeFrame || !activeFrame.contentWindow) {
+					// Focus the top level webview instead
+					window.focus();
 					return;
 				}
 
