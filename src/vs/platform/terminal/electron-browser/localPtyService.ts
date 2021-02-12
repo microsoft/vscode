@@ -110,7 +110,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 
 	dispose() {
 		// this._isDisposed = true;
-		console.log('LocalPtyService.dispose');
 		super.dispose();
 	}
 
