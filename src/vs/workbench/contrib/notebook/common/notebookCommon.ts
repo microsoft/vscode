@@ -67,7 +67,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
 	runState: NotebookRunState.Idle,
-	languages: [],
 	trusted: true
 };
 
@@ -80,7 +79,6 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
-	languages: string[];
 	trusted: boolean;
 }
 
@@ -197,8 +195,6 @@ export interface INotebookTextModel {
 	readonly uri: URI;
 	readonly versionId: number;
 
-	/** @deprecated */
-	languages: string[];
 	readonly cells: readonly ICell[];
 	onWillDispose(listener: () => void): IDisposable;
 }
@@ -382,7 +378,6 @@ export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetad
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
-	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
 }
 
@@ -720,7 +715,7 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	return false;
 }
 
-export interface INotebookKernelInfoDto2 {
+export interface INotebookKernel {
 	id?: string;
 	friendlyId: string;
 	label: string;
@@ -730,11 +725,9 @@ export interface INotebookKernelInfoDto2 {
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloads?: UriComponents[];
+	preloads?: URI[];
 	supportedLanguages?: string[]
-}
 
-export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
 	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
@@ -745,10 +738,7 @@ export interface INotebookKernelProvider {
 	providerDescription?: string;
 	selector: INotebookDocumentFilter;
 	onDidChangeKernels: Event<URI | undefined>;
-	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
-	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
-	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
-	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
+	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
 }
 
 export class CellSequence implements ISequence {

@@ -31,7 +31,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { CellEditType, ICellDto2, INotebookDecorationRenderOptions, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellDto2, INotebookDecorationRenderOptions, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
@@ -1344,11 +1344,33 @@ export namespace LanguageSelector {
 	}
 }
 
+export namespace NotebookCellKind {
+	export function from(data: vscode.NotebookCellKind): CellKind {
+		switch (data) {
+			case types.NotebookCellKind.Markdown:
+				return CellKind.Markdown;
+			case types.NotebookCellKind.Code:
+			default:
+				return CellKind.Code;
+		}
+	}
+
+	export function to(data: CellKind): vscode.NotebookCellKind {
+		switch (data) {
+			case CellKind.Markdown:
+				return types.NotebookCellKind.Markdown;
+			case CellKind.Code:
+			default:
+				return types.NotebookCellKind.Code;
+		}
+	}
+}
+
 export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): ICellDto2 {
 		return {
-			cellKind: data.cellKind,
+			cellKind: NotebookCellKind.from(data.cellKind),
 			language: data.language,
 			source: data.source,
 			metadata: data.metadata,

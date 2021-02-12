@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { release } from 'os';
 import { statSync } from 'fs';
+import { app, ipcMain, systemPreferences, contentTracing, protocol, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh, isLinux, isLinuxSnap } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -66,7 +66,6 @@ import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesManagementMainService, IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
@@ -90,15 +89,18 @@ import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/commo
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
 
+/**
+ * The main VS Code application. There will only ever be one instance,
+ * even if the user starts many instances (e.g. from the command line).
+ */
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
-	private dialogMainService: IDialogMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
-		private readonly mainIpcServer: NodeIPCServer,
+		private readonly mainProcessNodeIpcServer: NodeIPCServer,
 		private readonly userEnv: IProcessEnvironment,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -429,44 +431,25 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Setup Protocol Handler
-		const fileProtocolHandler = this._register(this.instantiationService.createInstance(FileProtocolHandler));
+		const fileProtocolHandler = this._register(this.mainInstantiationService.createInstance(FileProtocolHandler));
 
-		// Create Electron IPC Server
-		const electronIpcServer = new ElectronIPCServer();
+		// Main process server (electron IPC based)
+		const mainProcessElectronServer = new ElectronIPCServer();
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
 		const machineId = await this.resolveMachineId();
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
-		// Spawn shared process after the first window has opened and 3s have passed
-		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
-		const sharedProcessClient = (async () => {
-			this.logService.trace('Main->SharedProcess#connect');
-
-			const port = await sharedProcess.connect();
-
-			this.logService.trace('Main->SharedProcess#connect: connection established');
-
-			return new MessagePortClient(port, 'main');
-		})();
-		const sharedProcessReady = (async () => {
-			await sharedProcess.whenReady();
-
-			return sharedProcessClient;
-		})();
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
-			this._register(new RunOnceScheduler(async () => {
-				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentService.args, process.env));
-			}, 3000)).schedule();
-		});
+		// Shared process
+		const { sharedProcess, sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId);
 
 		// Services
-		const appInstantiationService = await this.createServices(machineId, sharedProcess, sharedProcessReady);
+		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
 
 		// Create driver
 		if (this.environmentService.driverHandle) {
-			const server = await serveDriver(electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService);
+			const server = await serveDriver(mainProcessElectronServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService);
 
 			this.logService.info('Driver started at:', this.environmentService.driverHandle);
 			this._register(server);
@@ -475,15 +458,18 @@ export class CodeApplication extends Disposable {
 		// Setup Auth Handler
 		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
 
+		// Init Channels
+		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
+
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, electronIpcServer, sharedProcessClient, fileProtocolHandler));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer, fileProtocolHandler));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
 
 		// Tracing: Stop tracing after windows are ready if enabled
 		if (this.environmentService.args.trace) {
-			this.stopTracingEventually(windows);
+			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
 		}
 	}
 
@@ -501,9 +487,39 @@ export class CodeApplication extends Disposable {
 		return machineId;
 	}
 
-	private async createServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
+	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>, sharedProcessClient: Promise<MessagePortClient> } {
+		const sharedProcess = this.mainInstantiationService.createInstance(SharedProcess, machineId, this.userEnv);
+
+		const sharedProcessClient = (async () => {
+			this.logService.trace('Main->SharedProcess#connect');
+
+			const port = await sharedProcess.connect();
+
+			this.logService.trace('Main->SharedProcess#connect: connection established');
+
+			return new MessagePortClient(port, 'main');
+		})();
+
+		const sharedProcessReady = (async () => {
+			await sharedProcess.whenReady();
+
+			return sharedProcessClient;
+		})();
+
+		// Spawn shared process after the first window has opened and 3s have passed
+		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
+			this._register(new RunOnceScheduler(async () => {
+				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentService.args, process.env));
+			}, 3000)).schedule();
+		});
+
+		return { sharedProcess, sharedProcessReady, sharedProcessClient };
+	}
+
+	private async initServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
+		// Update
 		switch (process.platform) {
 			case 'win32':
 				services.set(IUpdateService, new SyncDescriptor(Win32UpdateService));
@@ -522,31 +538,58 @@ export class CodeApplication extends Disposable {
 				break;
 		}
 
+		// Windows
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv]));
+
+		// Dialogs
 		services.set(IDialogMainService, new SyncDescriptor(DialogMainService));
+
+		// Launch
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
+
+		// Diagnostics
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
+		// Issues
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
+
+		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+
+		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
+
+		// Display
 		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
+
+		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
+
+		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
+
+		// Workspaces
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesMainService));
+		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
+		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
+
+		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
+
+		// Extension URL Trust
 		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
+		// Storage
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
 		this.lifecycleMainService.onWillShutdown(e => e.join(storageMainService.close()));
 
+		// Backups
 		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
 
-		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
+		// URL handling
 		services.set(IURLService, new SyncDescriptor(NativeURLService));
-		services.set(IWorkspacesManagementMainService, new SyncDescriptor(WorkspacesManagementMainService));
 
 		// Telemetry
 		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -564,120 +607,93 @@ export class CodeApplication extends Disposable {
 		// Init services that require it
 		await backupMainService.initialize();
 
-		return this.instantiationService.createChild(services);
+		return this.mainInstantiationService.createChild(services);
 	}
 
-	private stopTracingEventually(windows: ICodeWindow[]): void {
-		this.logService.info(`Tracing: waiting for windows to get ready...`);
+	private initChannels(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, sharedProcessClient: Promise<MessagePortClient>): void {
 
-		let recordingStopped = false;
-		const stopRecording = async (timeout: boolean) => {
-			if (recordingStopped) {
-				return;
-			}
+		// Launch: this one is explicitly registered to the node.js
+		// server because when a second instance starts up, that is
+		// the only possible connection between the first and the
+		// second instance. Electron IPC does not work across apps.
+		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
+		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
 
-			recordingStopped = true; // only once
+		// Update
+		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
+		mainProcessElectronServer.registerChannel('update', updateChannel);
 
-			const path = await contentTracing.stopRecording(joinPath(this.environmentService.userHome, `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
+		// Issues
+		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService));
+		mainProcessElectronServer.registerChannel('issue', issueChannel);
 
-			if (!timeout) {
-				this.dialogMainService?.showMessageBox({
-					type: 'info',
-					message: localize('trace.message', "Successfully created trace."),
-					detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
-					buttons: [localize('trace.ok', "OK")]
-				}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
-			} else {
-				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
-			}
-		};
+		// Encryption
+		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
+		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
-		// Wait up to 30s before creating the trace anyways
-		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
+		// Keyboard Layout
+		const keyboardLayoutChannel = ProxyChannel.fromService(accessor.get(IKeyboardLayoutMainService));
+		mainProcessElectronServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
 
-		// Wait for all windows to get ready and stop tracing then
-		Promise.all(windows.map(window => window.ready())).then(() => {
-			clearTimeout(timeoutHandle);
-			stopRecording(false);
-		});
-	}
+		// Display
+		const displayChannel = ProxyChannel.fromService(accessor.get(IDisplayMainService));
+		mainProcessElectronServer.registerChannel('display', displayChannel);
 
-	private openFirstWindow(accessor: ServicesAccessor, electronIpcServer: ElectronIPCServer, sharedProcessClient: Promise<MessagePortClient>, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
-
-		// Register more Main IPC services
-		const launchMainService = accessor.get(ILaunchMainService);
-		const launchChannel = ProxyChannel.fromService(launchMainService, { disableMarshalling: true });
-		this.mainIpcServer.registerChannel('launch', launchChannel);
-
-		// Register more Electron IPC services
-		const updateService = accessor.get(IUpdateService);
-		const updateChannel = new UpdateChannel(updateService);
-		electronIpcServer.registerChannel('update', updateChannel);
-
-		const issueMainService = accessor.get(IIssueMainService);
-		const issueChannel = ProxyChannel.fromService(issueMainService);
-		electronIpcServer.registerChannel('issue', issueChannel);
-
-		const encryptionMainService = accessor.get(IEncryptionMainService);
-		const encryptionChannel = ProxyChannel.fromService(encryptionMainService);
-		electronIpcServer.registerChannel('encryption', encryptionChannel);
-
-		const keyboardLayoutMainService = accessor.get(IKeyboardLayoutMainService);
-		const keyboardLayoutChannel = ProxyChannel.fromService(keyboardLayoutMainService);
-		electronIpcServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
-
-		const displayMainService = accessor.get(IDisplayMainService);
-		const displayChannel = ProxyChannel.fromService(displayMainService);
-		electronIpcServer.registerChannel('display', displayChannel);
-
-		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		// Native host (main & shared process)
+		this.nativeHostMainService = accessor.get(INativeHostMainService);
 		const nativeHostChannel = ProxyChannel.fromService(this.nativeHostMainService);
-		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
+		mainProcessElectronServer.registerChannel('nativeHost', nativeHostChannel);
 		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
-		const workspacesService = accessor.get(IWorkspacesService);
-		const workspacesChannel = ProxyChannel.fromService(workspacesService);
-		electronIpcServer.registerChannel('workspaces', workspacesChannel);
+		// Workspaces
+		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService));
+		mainProcessElectronServer.registerChannel('workspaces', workspacesChannel);
 
-		const menubarMainService = accessor.get(IMenubarMainService);
-		const menubarChannel = ProxyChannel.fromService(menubarMainService);
-		electronIpcServer.registerChannel('menubar', menubarChannel);
+		// Menubar
+		const menubarChannel = ProxyChannel.fromService(accessor.get(IMenubarMainService));
+		mainProcessElectronServer.registerChannel('menubar', menubarChannel);
 
-		const urlService = accessor.get(IURLService);
-		const urlChannel = ProxyChannel.fromService(urlService);
-		electronIpcServer.registerChannel('url', urlChannel);
+		// URL handling
+		const urlChannel = ProxyChannel.fromService(accessor.get(IURLService));
+		mainProcessElectronServer.registerChannel('url', urlChannel);
 
-		const extensionUrlTrustService = accessor.get(IExtensionUrlTrustService);
-		const extensionUrlTrustChannel = ProxyChannel.fromService(extensionUrlTrustService);
-		electronIpcServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
+		// Extension URL Trust
+		const extensionUrlTrustChannel = ProxyChannel.fromService(accessor.get(IExtensionUrlTrustService));
+		mainProcessElectronServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
 
-		const webviewManagerService = accessor.get(IWebviewManagerService);
-		const webviewChannel = ProxyChannel.fromService(webviewManagerService);
-		electronIpcServer.registerChannel('webview', webviewChannel);
+		// Webview Manager
+		const webviewChannel = ProxyChannel.fromService(accessor.get(IWebviewManagerService));
+		mainProcessElectronServer.registerChannel('webview', webviewChannel);
 
-		const storageMainService = accessor.get(IStorageMainService);
-		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
-		electronIpcServer.registerChannel('storage', storageChannel);
+		// Storage (main & shared process)
+		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
+		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
+		// Log Level (main & shared process)
 		const logLevelChannel = new LogLevelChannel(accessor.get(ILogService));
-		electronIpcServer.registerChannel('logLevel', logLevelChannel);
+		mainProcessElectronServer.registerChannel('logLevel', logLevelChannel);
 		sharedProcessClient.then(client => client.registerChannel('logLevel', logLevelChannel));
 
+		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
-		electronIpcServer.registerChannel('logger', loggerChannel);
+		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 
+		// Extension Host Debug Broadcasting
+		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
+		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
+	}
+
+	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
-		fileProtocolHandler.injectWindowsMainService(windowsMainService);
-
-		// ExtensionHost Debug broadcast service
-		electronIpcServer.registerChannel(ExtensionHostDebugBroadcastChannel.ChannelName, new ElectronExtensionHostDebugBroadcastChannel(windowsMainService));
+		const urlService = accessor.get(IURLService);
+		const nativeHostMainService = accessor.get(INativeHostMainService);
 
 		// Signal phase: ready (services set)
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
-		// Propagate to clients
-		this.dialogMainService = accessor.get(IDialogMainService);
+		// Forward windows main service to protocol handler
+		fileProtocolHandler.injectWindowsMainService(this.windowsMainService);
 
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
@@ -771,7 +787,7 @@ export class CodeApplication extends Disposable {
 		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
-		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);
+		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
@@ -973,5 +989,42 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
+	}
+
+	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {
+		this.logService.info(`Tracing: waiting for windows to get ready...`);
+
+		const dialogMainService = accessor.get(IDialogMainService);
+
+		let recordingStopped = false;
+		const stopRecording = async (timeout: boolean) => {
+			if (recordingStopped) {
+				return;
+			}
+
+			recordingStopped = true; // only once
+
+			const path = await contentTracing.stopRecording(joinPath(this.environmentService.userHome, `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
+
+			if (!timeout) {
+				dialogMainService.showMessageBox({
+					type: 'info',
+					message: localize('trace.message', "Successfully created trace."),
+					detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+					buttons: [localize('trace.ok', "OK")]
+				}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			} else {
+				this.logService.info(`Tracing: data recorded (after 30s timeout) to ${path}`);
+			}
+		};
+
+		// Wait up to 30s before creating the trace anyways
+		const timeoutHandle = setTimeout(() => stopRecording(true), 30000);
+
+		// Wait for all windows to get ready and stop tracing then
+		Promise.all(windows.map(window => window.ready())).then(() => {
+			clearTimeout(timeoutHandle);
+			stopRecording(false);
+		});
 	}
 }

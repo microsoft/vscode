@@ -11,7 +11,9 @@ type extendMarkdownItFnType = (
 );
 
 (function () {
-	const markdownIt = new MarkdownIt();
+	const markdownIt = new MarkdownIt({
+		html: true
+	});
 
 	(globalThis as any).extendMarkdownIt = ((f: (md: MarkdownIt.MarkdownIt) => void) => {
 		f(markdownIt);

@@ -1586,11 +1586,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
-			newVisibilityValue = 'toggle';
-		} else if (currentVisibilityValue === 'compact') {
-			newVisibilityValue = 'hidden';
+			newVisibilityValue = 'compact';
 		} else {
-			newVisibilityValue = (isWeb && currentVisibilityValue === 'hidden') ? 'compact' : 'classic';
+			newVisibilityValue = 'classic';
 		}
 
 		this.configurationService.updateValue(Storage.MENU_VISIBILITY, newVisibilityValue);

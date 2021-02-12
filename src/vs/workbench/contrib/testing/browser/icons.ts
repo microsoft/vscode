@@ -16,6 +16,7 @@ export const testingRunAllIcon = registerIcon('testing-run-all-icon', Codicon.ru
 export const testingDebugIcon = registerIcon('testing-debug-icon', Codicon.debugAlt, localize('testingDebugIcon', 'Icon of the "debug test" action.'));
 export const testingCancelIcon = registerIcon('testing-cancel-icon', Codicon.close, localize('testingCancelIcon', 'Icon to cancel ongoing test runs.'));
 export const testingFilterIcon = registerIcon('testing-filter', Codicon.filter, localize('filterIcon', 'Icon for the \'Filter\' action in the testing view.'));
+export const testingAutorunIcon = registerIcon('testing-autorun', Codicon.symbolEvent, localize('autoRunIcon', 'Icon for the \'Autorun\' toggle in the testing view.'));
 
 export const testingShowAsList = registerIcon('testing-show-as-list-icon', Codicon.listTree, localize('testingShowAsList', 'Icon shown when the test explorer is disabled as a tree.'));
 export const testingShowAsTree = registerIcon('testing-show-as-list-icon', Codicon.listFlat, localize('testingShowAsTree', 'Icon shown when the test explorer is disabled as a list.'));

@@ -40,8 +40,12 @@
           "keybindings.json",
           "extensions.json",
           "argv.json",
-          "profiles.json"
-        ]
+          "profiles.json",
+          ".devcontainer.json"
+        ],
+        "filenamePatterns": [
+					"**/.devcontainer/devcontainer.json"
+				]
       }
     ],
     "jsonValidation": [

@@ -21,8 +21,9 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { TestExplorerViewSorting, TestExplorerViewMode, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
@@ -31,10 +32,16 @@ import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/co
 const category = localize('testing.category', 'Test');
 
 const enum ActionOrder {
+	// Navigation:
 	Run = 10,
 	Debug,
-	Refresh,
+	AutoRun,
 	Collapse,
+
+	// Submenu:
+	DisplayMode,
+	Sort,
+	Refresh,
 }
 
 export class DebugAction extends Action {
@@ -287,7 +294,7 @@ export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.List),
 			menu: {
 				id: MenuId.ViewTitle,
-				order: 10,
+				order: ActionOrder.DisplayMode,
 				group: 'viewAs',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
@@ -312,7 +319,7 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.Tree),
 			menu: {
 				id: MenuId.ViewTitle,
-				order: 10,
+				order: ActionOrder.DisplayMode,
 				group: 'viewAs',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
@@ -338,7 +345,7 @@ export class TestingSortByNameAction extends ViewAction<TestingExplorerView> {
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByName),
 			menu: {
 				id: MenuId.ViewTitle,
-				order: 10,
+				order: ActionOrder.Sort,
 				group: 'sortBy',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
@@ -363,7 +370,7 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByLocation),
 			menu: {
 				id: MenuId.ViewTitle,
-				order: 10,
+				order: ActionOrder.Sort,
 				group: 'sortBy',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
@@ -410,11 +417,10 @@ export class RefreshTestsAction extends Action2 {
 			title: localize('testing.refresh', "Refresh Tests"),
 			category,
 			f1: true,
-			icon: Codicon.refresh,
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Refresh,
-				group: 'navigation',
+				group: 'refresh',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
 			}
 		});
@@ -469,5 +475,30 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		if (selected) {
 			view.viewModel.openEditorForItem(selected, false);
 		}
+	}
+}
+
+export class ToggleAutoRun extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.toggleautoRun',
+			title: localize('testing.toggleautoRun', "Toggle Auto Run"),
+			f1: true,
+			toggled: TestingContextKeys.autoRun.isEqualTo(true),
+			icon: icons.testingAutorunIcon,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.AutoRun,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public run(accessor: ServicesAccessor) {
+		accessor.get(ITestingAutoRun).toggle();
 	}
 }

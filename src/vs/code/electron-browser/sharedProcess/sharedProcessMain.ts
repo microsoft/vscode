@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
 import * as fs from 'fs';
 import { release } from 'os';
 import { gracefulify } from 'graceful-fs';
 import { ipcRenderer } from 'electron';
+import product from 'vs/platform/product/common/product';
 import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
 import { StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -53,7 +53,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, IUserDataSyncStoreManagementService, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
@@ -81,6 +81,7 @@ import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProc
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { join } from 'vs/base/common/path';
+import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 
 class SharedProcessMain extends Disposable {
 
@@ -265,40 +266,32 @@ class SharedProcessMain extends Disposable {
 	private initChannels(accessor: ServicesAccessor): void {
 
 		// Extensions Management
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const channel = new ExtensionManagementChannel(extensionManagementService, () => null);
+		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
 		// Localizations
-		const localizationsService = accessor.get(ILocalizationsService);
-		const localizationsChannel = ProxyChannel.fromService(localizationsService);
+		const localizationsChannel = ProxyChannel.fromService(accessor.get(ILocalizationsService));
 		this.server.registerChannel('localizations', localizationsChannel);
 
 		// Diagnostics
-		const diagnosticsService = accessor.get(IDiagnosticsService);
-		const diagnosticsChannel = ProxyChannel.fromService(diagnosticsService);
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips
-		const extensionTipsService = accessor.get(IExtensionTipsService);
-		const extensionTipsChannel = new ExtensionTipsChannel(extensionTipsService);
+		const extensionTipsChannel = new ExtensionTipsChannel(accessor.get(IExtensionTipsService));
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
 		// Settings Sync
-		const userDataSyncMachinesService = accessor.get(IUserDataSyncMachinesService);
-		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(userDataSyncMachinesService);
+		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
 
-		const authTokenService = accessor.get(IUserDataSyncAccountService);
-		const authTokenChannel = new UserDataSyncAccountServiceChannel(authTokenService);
-		this.server.registerChannel('userDataSyncAccount', authTokenChannel);
+		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
+		this.server.registerChannel('userDataSyncAccount', userDataSyncAccountChannel);
 
-		const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
-		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(userDataSyncStoreManagementService);
+		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
 		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
 
-		const userDataSyncService = accessor.get(IUserDataSyncService);
-		const userDataSyncChannel = new UserDataSyncChannel(this.server, userDataSyncService, accessor.get(ILogService));
+		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(ILogService));
 		this.server.registerChannel('userDataSync', userDataSyncChannel);
 
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));

@@ -271,10 +271,11 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		templateData.iconLabel.setLabel(label, description, { title: node instanceof TunnelItem ? node.tooltip : tooltip, extraClasses: ['tunnel-view-label'] });
 
 		templateData.actionBar.context = node;
-		const contextKeyService = this._register(this.contextKeyService.createScoped());
-		contextKeyService.createKey('view', this.viewId);
-		contextKeyService.createKey('tunnelType', node.tunnelType);
-		contextKeyService.createKey('tunnelCloseable', node.closeable);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['view', this.viewId],
+			['tunnelType', node.tunnelType],
+			['tunnelCloseable', node.closeable],
+		]);
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		const menu = disposableStore.add(this.menuService.createMenu(MenuId.TunnelInline, contextKeyService));
@@ -295,7 +296,6 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		}
 
 		menu.dispose();
-		contextKeyService.dispose();
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
@@ -609,10 +609,8 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
 		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
 
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
-		scopedContextKeyService.createKey('view', TunnelPanel.ID);
-
-		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, scopedContextKeyService));
+		const overlayContextKeyService = this._register(this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]));
+		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
@@ -831,7 +829,7 @@ namespace LabelTunnelAction {
 					remoteExplorerService.setEditable(context, {
 						onFinish: async (value, success) => {
 							if (success) {
-								remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
+								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 							}
 							remoteExplorerService.setEditable(context, null);
 							resolve(success ? { port: context.remotePort, label: value } : undefined);

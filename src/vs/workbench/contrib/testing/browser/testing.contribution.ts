@@ -7,6 +7,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -20,8 +21,10 @@ import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { CloseTestPeek, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
+import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -34,6 +37,7 @@ import * as Action from './testExplorerActions';
 registerSingleton(ITestService, TestService);
 registerSingleton(ITestResultService, TestResultService);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState);
+registerSingleton(ITestingAutoRun, TestingAutoRun, true);
 registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
@@ -91,6 +95,7 @@ registerAction2(Action.RunAllAction);
 registerAction2(Action.DebugAllAction);
 registerAction2(Action.EditFocusedTest);
 registerAction2(Action.ClearTestResultsAction);
+registerAction2(Action.ToggleAutoRun);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
@@ -121,3 +126,5 @@ CommandsRegistry.registerCommand({
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
 	}
 });
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguation);

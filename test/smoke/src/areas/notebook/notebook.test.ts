@@ -34,7 +34,7 @@ export function setup() {
 			await app.workbench.notebook.stopEditingCell();
 		});
 
-		it('inserts/edits markdown cell', async function () {
+		it.skip('inserts/edits markdown cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();

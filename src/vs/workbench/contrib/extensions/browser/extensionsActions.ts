@@ -859,25 +859,27 @@ export class DropDownMenuActionViewItem extends ExtensionActionViewItem {
 
 export function getContextMenuActions(extension: IExtension | undefined | null, inExtensionEditor: boolean, instantiationService: IInstantiationService): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
-		const scopedContextKeyService = accessor.get(IContextKeyService).createScoped();
 		const menuService = accessor.get(IMenuService);
 		const extensionRecommendationsService = accessor.get(IExtensionRecommendationsService);
 		const extensionIgnoredRecommendationsService = accessor.get(IExtensionIgnoredRecommendationsService);
+		const cksOverlay: [string, any][] = [];
+
 		if (extension) {
-			scopedContextKeyService.createKey<string>('extension', extension.identifier.id);
-			scopedContextKeyService.createKey<boolean>('isBuiltinExtension', extension.isBuiltin);
-			scopedContextKeyService.createKey<boolean>('extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration);
-			scopedContextKeyService.createKey<boolean>('isExtensionRecommended', !!extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]);
-			scopedContextKeyService.createKey<boolean>('isExtensionWorkspaceRecommended', extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]?.reasonId === ExtensionRecommendationReason.Workspace);
-			scopedContextKeyService.createKey<boolean>('isUserIgnoredRecommendation', extensionIgnoredRecommendationsService.globalIgnoredRecommendations.some(e => e === extension.identifier.id.toLowerCase()));
-			scopedContextKeyService.createKey<boolean>('inExtensionEditor', inExtensionEditor);
+			cksOverlay.push(['extension', extension.identifier.id]);
+			cksOverlay.push(['isBuiltinExtension', extension.isBuiltin]);
+			cksOverlay.push(['extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration]);
+			cksOverlay.push(['isExtensionRecommended', !!extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]]);
+			cksOverlay.push(['isExtensionWorkspaceRecommended', extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()]?.reasonId === ExtensionRecommendationReason.Workspace]);
+			cksOverlay.push(['isUserIgnoredRecommendation', extensionIgnoredRecommendationsService.globalIgnoredRecommendations.some(e => e === extension.identifier.id.toLowerCase())]);
+			cksOverlay.push(['inExtensionEditor', inExtensionEditor]);
 			if (extension.state === ExtensionState.Installed) {
-				scopedContextKeyService.createKey<string>('extensionStatus', 'installed');
+				cksOverlay.push(['extensionStatus', 'installed']);
 			}
 		}
 
+		const contextKeyService = accessor.get(IContextKeyService).createOverlay(cksOverlay);
 		const groups: IAction[][] = [];
-		const menu = menuService.createMenu(MenuId.ExtensionContext, scopedContextKeyService);
+		const menu = menuService.createMenu(MenuId.ExtensionContext, contextKeyService);
 		menu.getActions({ shouldForwardArgs: true }).forEach(([, actions]) => groups.push(actions.map(action => {
 			if (action instanceof SubmenuAction) {
 				return action;
@@ -885,7 +887,6 @@ export function getContextMenuActions(extension: IExtension | undefined | null, 
 			return instantiationService.createInstance(MenuItemExtensionAction, action);
 		})));
 		menu.dispose();
-		scopedContextKeyService.dispose();
 
 		return groups;
 	});

@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -64,6 +64,7 @@ export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('noteboo
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 // Kernels
 export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
+export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 
 //#endregion
 
@@ -338,7 +339,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
 	readonly isNotebookEditor: boolean;
-	activeKernel: INotebookKernelInfo2 | undefined;
+	activeKernel: INotebookKernel | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
@@ -384,7 +385,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	/**
 	 * Fetch the contributed kernels for this notebook
 	 */
-	beginComputeContributedKernels(): Promise<INotebookKernelInfo2[]>;
+	beginComputeContributedKernels(): Promise<INotebookKernel[]>;
 
 	/**
 	 * Insert a new cell around `cell`
@@ -678,6 +679,7 @@ export interface BaseCellRenderTemplate {
 	deleteToolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
 	focusIndicatorLeft: HTMLElement;
+	focusIndicatorRight: HTMLElement;
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;

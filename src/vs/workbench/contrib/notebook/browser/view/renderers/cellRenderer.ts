@@ -178,7 +178,7 @@ abstract class AbstractCellRenderer {
 		configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
 		private readonly notificationService: INotificationService,
-		protected readonly contextKeyServiceProvider: (container?: HTMLElement) => IContextKeyService,
+		protected readonly contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		language: string,
 		protected readonly dndController: CellDragAndDropController
 	) {
@@ -266,8 +266,8 @@ abstract class AbstractCellRenderer {
 			if (actions.primary.length || actions.secondary.length) {
 				templateData.container.classList.add('cell-has-toolbar-actions');
 				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicatorLeft.style.top = `${EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN}px`;
-					templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN}px`;
+					templateData.focusIndicatorLeft.style.top = `${EDITOR_TOOLBAR_HEIGHT}px`;
+					templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT}px`;
 				}
 			} else {
 				templateData.container.classList.remove('cell-has-toolbar-actions');
@@ -375,7 +375,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		notebookEditor: INotebookEditor,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
-		contextKeyServiceProvider: (container?: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -401,6 +401,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
 
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
+		const focusIndicatorRight = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right'));
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
@@ -434,6 +435,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			editorContainer,
 			focusIndicatorLeft,
 			focusIndicatorBottom,
+			focusIndicatorRight,
 			foldingIndicator,
 			disposables,
 			elementDisposables: new DisposableStore(),
@@ -681,7 +683,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		protected notebookEditor: INotebookEditor,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		dndController: CellDragAndDropController,
-		contextKeyServiceProvider: (container?: HTMLElement) => IContextKeyService,
+		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,

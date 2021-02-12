@@ -8,7 +8,7 @@ import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textF
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { FileOperationError, FileOperationResult, IFileService, MIN_MAX_MEMORY_SIZE_MB, FALLBACK_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { createErrorWithActions } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
