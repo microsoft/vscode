@@ -386,6 +386,13 @@ export interface IUserDataSynchroniser {
 
 //#endregion
 
+// #region keys synced only in web
+
+export const SYNC_SERVICE_URL_TYPE = 'sync.store.url.type';
+export function getEnablementKey(resource: SyncResource) { return `sync.enable.${resource}`; }
+
+// #endregion
+
 // #region User Data Sync Services
 
 export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');

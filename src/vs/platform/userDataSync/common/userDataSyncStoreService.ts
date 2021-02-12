@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStoreClient, SYNC_SERVICE_URL_TYPE } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess as isSuccessContext, asJson } from 'vs/platform/request/common/request';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -23,7 +23,6 @@ import { isString, isObject, isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 
-const SYNC_SERVICE_URL_TYPE = 'sync.store.url.type';
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
 const USER_SESSION_ID_KEY = 'sync.user-session-id';
@@ -56,9 +55,6 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
-
-		// Make sure the userDataSyncStore type storageKey is added to user/machine targets
-		this.userDataSyncStoreType = this.userDataSyncStore?.type;
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -78,7 +74,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
 			const defaultType: UserDataSyncStoreType = syncStore.url === syncStore.insidersUrl ? 'insiders' : 'stable';
-			const type: UserDataSyncStoreType = this.userDataSyncStoreType || defaultType;
+			const type: UserDataSyncStoreType = (canSwitch ? this.userDataSyncStoreType : undefined) || defaultType;
 			const url = configuredStore?.url ||
 				(type === 'insiders' ? syncStore.insidersUrl
 					: type === 'stable' ? syncStore.stableUrl

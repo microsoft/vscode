@@ -5,7 +5,7 @@
 
 import {
 	IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncResourceEnablementService,
-	IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, USER_DATA_SYNC_SCHEME, IRemoteUserData, Change
+	IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, USER_DATA_SYNC_SCHEME, IRemoteUserData, Change, ALL_SYNC_RESOURCES, getEnablementKey, SYNC_SERVICE_URL_TYPE
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
@@ -23,6 +23,7 @@ import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { isWeb } from 'vs/base/common/platform';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -346,6 +347,14 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const machine = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		const registered = [...user, ...machine];
 		const unregistered = lastSyncGlobalState?.storage ? Object.keys(lastSyncGlobalState.storage).filter(key => !key.startsWith(argvStoragePrefx) && !registered.includes(key) && this.storageService.get(key, StorageScope.GLOBAL) !== undefined) : [];
+
+		if (!isWeb) {
+			// Following keys are synced only in web. Do not sync these keys in other platforms
+			const keysSyncedOnlyInWeb = [...ALL_SYNC_RESOURCES.map(resource => getEnablementKey(resource)), SYNC_SERVICE_URL_TYPE];
+			unregistered.push(...keysSyncedOnlyInWeb);
+			machine.push(...keysSyncedOnlyInWeb);
+		}
+
 		return { user, machine, unregistered };
 	}
 }

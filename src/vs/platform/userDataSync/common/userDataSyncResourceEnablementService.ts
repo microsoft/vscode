@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource, getEnablementKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -13,9 +13,6 @@ import { isWeb } from 'vs/base/common/platform';
 type SyncEnablementClassification = {
 	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
-
-const enablementKey = 'sync.enable';
-function getEnablementKey(resource: SyncResource) { return `${enablementKey}.${resource}`; }
 
 export class UserDataSyncResourceEnablementService extends Disposable implements IUserDataSyncResourceEnablementService {
 
@@ -30,14 +27,6 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 	) {
 		super();
 		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
-
-		for (const resource of ALL_SYNC_RESOURCES) {
-			const resourceEnablementKey = getEnablementKey(resource);
-			if (this.storageService.getBoolean(resourceEnablementKey, StorageScope.GLOBAL) === undefined) {
-				// Make sure the resource enablement storageKey is added to user/machine targets
-				this.storeResourceEnablement(resourceEnablementKey, true);
-			}
-		}
 	}
 
 	isResourceEnabled(resource: SyncResource): boolean {
