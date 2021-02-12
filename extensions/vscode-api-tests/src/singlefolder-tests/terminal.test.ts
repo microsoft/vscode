@@ -57,7 +57,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
+		(process.platform === 'linux' ? test.skip : test.skip)('echo works in the default shell', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
