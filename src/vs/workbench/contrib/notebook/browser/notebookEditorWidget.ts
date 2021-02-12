@@ -463,7 +463,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._body.classList.add('cell-list-container');
 
 		this._dndController = this._register(new CellDragAndDropController(this, this._body));
-		const getScopedContextKeyService = (container?: HTMLElement) => this._list.contextKeyService.createScoped(container);
+		const getScopedContextKeyService = (container: HTMLElement) => this._list.contextKeyService.createScoped(container);
 		const renderers = [
 			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._dndController, getScopedContextKeyService),
 			this.instantiationService.createInstance(MarkdownCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService),

@@ -1123,18 +1123,18 @@ class TreeMenus extends Disposable implements IDisposable {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
-		const contextKeyService = this.contextKeyService.createScoped();
-		contextKeyService.createKey('view', this.id);
-		contextKeyService.createKey(context.key, context.value);
+
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['view', this.id],
+			[context.key, context.value]
+		]);
 
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
-
 		menu.dispose();
-		contextKeyService.dispose();
 
 		return result;
 	}
