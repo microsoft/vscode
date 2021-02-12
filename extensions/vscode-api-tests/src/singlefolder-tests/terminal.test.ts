@@ -27,7 +27,7 @@ import { assertNoRpc } from '../utils';
 		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
 	});
 
-	suite.skip('Terminal', () => {
+	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
 
 		teardown(() => {
@@ -36,7 +36,7 @@ import { assertNoRpc } from '../utils';
 			disposables.length = 0;
 		});
 
-		test('sendText immediately after createTerminal should not throw', async () => {
+		test.skip('sendText immediately after createTerminal should not throw', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -57,7 +57,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
+		(process.platform === 'linux' ? test.skip : test.skip)('echo works in the default shell', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
@@ -102,7 +102,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('onDidCloseTerminal event fires when terminal is disposed', async () => {
+		test.skip('onDidCloseTerminal event fires when terminal is disposed', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -122,7 +122,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('processId immediately after createTerminal should fetch the pid', async () => {
+		test.skip('processId immediately after createTerminal should fetch the pid', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -144,7 +144,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('name in constructor should set terminal.name', async () => {
+		test.skip('name in constructor should set terminal.name', async () => {
 			const terminal = window.createTerminal('a');
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -164,7 +164,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('creationOptions should be set and readonly for TerminalOptions terminals', async () => {
+		test.skip('creationOptions should be set and readonly for TerminalOptions terminals', async () => {
 			const options = {
 				name: 'foo',
 				hideFromUser: true
@@ -190,7 +190,7 @@ import { assertNoRpc } from '../utils';
 			throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 		});
 
-		test('onDidOpenTerminal should fire when a terminal is created', async () => {
+		test.skip('onDidOpenTerminal should fire when a terminal is created', async () => {
 			const terminal = window.createTerminal('b');
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -210,7 +210,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('exitStatus.code should be set to undefined after a terminal is disposed', async () => {
+		test.skip('exitStatus.code should be set to undefined after a terminal is disposed', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -301,7 +301,7 @@ import { assertNoRpc } from '../utils';
 		// 	terminal1.show();
 		// });
 
-		suite('hideFromUser', () => {
+		suite.skip('hideFromUser', () => {
 			test('should be available to terminals API', async () => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 				const result = await new Promise<Terminal>(r => {
@@ -636,7 +636,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		suite('environmentVariableCollection', () => {
+		suite.skip('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
