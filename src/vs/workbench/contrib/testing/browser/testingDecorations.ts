@@ -29,7 +29,7 @@ import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browse
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { IncrementalTestCollectionItem, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultService, TestResultItem } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
@@ -87,7 +87,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				const stateLookup = this.results.getStateByExtId(test.item.extId);
 				if (hasValidLocation(uri, test.item)) {
 					newDecorations.push(this.instantiationService.createInstance(
-						RunTestDecoration, test, ref.object, test.item.location, this.editor, stateLookup?.[1].computedState));
+						RunTestDecoration, test, ref.object, test.item.location, this.editor, stateLookup?.[1]));
 				}
 
 				if (!stateLookup) {
@@ -172,7 +172,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		private readonly collection: IMainThreadTestCollection,
 		private readonly location: ModeLocation,
 		private readonly editor: ICodeEditor,
-		computedState: TestRunState | undefined,
+		stateItem: TestResultItem | undefined,
 		@ITestService private readonly testService: ITestService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -180,14 +180,21 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		super();
 		this.line = location.range.startLineNumber;
 
-		const icon = computedState !== undefined && computedState !== TestRunState.Unset
-			? testingStatesToIcons.get(computedState)!
+		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestRunState.Unset
+			? testingStatesToIcons.get(stateItem.computedState)!
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
+
+		const hoverMessage = new MarkdownString('', true).appendText(localize('failedHoverMessage', '{0} has failed. ', test.item.label));
+		if (stateItem?.state.messages.length) {
+			const args = encodeURIComponent(JSON.stringify([test.item.extId]));
+			hoverMessage.appendMarkdown(`[${localize('failedPeekAction', 'Peek Error')}](command:vscode.peekTestError?${args})`);
+		}
 
 		this.editorDecoration = {
 			range: firstLineRange(this.location.range),
 			options: {
 				isWholeLine: true,
+				hoverMessage,
 				glyphMarginClassName: ThemeIcon.asClassName(icon) + ' testing-run-glyph',
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				glyphMarginHoverMessage: new MarkdownString().appendText(localize('testing.clickToRun', 'Click to run tests, right click for more options')),
