@@ -1257,13 +1257,28 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 	}
 }
 
+export interface ContextKeyInfo {
+	readonly key: string;
+	readonly type: string;
+	readonly description?: string;
+}
+
 export class RawContextKey<T> extends ContextKeyDefinedExpr {
+
+	private static _info: ContextKeyInfo[] = [];
+
+	static all(): IterableIterator<ContextKeyInfo> {
+		return RawContextKey._info.values();
+	}
 
 	private readonly _defaultValue: T | undefined;
 
-	constructor(readonly key: string, defaultValue: T | undefined) {
+	constructor(readonly key: string, defaultValue: T | undefined, description?: string) {
 		super(key);
 		this._defaultValue = defaultValue;
+
+		// collect all context keys into a central place
+		RawContextKey._info.push({ key, description, type: typeof defaultValue });
 	}
 
 	public bindTo(target: IContextKeyService): IContextKey<T> {

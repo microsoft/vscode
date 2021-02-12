@@ -11,7 +11,7 @@ import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
 import { EventType, Dimension, addDisposableListener, isAncestor } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -28,7 +28,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { registerAction2, Action2, IAction2Options, MenuId, MenuRegistry, ISubmenuItem, SubmenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, IAction2Options, MenuId, MenuRegistry, ISubmenuItem, IMenuService } from 'vs/platform/actions/common/actions';
 import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -354,7 +354,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return assertIsDefined(this.paneview).onDidSashChange;
 	}
 
-	protected get panes(): ViewPane[] {
+	get panes(): ViewPane[] {
 		return this.paneItems.map(i => i.pane);
 	}
 
@@ -366,7 +366,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.length;
 	}
 
-	private menuActions!: ViewContainerMenuActions;
+	private _menuActions?: ViewContainerMenuActions;
+	get menuActions(): CompositeMenuActions | undefined {
+		return this._menuActions;
+	}
 
 	constructor(
 		id: string,
@@ -405,8 +408,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
-		this._register(this.menuActions.onDidChange(() => this.updateTitleArea()));
+		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
+		this._register(this._menuActions.onDidChange(() => this.updateTitleArea()));
 
 		let overlay: ViewPaneDropOverlay | undefined;
 		const getOverlayBounds: () => BoundingRect = () => {
@@ -571,51 +574,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		let anchor: { x: number, y: number; } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => [...this.getContextMenuActions()]
+			getActions: () => this.menuActions?.getContextMenuActions() ?? []
 		});
-	}
-
-	getContextMenuActions(): ReadonlyArray<IAction> {
-		return this.menuActions.getContextMenuActions();
-	}
-
-	getActions(): IAction[] {
-		const result = [];
-		result.push(...this.menuActions.getPrimaryActions());
-		if (this.isViewMergedWithContainer()) {
-			result.push(...this.paneItems[0].pane.menuActions.getPrimaryActions());
-		}
-		return result;
-	}
-
-	getSecondaryActions(): IAction[] {
-		const viewPaneActions = this.isViewMergedWithContainer() ? this.paneItems[0].pane.menuActions.getSecondaryActions() : [];
-		let menuActions = this.menuActions.getSecondaryActions();
-
-		const viewsSubmenuActionIndex = menuActions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu);
-		if (viewsSubmenuActionIndex !== -1) {
-			const viewsSubmenuAction = <SubmenuItemAction>menuActions[viewsSubmenuActionIndex];
-			if (viewsSubmenuAction.actions.some(({ enabled }) => enabled)) {
-				if (menuActions.length === 1 && viewPaneActions.length === 0) {
-					menuActions = viewsSubmenuAction.actions.slice();
-				} else if (viewsSubmenuActionIndex !== 0) {
-					menuActions = [viewsSubmenuAction, ...menuActions.slice(0, viewsSubmenuActionIndex), ...menuActions.slice(viewsSubmenuActionIndex + 1)];
-				}
-			} else {
-				// Remove views submenu if none of the actions are enabled
-				menuActions.splice(viewsSubmenuActionIndex, 1);
-			}
-		}
-
-		if (menuActions.length && viewPaneActions.length) {
-			return [
-				...menuActions,
-				new Separator(),
-				...viewPaneActions
-			];
-		}
-
-		return menuActions.length ? menuActions : viewPaneActions;
 	}
 
 	getActionsContext(): unknown {

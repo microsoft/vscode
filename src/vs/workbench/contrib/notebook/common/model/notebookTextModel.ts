@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IProcessedOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
@@ -15,6 +15,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
+import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 
 export class NotebookTextModelSnapshot implements ITextSnapshot {
 
@@ -340,19 +341,23 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._assertIndex(edit.index);
 					const cell = this._cells[edit.index];
 					if (edit.append) {
-						this._spliceNotebookCellOutputs(cell.handle, [[cell.outputs.length, 0, edit.outputs]], computeUndoRedo);
+						this._spliceNotebookCellOutputs(cell.handle, [[cell.outputs.length, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
 					} else {
-						this._spliceNotebookCellOutputs2(cell.handle, edit.outputs, computeUndoRedo);
+						this._spliceNotebookCellOutputs2(cell.handle, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
 					}
 					break;
-				case CellEditType.OutputsSplice:
+				case CellEditType.OutputItems:
 					{
-						//TODO@jrieken,@rebornix no event, no undo stop (?)
 						this._assertIndex(edit.index);
 						const cell = this._cells[edit.index];
-						this._spliceNotebookCellOutputs(cell.handle, edit.splices, computeUndoRedo);
-						break;
+						if (edit.append) {
+							this._appendNotebookCellOutputItems(cell.handle, edit.outputId, edit.items);
+						} else {
+							this._replaceNotebookCellOutputItems(cell.handle, edit.outputId, edit.items);
+						}
 					}
+					break;
+
 				case CellEditType.Metadata:
 					this._assertIndex(edit.index);
 					this._changeCellMetadata(this._cells[edit.index].handle, edit.metadata, computeUndoRedo);
@@ -649,7 +654,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }, true);
 	}
 
-	private _spliceNotebookCellOutputs2(cellHandle: number, outputs: IProcessedOutput[], computeUndoRedo: boolean): void {
+	private _spliceNotebookCellOutputs2(cellHandle: number, outputs: ICellOutput[], computeUndoRedo: boolean): void {
 		const cell = this._mapping.get(cellHandle);
 		if (!cell) {
 			return;
@@ -673,6 +678,38 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				transient: this.transientOptions.transientOutputs,
 			}, true);
 		}
+	}
+
+	private _appendNotebookCellOutputItems(cellHandle: number, outputId: string, items: IOutputItemDto[]) {
+		const cell = this._mapping.get(cellHandle);
+		if (!cell) {
+			return;
+		}
+
+		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return;
+		}
+
+		const output = cell.outputs[outputIndex];
+		output.appendData(items);
+	}
+
+	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, items: IOutputItemDto[]) {
+		const cell = this._mapping.get(cellHandle);
+		if (!cell) {
+			return;
+		}
+
+		const outputIndex = cell.outputs.findIndex(output => output.outputId === outputId);
+
+		if (outputIndex < 0) {
+			return;
+		}
+
+		const output = cell.outputs[outputIndex];
+		output.replaceData(items);
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
@@ -702,19 +739,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 }
 
 class OutputSequence implements ISequence {
-	constructor(readonly outputs: IProcessedOutput[]) {
+	constructor(readonly outputs: IOutputDto[]) {
 	}
 
 	getElements(): Int32Array | number[] | string[] {
 		return this.outputs.map(output => {
-			switch (output.outputKind) {
-				case CellOutputKind.Rich:
-					return hash([output.outputKind, output.metadata, output.data]);
-				case CellOutputKind.Error:
-					return hash([output.outputKind, output.ename, output.evalue, output.traceback]);
-				case CellOutputKind.Text:
-					return hash([output.outputKind, output.text]);
-			}
+			return hash(output.outputs);
 		});
 	}
 

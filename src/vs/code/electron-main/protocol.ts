@@ -37,19 +37,13 @@ export class FileProtocolHandler extends Disposable {
 		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback as unknown as ProtocolCallback));
 
-		// Block any file:// access (explicitly enabled only)
-		if (isPreferringBrowserCodeLoad) {
-			this.logService.info(`Intercepting ${Schemas.file}: protocol and blocking it`);
-
-			defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback as unknown as ProtocolCallback));
-		}
+		// Intercept any file:// access
+		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback as unknown as ProtocolCallback));
 
 		// Cleanup
 		this._register(toDisposable(() => {
 			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
-			if (isPreferringBrowserCodeLoad) {
-				defaultSession.protocol.uninterceptProtocol(Schemas.file);
-			}
+			defaultSession.protocol.uninterceptProtocol(Schemas.file);
 		}));
 	}
 
@@ -85,10 +79,29 @@ export class FileProtocolHandler extends Disposable {
 	}
 
 	private async handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
-		const uri = URI.parse(request.url);
+		const fileUri = URI.parse(request.url);
 
-		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol`);
-		callback({ error: -3 /* ABORTED */ });
+		// isPreferringBrowserCodeLoad: false
+		// => ensure the file path is in our expected roots
+		if (!isPreferringBrowserCodeLoad) {
+			if (this.validRoots.findSubstr(fileUri)) {
+				return callback({
+					path: fileUri.fsPath
+				});
+			}
+
+			this.logService.error(`${Schemas.file}: Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
+
+			return callback({ error: -3 /* ABORTED */ });
+		}
+
+		// isPreferringBrowserCodeLoad: true
+		// => block any file request
+		else {
+			this.logService.error(`Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
+
+			return callback({ error: -3 /* ABORTED */ });
+		}
 	}
 
 	private async handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
@@ -102,9 +115,10 @@ export class FileProtocolHandler extends Disposable {
 			return callback({
 				path: fileUri.fsPath
 			});
-		}
+		} else {
+			this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
 
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath}}`);
-		callback({ error: -3 /* ABORTED */ });
+			return callback({ error: -3 /* ABORTED */ });
+		}
 	}
 }

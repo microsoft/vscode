@@ -61,8 +61,8 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 		sourceReference: 11,
 	}, 'aDebugSessionId', mockUriIdentityService);
 
-	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 0);
-	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 0, true);
+	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 	return { firstStackFrame, secondStackFrame };
 }
@@ -276,11 +276,11 @@ suite('Debug - CallStack', () => {
 			path: 'a/b/c/d/internalModule.js',
 			sourceReference: 10,
 		}, 'aDebugSessionId', mockUriIdentityService);
-		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 		assert.equal(stackFrame.toString(), 'app (internalModule.js:1)');
 
 		const secondSource = new Source(undefined, 'aDebugSessionId', mockUriIdentityService);
-		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2);
+		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2, true);
 		assert.equal(stackFrame2.toString(), 'module');
 	});
 
@@ -427,7 +427,7 @@ suite('Debug - CallStack', () => {
 		toFocus = getStackFrameThreadAndSessionToFocus(model, undefined, runningThread);
 		assert.deepEqual(toFocus, { stackFrame: undefined, thread: runningThread, session: session });
 
-		const stackFrame = new StackFrame(thread, 5, undefined!, 'stackframename2', undefined, undefined!, 1);
+		const stackFrame = new StackFrame(thread, 5, undefined!, 'stackframename2', undefined, undefined!, 1, true);
 		toFocus = getStackFrameThreadAndSessionToFocus(model, stackFrame);
 		assert.deepEqual(toFocus, { stackFrame: stackFrame, thread: thread, session: session });
 	});

@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel, CALLSTACK_VIEW_ID, CONTEXT_DEBUG_STATE, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel, CALLSTACK_VIEW_ID, CONTEXT_DEBUG_STATE, getStateLabel, CONTEXT_STACK_FRAME_SUPPORTS_RESTART } from 'vs/workbench/contrib/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -119,6 +119,7 @@ export class CallStackView extends ViewPane {
 	private ignoreSelectionChangedEvent = false;
 	private ignoreFocusStackFrameEvent = false;
 	private callStackItemType: IContextKey<string>;
+	private stackFrameSupportsRestart: IContextKey<boolean>;
 	private dataSource!: CallStackDataSource;
 	private tree!: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>;
 	private menu: IMenu;
@@ -142,6 +143,7 @@ export class CallStackView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
+		this.stackFrameSupportsRestart = CONTEXT_STACK_FRAME_SUPPORTS_RESTART.bindTo(contextKeyService);
 
 		this.menu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
 		this._register(this.menu);
@@ -424,16 +426,17 @@ export class CallStackView extends ViewPane {
 
 	private onContextMenu(e: ITreeContextMenuEvent<CallStackItem>): void {
 		const element = e.element;
+		this.stackFrameSupportsRestart.reset();
 		if (isDebugSession(element)) {
 			this.callStackItemType.set('session');
 		} else if (element instanceof Thread) {
 			this.callStackItemType.set('thread');
 		} else if (element instanceof StackFrame) {
 			this.callStackItemType.set('stackFrame');
+			this.stackFrameSupportsRestart.set(element.canRestart);
 		} else {
 			this.callStackItemType.reset();
 		}
-
 
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -664,7 +667,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		data.actionBar.clear();
 		this.callStackItemType.set('stackFrame');
 		if (hasActions) {
-			const action = new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
+			const action = new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), stackFrame.canRestart, async () => {
 				try {
 					await stackFrame.restart();
 				} catch (e) {
@@ -961,6 +964,7 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 	}
 }
 
+// TODO@Isidor this function is debt and we shuold get inline actions via menu service
 function getActions(instantiationService: IInstantiationService, element: IDebugSession | IThread): IAction[] {
 	const getThreadActions = (thread: IThread): IAction[] => {
 		return [

@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { editorErrorForeground, editorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { editorErrorForeground, editorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
@@ -124,9 +124,26 @@ export const testStatesToIconColors: { [K in TestRunState]?: string } = {
 
 
 registerThemingParticipant((theme, collector) => {
+	//#region test states
 	for (const [state, { marginBackground }] of Object.entries(testMessageSeverityColors)) {
 		collector.addRule(`.monaco-editor .testing-inline-message-severity-${state} {
 			background: ${theme.getColor(marginBackground)};
 		}`);
 	}
+	//#endregion test states
+
+	//#region active buttons
+	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
+	if (inputActiveOptionBorderColor) {
+		collector.addRule(`.testing-filter-button.checked, .codicon-testing-autorun.checked::before { border-color: ${inputActiveOptionBorderColor}; }`);
+	}
+	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
+	if (inputActiveOptionForegroundColor) {
+		collector.addRule(`.testing-filter-button.checked, .codicon-testing-autorun.checked::before { color: ${inputActiveOptionForegroundColor}; }`);
+	}
+	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveOptionBackgroundColor) {
+		collector.addRule(`.testing-filter-button.checked, .codicon-testing-autorun.checked::before { background-color: ${inputActiveOptionBackgroundColor}; }`);
+	}
+	//#endregion
 });

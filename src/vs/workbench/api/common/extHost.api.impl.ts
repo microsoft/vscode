@@ -230,7 +230,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				checkProposedApiEnabled(extension);
-				return extHostAuthentication.logout(providerId, sessionId);
+				return extHostAuthentication.removeSession(providerId, sessionId);
 			}
 		};
 
@@ -1256,10 +1256,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get CellKind() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.CellKind;
-			},
-			get CellOutputKind() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.CellOutputKind;
 			},
 			get NotebookCellRunState() {
 				// checkProposedApiEnabled(extension);
