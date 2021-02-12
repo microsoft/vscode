@@ -27,7 +27,7 @@ import { assertNoRpc } from '../utils';
 		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
 	});
 
-	suite('Terminal', () => {
+	suite.skip('Terminal', () => {
 		let disposables: Disposable[] = [];
 
 		teardown(() => {
