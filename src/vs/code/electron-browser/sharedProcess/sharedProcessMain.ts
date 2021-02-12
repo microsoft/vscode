@@ -266,7 +266,6 @@ class SharedProcessMain extends Disposable {
 		// Terminal
 		const localPtyService = this._register(new LocalPtyService(logService));
 		services.set(ILocalPtyService, localPtyService);
-		this._register(toDisposable(() => localPtyService.dispose()));
 
 		return new InstantiationService(services);
 	}
