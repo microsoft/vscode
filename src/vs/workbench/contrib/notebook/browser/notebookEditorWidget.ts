@@ -804,10 +804,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		if (tokenSource.token.isCancellationRequested) {
-			return;
-		}
-
 		if ((availableKernels.length) > 1) {
 			this._notebookHasMultipleKernels!.set(true);
 			this.multipleKernelsAvailable = true;
