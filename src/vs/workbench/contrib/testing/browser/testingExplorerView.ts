@@ -411,7 +411,7 @@ export class TestingExplorerViewModel extends Disposable {
 			type: TestUriType.ResultMessage,
 			messageIndex: index,
 			resultId: result.id,
-			testId: item.test!.item.extId,
+			testExtId: item.test!.item.extId,
 		}));
 
 		return true;

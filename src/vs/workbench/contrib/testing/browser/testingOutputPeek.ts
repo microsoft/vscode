@@ -30,7 +30,7 @@ import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ITestItem, ITestMessage, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultService, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
 
 interface ITestDto {
 	test: ITestItem,
@@ -71,6 +71,18 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
 		this._register(editor.onDidChangeModel(() => this.peek.clear()));
+		this._register(testResults.onTestChanged((evt) => {
+			// if the test we're currently showing has its state change to something
+			// else, then clear the peek
+			if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous.state === evt.result.state.state) {
+				return;
+			}
+
+			const displayed = this.peek.value?.currentTest();
+			if (displayed?.extId === evt.result.item.extId) {
+				this.peek.clear();
+			}
+		}));
 	}
 
 	/**
@@ -113,13 +125,13 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		this.peek.clear();
 	}
 
-	private async retrieveTest(uri: URI): Promise<ITestDto | undefined> {
+	private retrieveTest(uri: URI): ITestDto | undefined {
 		const parts = parseTestUri(uri);
 		if (!parts) {
 			return undefined;
 		}
 
-		const test = this.testResults.getResult(parts.resultId)?.getStateByExtId(parts.testId);
+		const test = this.testResults.getResult(parts.resultId)?.getStateByExtId(parts.testExtId);
 		return test && {
 			test: test.item,
 			state: test.state,
@@ -169,6 +181,11 @@ abstract class TestingOutputPeek extends PeekViewWidget {
 	public abstract setModel(dto: ITestDto): Promise<void>;
 
 	/**
+	 * Returns the test whose data is currently shown in the peek view.
+	 */
+	public abstract currentTest(): ITestItem | undefined;
+
+	/**
 	 * @override
 	 */
 	protected _doLayoutBody(height: number, width: number) {
@@ -205,6 +222,7 @@ const diffEditorOptions: IDiffEditorOptions = {
 
 class TestingDiffOutputPeek extends TestingOutputPeek {
 	private readonly diff = this._disposables.add(new MutableDisposable<EmbeddedDiffEditorWidget>());
+	private test: ITestItem | undefined;
 
 	/**
 	 * @override
@@ -227,6 +245,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 			return;
 		}
 
+		this.test = test;
 		this.show(message.location.range, hintDiffPeekHeight(message));
 		this.setTitle(message.message.toString(), test.label);
 
@@ -246,6 +265,13 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
+	public currentTest() {
+		return this.test;
+	}
+
+	/**
+	 * @override
+	 */
 	protected _doLayoutBody(height: number, width: number) {
 		super._doLayoutBody(height, width);
 		this.diff.value?.layout(this.dimension);
@@ -254,6 +280,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 
 class TestingMessageOutputPeek extends TestingOutputPeek {
 	private readonly preview = this._disposables.add(new MutableDisposable<EmbeddedCodeEditorWidget>());
+	private test: ITestItem | undefined;
 
 	/**
 	 * @override
@@ -276,6 +303,7 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 			return;
 		}
 
+		this.test = test;
 		this.show(message.location.range, hintPeekStrHeight(message.message.toString()));
 		this.setTitle(message.message.toString(), test.label);
 
@@ -285,6 +313,13 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 		} else {
 			this.model.value = undefined;
 		}
+	}
+
+	/**
+	 * @override
+	 */
+	public currentTest() {
+		return this.test;
 	}
 
 	/**

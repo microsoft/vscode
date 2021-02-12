@@ -22,6 +22,18 @@ import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/t
  */
 export type TestStateCount = { [K in TestRunState]: number };
 
+export const enum TestResultItemChangeReason {
+	Retired,
+	ParentRetired,
+	ComputedStateChange,
+	OwnStateChange,
+}
+
+export type TestResultItemChange = { result: TestResultItem; } & (
+	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
+	| { reason: TestResultItemChangeReason.OwnStateChange; previous: ITestState }
+);
+
 export interface ITestResult {
 	/**
 	 * Count of the number of tests in each run state.
@@ -188,11 +200,9 @@ export class LiveTestResult implements ITestResult {
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
-	private readonly retireEmitter = new Emitter<TestResultItem>();
-	private readonly changeEmitter = new Emitter<TestResultItem>();
+	private readonly changeEmitter = new Emitter<TestResultItemChange>();
 	private _complete = false;
 
-	public readonly onRetired = this.retireEmitter.event;
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 
@@ -272,10 +282,7 @@ export class LiveTestResult implements ITestResult {
 	public setAllToState(state: ITestState, when: (_t: TestResultItem) => boolean) {
 		for (const test of this.testByInternalId.values()) {
 			if (when(test)) {
-				this.counts[test.state.state]--;
-				test.state = state;
-				this.counts[state.state]++;
-				refreshComputedState(this.computedStateAccessor, test, t => this.changeEmitter.fire(t));
+				this.fireUpdateAndRefresh(test, state);
 			}
 		}
 	}
@@ -292,15 +299,22 @@ export class LiveTestResult implements ITestResult {
 			return;
 		}
 
-		if (state.state === entry.state.state) {
-			entry.state = state;
-			this.changeEmitter.fire(entry);
-		} else {
-			this.counts[entry.state.state]--;
-			entry.state = state;
-			this.counts[entry.state.state]++;
-			refreshComputedState(this.computedStateAccessor, entry, t => this.changeEmitter.fire(t));
+		this.fireUpdateAndRefresh(entry, state);
+	}
+
+	private fireUpdateAndRefresh(entry: TestResultItem, newState: ITestState) {
+		const previous = entry.state;
+		entry.state = newState;
+
+		if (newState.state !== previous.state) {
+			this.counts[previous.state]--;
+			this.counts[newState.state]++;
+			refreshComputedState(this.computedStateAccessor, entry, t => (
+				t !== entry && this.changeEmitter.fire({ result: t, reason: TestResultItemChangeReason.ComputedStateChange })
+			));
 		}
+
+		this.changeEmitter.fire({ result: entry, reason: TestResultItemChangeReason.OwnStateChange, previous });
 	}
 
 	/**
@@ -312,7 +326,6 @@ export class LiveTestResult implements ITestResult {
 			return;
 		}
 
-		this.retireEmitter.fire(root);
 		const queue: Iterable<string>[] = [[root.id]];
 		while (queue.length) {
 			for (const id of queue.pop()!) {
@@ -320,7 +333,12 @@ export class LiveTestResult implements ITestResult {
 				if (entry && !entry.retired) {
 					entry.retired = true;
 					queue.push(entry.children);
-					this.changeEmitter.fire(entry);
+					this.changeEmitter.fire({
+						result: entry,
+						reason: entry === root
+							? TestResultItemChangeReason.Retired
+							: TestResultItemChangeReason.ParentRetired
+					});
 				}
 			}
 		}
@@ -442,12 +460,7 @@ export interface ITestResultService {
 	/**
 	 * Fired when a test changed it state, or its computed state is updated.
 	 */
-	readonly onTestChanged: Event<[results: ITestResult, item: TestResultItem]>;
-
-	/**
-	 * Fired when a test is retired, in addition to `onTestChanged`.
-	 */
-	readonly onTestRetired: Event<TestResultItem>;
+	readonly onTestChanged: Event<TestResultItemChange>;
 
 	/**
 	 * List of known test results.
@@ -482,8 +495,7 @@ const RETAIN_LAST_RESULTS = 64;
 export class TestResultService implements ITestResultService {
 	declare _serviceBrand: undefined;
 	private changeResultEmitter = new Emitter<ResultChangeEvent>();
-	private testRetiredEmitter = new Emitter<TestResultItem>();
-	private testChangeEmitter = new Emitter<[results: ITestResult, item: TestResultItem]>();
+	private testChangeEmitter = new Emitter<TestResultItemChange>();
 
 	/**
 	 * @inheritdoc
@@ -499,11 +511,6 @@ export class TestResultService implements ITestResultService {
 	 * @inheritdoc
 	 */
 	public readonly onTestChanged = this.testChangeEmitter.event;
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly onTestRetired = this.testRetiredEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
 	private readonly serializedResults: StoredValue<ISerializedResults[]>;
@@ -545,8 +552,7 @@ export class TestResultService implements ITestResultService {
 		}
 
 		result.onComplete(() => this.onComplete(result));
-		result.onChange(t => this.testChangeEmitter.fire([result, t]), this.testChangeEmitter);
-		result.onRetired(this.testRetiredEmitter.fire, this.testRetiredEmitter);
+		result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
 		this.isRunning.set(true);
 		this.changeResultEmitter.fire({ started: result });
 		result.setAllToState(queuedState, () => true);

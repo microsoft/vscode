@@ -6,28 +6,28 @@
 import * as assert from 'assert';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { LiveTestResult, makeEmptyCounts, TestResultItem, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ReExportedTestRunState as TestRunState } from 'vs/workbench/contrib/testing/common/testStubs';
 import { getInitializedMainTestCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<InternalTestItem>) => [...it].map(t => t.item.label).sort();
+	const getChangeSummary = () => [...changed]
+		.map(c => ({ reason: c.reason, label: c.result.item.label }))
+		.sort((a, b) => a.label.localeCompare(b.label));
 
 	let r: LiveTestResult;
-	let changed = new Set<TestResultItem>();
-	let retired = new Set<TestResultItem>();
+	let changed = new Set<TestResultItemChange>();
 
 	setup(() => {
 		changed = new Set();
-		retired = new Set();
 		r = LiveTestResult.from(
 			[getInitializedMainTestCollection()],
 			[{ providerId: 'provider', testId: '1' }]
 		);
 
 		r.onChange(e => changed.add(e));
-		r.onRetired(e => retired.add(e));
 	});
 
 	suite('LiveTestResult', () => {
@@ -38,7 +38,6 @@ suite('Workbench - Test Results Service', () => {
 
 		test('does not change or retire initially', () => {
 			assert.deepStrictEqual(0, changed.size);
-			assert.deepStrictEqual(0, retired.size);
 		});
 
 		test('initializes with the subtree of requested tests', () => {
@@ -61,7 +60,12 @@ suite('Workbench - Test Results Service', () => {
 			});
 
 			assert.deepStrictEqual(r.getStateByExtId('root\0a')?.state.state, TestRunState.Queued);
-			assert.deepStrictEqual(getLabelsIn(changed), ['a', 'aa', 'ab', 'root']);
+			assert.deepStrictEqual(getChangeSummary(), [
+				{ label: 'a', reason: TestResultItemChangeReason.OwnStateChange },
+				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
+				{ label: 'ab', reason: TestResultItemChangeReason.OwnStateChange },
+				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
+			]);
 		});
 
 		test('updateState', () => {
@@ -74,20 +78,23 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(r.getStateByExtId('root\0a')?.state.state, TestRunState.Running);
 			// update computed state:
 			assert.deepStrictEqual(r.getStateByExtId('root')?.computedState, TestRunState.Running);
-			assert.deepStrictEqual(getLabelsIn(changed), ['a', 'root']);
+			assert.deepStrictEqual(getChangeSummary(), [
+				{ label: 'a', reason: TestResultItemChangeReason.OwnStateChange },
+				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
+			]);
 		});
 
 		test('retire', () => {
 			r.retire('root\0a');
-			assert.deepStrictEqual(getLabelsIn(changed), ['a', 'aa', 'ab']);
-			assert.deepStrictEqual(getLabelsIn(retired), ['a']);
+			assert.deepStrictEqual(getChangeSummary(), [
+				{ label: 'a', reason: TestResultItemChangeReason.Retired },
+				{ label: 'aa', reason: TestResultItemChangeReason.ParentRetired },
+				{ label: 'ab', reason: TestResultItemChangeReason.ParentRetired },
+			]);
 
-			retired.clear();
 			changed.clear();
-
 			r.retire('root\0a');
-			assert.deepStrictEqual(getLabelsIn(changed), []);
-			assert.deepStrictEqual(getLabelsIn(retired), []);
+			assert.strictEqual(changed.size, 0);
 		});
 
 		test('addTestToRun', () => {
