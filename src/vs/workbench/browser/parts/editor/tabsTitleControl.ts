@@ -606,7 +606,6 @@ export class TabsTitleControl extends TitleControl {
 		// Tab Container
 		const tabContainer = document.createElement('div');
 		tabContainer.draggable = true;
-		tabContainer.tabIndex = 0;
 		tabContainer.setAttribute('role', 'tab');
 		tabContainer.classList.add('tab');
 
@@ -1187,13 +1186,17 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
-
+		const index = this.group.getIndexOfEditor(editor);
+		const actionBar = this.tabActionBars[index];
 		// Tab is active
 		if (this.group.isActive(editor)) {
 
 			// Container
 			tabContainer.classList.add('active');
 			tabContainer.setAttribute('aria-selected', 'true');
+			// Only active tab can be focused into
+			tabContainer.tabIndex = 0;
+			actionBar.setFocusable(true);
 			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND) || '';
 
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
@@ -1224,6 +1227,8 @@ export class TabsTitleControl extends TitleControl {
 			// Container
 			tabContainer.classList.remove('active');
 			tabContainer.setAttribute('aria-selected', 'false');
+			tabContainer.tabIndex = -1;
+			actionBar.setFocusable(false);
 			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_INACTIVE_BACKGROUND : TAB_UNFOCUSED_INACTIVE_BACKGROUND) || '';
 			tabContainer.style.boxShadow = '';
 

@@ -63,6 +63,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	// Trigger Key Tracking
 	private triggerKeyDown: boolean = false;
 
+	private focusable: boolean = true;
+
 	// Elements
 	domNode: HTMLElement;
 	protected actionsList: HTMLElement;
@@ -219,6 +221,25 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
+	// Some action bars should not be focusable at times
+	// When an action bar is not focusable make sure to make all the elements inside it not focusable
+	// When an action bar is focusable again, make sure the first enabled item can be focused
+	setFocusable(focusable: boolean): void {
+		this.focusable = focusable;
+		if (this.focusable) {
+			const firstEnabled = this.viewItems.find(vi => vi instanceof BaseActionViewItem && vi.isEnabled());
+			if (firstEnabled instanceof BaseActionViewItem) {
+				firstEnabled.setFocusable(true);
+			}
+		} else {
+			this.viewItems.forEach(vi => {
+				if (vi instanceof BaseActionViewItem) {
+					vi.setFocusable(false);
+				}
+			});
+		}
+	}
+
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
 		let ret = false;
 		this._triggerKeys.keys.forEach(keyCode => {
@@ -297,9 +318,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
-			if (this.viewItems.every(i => !i.isEnabled()) && item instanceof BaseActionViewItem && item.isEnabled()) {
+			if (this.focusable && this.viewItems.every(i => !i.isEnabled()) && item instanceof BaseActionViewItem && item.isEnabled()) {
 				// We need to allow for the first enabled item to be focused on using tab navigation #106441
-				item.setFocusable();
+				item.setFocusable(true);
 			}
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
