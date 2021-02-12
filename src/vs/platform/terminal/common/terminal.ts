@@ -184,7 +184,6 @@ export interface IPtyService {
 
 	getLatency(id: number): Promise<number>;
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById, workspaceId?: string): void;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
 	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 }

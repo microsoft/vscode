@@ -137,6 +137,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 	public getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		console.log('localPtyService passing', args.workspaceId);
-		return this._proxy.getTerminalLayoutInfo({ workspaceId: args.workspaceId });
+		return this._proxy.getTerminalLayoutInfo(args);
 	}
 }

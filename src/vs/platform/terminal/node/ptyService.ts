@@ -16,12 +16,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 let currentPtyId = 0;
 
+type WorkspaceId = string;
+
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 
-	private readonly _workspaceLayoutInfos = new Map<string, ISetTerminalLayoutInfoArgs>();
+	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;

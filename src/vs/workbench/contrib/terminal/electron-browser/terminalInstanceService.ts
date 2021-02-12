@@ -27,7 +27,7 @@ import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPt
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -139,16 +139,22 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return getMainProcessParentEnv();
 	}
 
-	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById, id?: string): void {
-		console.log(layout);
-		console.log(this._getWorkspaceId());
-		this._localPtyService.setTerminalLayoutInfo(layout, this._getWorkspaceId());
+	public setTerminalLayoutInfo(layoutInfo: ITerminalsLayoutInfoById): void {
+		const args: ISetTerminalLayoutInfoArgs = {
+			workspaceId: this._getWorkspaceId(),
+			tabs: layoutInfo.tabs
+		};
+		console.log('setting', args);
+		this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
 	public async getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		console.log('get this workspace', this._getWorkspaceId());
-		let result = await this._localPtyService.getTerminalLayoutInfo({ workspaceId: this._getWorkspaceId() });
-		console.log(result);
+		const layoutArgs: IGetTerminalLayoutInfoArgs = {
+			workspaceId: this._getWorkspaceId()
+		};
+		console.log('getting', layoutArgs);
+		let result = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+		console.log('result of get', result);
 		return result;
 	}
 
