@@ -31,12 +31,13 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 
 	constructor(
-		private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
 
 	dispose() {
+		console.log('PtyService.dispose');
 		for (const pty of this._ptys.values()) {
 			pty.shutdown(true);
 		}
