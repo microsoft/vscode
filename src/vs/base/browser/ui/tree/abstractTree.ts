@@ -1129,6 +1129,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
 			const location = model.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
+			this.tree.setFocus([location]);
 			model.setCollapsed(location, undefined, recursive);
 
 			if (expandOnlyOnTwistieClick && onTwistie) {
@@ -1263,7 +1264,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
 
 	get expandOnlyOnDoubleClick(): boolean { return this._options.expandOnlyOnDoubleClick ?? false; }
-	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
+	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? true : this._options.expandOnlyOnTwistieClick; }
 
 	private readonly _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
 	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
