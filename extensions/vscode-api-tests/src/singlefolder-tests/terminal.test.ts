@@ -55,7 +55,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('echo works in the default shell', async () => {
+		test.skip('echo works in the default shell', async () => {
 			const terminal = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
 					strictEqual(terminal, t);
