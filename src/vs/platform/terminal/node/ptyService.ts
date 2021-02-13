@@ -73,9 +73,10 @@ export class PtyService extends Disposable implements IPtyService {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
 		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, '', '', true, cols, rows, '', this._logService, () => {
-			persistentTerminalProcess.dispose();
-			this._ptys.delete(id);
+			// persistentTerminalProcess.dispose();
+			// this._ptys.delete(id);
 		});
+		this._logService.info('setting a pty', id);
 		this._ptys.set(id, persistentTerminalProcess);
 		return id;
 	}
@@ -85,6 +86,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async shutdown(id: number, immediate: boolean): Promise<void> {
+		console.trace('shutting down id ' + id);
 		return this._throwIfNoPty(id).shutdown(immediate);
 	}
 
@@ -106,16 +108,19 @@ export class PtyService extends Disposable implements IPtyService {
 
 	public async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
+		this._logService.info('set args', JSON.stringify(args));
 	}
 
-	public async getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+	public async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		this._logService.info('get args', JSON.stringify(args));
 		if (args) {
 			const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 			if (layout) {
+				this._logService.info('tab', JSON.stringify(layout.tabs));
 				const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
+				this._logService.info('layout entries', JSON.stringify(expandedTabs));
 				const filtered = expandedTabs.filter(t => t.terminals.length > 0);
-				this._logService.info(`Terminal layout retrieved: ${JSON.stringify(filtered.map(t => t.terminals.length))}`);
-
+				this._logService.info('filtered', JSON.stringify(filtered));
 				return {
 					tabs: filtered
 				};
@@ -127,6 +132,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
 		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
+		this._logService.info('expanded terminals', JSON.stringify(expandedTerminals));
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto>[];
 		return {
 			isActive: tab.isActive,
@@ -137,7 +143,9 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
 		const persistentTerminalProcess = this._ptys.get(t.terminal);
+		this._logService.info('persistent term process', JSON.stringify(persistentTerminalProcess));
 		const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
+		this._logService.info('term dto', JSON.stringify(termDto));
 		return {
 			terminal: termDto ?? null,
 			relativeSize: t.relativeSize

@@ -185,7 +185,7 @@ export interface IPtyService {
 	getLatency(id: number): Promise<number>;
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
-	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
+	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 export interface IShellLaunchConfig {

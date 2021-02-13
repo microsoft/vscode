@@ -148,7 +148,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
-	public async getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
