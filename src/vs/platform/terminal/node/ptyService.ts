@@ -142,7 +142,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
-		const persistentTerminalProcess = this._ptys.get(t.terminal);
+		const persistentTerminalProcess = this._throwIfNoPty(t.terminal);
 		this._logService.info('persistent term process', JSON.stringify(persistentTerminalProcess));
 		const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
 		this._logService.info('term dto', JSON.stringify(termDto));

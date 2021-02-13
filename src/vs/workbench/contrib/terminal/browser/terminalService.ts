@@ -162,7 +162,7 @@ export class TerminalService implements ITerminalService {
 	private async _reconnectToRemoteTerminals(): Promise<void> {
 		// Reattach to all remote terminals
 		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
-		const reconnectCounter = this._recreateRemoteTabs(layoutInfo);
+		const reconnectCounter = this._recreateTerminalTabs(layoutInfo);
 		/* __GDPR__
 			"terminalReconnection" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
@@ -179,7 +179,23 @@ export class TerminalService implements ITerminalService {
 		this._onDidChangeConnectionState.fire();
 	}
 
-	private _recreateRemoteTabs(layoutInfo?: ITerminalsLayoutInfo): number {
+	private async _reconnectToLocalTerminals(): Promise<void> {
+		// Reattach to all local terminals
+		const layoutInfo = await this._terminalInstanceService.getTerminalLayoutInfo();
+		if (layoutInfo) {
+			this._recreateTerminalTabs(layoutInfo);
+			this._connectionState = TerminalConnectionState.Connected;
+			// now that terminals have been restored,
+			// attach listeners to update local state when terminals are changed
+			this.attachProcessLayoutListeners(false);
+			this._onDidChangeConnectionState.fire();
+		} else {
+			this.createTerminal();
+			this.attachProcessLayoutListeners(false);
+		}
+	}
+
+	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
 		let reconnectCounter = 0;
 		let activeTab: ITerminalTab | undefined;
 		if (layoutInfo) {
@@ -214,54 +230,6 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 		return reconnectCounter;
-	}
-
-	private async _reconnectToLocalTerminals(): Promise<void> {
-		// Reattach to all local terminals
-		const layoutInfo = await this._terminalInstanceService.getTerminalLayoutInfo();
-		if (layoutInfo) {
-			this._recreateLocalTabs(layoutInfo);
-			this._connectionState = TerminalConnectionState.Connected;
-			// now that terminals have been restored,
-			// attach listeners to update local state when terminals are changed
-			this.attachProcessLayoutListeners(false);
-			this._onDidChangeConnectionState.fire();
-		} else {
-			this.createTerminal();
-			this.attachProcessLayoutListeners(false);
-		}
-	}
-
-	private _recreateLocalTabs(layoutInfo: any): void {
-		let activeTab: ITerminalTab | undefined;
-		if (layoutInfo) {
-			for (const layout of layoutInfo.tabs) {
-				let terminalInstance: ITerminalInstance | undefined;
-				let tab: ITerminalTab | undefined;
-				for (let i = 0; i < layout.terminals.length; i++) {
-					if (!terminalInstance) {
-						// create tab and terminal
-						terminalInstance = this.createTerminal();
-						tab = this._getTabForInstance(terminalInstance);
-						if (layout.isActive) {
-							activeTab = tab;
-						}
-					} else {
-						// add split terminal to this tab
-						this.splitInstance(terminalInstance);
-					}
-				}
-				// TODO@meganrogge: use processId instead of id eventually
-				const activeInstance = this.terminalInstances.find(t => t.id === layout.activeTerminalProcessId);
-				if (activeInstance) {
-					this.setActiveInstance(activeInstance);
-				}
-				tab?.resizePanes(layout.terminals.map((terminal: { relativeSize: number; }) => terminal.relativeSize));
-			}
-			if (layoutInfo.tabs.length) {
-				this.setActiveTabByIndex(activeTab ? this.terminalTabs.indexOf(activeTab) : 0);
-			}
-		}
 	}
 
 	private attachProcessLayoutListeners(isRemote: boolean): void {
