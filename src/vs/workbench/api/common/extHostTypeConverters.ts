@@ -1507,7 +1507,7 @@ export namespace TestState {
 				severity: message.severity,
 				expectedOutput: message.expectedOutput,
 				actualOutput: message.actualOutput,
-				location: message.location ? location.from(message.location) : undefined,
+				location: message.location ? location.from(message.location) as any : undefined,
 			})) ?? [],
 		};
 	}
@@ -1536,7 +1536,7 @@ export namespace TestItem {
 		return {
 			extId: item.id ?? (parentExtId ? `${parentExtId}\0${item.label}` : item.label),
 			label: item.label,
-			location: item.location ? location.from(item.location) : undefined,
+			location: item.location ? location.from(item.location) as any : undefined,
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,

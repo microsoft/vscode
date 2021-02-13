@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Range } from 'vs/editor/common/core/range';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -426,9 +427,15 @@ class HydratedTestResult implements ITestResult {
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true, children: new Set(item.children) };
+			if (cast.item.location) {
+				cast.item.location.uri = URI.revive(cast.item.location.uri);
+				cast.item.location.range = Range.lift(cast.item.location.range);
+			}
+
 			for (const message of cast.state.messages) {
 				if (message.location) {
 					message.location.uri = URI.revive(message.location.uri);
+					message.location.range = Range.lift(message.location.range);
 				}
 			}
 

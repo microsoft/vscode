@@ -97,6 +97,10 @@ registerAction2(Action.DebugAllAction);
 registerAction2(Action.EditFocusedTest);
 registerAction2(Action.ClearTestResultsAction);
 registerAction2(Action.ToggleAutoRun);
+registerAction2(Action.DebugAtCursor);
+registerAction2(Action.RunAtCursor);
+registerAction2(Action.DebugCurrentFile);
+registerAction2(Action.RunCurrentFile);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);

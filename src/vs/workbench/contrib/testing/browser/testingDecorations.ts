@@ -14,7 +14,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { Location as ModeLocation } from 'vs/editor/common/modes';
 import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/editor/common/view/editorColorRegistry';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -27,7 +26,7 @@ import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { IncrementalTestCollectionItem, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, IRichLocation, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService, TestResultItem } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -144,7 +143,7 @@ interface ITestDecoration extends IDisposable {
 	click(e: IEditorMouseEvent): boolean;
 }
 
-const hasValidLocation = <T extends { location?: ModeLocation }>(editorUri: URI, t: T): t is T & { location: ModeLocation } =>
+const hasValidLocation = <T extends { location?: IRichLocation }>(editorUri: URI, t: T): t is T & { location: IRichLocation } =>
 	t.location?.uri.toString() === editorUri.toString();
 
 const firstLineRange = (originalRange: IRange) => ({
@@ -170,7 +169,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 	constructor(
 		private readonly test: IncrementalTestCollectionItem,
 		private readonly collection: IMainThreadTestCollection,
-		private readonly location: ModeLocation,
+		private readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		stateItem: TestResultItem | undefined,
 		@ITestService private readonly testService: ITestService,
@@ -282,7 +281,7 @@ class TestMessageDecoration implements ITestDecoration {
 	constructor(
 		{ message, severity }: ITestMessage,
 		private readonly messageUri: URI,
-		location: ModeLocation,
+		location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
