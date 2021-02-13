@@ -234,11 +234,6 @@
     },
     "commands": [
       {
-        "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation",
-        "title": "%command.wrapIndividualLinesWithAbbreviation%",
-        "category": "Emmet"
-      },
-      {
         "command": "editor.emmet.action.wrapWithAbbreviation",
         "title": "%command.wrapWithAbbreviation%",
         "category": "Emmet"
@@ -356,9 +351,6 @@
     ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation"
-        },
         {
           "command": "editor.emmet.action.wrapWithAbbreviation"
         },
