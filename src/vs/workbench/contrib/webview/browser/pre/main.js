@@ -591,6 +591,10 @@
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
 
+						if (document.hasFocus()) {
+							contentWindow.focus();
+						}
+
 						pendingMessages.forEach((data) => {
 							contentWindow.postMessage(data, '*');
 						});
