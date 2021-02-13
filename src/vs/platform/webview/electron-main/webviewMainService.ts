@@ -35,12 +35,16 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
 
 		const sess = session.fromPartition(webviewPartitionId);
-		sess.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
+		sess.setPermissionRequestHandler((_webContents, permission, callback) => {
+			if (permission === 'clipboard-read') {
+				return callback(true);
+			}
+
 			return callback(false);
 		});
 
-		sess.setPermissionCheckHandler((webContents, permission /* 'media' */) => {
-			return false;
+		sess.setPermissionCheckHandler((_webContents, permission /* 'media' */) => {
+			return permission === 'clipboard-read';
 		});
 	}
 

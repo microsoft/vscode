@@ -225,12 +225,15 @@ export class CodeApplication extends Disposable {
 				this.nativeHostMainService?.openExternal(undefined, url);
 			});
 
-			session.defaultSession.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
+			session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
+				if (permission === 'clipboard-read') {
+					return callback(true);
+				}
 				return callback(false);
 			});
 
-			session.defaultSession.setPermissionCheckHandler((webContents, permission /* 'media' */) => {
-				return false;
+			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */) => {
+				return permission === 'clipboard-read';
 			});
 		});
 
