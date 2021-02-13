@@ -162,6 +162,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
 	public get onFocused(): Event<ITerminalInstance> { return this._onFocused.event; }
+	private readonly _onDropped = new Emitter<{ instance: ITerminalInstance, dragEvent: DragEvent; }>();
+	public get onDropped(): Event<{ instance: ITerminalInstance, dragEvent: DragEvent; }> { return this._onDropped.event; }
 	private readonly _onProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	private readonly _onLinksReady = new Emitter<ITerminalInstance>();
@@ -638,10 +640,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this._onFocused.fire(this);
 		}));
+
 		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
+
+		this._register(dom.addDisposableListener(xterm.textarea, dom.EventType.DROP, (e: DragEvent) => {
+			this._onDropped.fire({ instance: this, dragEvent: e });
+		}));
+
 		this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
 			this._terminalFocusContextKey.set(true);
 			if (this.shellType) {
@@ -650,9 +658,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._terminalShellTypeContextKey.reset();
 			}
 		}));
+
 		this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
+		}));
+
+		this._register(dom.addDisposableListener(xterm.element, dom.EventType.DROP, (e: DragEvent) => {
+			this._onDropped.fire({ instance: this, dragEvent: e });
 		}));
 
 		this._widgetManager.attachToElement(xterm.element);
