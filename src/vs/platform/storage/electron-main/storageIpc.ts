@@ -106,6 +106,16 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				break;
 			}
 
+			case 'close': {
+				if (arg.workspace) {
+					// Only allow to close workspace storage databases but not
+					// the global database that is shared across multiple connections
+					return storage.close();
+				}
+
+				break;
+			}
+
 			default:
 				throw new Error(`Call not found: ${command}`);
 		}

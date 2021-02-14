@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -56,15 +56,15 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 		return this.channel.call('updateItems', serializableRequest);
 	}
 
-	abstract close(recovery?: () => Map<string, string>): Promise<void>;
+	async close(): Promise<void> {
+		return this.channel.call('close', { workspace: this.workspace });
+	}
 }
 
 class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements IStorageDatabase {
 
 	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
 	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
-
-	private onDidChangeGlobalStorageListener: IDisposable | undefined;
 
 	constructor(channel: IChannel) {
 		super(channel, undefined);
@@ -73,7 +73,7 @@ class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements I
 	}
 
 	private registerListeners(): void {
-		this.onDidChangeGlobalStorageListener = this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeGlobalStorage')((e: ISerializableItemsChangeEvent) => this.onDidChangeGlobalStorage(e)));
+		this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeGlobalStorage')((e: ISerializableItemsChangeEvent) => this.onDidChangeGlobalStorage(e)));
 	}
 
 	private onDidChangeGlobalStorage(e: ISerializableItemsChangeEvent): void {
@@ -87,8 +87,11 @@ class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements I
 
 	async close(): Promise<void> {
 
-		// when we are about to close, we start to ignore global storage changes since we close anyway
-		dispose(this.onDidChangeGlobalStorageListener);
+		// Remove our listeners on `close` because we are no longer
+		// interested in change events from the global database
+		this.dispose();
+
+		return super.close();
 	}
 }
 
@@ -98,10 +101,6 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 
 	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier) {
 		super(channel, workspace);
-	}
-
-	async close(): Promise<void> {
-		// TODO@bpasero close workspace storage?
 	}
 }
 
