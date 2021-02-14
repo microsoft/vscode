@@ -21,9 +21,9 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { NativeStorageService2 } from 'vs/platform/storage/node/storageService2';
+import { NativeStorageService2 } from 'vs/platform/storage/electron-sandbox/storageService2';
 import { Schemas } from 'vs/base/common/network';
-import { StorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -321,13 +321,13 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<NativeStorageService | NativeStorageService2> {
-		const storageDataBase = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : undefined);
+		const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : undefined);
 
 		let storageService: NativeStorageService | NativeStorageService2;
 		if (this.configuration.enableExperimentalMainProcessWorkspaceStorage) {
-			storageService = new NativeStorageService2(storageDataBase.globalStorage, storageDataBase.workspaceStorage, this.environmentService);
+			storageService = new NativeStorageService2(storageDataBaseClient.globalStorage, storageDataBaseClient.workspaceStorage, this.environmentService);
 		} else {
-			storageService = new NativeStorageService(storageDataBase.globalStorage, logService, this.environmentService);
+			storageService = new NativeStorageService(storageDataBaseClient.globalStorage, logService, this.environmentService);
 		}
 
 		try {

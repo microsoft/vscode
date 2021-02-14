@@ -6,7 +6,7 @@
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { GlobalStorageMain, IStorageMain, WorkspaceStorageMain } from 'vs/platform/storage/node/storageMain';
+import { GlobalStorageMain, IStorageMain, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');

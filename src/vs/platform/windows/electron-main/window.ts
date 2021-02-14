@@ -32,7 +32,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMain
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
