@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IStorageChangeEvent, IStorageMainService } from 'vs/platform/storage/node/storageMainService';
-import { IUpdateRequest, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
-import { generateUuid } from 'vs/base/common/uuid';
-import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey, currentSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/node/storageMain';
+import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 type Key = string;
 type Value = string;
 type Item = [Key, Value];
 
-interface ISerializableUpdateRequest {
+interface IWorkspaceArgument {
+	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined
+}
+
+interface ISerializableUpdateRequest extends IWorkspaceArgument {
 	insert?: Item[];
 	delete?: Key[];
 }
@@ -26,60 +30,34 @@ interface ISerializableItemsChangeEvent {
 	readonly deleted?: Key[];
 }
 
-export class GlobalStorageDatabaseChannel extends Disposable implements IServerChannel {
+//#region --- Storage Server
+
+export class StorageDatabaseChannel extends Disposable implements IServerChannel {
 
 	private static readonly STORAGE_CHANGE_DEBOUNCE_TIME = 100;
 
-	private readonly _onDidChangeItems = this._register(new Emitter<ISerializableItemsChangeEvent>());
-	readonly onDidChangeItems = this._onDidChangeItems.event;
-
-	private readonly whenReady = this.init();
+	private readonly _onDidChangeGlobalStorage = this._register(new Emitter<ISerializableItemsChangeEvent>());
+	private readonly onDidChangeGlobalStorage = this._onDidChangeGlobalStorage.event;
 
 	constructor(
 		private logService: ILogService,
 		private storageMainService: IStorageMainService
 	) {
 		super();
+
+		// Trigger init of global storage directly from ctor
+		this.withStorageInitialized(undefined);
+
+		this.registerGlobalStorageListeners();
 	}
 
-	private async init(): Promise<void> {
-		try {
-			await this.storageMainService.initialize();
-		} catch (error) {
-			this.logService.error(`[storage] init(): Unable to init global storage due to ${error}`);
-		}
+	//#region Global Storage Change Events
 
-		// Apply global telemetry values as part of the initialization
-		// These are global across all windows and thereby should be
-		// written from the main process once.
-		this.initTelemetry();
-
-		// Setup storage change listeners
-		this.registerListeners();
-	}
-
-	private initTelemetry(): void {
-		const instanceId = this.storageMainService.get(instanceStorageKey, undefined);
-		if (instanceId === undefined) {
-			this.storageMainService.store(instanceStorageKey, generateUuid());
-		}
-
-		const firstSessionDate = this.storageMainService.get(firstSessionDateStorageKey, undefined);
-		if (firstSessionDate === undefined) {
-			this.storageMainService.store(firstSessionDateStorageKey, new Date().toUTCString());
-		}
-
-		const lastSessionDate = this.storageMainService.get(currentSessionDateStorageKey, undefined); // previous session date was the "current" one at that time
-		const currentSessionDate = new Date().toUTCString(); // current session date is "now"
-		this.storageMainService.store(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
-		this.storageMainService.store(currentSessionDateStorageKey, currentSessionDate);
-	}
-
-	private registerListeners(): void {
+	private registerGlobalStorageListeners(): void {
 
 		// Listen for changes in global storage to send to listeners
 		// that are listening. Use a debouncer to reduce IPC traffic.
-		this._register(Event.debounce(this.storageMainService.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
+		this._register(Event.debounce(this.storageMainService.globalStorage.onDidChangeStorage, (prev: IStorageChangeEvent[] | undefined, cur: IStorageChangeEvent) => {
 			if (!prev) {
 				prev = [cur];
 			} else {
@@ -87,18 +65,18 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 			}
 
 			return prev;
-		}, GlobalStorageDatabaseChannel.STORAGE_CHANGE_DEBOUNCE_TIME)(events => {
+		}, StorageDatabaseChannel.STORAGE_CHANGE_DEBOUNCE_TIME)(events => {
 			if (events.length) {
-				this._onDidChangeItems.fire(this.serializeEvents(events));
+				this._onDidChangeGlobalStorage.fire(this.serializeGlobalStorageEvents(events));
 			}
 		}));
 	}
 
-	private serializeEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
+	private serializeGlobalStorageEvents(events: IStorageChangeEvent[]): ISerializableItemsChangeEvent {
 		const changed = new Map<Key, Value>();
 		const deleted = new Set<Key>();
 		events.forEach(event => {
-			const existing = this.storageMainService.get(event.key);
+			const existing = this.storageMainService.globalStorage.get(event.key);
 			if (typeof existing === 'string') {
 				changed.set(event.key, existing);
 			} else {
@@ -114,33 +92,35 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onDidChangeItems': return this.onDidChangeItems;
+			case 'onDidChangeGlobalStorage': return this.onDidChangeGlobalStorage;
 		}
 
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	async call(_: unknown, command: string, arg?: any): Promise<any> {
+	//#endregion
 
-		// ensure to always wait for ready
-		await this.whenReady;
+	async call(_: unknown, command: string, arg: IWorkspaceArgument): Promise<any> {
+
+		// Get storage to be ready
+		const storage = await this.withStorageInitialized(arg.workspace);
 
 		// handle call
 		switch (command) {
 			case 'getItems': {
-				return Array.from(this.storageMainService.items.entries());
+				return Array.from(storage.items.entries());
 			}
 
 			case 'updateItems': {
 				const items: ISerializableUpdateRequest = arg;
 				if (items.insert) {
 					for (const [key, value] of items.insert) {
-						this.storageMainService.store(key, value);
+						storage.store(key, value);
 					}
 				}
 
 				if (items.delete) {
-					items.delete.forEach(key => this.storageMainService.remove(key));
+					items.delete.forEach(key => storage.remove(key));
 				}
 
 				break;
@@ -150,44 +130,41 @@ export class GlobalStorageDatabaseChannel extends Disposable implements IServerC
 				throw new Error(`Call not found: ${command}`);
 		}
 	}
+
+	private async withStorageInitialized(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): Promise<IStorageMain> {
+		const storage = workspace ? this.storageMainService.workspaceStorage(workspace) : this.storageMainService.globalStorage;
+
+		try {
+			await storage.initialize();
+		} catch (error) {
+			this.logService.error(`[storage] init(): Unable to init ${workspace ? 'workspace' : 'global'} storage due to ${error}`);
+		}
+
+		return storage;
+	}
 }
 
-export class GlobalStorageDatabaseChannelClient extends Disposable implements IStorageDatabase {
+//#endregion
 
-	declare readonly _serviceBrand: undefined;
+//#region --- Storage Client
 
-	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+abstract class BaseStorageDatabase extends Disposable implements IStorageDatabase {
 
-	private onDidChangeItemsOnMainListener: IDisposable | undefined;
+	abstract onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
 
-	constructor(private channel: IChannel) {
+	constructor(protected channel: IChannel, private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined) {
 		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.onDidChangeItemsOnMainListener = this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeItems')((e: ISerializableItemsChangeEvent) => this.onDidChangeItemsOnMain(e));
-	}
-
-	private onDidChangeItemsOnMain(e: ISerializableItemsChangeEvent): void {
-		if (Array.isArray(e.changed) || Array.isArray(e.deleted)) {
-			this._onDidChangeItemsExternal.fire({
-				changed: e.changed ? new Map(e.changed) : undefined,
-				deleted: e.deleted ? new Set<string>(e.deleted) : undefined
-			});
-		}
 	}
 
 	async getItems(): Promise<Map<string, string>> {
-		const items: Item[] = await this.channel.call('getItems');
+		const serializableRequest: IWorkspaceArgument = { workspace: this.workspace };
+		const items: Item[] = await this.channel.call('getItems', serializableRequest);
 
 		return new Map(items);
 	}
 
 	updateItems(request: IUpdateRequest): Promise<void> {
-		const serializableRequest: ISerializableUpdateRequest = Object.create(null);
+		const serializableRequest: ISerializableUpdateRequest = { workspace: this.workspace };
 
 		if (request.insert) {
 			serializableRequest.insert = Array.from(request.insert.entries());
@@ -200,15 +177,66 @@ export class GlobalStorageDatabaseChannelClient extends Disposable implements IS
 		return this.channel.call('updateItems', serializableRequest);
 	}
 
+	abstract close(recovery?: () => Map<string, string>): Promise<void>;
+}
+
+class GlobalStorageDatabase extends BaseStorageDatabase implements IStorageDatabase {
+
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+
+	private onDidChangeGlobalStorageListener: IDisposable | undefined;
+
+	constructor(channel: IChannel) {
+		super(channel, undefined);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.onDidChangeGlobalStorageListener = this._register(this.channel.listen<ISerializableItemsChangeEvent>('onDidChangeGlobalStorage')((e: ISerializableItemsChangeEvent) => this.onDidChangeGlobalStorage(e)));
+	}
+
+	private onDidChangeGlobalStorage(e: ISerializableItemsChangeEvent): void {
+		if (Array.isArray(e.changed) || Array.isArray(e.deleted)) {
+			this._onDidChangeItemsExternal.fire({
+				changed: e.changed ? new Map(e.changed) : undefined,
+				deleted: e.deleted ? new Set<string>(e.deleted) : undefined
+			});
+		}
+	}
+
 	async close(): Promise<void> {
 
-		// when we are about to close, we start to ignore main-side changes since we close anyway
-		dispose(this.onDidChangeItemsOnMainListener);
-	}
-
-	dispose(): void {
-		super.dispose();
-
-		dispose(this.onDidChangeItemsOnMainListener);
+		// when we are about to close, we start to ignore global storage changes since we close anyway
+		dispose(this.onDidChangeGlobalStorageListener);
 	}
 }
+
+class WorkspaceStorageDatabase extends BaseStorageDatabase implements IStorageDatabase {
+
+	readonly onDidChangeItemsExternal = Event.None; // unsupported for workspace storage because we only ever write from one window
+
+	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier) {
+		super(channel, workspace);
+	}
+
+	async close(): Promise<void> {
+		// TODO@bpasero close workspace storage?
+	}
+}
+
+export class StorageDatabaseChannelClient extends Disposable {
+
+	readonly globalStorage = new GlobalStorageDatabase(this.channel);
+	readonly workspaceStorage = this.workspace ? new WorkspaceStorageDatabase(this.channel, this.workspace) : undefined;
+
+	constructor(
+		private channel: IChannel,
+		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined
+	) {
+		super();
+	}
+}
+
+//#endregion
