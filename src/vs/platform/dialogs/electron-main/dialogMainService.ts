@@ -89,7 +89,7 @@ export class DialogMainService implements IDialogMainService {
 		};
 
 		// Ensure defaultPath
-		dialogOptions.defaultPath = options.defaultPath || this.stateService.getItem<string>(DialogMainService.workingDirPickerStorageKey);
+		dialogOptions.defaultPath = options.defaultPath || this.stateService.getItem<string>(DialogMainService.workingDirPickerStorageKey) ||  process.cwd();
 
 
 		// Ensure properties
