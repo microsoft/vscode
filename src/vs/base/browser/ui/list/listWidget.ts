@@ -779,10 +779,6 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
 		}
 
-		if (styles.listTwistieHoverBackground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-tl-twistie:hover::before { background-color: ${styles.listTwistieHoverBackground}; }`);
-		}
-
 		if (styles.listHoverForeground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
 		}
@@ -874,7 +870,6 @@ export interface IListStyles {
 	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
 	listHoverForeground?: Color;
-	listTwistieHoverBackground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
 	listInactiveFocusOutline?: Color;
