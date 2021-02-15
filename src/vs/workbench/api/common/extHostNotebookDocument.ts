@@ -12,8 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IMainCellDto, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IMainCellDto, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 class RawContentChangeEvent {
@@ -48,7 +47,7 @@ export class ExtHostCell {
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	private _outputs: IOutputDto[];
-	private _metadata: extHostTypes.NotebookCellMetadata;
+	private _metadata: vscode.NotebookCellMetadata;
 
 	readonly handle: number;
 	readonly uri: URI;
@@ -65,7 +64,7 @@ export class ExtHostCell {
 		this.uri = URI.revive(_cellData.uri);
 		this.cellKind = _cellData.cellKind;
 		this._outputs = _cellData.outputs;
-		this._metadata = new extHostTypes.NotebookCellMetadata().with(_cellData.metadata ?? {});
+		this._metadata = _cellData.metadata ?? {};
 	}
 
 	dispose() {
@@ -100,8 +99,8 @@ export class ExtHostCell {
 		this._outputs = newOutputs;
 	}
 
-	setMetadata(newMetadata: NotebookCellMetadata): void {
-		this._metadata = this._metadata.with(newMetadata);
+	setMetadata(newMetadata: vscode.NotebookCellMetadata): void {
+		this._metadata = newMetadata;
 	}
 }
 
@@ -139,7 +138,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
 		private readonly _contentOptions: vscode.NotebookDocumentContentOptions,
-		private _metadata: extHostTypes.NotebookDocumentMetadata,
+		private _metadata: Required<vscode.NotebookDocumentMetadata>,
 		public readonly uri: URI,
 		private readonly _storagePath: URI | undefined
 	) {
@@ -191,9 +190,11 @@ export class ExtHostNotebookDocument extends Disposable {
 	}
 
 	acceptDocumentPropertiesChanged(data: INotebookDocumentPropertiesChangeData) {
-		if (data.metadata) {
-			this._metadata = this._metadata.with(data.metadata);
-		}
+		const newMetadata = {
+			...notebookDocumentMetadataDefaults,
+			...data.metadata
+		};
+		this._metadata = newMetadata;
 		this._emitter.emitDocumentMetadataChange({ document: this.notebookDocument });
 	}
 
