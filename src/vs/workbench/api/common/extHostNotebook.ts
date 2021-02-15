@@ -729,7 +729,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					emitDocumentMetadataChange(event: vscode.NotebookDocumentMetadataChangeEvent): void {
 						that._onDidChangeNotebookDocumentMetadata.fire(event);
 					}
-				}, viewType, modelData.contentOptions, { ...notebookDocumentMetadataDefaults, ...modelData.metadata }, uri, storageRoot);
+				}, viewType, modelData.contentOptions, typeConverters.NotebookDocumentMetadata.to(modelData.metadata ?? {}), uri, storageRoot);
 
 				document.acceptModelChanged({
 					versionId: modelData.versionId,
