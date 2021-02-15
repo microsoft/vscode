@@ -402,7 +402,7 @@ export class Sash extends Disposable {
 		sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'));
 
 		if (!fromLinkedSash && sash.linkedSash) {
-			Sash.onMouseEnter(sash.linkedSash);
+			Sash.onMouseEnter(sash.linkedSash, true);
 		}
 	}
 
@@ -411,7 +411,7 @@ export class Sash extends Disposable {
 		sash.el.classList.remove('hover');
 
 		if (!fromLinkedSash && sash.linkedSash) {
-			Sash.onMouseLeave(sash.linkedSash);
+			Sash.onMouseLeave(sash.linkedSash, true);
 		}
 	}
 
