@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./actionbar';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator, IActionViewItem, IActionViewItemProvider, Action } from 'vs/base/common/actions';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator, IActionViewItem, IActionViewItemProvider } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -81,8 +81,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
 	readonly onBeforeRun = this._onBeforeRun.event;
-
-	private actionChangeListeners: IDisposable[] = [];
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -225,13 +223,13 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// Some action bars should not be focusable at times
 	// When an action bar is not focusable make sure to make all the elements inside it not focusable
-	// When an action bar is focusable again, make sure the first enabled item can be focused
+	// When an action bar is focusable again, make sure the first item can be focused
 	setFocusable(focusable: boolean): void {
 		this.focusable = focusable;
 		if (this.focusable) {
-			const firstEnabled = this.viewItems.find(vi => vi instanceof BaseActionViewItem && vi.isEnabled());
-			if (firstEnabled instanceof BaseActionViewItem) {
-				firstEnabled.setFocusable(true);
+			const first = this.viewItems.find(vi => vi instanceof BaseActionViewItem);
+			if (first instanceof BaseActionViewItem) {
+				first.setFocusable(true);
 			}
 		} else {
 			this.viewItems.forEach(vi => {
@@ -320,18 +318,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
-			this.actionChangeListeners.push(action instanceof Action ? action.onDidChange(e => {
-				// In case an action got disabled and it was last focused in the action bar
-				// We need to reset the tabIndex to be set on the first enabled item
-				if (e.enabled === false && item instanceof BaseActionViewItem && item.isFocusable) {
-					const firstEnabled = this.viewItems.find(vi => vi instanceof BaseActionViewItem && vi.isEnabled());
-					if (firstEnabled instanceof BaseActionViewItem) {
-						firstEnabled.setFocusable(true);
-					}
-				}
-			}) : Disposable.None);
-
-			if (this.focusable && this.viewItems.every(i => !i.isEnabled()) && item instanceof BaseActionViewItem && item.isEnabled()) {
+			if (this.focusable && this.viewItems.length === 0 && item instanceof BaseActionViewItem) {
 				// We need to allow for the first enabled item to be focused on using tab navigation #106441
 				item.setFocusable(true);
 			}
@@ -379,15 +366,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
 			dispose(this.viewItems.splice(index, 1));
-			dispose(this.actionChangeListeners.splice(index, 1));
 			this._actionIds.splice(index, 1);
 		}
 	}
 
 	clear(): void {
 		dispose(this.viewItems);
-		dispose(this.actionChangeListeners);
-		this.actionChangeListeners = [];
 		this.viewItems = [];
 		this._actionIds = [];
 		DOM.clearNode(this.actionsList);
@@ -529,7 +513,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	dispose(): void {
 		dispose(this.viewItems);
-		dispose(this.actionChangeListeners);
 		this.viewItems = [];
 
 		this._actionIds = [];

@@ -90,10 +90,6 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	get isFocusable(): boolean {
-		return this.checkbox?.domNode.tabIndex === 0;
-	}
-
 	setFocusable(focusable: boolean): void {
 		if (this.checkbox) {
 			this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
