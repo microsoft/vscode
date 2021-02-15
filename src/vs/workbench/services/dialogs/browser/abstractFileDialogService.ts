@@ -26,6 +26,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
 import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
+import { cwd } from 'vs/base/common/process';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -61,8 +62,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		if (!candidate) {
 			const shouldUseCwd = await this.configurationService.getValue<boolean>('window.cwdDefaultPath');
-			if (shouldUseCwd && process.env['VSCODE_CWD']) {
-				return this.pathService.fileURI(process.env['VSCODE_CWD']);
+			if (shouldUseCwd && cwd()) {
+				return this.pathService.fileURI(cwd());
 			}
 			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		}
@@ -82,8 +83,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		if (!candidate) {
 			const shouldUseCwd = await this.configurationService.getValue<boolean>('window.cwdDefaultPath');
-			if (shouldUseCwd && process.env['VSCODE_CWD']) {
-				return this.pathService.fileURI(process.env['VSCODE_CWD']);
+			if (shouldUseCwd && cwd()) {
+				return this.pathService.fileURI(cwd());
 			}
 			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		} else {
