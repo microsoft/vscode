@@ -14,7 +14,7 @@ export type Value = string;
 export type Item = [Key, Value];
 
 export interface ISerializableWorkspaceArgument {
-	workspace: ISerializedWorkspaceIdentifier | undefined
+	readonly workspace: ISerializedWorkspaceIdentifier | undefined
 }
 
 export interface ISerializableUpdateRequest extends ISerializableWorkspaceArgument {
@@ -87,7 +87,7 @@ class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements I
 		}
 	}
 
-	async close(): Promise<void> {
+	close(): Promise<void> {
 
 		// Remove our listeners on `close` because we are no longer
 		// interested in change events from the global database

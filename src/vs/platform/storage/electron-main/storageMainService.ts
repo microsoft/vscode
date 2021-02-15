@@ -42,7 +42,16 @@ export class StorageMainService implements IStorageMainService {
 	readonly globalStorage = this.createGlobalStorage();
 
 	private createGlobalStorage(): IStorageMain {
+		if (this.globalStorage) {
+			return this.globalStorage; // only once
+		}
+
 		const globalStorage = new GlobalStorageMain(this.logService, this.environmentService);
+
+		// Trigger init of global storage directly from here
+		// so that we can be ready for access when the window
+		// needs it (prevents waterfall of initialization)
+		globalStorage.initialize();
 
 		return globalStorage;
 	}
@@ -63,13 +72,13 @@ export class StorageMainService implements IStorageMainService {
 	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): IStorageMain {
 		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
 		if (!workspaceStorage) {
-			this.logService.info(`StorageMainService: creating workspace storage (${isWorkspaceIdentifier(workspace) ? workspace.configPath : workspace.uri})`);
+			this.logService.trace(`StorageMainService: creating workspace storage (${isWorkspaceIdentifier(workspace) ? workspace.configPath : workspace.uri})`);
 
 			workspaceStorage = this.createWorkspaceStorage(workspace);
 			this.mapWorkspaceToStorage.set(workspace.id, workspaceStorage);
 
 			once(workspaceStorage.onDidCloseStorage)(() => {
-				this.logService.info(`StorageMainService: closed workspace storage (${isWorkspaceIdentifier(workspace) ? workspace.configPath : workspace.uri})`);
+				this.logService.trace(`StorageMainService: closed workspace storage (${isWorkspaceIdentifier(workspace) ? workspace.configPath : workspace.uri})`);
 
 				this.mapWorkspaceToStorage.delete(workspace.id);
 			});

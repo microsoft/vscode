@@ -13,10 +13,11 @@ import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
+import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 
 flakySuite('StorageMainService (native)', function () {
 
@@ -60,6 +61,8 @@ flakySuite('StorageMainService (native)', function () {
 			strictEqual(storage.get(instanceStorageKey), undefined);
 			await storage.initialize();
 			strictEqual(typeof storage.get(instanceStorageKey), 'string');
+			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');
+			strictEqual(typeof storage.get(currentSessionDateStorageKey), 'string');
 		}
 
 		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
@@ -88,6 +91,9 @@ flakySuite('StorageMainService (native)', function () {
 		strictEqual(storage.get('bar'), undefined);
 
 		strictEqual(storage.items.size, size + 2);
+
+		// IS_NEW
+		strictEqual(storage.get(IS_NEW_KEY), true);
 
 		// Close
 		await storage.close();

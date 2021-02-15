@@ -172,9 +172,9 @@ class SharedProcessMain extends Disposable {
 
 		await configurationService.initialize();
 
-		// Storage
-		const storageDatabase = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), undefined /* no workspace access for shared process */);
-		const storageService = new NativeStorageService2(storageDatabase.globalStorage, storageDatabase.workspaceStorage, environmentService);
+		// Storage (global access only)
+		const storageDatabaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), undefined);
+		const storageService = new NativeStorageService2(storageDatabaseClient.globalStorage, undefined, environmentService);
 		services.set(IStorageService, storageService);
 
 		await storageService.initialize();

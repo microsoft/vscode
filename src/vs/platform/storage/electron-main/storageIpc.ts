@@ -25,9 +25,6 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 	) {
 		super();
 
-		// Trigger init of global storage directly from ctor
-		this.withStorageInitialized(undefined);
-
 		this.registerGlobalStorageListeners();
 	}
 

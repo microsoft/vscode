@@ -124,6 +124,14 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 				// one once that is finished and use it from then on
 				this.storage.dispose();
 				this.storage = storage;
+
+				// Ensure we track wether storage is new or not
+				const isNewStorage = storage.getBoolean(IS_NEW_KEY);
+				if (isNewStorage === undefined) {
+					storage.set(IS_NEW_KEY, true);
+				} else if (isNewStorage) {
+					storage.set(IS_NEW_KEY, false);
+				}
 			})();
 		}
 
@@ -203,15 +211,8 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 		// Re-emit storage changes via event
 		this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
+		// Forward init to SQLite DB
 		await storage.init();
-
-		// Check to see if this is the first time we are "opening" the application
-		const firstOpen = storage.getBoolean(IS_NEW_KEY);
-		if (firstOpen === undefined) {
-			storage.set(IS_NEW_KEY, true);
-		} else if (firstOpen) {
-			storage.set(IS_NEW_KEY, false);
-		}
 
 		// Apply global telemetry values as part of the initialization
 		this.updateTelemetryState(storage);
@@ -282,14 +283,6 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		// 				result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined
 		// 			);
 		// 			await workspaceStorage.init();
-
-		// 			// Check to see if this is the first time we are "opening" this workspace
-		// 			const firstWorkspaceOpen = workspaceStorage.getBoolean(IS_NEW_KEY);
-		// 			if (firstWorkspaceOpen === undefined) {
-		// 				workspaceStorage.set(IS_NEW_KEY, result.wasCreated);
-		// 			} else if (firstWorkspaceOpen) {
-		// 				workspaceStorage.set(IS_NEW_KEY, false);
-		// 			}
 		// 		} finally {
 		// 			mark('code/didInitWorkspaceStorage');
 		// 		}
