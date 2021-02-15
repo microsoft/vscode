@@ -35,16 +35,6 @@
     ],
     "notebookProvider": [
       {
-        "viewType": "notebookCoreTest",
-        "displayName": "Notebook Core Test",
-        "selector": [
-          {
-            "filenamePattern": "*.vsctestnb",
-            "excludeFileNamePattern": ""
-          }
-        ]
-      },
-      {
         "viewType": "notebookSmokeTest",
         "displayName": "Notebook Smoke Test",
         "selector": [

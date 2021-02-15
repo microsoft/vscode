@@ -446,6 +446,8 @@
 			host.onMessage('focus', () => {
 				const activeFrame = getActiveFrame();
 				if (!activeFrame || !activeFrame.contentWindow) {
+					// Focus the top level webview instead
+					window.focus();
 					return;
 				}
 
@@ -588,6 +590,10 @@
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
+
+						if (document.hasFocus()) {
+							contentWindow.focus();
+						}
 
 						pendingMessages.forEach((data) => {
 							contentWindow.postMessage(data, '*');

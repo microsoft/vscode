@@ -9,6 +9,7 @@ import { Keychain } from './common/keychain';
 import { GitHubServer, NETWORK_ERROR } from './githubServer';
 import Logger from './common/logger';
 import { arrayEquals } from './common/utils';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
@@ -25,12 +26,13 @@ interface SessionData {
 
 export class GitHubAuthenticationProvider {
 	private _sessions: vscode.AuthenticationSession[] = [];
-	private _githubServer = new GitHubServer();
+	private _githubServer: GitHubServer;
 
 	private _keychain: Keychain;
 
-	constructor(context: vscode.ExtensionContext) {
+	constructor(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter) {
 		this._keychain = new Keychain(context);
+		this._githubServer = new GitHubServer(telemetryReporter);
 	}
 
 	public async initialize(context: vscode.ExtensionContext): Promise<void> {
@@ -44,8 +46,10 @@ export class GitHubAuthenticationProvider {
 		context.subscriptions.push(context.secrets.onDidChange(() => this.checkForUpdates()));
 	}
 
-	async getSessions(scopes: string[]): Promise<vscode.AuthenticationSession[]> {
-		return this._sessions.filter(session => arrayEquals(session.scopes, scopes));
+	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+		return scopes
+			? this._sessions.filter(session => arrayEquals(session.scopes, scopes))
+			: this._sessions;
 	}
 
 	private async verifySessions(): Promise<void> {
@@ -53,6 +57,7 @@ export class GitHubAuthenticationProvider {
 		const verificationPromises = this._sessions.map(async session => {
 			try {
 				await this._githubServer.getUserInfo(session.accessToken);
+				this._githubServer.checkIsEdu(session.accessToken);
 				verifiedSessions.push(session);
 			} catch (e) {
 				// Remove sessions that return unauthorized response
@@ -161,6 +166,7 @@ export class GitHubAuthenticationProvider {
 	public async createSession(scopes: string): Promise<vscode.AuthenticationSession> {
 		const token = await this._githubServer.login(scopes);
 		const session = await this.tokenToSession(token, scopes.split(' '));
+		this._githubServer.checkIsEdu(token);
 		await this.setToken(session);
 		return session;
 	}

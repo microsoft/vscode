@@ -578,7 +578,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	public $acceptModelSaved(uriComponents: UriComponents): void {
+	$acceptDirtyStateChanged(resource: UriComponents, isDirty: boolean): void {
+		const document = this._documents.get(URI.revive(resource));
+		if (document) {
+			document.acceptModelChanged({ rawEvents: [], versionId: document.notebookDocument.version }, isDirty);
+		}
+	}
+
+	$acceptModelSaved(uriComponents: UriComponents): void {
 		const document = this._documents.get(URI.revive(uriComponents));
 		if (document) {
 			// this.$acceptDirtyStateChanged(uriComponents, false);

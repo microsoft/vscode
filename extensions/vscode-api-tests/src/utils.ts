@@ -17,7 +17,7 @@ vscode.workspace.registerFileSystemProvider(testFs.scheme, testFs, { isCaseSensi
 export async function createRandomFile(contents = '', dir: vscode.Uri | undefined = undefined, ext = ''): Promise<vscode.Uri> {
 	let fakeFile: vscode.Uri;
 	if (dir) {
-		assert.equal(dir.scheme, testFs.scheme);
+		assert.strictEqual(dir.scheme, testFs.scheme);
 		fakeFile = dir.with({ path: dir.path + '/' + rndName() + ext });
 	} else {
 		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
@@ -46,6 +46,10 @@ export function pathEquals(path1: string, path2: string): boolean {
 
 export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+}
+
+export function saveAllEditors(): Thenable<any> {
+	return vscode.commands.executeCommand('workbench.action.files.saveAll');
 }
 
 export async function revertAllDirty(): Promise<void> {
@@ -116,4 +120,20 @@ export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
 	}
 	assert.strictEqual(rpcPaths.length, 0, rpcPaths.join('\n'));
 	assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n')); // happens...
+}
+
+export async function asPromise<T>(event: vscode.Event<T>, timeout = 1000): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+
+		const handle = setTimeout(() => {
+			sub.dispose();
+			reject(new Error('asPromise TIMEOUT reached'));
+		}, timeout);
+
+		const sub = event(e => {
+			clearTimeout(handle);
+			sub.dispose();
+			resolve(e);
+		});
+	});
 }

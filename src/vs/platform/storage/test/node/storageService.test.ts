@@ -15,38 +15,46 @@ import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
 
-flakySuite('NativeStorageService', function () {
+flakySuite('StorageService (native)', function () {
+
+	class StorageTestEnvironmentService extends NativeEnvironmentService {
+
+		constructor(private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
+			super(parseArgs(process.argv, OPTIONS));
+		}
+
+		get workspaceStorageHome(): URI {
+			return this.workspaceStorageFolderPath;
+		}
+
+		get extensionsPath(): string {
+			return this._extensionsPath;
+		}
+	}
 
 	let testDir: string;
 
-	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
+	createSuite<NativeStorageService>({
+		setup: async () => {
+			testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 
-		return promises.mkdir(testDir, { recursive: true });
-	});
+			await promises.mkdir(testDir, { recursive: true });
 
-	teardown(() => {
-		return rimraf(testDir);
+			const storageService = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
+			await storageService.initialize({ id: String(Date.now()) });
+
+			return storageService;
+		},
+		teardown: async storageService => {
+			await storageService.close();
+
+			return rimraf(testDir);
+		}
 	});
 
 	test('Migrate Data', async function () {
-
-		class StorageTestEnvironmentService extends NativeEnvironmentService {
-
-			constructor(private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
-				super(parseArgs(process.argv, OPTIONS));
-			}
-
-			get workspaceStorageHome(): URI {
-				return this.workspaceStorageFolderPath;
-			}
-
-			get extensionsPath(): string {
-				return this._extensionsPath;
-			}
-		}
-
 		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
 		await storage.initialize({ id: String(Date.now()) });
 

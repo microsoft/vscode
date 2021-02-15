@@ -148,7 +148,7 @@
 										"children": [
 											{
 												"element": {
-													"name": "master"
+													"name": "main"
 												},
 												"incompressible": true
 											}
@@ -228,7 +228,7 @@
 								"children": [
 									{
 										"element": {
-											"name": "master"
+											"name": "main"
 										},
 										"incompressible": true
 									}

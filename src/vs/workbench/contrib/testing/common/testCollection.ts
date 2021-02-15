@@ -5,7 +5,7 @@
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
-import { Location as ModeLocation } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
@@ -15,11 +15,12 @@ export interface TestIdWithProvider {
 }
 
 /**
- * Request to them main thread to run a set of tests.
+ * Request to the main thread to run a set of tests.
  */
 export interface RunTestsRequest {
 	tests: TestIdWithProvider[];
 	debug: boolean;
+	isAutoRun?: boolean;
 }
 
 /**
@@ -32,12 +33,20 @@ export interface RunTestForProviderRequest {
 	debug: boolean;
 }
 
+/**
+ * Location with a fully-instantiated Range and URI.
+ */
+export interface IRichLocation {
+	range: Range;
+	uri: URI;
+}
+
 export interface ITestMessage {
 	message: string | IMarkdownString;
 	severity: TestMessageSeverity | undefined;
 	expectedOutput: string | undefined;
 	actualOutput: string | undefined;
-	location: ModeLocation | undefined;
+	location: IRichLocation | undefined;
 }
 
 export interface ITestState {
@@ -54,7 +63,7 @@ export interface ITestItem {
 	extId: string;
 	label: string;
 	children?: never;
-	location: ModeLocation | undefined;
+	location: IRichLocation | undefined;
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;

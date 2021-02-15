@@ -17,6 +17,7 @@ import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnectio
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { hash } from 'vs/base/common/hash';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -323,7 +324,8 @@ export class TunnelModel extends Disposable {
 
 	private async getStorageKey(): Promise<string> {
 		const workspace = this.workspaceContextService.getWorkspace();
-		return `${TUNNELS_TO_RESTORE}.${this.environmentService.remoteAuthority}.${workspace.id}`;
+		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(workspace.folders[0].uri.path) : undefined);
+		return `${TUNNELS_TO_RESTORE}.${this.environmentService.remoteAuthority}.${workspaceHash}`;
 	}
 
 	private async getTunnelRestoreValue(): Promise<string | undefined> {

@@ -4,25 +4,45 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { FileStorageDatabase } from 'vs/platform/storage/browser/storageService';
-import { join } from 'vs/base/common/path';
-import { tmpdir } from 'os';
-import { rimraf } from 'vs/base/node/pfs';
+import { BrowserStorageService, FileStorageDatabase } from 'vs/platform/storage/browser/storageService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Storage } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { FileService } from 'vs/platform/files/common/fileService';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-suite('Storage', () => {
+suite('StorageService (browser)', function () {
 
-	let testDir: string;
+	const disposables = new DisposableStore();
+
+	createSuite<BrowserStorageService>({
+		setup: async () => {
+			const logService = new NullLogService();
+
+			const fileService = disposables.add(new FileService(logService));
+
+			const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
+
+			const storageService = disposables.add(new BrowserStorageService({ userRoamingDataHome: URI.file('/User').with({ scheme: Schemas.userData }) } as unknown as IEnvironmentService, fileService));
+
+			await storageService.initialize({ id: String(Date.now()) });
+
+			return storageService;
+		},
+		teardown: async storage => {
+			disposables.clear();
+		}
+	});
+});
+
+suite('FileStorageDatabase (browser)', () => {
 
 	let fileService: FileService;
-	let fileProvider: DiskFileSystemProvider;
 
 	const disposables = new DisposableStore();
 
@@ -31,20 +51,18 @@ suite('Storage', () => {
 
 		fileService = disposables.add(new FileService(logService));
 
-		fileProvider = disposables.add(new DiskFileSystemProvider(logService));
-		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
-
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
+		const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
 	});
 
 	teardown(() => {
 		disposables.clear();
-
-		return rimraf(testDir);
 	});
 
-	test('File Based Storage', async () => {
-		let storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), false, fileService));
+	test('Basics', async () => {
+		const testDir = URI.file('/User/storage.json').with({ scheme: Schemas.userData });
+
+		let storage = new Storage(new FileStorageDatabase(testDir, false, fileService));
 
 		await storage.init();
 
@@ -58,7 +76,7 @@ suite('Storage', () => {
 
 		await storage.close();
 
-		storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), false, fileService));
+		storage = new Storage(new FileStorageDatabase(testDir, false, fileService));
 
 		await storage.init();
 
@@ -76,7 +94,7 @@ suite('Storage', () => {
 
 		await storage.close();
 
-		storage = new Storage(new FileStorageDatabase(URI.file(join(testDir, 'storage.json')), false, fileService));
+		storage = new Storage(new FileStorageDatabase(testDir, false, fileService));
 
 		await storage.init();
 

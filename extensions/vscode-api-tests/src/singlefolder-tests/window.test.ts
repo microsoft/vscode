@@ -150,6 +150,13 @@ suite('vscode API - window', () => {
 	});
 
 	test('active editor not always correct... #49125', async function () {
+
+		if (!window.state.focused) {
+			// no focus!
+			this.skip();
+			return;
+		}
+
 		if (process.env['BUILD_SOURCEVERSION']) {
 			this.skip();
 			return;

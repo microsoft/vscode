@@ -89,12 +89,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		}
 	}
 
-	async getSessions(scopes: string[]) {
+	async getSessions(scopes?: string[]) {
 		return this._proxy.$getSessions(this.id, scopes);
-	}
-
-	async getAllSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		return this._proxy.$getAllSessions(this.id);
 	}
 
 	createSession(scopes: string[]): Promise<modes.AuthenticationSession> {
