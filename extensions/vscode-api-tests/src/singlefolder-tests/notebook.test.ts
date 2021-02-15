@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, asPromise, disposeAll, closeAllEditors } from '../utils';
+import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty } from '../utils';
 
 // Since `workbench.action.splitEditor` command does await properly
 // Notebook editor/document events are not guaranteed to be sent to the ext host when promise resolves
@@ -78,9 +78,11 @@ suite('Notebook API tests', function () {
 	const disposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
-		disposeAll(disposables);
-		await vscode.commands.executeCommand('workbench.action.files.saveAll');
+		await revertAllDirty();
 		await closeAllEditors();
+
+		disposeAll(disposables);
+		disposables.length = 0;
 	});
 
 	suiteSetup(function () {
@@ -1400,12 +1402,9 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'var abc = 0;');
 
-		// todo@jrieken enforce a kernel (how) and test that its language is picked
-		// assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
-
 		// no kernel -> no default language
 		assert.strictEqual(vscode.window.activeNotebookEditor!.kernel, undefined);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.language, 'plaintext');
+		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
 
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
 		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.path, resource.path);
