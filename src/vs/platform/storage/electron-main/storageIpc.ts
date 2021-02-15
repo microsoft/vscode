@@ -7,10 +7,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ISerializableItemsChangeEvent, ISerializableUpdateRequest, ISerializableWorkspaceArgument, Key, Value } from 'vs/platform/storage/common/storageIpc';
+import { ISerializableItemsChangeEvent, ISerializableUpdateRequest, IBaseSerializableStorageRequest, Key, Value } from 'vs/platform/storage/common/storageIpc';
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class StorageDatabaseChannel extends Disposable implements IServerChannel {
 
@@ -77,7 +77,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 	//#endregion
 
-	async call(_: unknown, command: string, arg: ISerializableWorkspaceArgument): Promise<any> {
+	async call(_: unknown, command: string, arg: IBaseSerializableStorageRequest): Promise<any> {
 		const workspace = reviveIdentifier(arg.workspace);
 
 		// Get storage to be ready
@@ -119,7 +119,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		}
 	}
 
-	private async withStorageInitialized(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined): Promise<IStorageMain> {
+	private async withStorageInitialized(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): Promise<IStorageMain> {
 		const storage = workspace ? this.storageMainService.workspaceStorage(workspace) : this.storageMainService.globalStorage;
 
 		try {

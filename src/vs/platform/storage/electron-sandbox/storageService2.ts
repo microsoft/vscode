@@ -10,6 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { mark } from 'vs/base/common/performance';
 
 export class NativeStorageService2 extends AbstractStorageService {
 
@@ -47,10 +48,15 @@ export class NativeStorageService2 extends AbstractStorageService {
 	private async doInitialize(): Promise<void> {
 
 		// Init all storage locations
-		await Promises.settled([
-			this.globalStorage.init(),
-			this.workspaceStorage?.init() ?? Promise.resolve()
-		]);
+		mark('code/willInitStorage');
+		try {
+			await Promises.settled([
+				this.globalStorage.init(),
+				this.workspaceStorage?.init() ?? Promise.resolve()
+			]);
+		} finally {
+			mark('code/didInitStorage');
+		}
 
 		// On some OS we do not get enough time to persist state on shutdown (e.g. when
 		// Windows restarts after applying updates). In other cases, VSCode might crash,

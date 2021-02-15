@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
+import { exists, writeFile } from 'vs/base/node/pfs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
+import { Storage, InMemoryStorageDatabase, StorageHint, IStorage } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 /**
  * Provides access to global and workspace storage from the
@@ -107,30 +109,34 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private storage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	private storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
 
 	private initializePromise: Promise<void> | undefined = undefined;
 
-	constructor() {
+	constructor(protected readonly logService: ILogService) {
 		super();
 	}
 
 	initialize(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
-				const storage = await this.doInitialize();
+				try {
+					const storage = await this.doInitialize();
 
-				// Replace our in-memory storage with the initialized
-				// one once that is finished and use it from then on
-				this.storage.dispose();
-				this.storage = storage;
+					// Replace our in-memory storage with the initialized
+					// one once that is finished and use it from then on
+					this.storage.dispose();
+					this.storage = storage;
 
-				// Ensure we track wether storage is new or not
-				const isNewStorage = storage.getBoolean(IS_NEW_KEY);
-				if (isNewStorage === undefined) {
-					storage.set(IS_NEW_KEY, true);
-				} else if (isNewStorage) {
-					storage.set(IS_NEW_KEY, false);
+					// Ensure we track wether storage is new or not
+					const isNewStorage = storage.getBoolean(IS_NEW_KEY);
+					if (isNewStorage === undefined) {
+						storage.set(IS_NEW_KEY, true);
+					} else if (isNewStorage) {
+						storage.set(IS_NEW_KEY, false);
+					}
+				} catch (error) {
+					this.logService.error(`StorageMain#initialize(): Unable to init storage due to ${error}`);
 				}
 			})();
 		}
@@ -138,7 +144,14 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		return this.initializePromise;
 	}
 
-	protected abstract doInitialize(): Promise<Storage>;
+	protected createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
+		return {
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logError: error => this.logService.error(error)
+		};
+	}
+
+	protected abstract doInitialize(): Promise<IStorage>;
 
 	get items(): Map<string, string> { return this.storage.items; }
 
@@ -183,20 +196,13 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	private static readonly STORAGE_NAME = 'state.vscdb';
 
 	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		logService: ILogService,
+		private readonly environmentService: IEnvironmentService
 	) {
-		super();
+		super(logService);
 	}
 
-	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
-		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-			logError: error => this.logService.error(error)
-		};
-	}
-
-	protected async doInitialize(): Promise<Storage> {
+	protected async doInitialize(): Promise<IStorage> {
 		let storagePath: string;
 		if (!!this.environmentService.extensionTestsLocationURI) {
 			storagePath = SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
@@ -204,6 +210,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 			storagePath = join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
 		}
 
+		// Create Storage
 		const storage = new Storage(new SQLiteStorageDatabase(storagePath, {
 			logging: this.createLogginOptions()
 		}));
@@ -255,103 +262,80 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMain {
 
-	constructor(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier) {
-		super();
+	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
+	private static readonly WORKSPACE_META_NAME = 'workspace.json';
+
+	constructor(
+		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
+		logService: ILogService,
+		private readonly environmentService: IEnvironmentService
+	) {
+		super(logService);
 	}
 
-	protected async doInitialize(): Promise<Storage> {
-		const storage = new Storage(new InMemoryStorageDatabase());
+	protected async doInitialize(): Promise<IStorage> {
+
+		// Prepare workspace storage folder for DB
+		const { storageFilePath, wasCreated } = await this.prepareWorkspaceStorageFolder();
+
+		// Create Storage
+		const storage = new Storage(new SQLiteStorageDatabase(storageFilePath, {
+			logging: this.createLogginOptions()
+		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 
 		// Re-emit storage changes via event
 		this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
+		// Forward init to SQLite DB
+		await storage.init();
+
 		return storage;
+	}
 
-		// 	private async initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Promise<void> {
+	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string, wasCreated: boolean }> {
 
-		// 	// Prepare workspace storage folder for DB
-		// 	try {
-		// 		const result = await this.prepareWorkspaceStorageFolder(payload);
+		// Return early with in-memory when running extension tests
+		if (!!this.environmentService.extensionTestsLocationURI) {
+			return { storageFilePath: SQLiteStorageDatabase.IN_MEMORY_PATH, wasCreated: true };
+		}
 
-		// 		const useInMemoryStorage = !!this.environmentService.extensionTestsLocationURI; // no storage during extension tests!
+		// Otherwise, ensure the storage folder exists on disk
+		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
+		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 
-		// 		// Create workspace storage and initialize
-		// 		mark('code/willInitWorkspaceStorage');
-		// 		try {
-		// 			const workspaceStorage = this.createWorkspaceStorage(
-		// 				useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME),
-		// 				result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined
-		// 			);
-		// 			await workspaceStorage.init();
-		// 		} finally {
-		// 			mark('code/didInitWorkspaceStorage');
-		// 		}
-		// 	} catch (error) {
-		// 		this.logService.error(`[storage] initializeWorkspaceStorage(): Unable to init workspace storage due to ${error}`);
-		// 	}
-		// }
+		const storageExists = await exists(workspaceStorageFolderPath);
+		if (storageExists) {
+			return { storageFilePath: workspaceStorageDatabasePath, wasCreated: false };
+		}
 
-		// private createWorkspaceStorage(workspaceStoragePath: string, hint?: StorageHint): IStorage {
+		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
-		// 	// Logger for workspace storage
-		// 	const workspaceLoggingOptions: ISQLiteStorageDatabaseLoggingOptions = {
-		// 		logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-		// 		logError: error => this.logService.error(error)
-		// 	};
+		// Write metadata into folder
+		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);
 
-		// 	// Dispose old (if any)
-		// 	dispose(this.workspaceStorage);
-		// 	dispose(this.workspaceStorageListener);
+		return { storageFilePath: workspaceStorageDatabasePath, wasCreated: true };
+	}
 
-		// 	// Create new
-		// 	this.workspaceStoragePath = workspaceStoragePath;
-		// 	this.workspaceStorage = new Storage(new SQLiteStorageDatabase(workspaceStoragePath, { logging: workspaceLoggingOptions }), { hint });
-		// 	this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key));
+	private ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath: string): void {
+		let meta: object | undefined = undefined;
+		if (isSingleFolderWorkspaceIdentifier(this.workspace)) {
+			meta = { folder: this.workspace.uri.toString() };
+		} else if (isWorkspaceIdentifier(this.workspace)) {
+			meta = { workspace: this.workspace.configPath.toString() };
+		}
 
-		// 	return this.workspaceStorage;
-		// }
-
-		// private getWorkspaceStorageFolderPath(payload: IWorkspaceInitializationPayload): string {
-		// 	return join(this.environmentService.workspaceStorageHome.fsPath, payload.id); // workspace home + workspace id;
-		// }
-
-		// private async prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Promise<{ path: string, wasCreated: boolean }> {
-		// 	const workspaceStorageFolderPath = this.getWorkspaceStorageFolderPath(payload);
-
-		// 	const storageExists = await exists(workspaceStorageFolderPath);
-		// 	if (storageExists) {
-		// 		return { path: workspaceStorageFolderPath, wasCreated: false };
-		// 	}
-
-		// 	await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
-
-		// 	// Write metadata into folder
-		// 	this.ensureWorkspaceStorageFolderMeta(payload);
-
-		// 	return { path: workspaceStorageFolderPath, wasCreated: true };
-		// }
-
-		// private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
-		// 	let meta: object | undefined = undefined;
-		// 	if (isSingleFolderWorkspaceIdentifier(payload)) {
-		// 		meta = { folder: payload.uri.toString() };
-		// 	} else if (isWorkspaceIdentifier(payload)) {
-		// 		meta = { workspace: payload.configPath.toString() };
-		// 	}
-
-		// 	if (meta) {
-		// 		(async () => {
-		// 			try {
-		// 				const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
-		// 				const storageExists = await exists(workspaceStorageMetaPath);
-		// 				if (!storageExists) {
-		// 					await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
-		// 				}
-		// 			} catch (error) {
-		// 				this.logService.error(error);
-		// 			}
-		// 		})();
-		// 	}
-		// }
+		if (meta) {
+			(async () => {
+				try {
+					const workspaceStorageMetaPath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_META_NAME);
+					const storageExists = await exists(workspaceStorageMetaPath);
+					if (!storageExists) {
+						await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+					}
+				} catch (error) {
+					this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);
+				}
+			})();
+		}
 	}
 }

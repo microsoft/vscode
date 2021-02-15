@@ -8,7 +8,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { GlobalStorageMain, IStorageMain, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
-import { ISingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
@@ -24,7 +24,7 @@ export interface IStorageMainService {
 	/**
 	 * Provides access to the workspace storage specific to a single window.
 	 */
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): IStorageMain;
+	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain;
 }
 
 export class StorageMainService implements IStorageMainService {
@@ -63,22 +63,22 @@ export class StorageMainService implements IStorageMainService {
 
 	private readonly mapWorkspaceToStorage = new Map<string, IStorageMain>();
 
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): IStorageMain {
-		const workspaceStorage = new WorkspaceStorageMain(workspace);
+	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
+		const workspaceStorage = new WorkspaceStorageMain(workspace, this.logService, this.environmentService);
 
 		return workspaceStorage;
 	}
 
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): IStorageMain {
+	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
 		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
 		if (!workspaceStorage) {
-			this.logService.trace(`StorageMainService: creating workspace storage (${isWorkspaceIdentifier(workspace) ? workspace.configPath : workspace.uri})`);
+			this.logService.trace(`StorageMainService: creating workspace storage (${workspace.id})`);
 
 			workspaceStorage = this.createWorkspaceStorage(workspace);
 			this.mapWorkspaceToStorage.set(workspace.id, workspaceStorage);
 
 			once(workspaceStorage.onDidCloseStorage)(() => {
-				this.logService.trace(`StorageMainService: closed workspace storage (${isWorkspaceIdentifier(workspace) ? workspace.configPath : workspace.uri})`);
+				this.logService.trace(`StorageMainService: closed workspace storage (${workspace.id})`);
 
 				this.mapWorkspaceToStorage.delete(workspace.id);
 			});

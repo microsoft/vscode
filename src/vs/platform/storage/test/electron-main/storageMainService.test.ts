@@ -12,23 +12,28 @@ import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
+import { joinPath } from 'vs/base/common/resources';
 
 flakySuite('StorageMainService (native)', function () {
 
 	class StorageTestEnvironmentService extends NativeEnvironmentService {
 
-		constructor(private globalStorageFolderPath: URI, private _extensionsPath: string) {
+		constructor(private globalStorageFolderPath: URI, private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
 			super(parseArgs(process.argv, OPTIONS));
 		}
 
 		get globalStorageHome(): URI {
 			return this.globalStorageFolderPath;
+		}
+
+		get workspaceStorageHome(): URI {
+			return this.workspaceStorageFolderPath;
 		}
 
 		get extensionsPath(): string {
@@ -37,23 +42,27 @@ flakySuite('StorageMainService (native)', function () {
 	}
 
 	let testDir: string;
-	let storageMainService: IStorageMainService;
+	let environmentService: StorageTestEnvironmentService;
 
 	setup(async () => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageMainService');
 
 		await promises.mkdir(testDir, { recursive: true });
 
-		storageMainService = new StorageMainService(new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
+		const globalStorageFolder = joinPath(URI.file(testDir), 'globalStorage');
+		const workspaceStorageFolder = joinPath(URI.file(testDir), 'workspaceStorage');
+
+		await promises.mkdir(globalStorageFolder.fsPath, { recursive: true });
+
+		environmentService = new StorageTestEnvironmentService(globalStorageFolder, workspaceStorageFolder, testDir);
 	});
 
-	teardown(async () => {
-		await storageMainService.globalStorage.close();
-
+	teardown(() => {
 		return rimraf(testDir);
 	});
 
-	async function testStorage(storage: IStorageMain, isGlobal: boolean): Promise<void> {
+	async function testStorage(storageFn: () => IStorageMain, isGlobal: boolean): Promise<void> {
+		let storage = storageFn();
 
 		// Telemetry: added after init
 		if (isGlobal) {
@@ -63,6 +72,8 @@ flakySuite('StorageMainService (native)', function () {
 			strictEqual(typeof storage.get(instanceStorageKey), 'string');
 			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');
 			strictEqual(typeof storage.get(currentSessionDateStorageKey), 'string');
+		} else {
+			await storage.initialize();
 		}
 
 		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
@@ -93,7 +104,7 @@ flakySuite('StorageMainService (native)', function () {
 		strictEqual(storage.items.size, size + 2);
 
 		// IS_NEW
-		strictEqual(storage.get(IS_NEW_KEY), true);
+		strictEqual(storage.getBoolean(IS_NEW_KEY), true);
 
 		// Close
 		await storage.close();
@@ -102,13 +113,32 @@ flakySuite('StorageMainService (native)', function () {
 
 		storageChangeListener.dispose();
 		storageCloseListener.dispose();
+
+		// Reopen
+		storage = storageFn();
+		await storage.initialize();
+
+		strictEqual(storage.getNumber('barNumber'), 55);
+		strictEqual(storage.getBoolean('barBoolean'), true);
+
+		await storage.close();
 	}
 
 	test('basics (global)', function () {
-		return testStorage(storageMainService.globalStorage, true);
+		return testStorage(() => {
+			const storageMainService = new StorageMainService(new NullLogService(), environmentService);
+
+			return storageMainService.globalStorage;
+		}, true);
 	});
 
 	test('basics (workspace)', function () {
-		return testStorage(storageMainService.workspaceStorage({ id: generateUuid(), uri: URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace') }), false);
+		const workspace = { id: generateUuid(), uri: URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace') };
+
+		return testStorage(() => {
+			const storageMainService = new StorageMainService(new NullLogService(), environmentService);
+
+			return storageMainService.workspaceStorage(workspace);
+		}, false);
 	});
 });

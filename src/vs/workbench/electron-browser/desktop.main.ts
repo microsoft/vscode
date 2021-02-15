@@ -84,7 +84,10 @@ class DesktopMain extends Disposable {
 	private reviveUris() {
 
 		// Workspace
-		this.configuration.workspace = reviveIdentifier(this.configuration.workspace);
+		const workspace = reviveIdentifier(this.configuration.workspace);
+		if (isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace)) {
+			this.configuration.workspace = workspace;
+		}
 
 		// Files
 		const filesToWait = this.configuration.filesToWait;
@@ -321,7 +324,7 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<NativeStorageService | NativeStorageService2> {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), isWorkspaceIdentifier(payload) || isSingleFolderWorkspaceIdentifier(payload) ? payload : undefined);
+		const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), payload);
 
 		let storageService: NativeStorageService | NativeStorageService2;
 		if (this.configuration.enableExperimentalMainProcessWorkspaceStorage) {

@@ -7,17 +7,17 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { ISerializedWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IEmptyWorkspaceIdentifier, ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export type Key = string;
 export type Value = string;
 export type Item = [Key, Value];
 
-export interface ISerializableWorkspaceArgument {
-	readonly workspace: ISerializedWorkspaceIdentifier | undefined
+export interface IBaseSerializableStorageRequest {
+	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
 }
 
-export interface ISerializableUpdateRequest extends ISerializableWorkspaceArgument {
+export interface ISerializableUpdateRequest extends IBaseSerializableStorageRequest {
 	insert?: Item[];
 	delete?: Key[];
 }
@@ -31,12 +31,12 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 
 	abstract onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
 
-	constructor(protected channel: IChannel, private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined) {
+	constructor(protected channel: IChannel, private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined) {
 		super();
 	}
 
 	async getItems(): Promise<Map<string, string>> {
-		const serializableRequest: ISerializableWorkspaceArgument = { workspace: this.workspace };
+		const serializableRequest: IBaseSerializableStorageRequest = { workspace: this.workspace };
 		const items: Item[] = await this.channel.call('getItems', serializableRequest);
 
 		return new Map(items);
@@ -57,7 +57,7 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 	}
 
 	async close(): Promise<void> {
-		const serializableRequest: ISerializableWorkspaceArgument = { workspace: this.workspace };
+		const serializableRequest: IBaseSerializableStorageRequest = { workspace: this.workspace };
 
 		return this.channel.call('close', serializableRequest);
 	}
@@ -101,7 +101,7 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 
 	readonly onDidChangeItemsExternal = Event.None; // unsupported for workspace storage because we only ever write from one window
 
-	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier) {
+	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier) {
 		super(channel, workspace);
 	}
 }
@@ -113,7 +113,7 @@ export class StorageDatabaseChannelClient extends Disposable {
 
 	constructor(
 		private channel: IChannel,
-		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined
+		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
 	) {
 		super();
 	}
