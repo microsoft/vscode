@@ -8,7 +8,6 @@ import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
-import { ISplice } from 'vs/base/common/sequence';
 import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -30,7 +29,7 @@ class RawContentChangeEvent {
 	}
 }
 
-export class ExtHostCell extends Disposable {
+export class ExtHostCell {
 
 	static asModelAddData(notebook: vscode.NotebookDocument, cell: IMainCellDto): IExtHostModelAddedData {
 		return {
@@ -47,11 +46,7 @@ export class ExtHostCell extends Disposable {
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _onDidChangeOutputs = new Emitter<ISplice<IOutputDto>[]>();
-	readonly onDidChangeOutputs: Event<ISplice<IOutputDto>[]> = this._onDidChangeOutputs.event;
-
 	private _outputs: IOutputDto[];
-
 	private _metadata: vscode.NotebookCellMetadata;
 
 	readonly handle: number;
@@ -65,16 +60,16 @@ export class ExtHostCell extends Disposable {
 		private readonly _extHostDocument: ExtHostDocumentsAndEditors,
 		private readonly _cellData: IMainCellDto,
 	) {
-		super();
-
 		this.handle = _cellData.handle;
 		this.uri = URI.revive(_cellData.uri);
 		this.cellKind = _cellData.cellKind;
-
 		this._outputs = _cellData.outputs;
-
-
 		this._metadata = _cellData.metadata ?? {};
+	}
+
+	dispose() {
+		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 
 	get cell(): vscode.NotebookCell {
@@ -98,11 +93,6 @@ export class ExtHostCell extends Disposable {
 			});
 		}
 		return this._cell;
-	}
-
-	dispose() {
-		super.dispose();
-		this._onDidDispose.fire();
 	}
 
 	setOutputs(newOutputs: IOutputDto[]): void {
@@ -137,10 +127,8 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _cellDisposableMapping = new Map<number, DisposableStore>();
 
 	private _notebook: vscode.NotebookDocument | undefined;
-	// private _metadata: Required<vscode.NotebookDocumentMetadata>;
-	// private _metadataChangeListener: IDisposable;
 	private _versionId = 0;
-	private _isDirty: boolean = false;
+	private _isDirty = false;
 	private _backupCounter = 1;
 	private _backup?: vscode.NotebookDocumentBackup;
 	private _disposed = false;
