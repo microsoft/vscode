@@ -125,6 +125,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
 		if (options?.soft) {
 			await this._backupFileService.discardBackup(this.resource);
+			this.setDirty(false);
 			return;
 		}
 
