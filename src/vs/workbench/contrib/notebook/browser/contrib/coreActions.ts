@@ -232,7 +232,7 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_COMMAND_ID,
-			precondition: ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0),
+			precondition: ContextKeyExpr.or(ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0), NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 			title: localize('notebookActions.execute', "Execute Cell"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -447,7 +447,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0),
+			precondition: ContextKeyExpr.or(ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0), NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -484,7 +484,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_INSERT_BELOW,
-			precondition: ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0),
+			precondition: ContextKeyExpr.or(ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0), NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
