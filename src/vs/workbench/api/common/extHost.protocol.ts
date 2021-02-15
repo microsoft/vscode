@@ -1731,13 +1731,8 @@ export interface INotebookSelectionChangeEvent {
 	selections: number[];
 }
 
-export interface INotebookCellVisibleRange {
-	start: number;
-	end: number;
-}
-
 export interface INotebookVisibleRangesEvent {
-	ranges: INotebookCellVisibleRange[];
+	ranges: ICellRange[];
 }
 
 export interface INotebookEditorPropertiesChangeData {

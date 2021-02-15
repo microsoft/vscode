@@ -403,7 +403,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			resolvedOptions = {
 				position: typeConverters.ViewColumn.from(options.viewColumn),
 				preserveFocus: options.preserveFocus,
-				selection: options.selection,
+				selection: options.selection && typeConverters.NotebookCellRange.from(options.selection),
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined
 			};
 		} else {
@@ -608,7 +608,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (data.visibleRanges) {
-			editor.editor._acceptVisibleRanges(data.visibleRanges.ranges);
+			editor.editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookCellRange.to));
 			this._onDidChangeNotebookEditorVisibleRanges.fire({
 				notebookEditor: editor.editor,
 				visibleRanges: editor.editor.visibleRanges
@@ -643,7 +643,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: number[], visibleRanges: vscode.NotebookCellRange[]) {
+	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: number[], visibleRanges: extHostTypes.NotebookCellRange[]) {
 		const revivedUri = document.uri;
 		let webComm = this._webviewComm.get(editorId);
 
@@ -753,7 +753,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 				// create editor if populated
 				if (modelData.attachedEditor) {
-					this._createExtHostEditor(document, modelData.attachedEditor.id, modelData.attachedEditor.selections, modelData.attachedEditor.visibleRanges);
+					this._createExtHostEditor(document, modelData.attachedEditor.id, modelData.attachedEditor.selections, modelData.attachedEditor.visibleRanges.map(typeConverters.NotebookCellRange.to));
 					editorChanged = true;
 				}
 
@@ -773,7 +773,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const document = this._documents.get(revivedUri);
 
 				if (document) {
-					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections, editorModelData.visibleRanges);
+					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections, editorModelData.visibleRanges.map(typeConverters.NotebookCellRange.to));
 					editorChanged = true;
 				}
 			}

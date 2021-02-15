@@ -1116,13 +1116,14 @@ declare module 'vscode' {
 	}
 
 	// todo@API maybe have a NotebookCellPosition sibling
-	// todo@API should be a class
-	export interface NotebookCellRange {
+	export class NotebookCellRange {
 		readonly start: number;
 		/**
 		 * exclusive
 		 */
 		readonly end: number;
+
+		constructor(start: number, end: number);
 	}
 
 	export enum NotebookEditorRevealType {

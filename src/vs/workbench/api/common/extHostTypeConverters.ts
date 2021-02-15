@@ -31,7 +31,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { CellEditType, CellKind, ICellDto2, INotebookDecorationRenderOptions, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellDto2, ICellRange, INotebookDecorationRenderOptions, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITestItem, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
@@ -1341,6 +1341,17 @@ export namespace LanguageSelector {
 				exclusive: selector.exclusive
 			};
 		}
+	}
+}
+
+export namespace NotebookCellRange {
+
+	export function from(range: vscode.NotebookCellRange): ICellRange {
+		return { start: range.start, end: range.end };
+	}
+
+	export function to(range: ICellRange): types.NotebookCellRange {
+		return new types.NotebookCellRange(range.start, range.end);
 	}
 }
 
