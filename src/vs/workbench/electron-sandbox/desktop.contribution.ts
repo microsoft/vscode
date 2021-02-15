@@ -214,6 +214,12 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
 				ignoreSync: true
 			},
+			'window.cwdDefaultPath': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('cwdDefaultPath', "Use the current working directory as default file dialog location. When disabled, the current user\'s home directory will be used."),
+				ignoreSync: true
+			},
 			'window.newWindowDimensions': {
 				'type': 'string',
 				'enum': ['default', 'inherit', 'offset', 'maximized', 'fullscreen'],

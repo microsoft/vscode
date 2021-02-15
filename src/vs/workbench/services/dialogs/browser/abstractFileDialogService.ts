@@ -60,6 +60,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
+			const shouldUseCwd = await this.configurationService.getValue<boolean>('window.cwdDefaultPath');
+			if (shouldUseCwd && process.env['VSCODE_CWD'])	{
+				return this.pathService.fileURI(process.env['VSCODE_CWD']);
+			}
 			candidate = await this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		}
 
@@ -77,6 +81,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		if (!candidate) {
+			const shouldUseCwd = await this.configurationService.getValue<boolean>('window.cwdDefaultPath');
+			if (shouldUseCwd && process.env['VSCODE_CWD'])	{
+				return this.pathService.fileURI(process.env['VSCODE_CWD']);
+			}
 			return this.pathService.userHome({ preferLocal: schemeFilter === Schemas.file });
 		} else {
 			return resources.dirname(candidate);
