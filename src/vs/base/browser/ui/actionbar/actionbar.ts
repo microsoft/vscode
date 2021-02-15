@@ -147,9 +147,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const focusedItem = typeof this.focusedItem === 'number' ? this.viewItems[this.focusedItem] : undefined;
 
 			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
-				eventHandled = this.focusPrevious();
+				eventHandled = this.focusPrevious() && this.viewItems.length > 1;
 			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
-				eventHandled = this.focusNext();
+				eventHandled = this.focusNext() && this.viewItems.length > 1;
 			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
 			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
