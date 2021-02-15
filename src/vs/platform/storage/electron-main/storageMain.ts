@@ -8,11 +8,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
+import { Storage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 /**
  * Provides access to global and workspace storage from the
@@ -35,6 +36,11 @@ export interface IStorageMain {
 	 * persist the data properly.
 	 */
 	readonly onWillSaveState: Event<void>;
+
+	/**
+	 * Emitted when the storage is closed.
+	 */
+	readonly onDidCloseStorage: Event<void>;
 
 	/**
 	 * Access to all cached items of this storage service.
@@ -90,93 +96,43 @@ export interface IStorageChangeEvent {
 	key: string;
 }
 
-export class GlobalStorageMain extends Disposable implements IStorageMain {
+abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
-	private static readonly STORAGE_NAME = 'state.vscdb';
-
-	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState = this._register(new Emitter<void>());
+	protected readonly _onWillSaveState = this._register(new Emitter<void>());
 	readonly onWillSaveState = this._onWillSaveState.event;
 
-	get items(): Map<string, string> { return this.storage.items; }
+	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
+	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private storage: IStorage;
+	private storage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
 
-	private initializePromise: Promise<void> | undefined;
+	private initializePromise: Promise<void> | undefined = undefined;
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-	) {
+	constructor() {
 		super();
-
-		// Until the storage has been initialized, it can only be in memory
-		this.storage = new Storage(new InMemoryStorageDatabase());
-	}
-
-	private get storagePath(): string {
-		if (!!this.environmentService.extensionTestsLocationURI) {
-			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
-		}
-
-		return join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
-	}
-
-	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
-		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
-			logError: error => this.logService.error(error)
-		};
 	}
 
 	initialize(): Promise<void> {
 		if (!this.initializePromise) {
-			this.initializePromise = this.doInitialize();
+			this.initializePromise = (async () => {
+				const storage = await this.doInitialize();
+
+				// Replace our in-memory storage with the initialized
+				// one once that is finished and use it from then on
+				this.storage.dispose();
+				this.storage = storage;
+			})();
 		}
 
 		return this.initializePromise;
 	}
 
-	private async doInitialize(): Promise<void> {
-		this.storage.dispose();
-		this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
-			logging: this.createLogginOptions()
-		}));
+	protected abstract doInitialize(): Promise<Storage>;
 
-		this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
-
-		await this.storage.init();
-
-		// Check to see if this is the first time we are "opening" the application
-		const firstOpen = this.storage.getBoolean(IS_NEW_KEY);
-		if (firstOpen === undefined) {
-			this.storage.set(IS_NEW_KEY, true);
-		} else if (firstOpen) {
-			this.storage.set(IS_NEW_KEY, false);
-		}
-
-		// Apply global telemetry values as part of the initialization
-		this.storeTelemetryStateOnce();
-	}
-
-	private storeTelemetryStateOnce(): void {
-		const instanceId = this.get(instanceStorageKey, undefined);
-		if (instanceId === undefined) {
-			this.store(instanceStorageKey, generateUuid());
-		}
-
-		const firstSessionDate = this.get(firstSessionDateStorageKey, undefined);
-		if (firstSessionDate === undefined) {
-			this.store(firstSessionDateStorageKey, new Date().toUTCString());
-		}
-
-		const lastSessionDate = this.get(currentSessionDateStorageKey, undefined); // previous session date was the "current" one at that time
-		const currentSessionDate = new Date().toUTCString(); // current session date is "now"
-		this.store(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
-		this.store(currentSessionDateStorageKey, currentSessionDate);
-	}
+	get items(): Map<string, string> { return this.storage.items; }
 
 	get(key: string, fallbackValue: string): string;
 	get(key: string, fallbackValue?: string): string | undefined;
@@ -204,44 +160,112 @@ export class GlobalStorageMain extends Disposable implements IStorageMain {
 		return this.storage.delete(key);
 	}
 
+	async close(): Promise<void> {
+
+		// Propagate to storage lib
+		await this.storage.close();
+
+		// Signal as event
+		this._onDidCloseStorage.fire();
+	}
+}
+
+export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
+
+	private static readonly STORAGE_NAME = 'state.vscdb';
+
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
+	) {
+		super();
+	}
+
+	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
+		return {
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logError: error => this.logService.error(error)
+		};
+	}
+
+	protected async doInitialize(): Promise<Storage> {
+		let storagePath: string;
+		if (!!this.environmentService.extensionTestsLocationURI) {
+			storagePath = SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
+		} else {
+			storagePath = join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
+		}
+
+		const storage = new Storage(new SQLiteStorageDatabase(storagePath, {
+			logging: this.createLogginOptions()
+		}));
+
+		// Re-emit storage changes via event
+		this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
+
+		await storage.init();
+
+		// Check to see if this is the first time we are "opening" the application
+		const firstOpen = storage.getBoolean(IS_NEW_KEY);
+		if (firstOpen === undefined) {
+			storage.set(IS_NEW_KEY, true);
+		} else if (firstOpen) {
+			storage.set(IS_NEW_KEY, false);
+		}
+
+		// Apply global telemetry values as part of the initialization
+		this.updateTelemetryState(storage);
+
+		return storage;
+	}
+
+	private updateTelemetryState(storage: Storage): void {
+
+		// Instance UUID (once)
+		const instanceId = storage.get(instanceStorageKey, undefined);
+		if (instanceId === undefined) {
+			storage.set(instanceStorageKey, generateUuid());
+		}
+
+		// First session date (once)
+		const firstSessionDate = storage.get(firstSessionDateStorageKey, undefined);
+		if (firstSessionDate === undefined) {
+			storage.set(firstSessionDateStorageKey, new Date().toUTCString());
+		}
+
+		// Last / current session (always)
+		// previous session date was the "current" one at that time
+		// current session date is "now"
+		const lastSessionDate = storage.get(currentSessionDateStorageKey, undefined);
+		const currentSessionDate = new Date().toUTCString();
+		storage.set(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
+		storage.set(currentSessionDateStorageKey, currentSessionDate);
+	}
+
 	close(): Promise<void> {
 
 		// Signal as event so that clients can still store data
 		this._onWillSaveState.fire();
 
 		// Do it
-		return this.storage.close();
+		return super.close();
 	}
 }
 
-export class WorkspaceStorageMain extends Disposable implements IStorageMain {
+export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMain {
 
-	readonly onDidChangeStorage = Event.None;
-	readonly onWillSaveState = Event.None;
-
-	get items(): Map<string, string> { return this.storage.items; }
-
-	private storage: IStorage;
-
-	private initializePromise: Promise<void> | undefined;
-
-	constructor(
-	) {
+	constructor(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier) {
 		super();
-
-		// Until the storage has been initialized, it can only be in memory
-		this.storage = new Storage(new InMemoryStorageDatabase());
 	}
 
-	async initialize(): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = this.doInitialize();
-		}
+	protected async doInitialize(): Promise<Storage> {
+		const storage = new Storage(new InMemoryStorageDatabase());
 
-		return this.initializePromise;
-	}
+		// Re-emit storage changes via event
+		this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
-	private async doInitialize(): Promise<void> {
+		return storage;
+
 		// 	private async initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Promise<void> {
 
 		// 	// Prepare workspace storage folder for DB
@@ -336,35 +360,5 @@ export class WorkspaceStorageMain extends Disposable implements IStorageMain {
 		// 		})();
 		// 	}
 		// }
-	}
-
-	get(key: string, fallbackValue: string): string;
-	get(key: string, fallbackValue?: string): string | undefined;
-	get(key: string, fallbackValue?: string): string | undefined {
-		return this.storage.get(key, fallbackValue);
-	}
-
-	getBoolean(key: string, fallbackValue: boolean): boolean;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
-		return this.storage.getBoolean(key, fallbackValue);
-	}
-
-	getNumber(key: string, fallbackValue: number): number;
-	getNumber(key: string, fallbackValue?: number): number | undefined;
-	getNumber(key: string, fallbackValue?: number): number | undefined {
-		return this.storage.getNumber(key, fallbackValue);
-	}
-
-	store(key: string, value: string | boolean | number | undefined | null): Promise<void> {
-		return this.storage.set(key, value);
-	}
-
-	remove(key: string): Promise<void> {
-		return this.storage.delete(key);
-	}
-
-	close(): Promise<void> {
-		return this.storage.close();
 	}
 }

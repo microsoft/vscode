@@ -7,10 +7,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ISerializableItemsChangeEvent, ISerializableUpdateRequest, IWorkspaceArgument, Key, Value } from 'vs/platform/storage/common/storageIpc';
+import { ISerializableItemsChangeEvent, ISerializableUpdateRequest, ISerializableWorkspaceArgument, Key, Value } from 'vs/platform/storage/common/storageIpc';
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export class StorageDatabaseChannel extends Disposable implements IServerChannel {
 
@@ -80,10 +80,11 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 	//#endregion
 
-	async call(_: unknown, command: string, arg: IWorkspaceArgument): Promise<any> {
+	async call(_: unknown, command: string, arg: ISerializableWorkspaceArgument): Promise<any> {
+		const workspace = reviveIdentifier(arg.workspace);
 
 		// Get storage to be ready
-		const storage = await this.withStorageInitialized(arg.workspace);
+		const storage = await this.withStorageInitialized(workspace);
 
 		// handle call
 		switch (command) {
@@ -107,7 +108,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 			}
 
 			case 'close': {
-				if (arg.workspace) {
+				if (workspace) {
 					// Only allow to close workspace storage databases but not
 					// the global database that is shared across multiple connections
 					return storage.close();
@@ -127,7 +128,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		try {
 			await storage.initialize();
 		} catch (error) {
-			this.logService.error(`[storage] init(): Unable to init ${workspace ? 'workspace' : 'global'} storage due to ${error}`);
+			this.logService.error(`StorageIPC#init: Unable to init ${workspace ? 'workspace' : 'global'} storage due to ${error}`);
 		}
 
 		return storage;

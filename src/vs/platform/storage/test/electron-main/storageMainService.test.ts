@@ -56,44 +56,53 @@ flakySuite('StorageMainService (native)', function () {
 
 		// Telemetry: added after init
 		if (isGlobal) {
-			strictEqual(storageMainService.globalStorage.items.size, 0);
-			strictEqual(storageMainService.globalStorage.get(instanceStorageKey), undefined);
-			await storageMainService.globalStorage.initialize();
-			strictEqual(typeof storageMainService.globalStorage.get(instanceStorageKey), 'string');
+			strictEqual(storage.items.size, 0);
+			strictEqual(storage.get(instanceStorageKey), undefined);
+			await storage.initialize();
+			strictEqual(typeof storage.get(instanceStorageKey), 'string');
 		}
 
 		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
-		const listener = storageMainService.globalStorage.onDidChangeStorage(e => {
+		const storageChangeListener = storage.onDidChangeStorage(e => {
 			storageChangeEvent = e;
 		});
 
+		let storageDidClose = false;
+		const storageCloseListener = storage.onDidCloseStorage(() => storageDidClose = true);
+
 		// Basic store/get/remove
-		const size = storageMainService.globalStorage.items.size;
+		const size = storage.items.size;
 
-		storageMainService.globalStorage.store('bar', 'foo');
+		storage.store('bar', 'foo');
 		strictEqual(storageChangeEvent!.key, 'bar');
-		storageMainService.globalStorage.store('barNumber', 55);
-		storageMainService.globalStorage.store('barBoolean', true);
+		storage.store('barNumber', 55);
+		storage.store('barBoolean', true);
 
-		strictEqual(storageMainService.globalStorage.get('bar'), 'foo');
-		strictEqual(storageMainService.globalStorage.getNumber('barNumber'), 55);
-		strictEqual(storageMainService.globalStorage.getBoolean('barBoolean'), true);
+		strictEqual(storage.get('bar'), 'foo');
+		strictEqual(storage.getNumber('barNumber'), 55);
+		strictEqual(storage.getBoolean('barBoolean'), true);
 
-		strictEqual(storageMainService.globalStorage.items.size, size + 3);
+		strictEqual(storage.items.size, size + 3);
 
-		storageMainService.globalStorage.remove('bar');
-		strictEqual(storageMainService.globalStorage.get('bar'), undefined);
+		storage.remove('bar');
+		strictEqual(storage.get('bar'), undefined);
 
-		strictEqual(storageMainService.globalStorage.items.size, size + 2);
+		strictEqual(storage.items.size, size + 2);
 
-		listener.dispose();
+		// Close
+		await storage.close();
+
+		strictEqual(storageDidClose, true);
+
+		storageChangeListener.dispose();
+		storageCloseListener.dispose();
 	}
 
-	test('basics (global)', async function () {
-		testStorage(storageMainService.globalStorage, true);
+	test('basics (global)', function () {
+		return testStorage(storageMainService.globalStorage, true);
 	});
 
-	test('basics (workspace)', async function () {
-		testStorage(storageMainService.workspaceStorage({ id: generateUuid(), uri: URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace') }), false);
+	test('basics (workspace)', function () {
+		return testStorage(storageMainService.workspaceStorage({ id: generateUuid(), uri: URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace') }), false);
 	});
 });

@@ -161,7 +161,13 @@ export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier
 	return typeof workspaceIdentifier?.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
 }
 
-export function reviveIdentifier(identifier: { id: string, uri?: UriComponents, configPath?: UriComponents } | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+export interface ISerializedWorkspaceIdentifier {
+	id: string;
+	uri?: UriComponents;
+	configPath?: UriComponents;
+}
+
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
 	if (identifier?.uri) {
 		return { id: identifier.id, uri: URI.revive(identifier.uri) };
 	}
