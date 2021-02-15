@@ -156,7 +156,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		if (metrics.meminfo) {
 			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / ByteSize.KB).toFixed(2)} MB working set(${(metrics.meminfo.privateBytes / ByteSize.KB).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / ByteSize.KB).toFixed(2)}MB shared)`);
 		}
-		md.li(`VM(likelyhood): ${metrics.isVMLikelyhood}%`);
+		md.li(`VM(likelihood): ${metrics.isVMLikelihood}%`);
 		md.li(`Initial Startup: ${metrics.initialStartup}`);
 		md.li(`Has ${metrics.windowCount - 1} other windows`);
 		md.li(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);

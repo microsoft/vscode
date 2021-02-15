@@ -68,7 +68,7 @@ export class TimerService extends AbstractTimerService {
 				sharedBytes: processMemoryInfo.shared
 			};
 
-			info.isVMLikelyhood = Math.round((virtualMachineHint * 100));
+			info.isVMLikelihood = Math.round((virtualMachineHint * 100));
 
 			const rawCpus = osProperties.cpus;
 			if (rawCpus && rawCpus.length > 0) {
