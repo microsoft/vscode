@@ -232,6 +232,7 @@ export class OutlinePane extends ViewPane {
 				...newOutline.config.options,
 				sorter,
 				openOnSingleClick: true,
+				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
