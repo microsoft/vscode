@@ -544,6 +544,9 @@ class ProcAutomaticPortForwarding extends Disposable {
 			if (this.initialCandidates.has(address)) {
 				return undefined;
 			}
+			if (this.notifiedOnly.has(address) || this.autoForwarded.has(address)) {
+				return undefined;
+			}
 			const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, value.host, value.port);
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, value.host, value.port)) {
 				return undefined;
