@@ -33,6 +33,7 @@ suite('Notebook Document', function () {
 	const disposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
+		utils.assertNoRpc();
 		await utils.revertAllDirty();
 		await utils.closeAllEditors();
 		utils.disposeAll(disposables);
