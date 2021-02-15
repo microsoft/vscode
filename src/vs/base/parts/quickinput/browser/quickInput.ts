@@ -56,7 +56,7 @@ export interface IQuickInputStyles {
 	countBadge: ICountBadgetyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
-	list: IListStyles & { listInactiveFocusForeground?: Color; pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
 }
 
 export interface IQuickInputWidgetStyles {
@@ -1706,10 +1706,6 @@ export class QuickInputController extends Disposable {
 			this.ui.list.style(this.styles.list);
 
 			const content: string[] = [];
-			if (this.styles.list.listInactiveFocusForeground) {
-				content.push(`.monaco-list .monaco-list-row.focused { color:  ${this.styles.list.listInactiveFocusForeground}; }`);
-				content.push(`.monaco-list .monaco-list-row.focused:hover { color:  ${this.styles.list.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
-			}
 			if (this.styles.list.pickerGroupBorder) {
 				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.list.pickerGroupBorder}; }`);
 			}
