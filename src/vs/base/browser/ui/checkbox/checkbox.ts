@@ -76,6 +76,26 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	focus(): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = 0;
+			this.checkbox.focus();
+		}
+	}
+
+	blur(): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = -1;
+			this.checkbox.domNode.blur();
+		}
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
+		}
+	}
+
 	dispose(): void {
 		this.disposables.dispose();
 		super.dispose();
@@ -191,7 +211,6 @@ export class Checkbox extends Widget {
 	}
 
 	enable(): void {
-		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
