@@ -48,11 +48,6 @@ export class StorageMainService implements IStorageMainService {
 
 		const globalStorage = new GlobalStorageMain(this.logService, this.environmentService);
 
-		// Trigger init of global storage directly from here
-		// so that we can be ready for access when the window
-		// needs it (prevents waterfall of initialization)
-		globalStorage.initialize();
-
 		return globalStorage;
 	}
 
