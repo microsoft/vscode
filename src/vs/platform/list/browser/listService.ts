@@ -1017,7 +1017,7 @@ configurationRegistry.registerConfiguration({
 			'description': localize({
 				key: 'openModeModifier',
 				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
-			}, "Controls how to open items in trees and lists using the mouse (if supported). For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable. ")
+			}, "Controls how to open items in trees and lists using the mouse (if supported). For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable.")
 		},
 		[horizontalScrollingKey]: {
 			'type': 'boolean',
@@ -1062,7 +1062,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
 			default: 'doubleClick',
-			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names."),
+			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
 		}
 	}
 });
