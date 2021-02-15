@@ -324,12 +324,11 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<NativeStorageService | NativeStorageService2> {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), payload);
-
 		let storageService: NativeStorageService | NativeStorageService2;
 		if (this.configuration.enableExperimentalMainProcessWorkspaceStorage) {
-			storageService = new NativeStorageService2(storageDataBaseClient.globalStorage, storageDataBaseClient.workspaceStorage, this.environmentService);
+			storageService = new NativeStorageService2(payload, mainProcessService, this.environmentService);
 		} else {
+			const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), payload);
 			storageService = new NativeStorageService(storageDataBaseClient.globalStorage, logService, this.environmentService);
 		}
 

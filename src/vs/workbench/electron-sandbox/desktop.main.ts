@@ -18,7 +18,6 @@ import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIni
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService2 } from 'vs/platform/storage/electron-sandbox/storageService2';
 import { Schemas } from 'vs/base/common/network';
-import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -297,8 +296,7 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService2> {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), payload);
-		const storageService = new NativeStorageService2(storageDataBaseClient.globalStorage, storageDataBaseClient.workspaceStorage, this.environmentService);
+		const storageService = new NativeStorageService2(payload, mainProcessService, this.environmentService);
 
 		try {
 			await storageService.initialize();

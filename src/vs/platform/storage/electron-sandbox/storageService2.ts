@@ -5,29 +5,36 @@
 
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { StorageScope, WillSaveStateReason, logStorage, AbstractStorageService } from 'vs/platform/storage/common/storage';
-import { Storage, IStorageDatabase, IStorage } from 'vs/base/parts/storage/common/storage';
+import { Storage, IStorage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { mark } from 'vs/base/common/performance';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
+import { joinPath } from 'vs/base/common/resources';
 
 export class NativeStorageService2 extends AbstractStorageService {
 
-	private readonly globalStorage = new Storage(this.globalStorageDatabase);
-	private readonly workspaceStorage = this.workspaceStorageDatabase ? new Storage(this.workspaceStorageDatabase) : undefined;
+	private readonly globalStorage: IStorage;
+	private readonly workspaceStorage: IStorage | undefined;
 
 	private initializePromise: Promise<void> | undefined;
 
-	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 60000 /* every minute */));
+	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 60 * 1000 /* every minute */));
 	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
-		private globalStorageDatabase: IStorageDatabase,
-		private workspaceStorageDatabase: IStorageDatabase | undefined,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
+		mainProcessService: IMainProcessService,
+		private readonly environmentService: IEnvironmentService
 	) {
 		super();
+
+		const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), workspace);
+		this.globalStorage = new Storage(storageDataBaseClient.globalStorage);
+		this.workspaceStorage = storageDataBaseClient.workspaceStorage ? new Storage(storageDataBaseClient.workspaceStorage) : undefined;
 
 		this.registerListeners();
 	}
@@ -139,7 +146,8 @@ export class NativeStorageService2 extends AbstractStorageService {
 			this.globalStorage.items,
 			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(),
 			this.environmentService.globalStorageHome.fsPath,
-			/* this.workspaceStoragePath || */ '');
+			this.workspace ? joinPath(this.environmentService.workspaceStorageHome, this.workspace.id, 'state.vscdb').fsPath : ''
+		);
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
