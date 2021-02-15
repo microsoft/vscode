@@ -16,7 +16,7 @@ import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 /**
  * Provides access to global and workspace storage from the
@@ -114,8 +114,26 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	private initializePromise: Promise<void> | undefined = undefined;
 
-	constructor(protected readonly logService: ILogService) {
+	constructor(
+		protected readonly logService: ILogService,
+		private readonly lifecycleMainService: ILifecycleMainService
+	) {
 		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Lifecycle: Warmup (in parallel to window open)
+		(async () => {
+			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
+
+			this.initialize();
+		})();
+
+		// Lifecycle: Shutdown
+		this.lifecycleMainService.onWillShutdown(e => e.join(this.close()));
 	}
 
 	initialize(): Promise<void> {
@@ -199,17 +217,9 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	constructor(
 		logService: ILogService,
 		private readonly environmentService: IEnvironmentService,
-		private readonly lifecycleMainService: ILifecycleMainService
+		lifecycleMainService: ILifecycleMainService
 	) {
-		super(logService);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Lifecycle
-		this.lifecycleMainService.onWillShutdown(e => e.join(this.close()));
+		super(logService, lifecycleMainService);
 	}
 
 	protected async doInitialize(): Promise<IStorage> {
@@ -278,9 +288,10 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 	constructor(
 		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		lifecycleMainService: ILifecycleMainService
 	) {
-		super(logService);
+		super(logService, lifecycleMainService);
 	}
 
 	protected async doInitialize(): Promise<IStorage> {

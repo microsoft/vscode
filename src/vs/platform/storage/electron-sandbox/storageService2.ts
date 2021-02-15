@@ -146,7 +146,7 @@ export class NativeStorageService2 extends AbstractStorageService {
 			this.globalStorage.items,
 			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(),
 			this.environmentService.globalStorageHome.fsPath,
-			this.workspace ? joinPath(this.environmentService.workspaceStorageHome, this.workspace.id, 'state.vscdb').fsPath : ''
+			this.workspace ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspace.id, 'state.vscdb').fsPath} [!!! Experimental Main Storage !!!]` : ''
 		);
 	}
 

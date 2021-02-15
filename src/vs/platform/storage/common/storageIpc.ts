@@ -57,9 +57,14 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 	}
 
 	async close(): Promise<void> {
-		const serializableRequest: IBaseSerializableStorageRequest = { workspace: this.workspace };
 
-		return this.channel.call('close', serializableRequest);
+		// The database connection is not owned by us, but rather on the
+		// main side, as such we do not forward the close() request but
+		// let main side handle this properly via lifecycle methods.
+		//
+		// However, we cleanup our listeners  because we are no longer
+		// interested in change events from the global database
+		this.dispose();
 	}
 }
 
@@ -85,15 +90,6 @@ class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements I
 				deleted: e.deleted ? new Set<string>(e.deleted) : undefined
 			});
 		}
-	}
-
-	close(): Promise<void> {
-
-		// Remove our listeners on `close` because we are no longer
-		// interested in change events from the global database
-		this.dispose();
-
-		return super.close();
 	}
 }
 

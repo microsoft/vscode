@@ -5,7 +5,7 @@
 
 import { promises } from 'fs';
 import { tmpdir } from 'os';
-import { strictEqual } from 'assert';
+import { notStrictEqual, strictEqual } from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { rimraf } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -18,10 +18,11 @@ import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-
 import { generateUuid } from 'vs/base/common/uuid';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
-import { ILifecycleMainService, LifecycleMainPhase, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { Event } from 'vs/base/common/event';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { Emitter, Event } from 'vs/base/common/event';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { Promises } from 'vs/base/common/async';
 
 flakySuite('StorageMainService (native)', function () {
 
@@ -49,7 +50,24 @@ flakySuite('StorageMainService (native)', function () {
 		_serviceBrand: undefined;
 
 		onBeforeShutdown = Event.None;
-		onWillShutdown = Event.None;
+
+		private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
+		readonly onWillShutdown = this._onWillShutdown.event;
+
+		async fireOnWillShutdown(): Promise<void> {
+			const joiners: Promise<void>[] = [];
+
+			this._onWillShutdown.fire({
+				join(promise) {
+					if (promise) {
+						joiners.push(promise);
+					}
+				}
+			});
+
+			await Promises.settled(joiners);
+		}
+
 		onBeforeWindowClose = Event.None;
 		onBeforeWindowUnload = Event.None;
 
@@ -165,5 +183,29 @@ flakySuite('StorageMainService (native)', function () {
 
 			return storageMainService.workspaceStorage(workspace);
 		}, false);
+	});
+
+	test('storage closed onWillShutdown', async function () {
+		const lifecycleMainService = new StorageTestLifecycleMainService();
+		const workspace = { id: generateUuid() };
+		const storageMainService = new StorageMainService(new NullLogService(), environmentService, lifecycleMainService);
+
+		let storage = storageMainService.workspaceStorage(workspace);
+		let didCloseStorage = false;
+		storage.onDidCloseStorage(() => {
+			didCloseStorage = true;
+		});
+
+		strictEqual(storage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
+
+		await storage.initialize();
+
+		await lifecycleMainService.fireOnWillShutdown();
+		strictEqual(didCloseStorage, true);
+
+		let storage2 = storageMainService.workspaceStorage(workspace);
+		notStrictEqual(storage, storage2);
+
+		return storage2.close();
 	});
 });

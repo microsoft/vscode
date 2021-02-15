@@ -48,7 +48,13 @@ export class StorageMainService implements IStorageMainService {
 			return this.globalStorage; // only once
 		}
 
+		this.logService.trace(`StorageMainService: creating global storage`);
+
 		const globalStorage = new GlobalStorageMain(this.logService, this.environmentService, this.lifecycleMainService);
+
+		once(globalStorage.onDidCloseStorage)(() => {
+			this.logService.trace(`StorageMainService: closed global storage`);
+		});
 
 		return globalStorage;
 	}
@@ -61,7 +67,7 @@ export class StorageMainService implements IStorageMainService {
 	private readonly mapWorkspaceToStorage = new Map<string, IStorageMain>();
 
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
-		const workspaceStorage = new WorkspaceStorageMain(workspace, this.logService, this.environmentService);
+		const workspaceStorage = new WorkspaceStorageMain(workspace, this.logService, this.environmentService, this.lifecycleMainService);
 
 		return workspaceStorage;
 	}
