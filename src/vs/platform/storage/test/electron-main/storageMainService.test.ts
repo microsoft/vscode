@@ -16,9 +16,12 @@ import { StorageMainService } from 'vs/platform/storage/electron-main/storageMai
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { generateUuid } from 'vs/base/common/uuid';
-import { isWindows } from 'vs/base/common/platform';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { joinPath } from 'vs/base/common/resources';
+import { ILifecycleMainService, LifecycleMainPhase, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { Event } from 'vs/base/common/event';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 
 flakySuite('StorageMainService (native)', function () {
 
@@ -39,6 +42,28 @@ flakySuite('StorageMainService (native)', function () {
 		get extensionsPath(): string {
 			return this._extensionsPath;
 		}
+	}
+
+	class StorageTestLifecycleMainService implements ILifecycleMainService {
+
+		_serviceBrand: undefined;
+
+		onBeforeShutdown = Event.None;
+		onWillShutdown = Event.None;
+		onBeforeWindowClose = Event.None;
+		onBeforeWindowUnload = Event.None;
+
+		wasRestarted = false;
+		quitRequested = false;
+
+		phase = LifecycleMainPhase.Ready;
+
+		async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> { }
+		async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean> { return true; }
+		relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; }): void { }
+		async quit(fromUpdate?: boolean): Promise<boolean> { return true; }
+		async kill(code?: number): Promise<void> { }
+		async when(phase: LifecycleMainPhase): Promise<void> { }
 	}
 
 	let testDir: string;
@@ -126,17 +151,17 @@ flakySuite('StorageMainService (native)', function () {
 
 	test('basics (global)', function () {
 		return testStorage(() => {
-			const storageMainService = new StorageMainService(new NullLogService(), environmentService);
+			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService());
 
 			return storageMainService.globalStorage;
 		}, true);
 	});
 
 	test('basics (workspace)', function () {
-		const workspace = { id: generateUuid(), uri: URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace') };
+		const workspace = { id: generateUuid() };
 
 		return testStorage(() => {
-			const storageMainService = new StorageMainService(new NullLogService(), environmentService);
+			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService());
 
 			return storageMainService.workspaceStorage(workspace);
 		}, false);

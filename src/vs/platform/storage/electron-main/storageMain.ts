@@ -16,6 +16,7 @@ import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 /**
  * Provides access to global and workspace storage from the
@@ -197,9 +198,18 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 	constructor(
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService
+		private readonly environmentService: IEnvironmentService,
+		private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super(logService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Lifecycle
+		this.lifecycleMainService.onWillShutdown(e => e.join(this.close()));
 	}
 
 	protected async doInitialize(): Promise<IStorage> {

@@ -580,9 +580,7 @@ export class CodeApplication extends Disposable {
 		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
 
 		// Storage
-		const storageMainService = new StorageMainService(this.logService, this.environmentService);
-		services.set(IStorageMainService, storageMainService);
-		this.lifecycleMainService.onWillShutdown(e => e.join(storageMainService.globalStorage.close()));
+		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);

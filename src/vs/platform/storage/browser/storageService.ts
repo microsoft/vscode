@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { runWhenIdle, RunOnceScheduler, Promises } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -131,14 +131,12 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	async logStorage(): Promise<void> {
-		const [globalStorage, workspaceStorage, globalStorageFile, workspaceStorageFile] = assertAllDefined(this.globalStorage, this.workspaceStorage, this.globalStorageFile, this.workspaceStorageFile);
-
-		const result = await Promise.all([
-			globalStorage.items,
-			workspaceStorage.items
-		]);
-
-		return logStorage(result[0], result[1], globalStorageFile.toString(), workspaceStorageFile.toString());
+		return logStorage(
+			assertIsDefined(this.globalStorage).items,
+			assertIsDefined(this.workspaceStorage).items,
+			assertIsDefined(this.globalStorageFile).toString(),
+			assertIsDefined(this.workspaceStorageFile).toString()
+		);
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
