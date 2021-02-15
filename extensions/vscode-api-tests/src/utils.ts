@@ -48,6 +48,10 @@ export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 }
 
+export function saveAllEditors(): Thenable<any> {
+	return vscode.commands.executeCommand('workbench.action.files.saveAll');
+}
+
 export async function revertAllDirty(): Promise<void> {
 	return vscode.commands.executeCommand('_workbench.revertAllDirty');
 }

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, disposeAll, asPromise, closeAllEditors, assertNoRpc } from '../utils';
+import * as utils from '../utils';
 
 suite('Notebook Document', function () {
 
@@ -33,14 +33,13 @@ suite('Notebook Document', function () {
 	const disposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
-		assertNoRpc();
-		await vscode.commands.executeCommand('workbench.action.files.saveAll');
-		await closeAllEditors();
-		disposeAll(disposables);
+		await utils.revertAllDirty();
+		await utils.closeAllEditors();
+		utils.disposeAll(disposables);
 		disposables.length = 0;
 
 		for (let doc of vscode.notebook.notebookDocuments) {
-			assert.strictEqual(doc.isDirty, false)
+			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
 		}
 	});
 
@@ -64,7 +63,7 @@ suite('Notebook Document', function () {
 	});
 
 	test('document basics', async function () {
-		const uri = await createRandomFile(undefined, undefined, '.nbdtest');
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.notebook.openNotebookDocument(uri);
 
 		assert.strictEqual(notebook.uri.toString(), uri.toString());
@@ -76,9 +75,9 @@ suite('Notebook Document', function () {
 	});
 
 	test('notebook open/close, notebook ready when cell-document open event is fired', async function () {
-		const uri = await createRandomFile(undefined, undefined, '.nbdtest');
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let didHappen = false;
-		const p = asPromise(vscode.workspace.onDidOpenTextDocument).then(doc => {
+		const p = utils.asPromise(vscode.workspace.onDidOpenTextDocument).then(doc => {
 			if (doc.uri.scheme !== 'vscode-notebook-cell') {
 				return;
 			}
@@ -96,9 +95,9 @@ suite('Notebook Document', function () {
 	});
 
 	test('notebook open/close, all cell-documents are ready', async function () {
-		const uri = await createRandomFile(undefined, undefined, '.nbdtest');
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
-		const p = asPromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
+		const p = utils.asPromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
 			for (let cell of notebook.cells) {
 				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.uri.toString());
 				assert.ok(doc);
@@ -116,7 +115,7 @@ suite('Notebook Document', function () {
 
 
 	test('workspace edit API (replaceCells)', async function () {
-		const uri = await createRandomFile(undefined, undefined, '.nbdtest');
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
 		const document = await vscode.notebook.openNotebookDocument(uri);
 		assert.strictEqual(document.cells.length, 1);
@@ -192,7 +191,7 @@ suite('Notebook Document', function () {
 	});
 
 	test('workspace edit API (replaceCells, event)', async function () {
-		const uri = await createRandomFile(undefined, undefined, '.nbdtest');
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const document = await vscode.notebook.openNotebookDocument(uri);
 		assert.strictEqual(document.cells.length, 1);
 
@@ -211,7 +210,7 @@ suite('Notebook Document', function () {
 			source: 'new_code'
 		}]);
 
-		const event = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		const event = utils.asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, true);

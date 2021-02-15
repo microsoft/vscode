@@ -10,7 +10,8 @@ import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { IExtUri } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
+import { IExtUri, isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,6 +31,7 @@ import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection }
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
@@ -121,6 +123,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookService private _notebookService: INotebookService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -202,6 +205,22 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	registerListeners() {
+
+		// forward changes to dirty state
+		// todo@bpasero this seem way too complicated... is there an easy way to
+		// the actual resource from a working copy?
+		this._register(this._workingCopyService.onDidChangeDirty(e => {
+			if (e.resource.scheme !== Schemas.vscodeNotebook) {
+				return;
+			}
+			for (const notebook of this._notebookService.getNotebookTextModels()) {
+				if (isEqual(notebook.uri.with({ scheme: Schemas.vscodeNotebook }), e.resource)) {
+					this._proxy.$acceptDirtyStateChanged(notebook.uri, e.isDirty());
+					break;
+				}
+			}
+		}));
+
 		this._notebookService.listNotebookEditors().forEach((e) => {
 			this._addNotebookEditor(e);
 		});
