@@ -761,6 +761,11 @@ export class DefaultStyleController implements IStyleController {
 			`);
 		}
 
+		if (styles.listInactiveFocusForeground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused { color:  ${styles.listInactiveFocusForeground}; }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { color:  ${styles.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
+		}
+
 		if (styles.listInactiveFocusBackground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
@@ -867,6 +872,7 @@ export interface IListStyles {
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
 	listInactiveSelectionForeground?: Color;
+	listInactiveFocusForeground?: Color;
 	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
 	listHoverForeground?: Color;
