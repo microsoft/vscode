@@ -181,6 +181,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 	}
 
+	get isFocusable(): boolean {
+		return this.element?.tabIndex === 0;
+	}
+
 	setFocusable(focusable: boolean): void {
 		if (this.element) {
 			this.element.tabIndex = focusable ? 0 : -1;
@@ -286,6 +290,10 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.label) {
 			this.label.tabIndex = -1;
 		}
+	}
+
+	get isFocusable(): boolean {
+		return this.label?.tabIndex === 0;
 	}
 
 	setFocusable(focusable: boolean): void {
