@@ -57,11 +57,11 @@ async function downloadExtensionDetails(extension) {
     }
     // Validation
     if (!((_a = results.find(r => r.fileName === 'package.json')) === null || _a === void 0 ? void 0 : _a.body)) {
-        throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
+        // throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
     }
     if (!((_b = results.find(r => r.fileName === 'package-lock.json')) === null || _b === void 0 ? void 0 : _b.body) &&
         !((_c = results.find(r => r.fileName === 'yarn.lock')) === null || _c === void 0 ? void 0 : _c.body)) {
-        throw new Error(`The "package-lock.json"/"yarn.lock" could not be found for the built-in extension - ${extensionLabel}`);
+        // throw new Error(`The "package-lock.json"/"yarn.lock" could not be found for the built-in extension - ${extensionLabel}`);
     }
 }
 async function main() {

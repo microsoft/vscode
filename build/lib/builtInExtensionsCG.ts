@@ -59,11 +59,11 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 
 	// Validation
 	if (!results.find(r => r.fileName === 'package.json')?.body) {
-		throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
+		// throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
 	}
 	if (!results.find(r => r.fileName === 'package-lock.json')?.body &&
 		!results.find(r => r.fileName === 'yarn.lock')?.body) {
-		throw new Error(`The "package-lock.json"/"yarn.lock" could not be found for the built-in extension - ${extensionLabel}`);
+		// throw new Error(`The "package-lock.json"/"yarn.lock" could not be found for the built-in extension - ${extensionLabel}`);
 	}
 }
 
