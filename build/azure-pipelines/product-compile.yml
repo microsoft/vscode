@@ -138,6 +138,11 @@ steps:
       artifactName: Compilation
     displayName: Publish compilation artifact
 
+  - script: |
+      set -e
+      yarn download-builtin-extensions-cg
+    displayName: Built-in extensions component details
+
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"
     inputs:
