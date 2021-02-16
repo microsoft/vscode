@@ -16,6 +16,7 @@ const util = require("./util");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
+const replace = require('gulp-replace');
 const watch = require('./watch');
 const reporter = reporter_1.createReporter();
 function getTypeScriptCompilerOptions(src) {
@@ -35,8 +36,24 @@ function getTypeScriptCompilerOptions(src) {
 function createCompile(src, build, emitError) {
     const tsb = require('gulp-tsb');
     const sourcemaps = require('gulp-sourcemaps');
+    const rootDir = path.dirname(path.dirname(__dirname));
+    const product = JSON.parse(fs.readFileSync(path.join(rootDir, 'product.json'), 'utf-8'));
+    // Running out of sources
+    if (!build) {
+        Object.assign(product, {
+            nameShort: `${product.nameShort} Dev`,
+            nameLong: `${product.nameLong} Dev`,
+            dataFolderName: `${product.dataFolderName}-dev`
+        });
+    }
+    Object.assign(product, {
+        commit: util.getVersion(rootDir),
+        date: new Date().toISOString(),
+        version: JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8')).version
+    });
+    const productJson = JSON.stringify(product, undefined, 4);
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
-    const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
+    const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: true });
     const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');
@@ -45,6 +62,7 @@ function createCompile(src, build, emitError) {
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
         const input = es.through();
         const output = input
+            .pipe(replace(/{\s*\/\*BUILD->INSERT_PRODUCT_CONFIGURATION\*\/\s*}/, productJson, { skipBinary: true }))
             .pipe(utf8Filter)
             .pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(utf8Filter.restore)
@@ -56,7 +74,7 @@ function createCompile(src, build, emitError) {
             .pipe(noDeclarationsFilter.restore)
             .pipe(sourcemaps.write('.', {
             addComment: false,
-            includeContent: !!build,
+            includeContent: true,
             sourceRoot: overrideOptions.sourceRoot
         }))
             .pipe(tsFilter.restore)

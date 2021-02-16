@@ -6,6 +6,7 @@ ports:
 tasks:
   - init: |
       yarn
+      yarn --cwd ./build compile
       yarn compile
       yarn download-builtin-extensions
     command: |

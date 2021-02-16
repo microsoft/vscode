@@ -34,6 +34,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRawURITransformer, transformIncomingURIs, transformOutgoingURIs, URITransformer } from 'vs/base/common/uriIpc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { mkdirp, readdir, rimraf, unlink } from 'vs/base/node/pfs';
+import { getSystemShellSync } from 'vs/base/node/shell';
 import { ClientConnectionEvent, IPCServer, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
@@ -73,11 +74,10 @@ import { IFileChangeDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IGetTerminalCwdArguments, IGetTerminalInitialCwdArguments, IOnTerminalProcessEventArguments, IRemoteTerminalDescriptionDto, IResizeTerminalProcessArguments, ISendInputToTerminalProcessArguments, IShutdownTerminalProcessArguments, IStartTerminalProcessArguments, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { IShellLaunchConfig, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IGetTerminalCwdArguments, IGetTerminalInitialCwdArguments, IGetTerminalLayoutInfoArgs, IOnTerminalProcessEventArguments, IRemoteTerminalDescriptionDto, IResizeTerminalProcessArguments, ISendCharCountToTerminalProcessArguments, ISendInputToTerminalProcessArguments, ISetTerminalLayoutInfoArgs, IShutdownTerminalProcessArguments, IStartTerminalProcessArguments, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { IRawTerminalTabLayoutInfo, IRemoteTerminalAttachTarget, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { IExtHostReadyMessage, IExtHostSocketMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -315,7 +315,8 @@ async function main(): Promise<void> {
 					globalStorageHome: environmentService.globalStorageHome,
 					workspaceStorageHome: environmentService.workspaceStorageHome,
 					userHome: environmentService.userHome,
-					os: platform.OS
+					os: platform.OS,
+					marks: []
 				} as IRemoteAgentEnvironmentDTO, uriTranformer);
 			}
 			if (command === 'scanSingleExtension') {
@@ -450,11 +451,11 @@ async function main(): Promise<void> {
 	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 
-	let resolveSynchingTasks: (tasks: Map<string, TaskStatus>) => void;
-	const synchingTasks = new Promise<Map<string, TaskStatus>>(resolve => resolveSynchingTasks = resolve);
-	(async () => {
+	const synchingTasks = (async () => {
 		const tasks = new Map<string, TaskStatus>();
-		while (true) {
+		console.log('code server: synching tasks...');
+		let syhched = false;
+		while (!syhched) {
 			try {
 				const req = new TasksStatusRequest();
 				req.setObserve(true);
@@ -463,15 +464,12 @@ async function main(): Promise<void> {
 					stream.on('end', resolve);
 					stream.on('error', reject);
 					stream.on('data', (response: TasksStatusResponse) => {
-						let synched = true;
-						for (const task of response.getTasksList()) {
-							tasks.set(task.getTerminal(), task);
-							if (task.getState() === TaskState.OPENING) {
-								synched = false;
-							}
-						}
-						if (synched) {
-							resolveSynchingTasks(tasks);
+						if (response.getTasksList().every(status => {
+							tasks.set(status.getTerminal(), status);
+							return status.getState() !== TaskState.OPENING;
+						})) {
+							syhched = true;
+							stream.cancel();
 						}
 					});
 				});
@@ -480,8 +478,23 @@ async function main(): Promise<void> {
 					console.error('code server: listening task updates failed:', err);
 				}
 			}
+			if (!syhched) {
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
 		}
+		console.log('code server: tasks syhched');
+		return tasks;
 	})();
+
+	type TerminalOpenMode = 'split-top' | 'split-left' | 'split-right' | 'split-bottom' | 'tab-before' | 'tab-after';
+	const defaultOpenMode: TerminalOpenMode = 'tab-after';
+	const terminalOpenModes: Set<TerminalOpenMode> = new Set(['split-top', 'split-left', 'split-right', 'split-bottom', 'tab-before', 'tab-after']);
+	function asTerminalOpenMode(mode: any): TerminalOpenMode {
+		if (terminalOpenModes.has(mode)) {
+			return mode;
+		}
+		return defaultOpenMode;
+	}
 
 	class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentConnectionContext> {
 		private terminalIdSeq = 0;
@@ -498,6 +511,7 @@ async function main(): Promise<void> {
 				}
 			}
 		);
+		private readonly layoutInfo = new Map<string, ITerminalTabLayoutInfoById[]>();
 		private createTerminalProcess(
 			initialCwd: string,
 			workspaceId: string,
@@ -568,7 +582,7 @@ async function main(): Promise<void> {
 					shellLaunchConfig.executable = terminalEnvironment.getDefaultShell(
 						key => args.configuration[key],
 						args.isWorkspaceShellAllowed,
-						getSystemShell(platform.platform),
+						getSystemShellSync(platform.platform),
 						process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 						process.env.windir,
 						terminalEnvironment.createVariableResolver(lastActiveWorkspace, variableResolver),
@@ -701,6 +715,14 @@ async function main(): Promise<void> {
 				}
 				return terminalProcess.getCwd();
 			}
+			if (command === '$sendCharCountToTerminalProcess') {
+				const args: ISendCharCountToTerminalProcessArguments = arg;
+				const terminalProcess = this.terminalProcesses.get(args.id);
+				if (!terminalProcess) {
+					throw new Error('terminal not found');
+				}
+				return terminalProcess.acknowledgeDataEvent(args.charCount);
+			}
 			/*if (command === '$sendCommandResultToTerminalProcess') {
 				const args: ISendCommandResultToTerminalProcessArguments = arg;
 				return;
@@ -746,7 +768,8 @@ async function main(): Promise<void> {
 							pid: terminal.getPid(),
 							title: terminal.getTitle(),
 							workspaceId,
-							workspaceName
+							workspaceName,
+							isOrphan: true
 						});
 					}
 
@@ -755,6 +778,138 @@ async function main(): Promise<void> {
 					console.error('code server: failed to list remote terminals:', e);
 					return [];
 				}
+			}
+			if (command === '$getTerminalLayoutInfo') {
+				try {
+					const args: IGetTerminalLayoutInfoArgs = arg;
+
+					const tasks = await synchingTasks;
+					const response = await util.promisify<ListTerminalsRequest, ListTerminalsResponse>(terminalServiceClient.list.bind(terminalServiceClient))(new ListTerminalsRequest());
+					const workspaceTerminals = new Set<number>();
+					const targets = new Map<number, IRemoteTerminalAttachTarget>();
+					for (const terminal of response.getTerminalsList()) {
+						const alias = terminal.getAlias();
+						const id = this.aliasToId.get(alias);
+						const annotations = terminal.getAnnotationsMap();
+						const workspaceId = annotations.get('workspaceId') || '';
+						const workspaceName = annotations.get('workspaceName') || '';
+						const shouldPersistTerminal = tasks.has(alias) || Boolean(annotations.get('shouldPersistTerminal'));
+						let terminalProcess: SupervisorTerminalProcess | undefined;
+						if (!id) {
+							terminalProcess = this.createTerminalProcess(
+								terminal.getInitialWorkdir(),
+								workspaceId,
+								workspaceName,
+								shouldPersistTerminal
+							);
+							this.terminalProcesses.set(terminalProcess.id, terminalProcess);
+
+							terminalProcess.alias = alias;
+							this.attachTerminalProcess(terminalProcess);
+						} else {
+							terminalProcess = this.terminalProcesses.get(id);
+						}
+						if (!terminalProcess) {
+							continue;
+						}
+
+						if (workspaceId === args.workspaceId) {
+							workspaceTerminals.add(terminalProcess.id);
+						}
+						if (workspaceId === args.workspaceId || tasks.has(alias)) {
+							targets.set(terminalProcess.id, {
+								id: terminalProcess.id,
+								cwd: terminal.getCurrentWorkdir(),
+								pid: terminal.getPid(),
+								title: terminal.getTitle(),
+								workspaceId,
+								workspaceName,
+								isOrphan: true
+							});
+						}
+					}
+
+					const result: ITerminalsLayoutInfo = { tabs: [] };
+					if (this.layoutInfo.has(args.workspaceId)) {
+						// restoring layout
+						for (const tab of this.layoutInfo.get(args.workspaceId)!) {
+							result.tabs.push({
+								...tab,
+								terminals: tab.terminals.map(terminal => {
+									const target = targets.get(terminal.terminal) || null;
+									return {
+										...terminal,
+										terminal: target
+									};
+								})
+							});
+						}
+					} else {
+						// initial layout
+						type Tab = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
+						let currentTab: Tab | undefined;
+						let currentTerminal: IRemoteTerminalAttachTarget | undefined;
+						const layoutTerminal = (terminal: IRemoteTerminalAttachTarget, mode: TerminalOpenMode = defaultOpenMode) => {
+							if (!currentTab) {
+								currentTab = {
+									isActive: false,
+									activeTerminalProcessId: terminal.id,
+									terminals: [{ relativeSize: 1, terminal }]
+								};
+								result.tabs.push(currentTab);
+							} else if (mode === 'tab-after' || mode === 'tab-before') {
+								const tab: Tab = {
+									isActive: false,
+									activeTerminalProcessId: terminal.id,
+									terminals: [{ relativeSize: 1, terminal }]
+								};
+								const currentIndex = result.tabs.indexOf(currentTab);
+								const direction = mode === 'tab-after' ? 1 : -1;
+								result.tabs.splice(currentIndex + direction, 0, tab);
+								currentTab = tab;
+							} else {
+								currentTab.activeTerminalProcessId = terminal.id;
+								let currentIndex = -1;
+								const relativeSize = 1 / (currentTab.terminals.length + 1);
+								currentTab.terminals.forEach((info, index) => {
+									info.relativeSize = relativeSize;
+									if (info.terminal === currentTerminal) {
+										currentIndex = index;
+									}
+								});
+								const direction = (mode === 'split-right' || mode === 'split-bottom') ? 1 : -1;
+								currentTab.terminals.splice(currentIndex + direction, 0, { relativeSize, terminal });
+							}
+							currentTerminal = terminal;
+						};
+						for (const [alias, status] of tasks) {
+							const id = this.aliasToId.get(alias);
+							const terminal = typeof id === 'number' && targets.get(id);
+							if (terminal) {
+								layoutTerminal(terminal, asTerminalOpenMode(status.getPresentation()?.getOpenMode()));
+							}
+						}
+						for (const id of workspaceTerminals) {
+							const terminal = targets.get(id);
+							if (terminal) {
+								layoutTerminal(terminal);
+							}
+						}
+						if (currentTab) {
+							currentTab.isActive = true;
+						}
+					}
+
+					return result;
+				} catch (e) {
+					console.error('code server: failed to get terminal layout info:', e);
+					return [];
+				}
+			}
+			if (command === '$setTerminalLayoutInfo') {
+				const args: ISetTerminalLayoutInfoArgs = arg;
+				this.layoutInfo.set(args.workspaceId, args.tabs);
+				return;
 			}
 			console.error('Unknown command: RemoteTerminalChannel.' + command);
 			throw new Error('Unknown command: RemoteTerminalChannel.' + command);
@@ -1090,12 +1245,20 @@ async function main(): Promise<void> {
 		const acceptKey = req.headers['sec-websocket-key'];
 		const hash = crypto.createHash('sha1').update(acceptKey + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
 		const responseHeaders = ['HTTP/1.1 101 Web Socket Protocol Handshake', 'Upgrade: WebSocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${hash}`];
+
+		let permessageDeflate = false;
+		if (String(req.headers['sec-websocket-extensions']).indexOf('permessage-deflate') !== -1) {
+			permessageDeflate = true;
+			responseHeaders.push('Sec-WebSocket-Extensions: permessage-deflate; server_max_window_bits=15');
+		}
+
 		socket.write(responseHeaders.join('\r\n') + '\r\n\r\n');
 
 		const client = clients.get(token) || {};
 		clients.set(token, client);
 
-		const protocol = new PersistentProtocol(new WebSocketNodeSocket(new NodeSocket(socket)));
+		const webSocket = new WebSocketNodeSocket(new NodeSocket(socket), permessageDeflate, null, permessageDeflate);
+		const protocol = new PersistentProtocol(webSocket);
 		const controlListener = protocol.onControlMessage(raw => {
 			const msg = <HandshakeMessage>JSON.parse(raw.toString());
 			if (msg.type === 'error') {
@@ -1161,7 +1324,7 @@ async function main(): Promise<void> {
 							dispose();
 						}, ProtocolConstants.ReconnectionShortGraceTime);
 						client.management = { protocol, graceTimeReconnection, shortGraceTimeReconnection };
-						protocol.onClose(() => dispose());
+						protocol.onDidDispose(() => dispose());
 						protocol.onSocketClose(() => {
 							console.log(`[${token}] Management connection socket is closed, waiting to reconnect within ${ProtocolConstants.ReconnectionGraceTime}ms.`);
 							graceTimeReconnection.schedule();
@@ -1209,12 +1372,14 @@ async function main(): Promise<void> {
 							const opts: cp.ForkOptions = {
 								env: {
 									...process.env,
-									AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
-									PIPE_LOGGING: 'true',
-									VERBOSE_LOGGING: 'true',
-									VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
+									VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+									VSCODE_PIPE_LOGGING: 'true',
+									VSCODE_VERBOSE_LOGGING: 'true',
+									VSCODE_LOG_NATIVE: 'false',
 									VSCODE_EXTHOST_WILL_SEND_SOCKET: 'true',
+									VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
 									VSCODE_LOG_STACK: 'true',
+									VSCODE_LOG_LEVEL: environmentService.verbose ? 'trace' : environmentService.logLevel,
 									GITPOD_CLI_SERVER_SOCKETS_PATH: cliServerSocketsPath
 								},
 								// see https://github.com/akosyakov/gitpod-code/blob/33b49a273f1f6d44f303426b52eaf89f0f5cc596/src/vs/base/parts/ipc/node/ipc.cp.ts#L72-L78
@@ -1273,10 +1438,13 @@ async function main(): Promise<void> {
 							const readyListener = (msg: any) => {
 								if (msg && (<IExtHostReadyMessage>msg).type === 'VSCODE_EXTHOST_IPC_READY') {
 									extensionHost.removeListener('message', readyListener);
+									const inflateBytes = Buffer.from(webSocket.recordedInflateBytes.buffer).toString('base64');
 									extensionHost.send({
 										type: 'VSCODE_EXTHOST_IPC_SOCKET',
 										initialDataChunk,
-										skipWebSocketFrames: false // TODO skipWebSocketFrames - i.e. when we connect from Node (VS Code?)
+										skipWebSocketFrames: false, // TODO skipWebSocketFrames - i.e. when we connect from Node (VS Code?)
+										permessageDeflate,
+										inflateBytes
 									} as IExtHostSocketMessage, socket);
 									console.log(`[${token}] Extension host is connected.`);
 								}
@@ -1300,10 +1468,13 @@ async function main(): Promise<void> {
 						protocol.dispose();
 						socket.pause();
 
+						const inflateBytes = Buffer.from(webSocket.recordedInflateBytes.buffer).toString('base64');
 						client.extensionHost.send({
 							type: 'VSCODE_EXTHOST_IPC_SOCKET',
 							initialDataChunk,
-							skipWebSocketFrames: false // TODO skipWebSocketFrames - i.e. when we connect from Node (VS Code?)
+							skipWebSocketFrames: false, // TODO skipWebSocketFrames - i.e. when we connect from Node (VS Code?)
+							permessageDeflate,
+							inflateBytes
 						} as IExtHostSocketMessage, socket);
 						console.log(`[${token}] Extension host is reconnected.`);
 					}

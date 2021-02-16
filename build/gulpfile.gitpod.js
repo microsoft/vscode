@@ -16,9 +16,8 @@ const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const json = require('gulp-json-editor');
 const _ = require('underscore');
-const deps = require('./dependencies');
+const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 
@@ -64,6 +63,7 @@ const gitpodServerResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
 	'out-build/gitpodUriTransformer.js',
+	'out-build/vs/base/common/performance.js',
 
 	// Excludes
 	'!out-build/vs/**/{node,browser,electron-browser,electron-sandbox,electron-main}/**',
@@ -162,6 +162,8 @@ function packageWebTask(sourceFolderName, destinationFolderName) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 
 	return () => {
+		const json = require('gulp-json-editor');
+
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + sourceFolderName), 'out'); }));
 
@@ -181,7 +183,7 @@ function packageWebTask(sourceFolderName, destinationFolderName) {
 
 		const base = 'remote/web';
 
-		const dependenciesSrc = _.flatten(deps.getProductionDependencies(path.join(root, base))
+		const dependenciesSrc = _.flatten(getProductionDependencies(path.join(root, base))
 			.map(d => path.relative(root, d.path))
 			.map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
 
@@ -237,6 +239,8 @@ function packageServerTask(sourceFolderName, destinationFolderName) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 
 	return () => {
+		const json = require('gulp-json-editor');
+
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + sourceFolderName), 'out'); }));
 
@@ -257,7 +261,7 @@ function packageServerTask(sourceFolderName, destinationFolderName) {
 		// const license = gulp.src(['remote/LICENSE'], { base: 'remote' });
 
 		const base = 'remote';
-		const dependenciesSrc = _.flatten(deps.getProductionDependencies(path.join(root, base))
+		const dependenciesSrc = _.flatten(getProductionDependencies(path.join(root, base))
 			.map(d => path.relative(root, d.path))
 			.map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
 
