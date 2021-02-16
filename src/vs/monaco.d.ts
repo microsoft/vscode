@@ -3247,6 +3247,14 @@ declare namespace monaco.editor {
 		 * Control the wrapping of the diff editor.
 		 */
 		diffWordWrap?: 'off' | 'on' | 'inherit';
+		/**
+		 * Aria label for original editor.
+		 */
+		originalAriaLabel?: string;
+		/**
+		 * Aria label for modifed editor.
+		 */
+		modifiedAriaLabel?: string;
 	}
 
 	/**

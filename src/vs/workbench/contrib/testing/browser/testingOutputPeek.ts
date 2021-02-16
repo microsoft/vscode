@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -203,6 +204,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.value!.create();
 		}
 
+		alert(message.message.toString());
 		this.peek.value!.setModel(dto);
 	}
 
@@ -321,6 +323,8 @@ const diffEditorOptions: IDiffEditorOptions = {
 	renderOverviewRuler: false,
 	ignoreTrimWhitespace: false,
 	renderSideBySide: true,
+	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
+	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
 };
 
 class TestingDiffOutputPeek extends TestingOutputPeek {
