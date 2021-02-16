@@ -280,6 +280,12 @@ export class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
+		this._register(onDidChangeVisibility(visible => {
+			if (visible) {
+				filterState.focusInput();
+			}
+		}));
+
 		this.updatePreferredProjection();
 
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
