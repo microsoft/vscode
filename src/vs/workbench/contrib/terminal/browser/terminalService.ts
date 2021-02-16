@@ -208,17 +208,17 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create tab and terminal
-							terminalInstance = this.createTerminal({ remoteAttach: terminalLayout.terminal! });
+							terminalInstance = this.createTerminal({ attachExisting: terminalLayout.terminal! });
 							tab = this._getTabForInstance(terminalInstance);
 							if (tabLayout.isActive) {
 								activeTab = tab;
 							}
 						} else {
 							// add split terminals to this tab
-							this.splitInstance(terminalInstance, { remoteAttach: terminalLayout.terminal! });
+							this.splitInstance(terminalInstance, { attachExisting: terminalLayout.terminal! });
 						}
 					});
-					const activeInstance = this.terminalInstances.find(t => t.shellLaunchConfig.remoteAttach?.pid === tabLayout.activeTerminalProcessId);
+					const activeInstance = this.terminalInstances.find(t => t.shellLaunchConfig.attachExisting?.pid === tabLayout.activeTerminalProcessId);
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
 					}
@@ -324,7 +324,8 @@ export class TerminalService implements ITerminalService {
 
 	private _onShutdown(): void {
 		// Dispose of all instances
-		this.terminalInstances.forEach(instance => instance.dispose(true));
+		//TODO@meganrogge longer term solution here?
+		// this.terminalInstances.forEach(instance => instance.dispose(true));
 	}
 
 	public getTabLabels(): string[] {

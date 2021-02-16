@@ -165,7 +165,9 @@ export interface IPtyService {
 		rows: number,
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean
+		windowsEnableConpty: boolean,
+		workspaceId: string,
+		workspaceName: string
 	): Promise<number>;
 
 	start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined>;
@@ -246,9 +248,9 @@ export interface IShellLaunchConfig {
 	extHostTerminalId?: string;
 
 	/**
-	 * This is a terminal that attaches to an already running remote terminal.
+	 * This is a terminal that attaches to an already running terminal.
 	 */
-	remoteAttach?: { id: number; pid: number; title: string; cwd: string; };
+	attachExisting?: { id: number; pid: number; title: string; cwd: string; };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in

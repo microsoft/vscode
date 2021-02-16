@@ -105,8 +105,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
-		return this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty);
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+		return this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
 	}
 	start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {
 		return this._proxy.start(id);
@@ -136,8 +136,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
 	public async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		let result = await this._proxy.getTerminalLayoutInfo(args);
-		console.log('localPtyService passing', result);
-		return result;
+		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 }

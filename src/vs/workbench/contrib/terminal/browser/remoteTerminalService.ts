@@ -138,7 +138,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 			throw new Error('Could not fetch remote environment');
 		}
 
-		if (!this._shellLaunchConfig.remoteAttach) {
+		if (!this._shellLaunchConfig.attachExisting) {
 			const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions(env.os);
 
 			const shellLaunchConfigDto: IShellLaunchConfigDto = {
@@ -171,12 +171,12 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 				return startResult;
 			}
 		} else {
-			this._remoteTerminalId = this._shellLaunchConfig.remoteAttach.id;
-			this._onProcessReady.fire({ pid: this._shellLaunchConfig.remoteAttach.pid, cwd: this._shellLaunchConfig.remoteAttach.cwd });
+			this._remoteTerminalId = this._shellLaunchConfig.attachExisting.id;
+			this._onProcessReady.fire({ pid: this._shellLaunchConfig.attachExisting.pid, cwd: this._shellLaunchConfig.attachExisting.cwd });
 			this.setupTerminalEventListener();
 
 			setTimeout(() => {
-				this._onProcessTitleChanged.fire(this._shellLaunchConfig.remoteAttach!.title);
+				this._onProcessTitleChanged.fire(this._shellLaunchConfig.attachExisting!.title);
 			}, 0);
 		}
 

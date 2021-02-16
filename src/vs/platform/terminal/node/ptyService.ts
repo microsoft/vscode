@@ -13,6 +13,7 @@ import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
+import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
 let currentPtyId = 0;
 
@@ -59,7 +60,7 @@ export class PtyService extends Disposable implements IPtyService {
 		this._ptys.clear();
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		const id = ++currentPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
@@ -72,11 +73,12 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, '', '', true, cols, rows, '', this._logService, () => {
-			// persistentTerminalProcess.dispose();
-			// this._ptys.delete(id);
+		const ipcHandlePath = createRandomIPCHandle();
+		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
+		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, ipcHandlePath, this._logService, () => {
+			persistentTerminalProcess.dispose();
+			this._ptys.delete(id);
 		});
-		this._logService.info('setting a pty', id);
 		this._ptys.set(id, persistentTerminalProcess);
 		return id;
 	}
@@ -86,7 +88,6 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async shutdown(id: number, immediate: boolean): Promise<void> {
-		console.trace('shutting down id ' + id);
 		return this._throwIfNoPty(id).shutdown(immediate);
 	}
 
@@ -112,15 +113,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	public async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		this._logService.info('get args', JSON.stringify(args));
 		if (args) {
 			const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 			if (layout) {
-				this._logService.info('tab', JSON.stringify(layout.tabs));
 				const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
-				this._logService.info('layout entries', JSON.stringify(expandedTabs));
 				const filtered = expandedTabs.filter(t => t.terminals.length > 0);
-				this._logService.info('filtered', JSON.stringify(filtered));
 				return {
 					tabs: filtered
 				};
@@ -132,7 +129,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
 		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
-		this._logService.info('expanded terminals', JSON.stringify(expandedTerminals));
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto>[];
 		return {
 			isActive: tab.isActive,
@@ -143,9 +139,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
 		const persistentTerminalProcess = this._throwIfNoPty(t.terminal);
-		this._logService.info('persistent term process', JSON.stringify(persistentTerminalProcess));
 		const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
-		this._logService.info('term dto', JSON.stringify(termDto));
 		return {
 			terminal: termDto ?? null,
 			relativeSize: t.relativeSize

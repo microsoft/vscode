@@ -28,6 +28,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -49,6 +50,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService notificationService: INotificationService
 	) {
 		super();
@@ -100,7 +102,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	}
 
 	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<ITerminalChildProcess> {
-		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty);
+		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty, this._getWorkspaceId(), this._getWorkspaceName());
 		return this._instantiationService.createInstance(LocalPty, id);
 	}
 
@@ -152,14 +154,16 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
-		console.log('getting', layoutArgs);
 		let result = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
-		console.log('result of get', result);
 		return result;
 	}
 
 	private _getWorkspaceId(): string {
 		return this._workspaceContextService.getWorkspace().id;
+	}
+
+	private _getWorkspaceName(): string {
+		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
 
 }
