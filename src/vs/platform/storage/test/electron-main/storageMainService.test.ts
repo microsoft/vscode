@@ -122,6 +122,8 @@ suite('StorageMainService (native)', function () {
 		// Close
 		await storage.close();
 
+		strictEqual(storageDidClose, true);
+
 		storageChangeListener.dispose();
 		storageCloseListener.dispose();
 	}
