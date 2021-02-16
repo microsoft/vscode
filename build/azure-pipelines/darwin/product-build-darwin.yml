@@ -119,16 +119,6 @@ steps:
     displayName: Rebuild native modules for ARM64
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
-  - download: current
-    artifact: vscode-darwin-x64
-    displayName: Download x64 artifact
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
-
-  - download: current
-    artifact: vscode-darwin-arm64
-    displayName: Download arm64 artifact
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
-
   - script: |
       set -e
       node build/azure-pipelines/mixin
@@ -138,7 +128,7 @@ steps:
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
-    displayName: Build
+    displayName: Build client
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
@@ -152,18 +142,30 @@ steps:
 
   - script: |
       set -e
-      unzip $(Pipeline.Workspace)/vscode-darwin-x64/VSCode-darwin-x64.zip -d $(agent.builddirectory)/vscode-x64
-      unzip $(Pipeline.Workspace)/vscode-darwin-arm64/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/vscode-arm64
-      DEBUG=* node build/darwin/create-universal-app.js
-    displayName: Create Universal App
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
-
-  - script: |
-      set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - download: current
+    artifact: vscode-darwin-x64
+    displayName: Download x64 artifact
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+
+  - download: current
+    artifact: vscode-darwin-arm64
+    displayName: Download arm64 artifact
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+
+  - script: |
+      set -e
+      cp $(Pipeline.Workspace)/vscode-darwin-x64/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin-x64.zip
+      cp $(Pipeline.Workspace)/vscode-darwin-arm64/VSCode-darwin-arm64.zip $(agent.builddirectory)/VSCode-darwin-arm64.zip
+      unzip $(agent.builddirectory)/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
+      unzip $(agent.builddirectory)/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
+      DEBUG=* node build/darwin/create-universal-app.js
+    displayName: Create Universal App
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -173,9 +175,11 @@ steps:
       echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
       security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
       security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-      VSCODE_ARCH="$(VSCODE_ARCH)" DEBUG=electron-osx-sign* node build/darwin/sign.js
+      VSCODE_ARCH=x64 DEBUG=electron-osx-sign* node build/darwin/sign.js
+      VSCODE_ARCH=arm64 DEBUG=electron-osx-sign* node build/darwin/sign.js
+      VSCODE_ARCH=universal DEBUG=electron-osx-sign* node build/darwin/sign.js
     displayName: Set Hardened Entitlements
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -288,7 +292,7 @@ steps:
     inputs:
       ConnectedServiceName: "ESRP CodeSign"
       FolderPath: "$(agent.builddirectory)"
-      Pattern: "VSCode-darwin-$(VSCODE_ARCH).zip"
+      Pattern: "VSCode-darwin-*.zip"
       signConfigType: inlineSignParams
       inlineOperation: |
         [
@@ -307,12 +311,14 @@ steps:
         ]
       SessionTimeout: 60
     displayName: Codesign
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
-      zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip "*.pkg"
+      zip -d $(agent.builddirectory)/VSCode-darwin-x64.zip "*.pkg"
+      zip -d $(agent.builddirectory)/VSCode-darwin-arm64.zip "*.pkg"
+      zip -d $(agent.builddirectory)/VSCode-darwin-universal.zip "*.pkg"
     displayName: Clean
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
@@ -320,13 +326,13 @@ steps:
       BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")
       echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
     displayName: Export bundle identifier
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
       ConnectedServiceName: "ESRP CodeSign"
       FolderPath: "$(agent.builddirectory)"
-      Pattern: "VSCode-darwin-$(VSCODE_ARCH).zip"
+      Pattern: "VSCode-darwin-*.zip"
       signConfigType: inlineSignParams
       inlineOperation: |
         [
@@ -345,7 +351,7 @@ steps:
         ]
       SessionTimeout: 60
     displayName: Notarization
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -353,7 +359,7 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify start after signing (export configuration)
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -361,15 +367,24 @@ steps:
       AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      VSCODE_ARCH="$(VSCODE_ARCH)" \
-      ./build/azure-pipelines/darwin/publish.sh
-    displayName: Publish
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+      ./build/azure-pipelines/darwin/publish-client.sh
+    displayName: Publish Clients
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
+      set -e
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+      VSCODE_ARCH="$(VSCODE_ARCH)" ./build/azure-pipelines/darwin/publish-server.sh
+    displayName: Publish Servers
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     artifact: vscode-darwin-$(VSCODE_ARCH)
-    displayName: Publish archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    displayName: Publish client archive
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
     artifact: vscode-server-darwin-$(VSCODE_ARCH)
@@ -386,5 +401,5 @@ steps:
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       yarn gulp upload-vscode-configuration
     displayName: Upload configuration (for Bing settings search)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true
