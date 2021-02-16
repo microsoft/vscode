@@ -20,7 +20,7 @@ async function downloadExtensionDetails(extension) {
     var _a, _b, _c;
     const extensionLabel = `${extension.name}@${extension.version}`;
     const repository = url.parse(extension.repo).path.substr(1);
-    const repositoryContentBaseUrl = `${contentBasePath}/${repository}/${extension.version}`;
+    const repositoryContentBaseUrl = `${contentBasePath}/${repository}/v${extension.version}`;
     const promises = [];
     for (const fileName of contentFileNames) {
         promises.push(new Promise(resolve => {
