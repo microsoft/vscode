@@ -480,7 +480,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			},
 			viewOptions: options.viewOptions,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
-				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
+				const data = await this._proxy.$openNotebook(viewType, mainthreadTextModel.uri);
 				mainthreadTextModel.metadata = data.metadata;
 				mainthreadTextModel.transientOptions = contentOptions;
 
@@ -494,8 +494,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					});
 				});
 			},
-			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string) => {
-				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
+			openNotebook: async (viewType: string, uri: URI, backupId?: string) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId);
 				return {
 					data,
 					transientOptions: contentOptions
