@@ -850,6 +850,66 @@ export namespace EvaluatableExpression {
 	}
 }
 
+export namespace InlineValue {
+	export function from(inlineValue: vscode.InlineValue): modes.InlineValue {
+		if (inlineValue instanceof types.InlineValueText) {
+			return <modes.InlineValueText>{
+				type: 'text',
+				text: inlineValue.text,
+				range: Range.from(inlineValue.range)
+			};
+		} else if (inlineValue instanceof types.InlineValueVariableLookup) {
+			return <modes.InlineValueVariableLookup>{
+				type: 'variable',
+				variableName: inlineValue.variableName,
+				caseSensitiveLookup: inlineValue.caseSensitiveLookup,
+				range: Range.from(inlineValue.range)
+			};
+		} else if (inlineValue instanceof types.InlineValueEvaluatableExpression) {
+			return <modes.InlineValueExpression>{
+				type: 'expression',
+				expression: inlineValue.expression,
+				range: Range.from(inlineValue.range)
+			};
+		} else {
+			throw new Error(`Unknown 'InlineValue' type`);
+		}
+	}
+
+	export function to(inlineValue: modes.InlineValue): vscode.InlineValue {
+		switch (inlineValue.type) {
+			case 'text':
+				return <vscode.InlineValueText>{
+					text: inlineValue.text,
+					range: Range.to(inlineValue.range)
+				};
+			case 'variable':
+				return <vscode.InlineValueVariableLookup>{
+					variableName: inlineValue.variableName,
+					caseSensitiveLookup: inlineValue.caseSensitiveLookup,
+					range: Range.to(inlineValue.range)
+				};
+			case 'expression':
+				return <vscode.InlineValueEvaluatableExpression>{
+					expression: inlineValue.expression,
+					range: Range.to(inlineValue.range)
+				};
+		}
+	}
+}
+
+export namespace InlineValueContext {
+	export function from(inlineValueContext: vscode.InlineValueContext): extHostProtocol.IInlineValueContextDto {
+		return <extHostProtocol.IInlineValueContextDto>{
+			stoppedLocation: Range.from(inlineValueContext.stoppedLocation)
+		};
+	}
+
+	export function to(inlineValueContext: extHostProtocol.IInlineValueContextDto): types.InlineValueContext {
+		return new types.InlineValueContext(Range.to(inlineValueContext.stoppedLocation));
+	}
+}
+
 export namespace DocumentHighlight {
 	export function from(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
 		return {
