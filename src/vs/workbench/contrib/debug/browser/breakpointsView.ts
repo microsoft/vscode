@@ -378,7 +378,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
 		data.filePath = dom.append(data.breakpoint, $('span.file-path'));
-		data.actionBar = new ActionBar(data.breakpoint, { respectOrientationForPreviousAndNextKey: true });
+		data.actionBar = new ActionBar(data.breakpoint);
 		data.toDispose.push(data.actionBar);
 		const lineNumberContainer = dom.append(data.breakpoint, $('.line-number-container'));
 		data.lineNumber = dom.append(lineNumberContainer, $('span.line-number.monaco-count-badge'));
@@ -457,7 +457,7 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
 		data.breakpoint.classList.add('exception');
 
-		data.actionBar = new ActionBar(data.breakpoint, { respectOrientationForPreviousAndNextKey: true });
+		data.actionBar = new ActionBar(data.breakpoint);
 		data.toDispose.push(data.actionBar);
 		return data;
 	}
@@ -521,7 +521,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.name = dom.append(data.breakpoint, $('span.name'));
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
 
-		data.actionBar = new ActionBar(data.breakpoint, { respectOrientationForPreviousAndNextKey: true });
+		data.actionBar = new ActionBar(data.breakpoint);
 		data.toDispose.push(data.actionBar);
 
 		return data;

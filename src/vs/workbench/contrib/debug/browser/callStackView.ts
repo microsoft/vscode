@@ -515,8 +515,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 				}
 
 				return undefined;
-			},
-			respectOrientationForPreviousAndNextKey: true
+			}
 		});
 
 		return { session, name, stateLabel, label, actionBar, elementDisposable: [] };
@@ -589,7 +588,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		const name = dom.append(thread, $('.name'));
 		const stateLabel = dom.append(thread, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
-		const actionBar = new ActionBar(thread, { respectOrientationForPreviousAndNextKey: true });
+		const actionBar = new ActionBar(thread);
 
 		return { thread, name, stateLabel, label, actionBar };
 	}
@@ -636,7 +635,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		const wrapper = dom.append(file, $('span.line-number-wrapper'));
 		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
 		const label = new HighlightedLabel(labelDiv, false);
-		const actionBar = new ActionBar(stackFrame, { respectOrientationForPreviousAndNextKey: true });
+		const actionBar = new ActionBar(stackFrame);
 
 		return { file, fileName, label, lineNumber, stackFrame, actionBar };
 	}

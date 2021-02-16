@@ -374,7 +374,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		rowElement.setAttribute('tabindex', item.selected ? '0' : '-1');
 		rowElement.classList.toggle('selected', item.selected);
 
-		const actionBar = new ActionBar(rowElement, { respectOrientationForPreviousAndNextKey: true });
+		const actionBar = new ActionBar(rowElement);
 		this.listDisposables.add(actionBar);
 
 		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
