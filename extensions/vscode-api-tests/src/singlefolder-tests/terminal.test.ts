@@ -78,9 +78,11 @@ import { assertNoRpc } from '../utils';
 			await new Promise<void>(r => {
 				console.log('  test 7');
 				disposables.push(window.onDidWriteTerminalData(e => {
-					console.log('  test 8');
+					console.log('  test 8.1');
 					strictEqual(terminal, e.terminal);
+					console.log('  test 8.2');
 					data += e.data;
+					console.log('  test 8.3, data=' + data);
 					if (data.indexOf('`') !== 0) {
 						console.log('  test 9');
 						r();
