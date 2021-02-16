@@ -35,6 +35,7 @@ import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/c
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { equals } from 'vs/base/common/arrays';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -244,7 +245,11 @@ export class TerminalViewPane extends ViewPane {
 						await terminal.copySelection();
 						terminal.clearSelection();
 					} else {
-						terminal.paste();
+						if (!BrowserFeatures.clipboard.readText) {
+							terminal.paste();
+						} else {
+							this._notificationService.info('This browser doesn\'t support the clipboard.readText API needed to trigger a paste');
+						}
 					}
 					// Clear selection after all click event bubbling is finished on Mac to prevent
 					// right-click selecting a word which is seemed cannot be disabled. There is a
