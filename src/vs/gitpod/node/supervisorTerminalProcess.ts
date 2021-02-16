@@ -77,6 +77,10 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		// TODO orphan?
 	}
 
+	acknowledgeDataEvent(charCount: number): void {
+		// NO-OP for now
+	}
+
 	async start(): Promise<ITerminalLaunchError | undefined> {
 		try {
 			if (!this.openOptions) {

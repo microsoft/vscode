@@ -528,10 +528,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		onDidChangeSessionsEmitter.fire({ added: [session.id], removed: [], changed: [] });
 	})();
 	context.subscriptions.push(onDidChangeSessionsEmitter);
-	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
-		id: 'gitpod',
-		label: 'Gitpod',
-		supportsMultipleAccounts: false,
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('gitpod', 'Gitpod', {
 		onDidChangeSessions: onDidChangeSessionsEmitter.event,
 		getSessions: () => Promise.resolve(sessions),
 		login: async () => {
@@ -540,7 +537,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		logout: async () => {
 			throw new Error('not supported');
 		},
-	}));
+	}, { supportsMultipleAccounts: false }));
 
 	const githubSessionId = uuid.v4();
 	const githubAuthService = `${vscode.env.uriScheme}-github.login`;
