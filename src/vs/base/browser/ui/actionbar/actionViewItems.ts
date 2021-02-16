@@ -14,7 +14,7 @@ import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { isFirefox } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
@@ -181,9 +181,9 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 	}
 
-	setFocusable(): void {
+	setFocusable(focusable: boolean): void {
 		if (this.element) {
-			this.element.tabIndex = 0;
+			this.element.tabIndex = focusable ? 0 : -1;
 		}
 	}
 
@@ -288,9 +288,9 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	setFocusable(): void {
+	setFocusable(focusable: boolean): void {
 		if (this.label) {
-			this.label.tabIndex = 0;
+			this.label.tabIndex = focusable ? 0 : -1;
 		}
 	}
 
@@ -356,7 +356,6 @@ export class ActionViewItem extends BaseActionViewItem {
 			if (this.label) {
 				this.label.setAttribute('aria-disabled', 'true');
 				this.label.classList.add('disabled');
-				removeTabIndexAndUpdateFocus(this.label);
 			}
 
 			if (this.element) {

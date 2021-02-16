@@ -64,29 +64,25 @@ declare module 'vscode' {
 		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 
 		/**
-		 * Returns an array of current sessions.
-		 *
-		 * TODO @RMacfarlane finish deprecating this and remove it
+		 * Get a list of sessions.
+		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
+		 * these permissions, otherwise all sessions should be returned.
+		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		getAllSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
-
-
-		/**
-		 * Returns an array of current sessions.
-		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		getSessions(scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
+		 * @param scopes A list of scopes, permissions, that the new session should be created with.
+		 * @returns A promise that resolves to an authentication session.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		createSession(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
-		 * @param sessionId The session id to log out of
+		 * @param sessionId The id of the session to remove.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		removeSession(sessionId: string): Thenable<void>;
@@ -1108,7 +1104,9 @@ declare module 'vscode' {
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly version: number;
+		// todo@API don't have this...
 		readonly fileName: string;
+		// todo@API should we really expose this?
 		readonly viewType: string;
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
@@ -1118,13 +1116,14 @@ declare module 'vscode' {
 	}
 
 	// todo@API maybe have a NotebookCellPosition sibling
-	// todo@API should be a class
-	export interface NotebookCellRange {
+	export class NotebookCellRange {
 		readonly start: number;
 		/**
 		 * exclusive
 		 */
 		readonly end: number;
+
+		constructor(start: number, end: number);
 	}
 
 	export enum NotebookEditorRevealType {
@@ -1309,6 +1308,8 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
+		// todo@API should we really support to pass the viewType? We do NOT support
+		// to open the same file with different viewTypes at the same time
 		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
@@ -1323,6 +1324,9 @@ declare module 'vscode' {
 		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
+
+		// todo@API we send document close and open events when the language of a document changes and
+		// I believe we should stick that for cells as well
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
 		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
 	}
@@ -1334,6 +1338,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		// TODO@API add overload for just a URI
 		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 

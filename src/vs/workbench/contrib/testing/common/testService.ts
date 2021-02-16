@@ -74,6 +74,23 @@ export const waitForAllRoots = (collection: IMainThreadTestCollection, timeout =
 	}).finally(() => listener.dispose());
 };
 
+export const waitForAllTests = (collection: IMainThreadTestCollection, timeout = 3000) => {
+	if (collection.busyProviders === 0) {
+		return Promise.resolve();
+	}
+
+	let listener: IDisposable;
+	return new Promise<void>(resolve => {
+		listener = collection.onBusyProvidersChange(count => {
+			if (count === 0) {
+				resolve();
+			}
+		});
+
+		setTimeout(resolve, timeout);
+	}).finally(() => listener.dispose());
+};
+
 export interface ITestService {
 	readonly _serviceBrand: undefined;
 	readonly onShouldSubscribe: Event<{ resource: ExtHostTestingResource, uri: URI; }>;

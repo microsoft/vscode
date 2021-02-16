@@ -8,29 +8,29 @@ import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
-import { ISplice } from 'vs/base/common/sequence';
 import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IMainCellDto, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 class RawContentChangeEvent {
 
-	constructor(readonly start: number, readonly deletedCount: number, readonly deletedItems: ExtHostCell[], readonly items: ExtHostCell[]) { }
+	constructor(readonly start: number, readonly deletedCount: number, readonly deletedItems: vscode.NotebookCell[], readonly items: ExtHostCell[]) { }
 
 	static asApiEvent(event: RawContentChangeEvent): vscode.NotebookCellsChangeData {
 		return Object.freeze({
 			start: event.start,
 			deletedCount: event.deletedCount,
-			deletedItems: event.deletedItems.map(data => data.cell),
+			deletedItems: event.deletedItems,
 			items: event.items.map(data => data.cell)
 		});
 	}
 }
 
-export class ExtHostCell extends Disposable {
+export class ExtHostCell {
 
 	static asModelAddData(notebook: vscode.NotebookDocument, cell: IMainCellDto): IExtHostModelAddedData {
 		return {
@@ -47,12 +47,8 @@ export class ExtHostCell extends Disposable {
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _onDidChangeOutputs = new Emitter<ISplice<IOutputDto>[]>();
-	readonly onDidChangeOutputs: Event<ISplice<IOutputDto>[]> = this._onDidChangeOutputs.event;
-
 	private _outputs: IOutputDto[];
-
-	private _metadata: vscode.NotebookCellMetadata;
+	private _metadata: extHostTypes.NotebookCellMetadata;
 
 	readonly handle: number;
 	readonly uri: URI;
@@ -65,16 +61,16 @@ export class ExtHostCell extends Disposable {
 		private readonly _extHostDocument: ExtHostDocumentsAndEditors,
 		private readonly _cellData: IMainCellDto,
 	) {
-		super();
-
 		this.handle = _cellData.handle;
 		this.uri = URI.revive(_cellData.uri);
 		this.cellKind = _cellData.cellKind;
-
 		this._outputs = _cellData.outputs;
+		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(_cellData.metadata ?? {});
+	}
 
-
-		this._metadata = _cellData.metadata ?? {};
+	dispose() {
+		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 
 	get cell(): vscode.NotebookCell {
@@ -100,17 +96,12 @@ export class ExtHostCell extends Disposable {
 		return this._cell;
 	}
 
-	dispose() {
-		super.dispose();
-		this._onDidDispose.fire();
-	}
-
 	setOutputs(newOutputs: IOutputDto[]): void {
 		this._outputs = newOutputs;
 	}
 
-	setMetadata(newMetadata: vscode.NotebookCellMetadata): void {
-		this._metadata = newMetadata;
+	setMetadata(newMetadata: NotebookCellMetadata): void {
+		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(newMetadata);
 	}
 }
 
@@ -137,10 +128,8 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _cellDisposableMapping = new Map<number, DisposableStore>();
 
 	private _notebook: vscode.NotebookDocument | undefined;
-	// private _metadata: Required<vscode.NotebookDocumentMetadata>;
-	// private _metadataChangeListener: IDisposable;
 	private _versionId = 0;
-	private _isDirty: boolean = false;
+	private _isDirty = false;
 	private _backupCounter = 1;
 	private _backup?: vscode.NotebookDocumentBackup;
 	private _disposed = false;
@@ -150,7 +139,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
 		private readonly _contentOptions: vscode.NotebookDocumentContentOptions,
-		private _metadata: Required<vscode.NotebookDocumentMetadata>,
+		private _metadata: extHostTypes.NotebookDocumentMetadata,
 		public readonly uri: URI,
 		private readonly _storagePath: URI | undefined
 	) {
@@ -206,7 +195,7 @@ export class ExtHostNotebookDocument extends Disposable {
 			...notebookDocumentMetadataDefaults,
 			...data.metadata
 		};
-		this._metadata = newMetadata;
+		this._metadata = this._metadata.with(newMetadata);
 		this._emitter.emitDocumentMetadataChange({ document: this.notebookDocument });
 	}
 
@@ -263,12 +252,14 @@ export class ExtHostNotebookDocument extends Disposable {
 				this._cellDisposableMapping.delete(this._cells[j].handle);
 			}
 
+			const changeEvent = new RawContentChangeEvent(splice[0], splice[1], [], newCells);
 			const deletedItems = this._cells.splice(splice[0], splice[1], ...newCells);
 			for (let cell of deletedItems) {
 				removedCellDocuments.push(cell.uri);
+				changeEvent.deletedItems.push(cell.cell);
 			}
 
-			contentChangeEvents.push(new RawContentChangeEvent(splice[0], splice[1], deletedItems, newCells));
+			contentChangeEvents.push(changeEvent);
 		});
 
 		this._documentsAndEditors.acceptDocumentsAndEditorsDelta({

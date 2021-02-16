@@ -227,7 +227,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			ariaLabel: nls.localize('activityBarAriaLabel', "Active View Switcher"),
 			animated: false,
 			preventLoopNavigation: this.options.preventLoopNavigation,
-			ignoreOrientationForPreviousAndNextKey: true,
 			triggerKeys: { keyDown: true }
 		}));
 

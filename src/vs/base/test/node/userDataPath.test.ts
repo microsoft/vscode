@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from 'vs/base/common/network';
+import * as assert from 'assert';
+import { getDefaultUserDataPath } from 'vs/base/node/userDataPath';
 
-const pathsPath = FileAccess.asFileUri('paths', require).fsPath;
-const paths = require.__$__nodeRequire<{ getDefaultUserDataPath(): string }>(pathsPath);
+suite('User data path', () => {
 
-export const getDefaultUserDataPath = paths.getDefaultUserDataPath;
+	test('getDefaultUserDataPath', () => {
+		const path = getDefaultUserDataPath();
+		assert.ok(path.length > 0);
+	});
+});

@@ -35,7 +35,8 @@ export interface IActionBarOptions {
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
-	readonly ignoreOrientationForPreviousAndNextKey?: boolean;
+	// Pass true here when the up and down keys should not be eaten up by the ActionBar. For example, when an ActionBar is in the list.
+	readonly respectOrientationForPreviousAndNextKey?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -62,6 +63,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	// Trigger Key Tracking
 	private triggerKeyDown: boolean = false;
+
+	private focusable: boolean = true;
 
 	// Elements
 	domNode: HTMLElement;
@@ -117,22 +120,22 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
-				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
@@ -219,6 +222,25 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
+	// Some action bars should not be focusable at times
+	// When an action bar is not focusable make sure to make all the elements inside it not focusable
+	// When an action bar is focusable again, make sure the first item can be focused
+	setFocusable(focusable: boolean): void {
+		this.focusable = focusable;
+		if (this.focusable) {
+			const first = this.viewItems.find(vi => vi instanceof BaseActionViewItem);
+			if (first instanceof BaseActionViewItem) {
+				first.setFocusable(true);
+			}
+		} else {
+			this.viewItems.forEach(vi => {
+				if (vi instanceof BaseActionViewItem) {
+					vi.setFocusable(false);
+				}
+			});
+		}
+	}
+
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
 		let ret = false;
 		this._triggerKeys.keys.forEach(keyCode => {
@@ -297,9 +319,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
-			if (this.viewItems.every(i => !i.isEnabled()) && item instanceof BaseActionViewItem && item.isEnabled()) {
+			if (this.focusable && this.viewItems.length === 0 && item instanceof BaseActionViewItem) {
 				// We need to allow for the first enabled item to be focused on using tab navigation #106441
-				item.setFocusable();
+				item.setFocusable(true);
 			}
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {

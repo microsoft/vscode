@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
-
 (function () {
+	'use strict';
+
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load issue reporter into window

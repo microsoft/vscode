@@ -680,6 +680,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
+		if (this._notebookProviders.has(viewType)) {
+			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
+		}
 		this._notebookProviders.set(viewType, { extensionData, controller });
 
 		if (controller.viewOptions && !this.notebookProviderInfoStore.get(viewType)) {

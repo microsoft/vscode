@@ -60,17 +60,21 @@ export const enum WindowMode {
 	Fullscreen
 }
 
+export interface ILoadEvent {
+	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+}
+
 export interface ICodeWindow extends IDisposable {
 
-	readonly onLoad: Event<void>;
-	readonly onReady: Event<void>;
-	readonly onClose: Event<void>;
-	readonly onDestroy: Event<void>;
+	readonly onWillLoad: Event<ILoadEvent>;
+	readonly onDidSignalReady: Event<void>;
+	readonly onDidClose: Event<void>;
+	readonly onDidDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
 
 	readonly id: number;
-	readonly win: BrowserWindow;
+	readonly win: BrowserWindow | null; /* `null` after being disposed */
 	readonly config: INativeWindowConfiguration | undefined;
 
 	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
@@ -132,11 +136,11 @@ export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+	readonly onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
 
-	readonly onWindowOpened: Event<ICodeWindow>;
-	readonly onWindowReady: Event<ICodeWindow>;
-	readonly onWindowDestroyed: Event<ICodeWindow>;
+	readonly onDidOpenWindow: Event<ICodeWindow>;
+	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];

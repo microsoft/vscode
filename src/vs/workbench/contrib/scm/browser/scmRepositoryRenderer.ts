@@ -58,7 +58,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
 		const actions = append(provider, $('.actions'));
-		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
+		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider, respectOrientationForPreviousAndNextKey: true });
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);

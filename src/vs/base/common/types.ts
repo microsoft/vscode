@@ -8,7 +8,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 /**
  * @returns whether the provided parameter is a JavaScript Array or not.
  */
-export function isArray<T>(array: T | {}): array is T extends readonly any[] ? (unknown extends T ? never : readonly any[]) : any[] {
+export function isArray(array: any): array is any[] {
 	return Array.isArray(array);
 }
 

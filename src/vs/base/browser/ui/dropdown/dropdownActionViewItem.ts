@@ -179,5 +179,4 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			this.dropdownMenuActionViewItem.render(this.element);
 		}
 	}
-
 }

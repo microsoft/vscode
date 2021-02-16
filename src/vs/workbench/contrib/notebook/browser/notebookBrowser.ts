@@ -64,6 +64,7 @@ export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('noteboo
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 // Kernels
 export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
+export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 
 //#endregion
 

@@ -124,8 +124,7 @@ export interface IAuthenticationService {
 	declaredProviders: AuthenticationProviderInformation[];
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
 
-	getSessions(id: string, scopes: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
-	getAllSessions(providerId: string, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopes?: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 	getLabel(providerId: string): string;
 	supportsMultipleAccounts(providerId: string): boolean;
 	createSession(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
@@ -694,16 +693,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return Promise.race([didRegister, didTimeout]);
 	}
 
-	async getAllSessions(id: string, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
-		try {
-			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
-			return await authProvider.getAllSessions();
-		} catch (_) {
-			throw new Error(`No authentication provider '${id}' is currently registered.`);
-		}
-	}
-
-	async getSessions(id: string, scopes: string[], activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, scopes?: string[], activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		try {
 			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 			return await authProvider.getSessions(scopes);

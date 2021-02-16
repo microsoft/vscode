@@ -46,7 +46,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	constructor(
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 	) { }
@@ -57,11 +57,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
 	initialize(): void {
-		if (!this.environmentService.isBuilt) {
+		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
 
-		if (this.environmentService.disableUpdates) {
+		if (this.environmentMainService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}

@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { getTestSubscriptionKey, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -18,6 +19,7 @@ const reviveDiff = (diff: TestsDiff) => {
 			const item = entry[1];
 			if (item.item.location) {
 				item.item.location.uri = URI.revive(item.item.location.uri);
+				item.item.location.range = Range.lift(item.item.location.range);
 			}
 		}
 	}
@@ -71,6 +73,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			for (const message of state.messages) {
 				if (message.location) {
 					message.location.uri = URI.revive(message.location.uri);
+					message.location.range = Range.lift(message.location.range);
 				}
 			}
 

@@ -98,7 +98,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 					return action.createActionViewItem();
 				}
 				return new ExtensionActionViewItem(null, action, actionOptions);
-			}
+			},
+			respectOrientationForPreviousAndNextKey: true
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 

@@ -58,8 +58,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { NativeStorageService2 } from 'vs/platform/storage/electron-sandbox/storageService2';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
@@ -175,8 +174,8 @@ class SharedProcessMain extends Disposable {
 
 		await configurationService.initialize();
 
-		// Storage
-		const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
+		// Storage (global access only)
+		const storageService = new NativeStorageService2(undefined, mainProcessService, environmentService);
 		services.set(IStorageService, storageService);
 
 		await storageService.initialize();

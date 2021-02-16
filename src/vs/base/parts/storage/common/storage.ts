@@ -89,6 +89,8 @@ export class Storage extends Disposable implements IStorage {
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
 
+	private pendingClose: Promise<void> | undefined = undefined;
+
 	private readonly whenFlushedCallbacks: Function[] = [];
 
 	constructor(
@@ -256,9 +258,14 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	async close(): Promise<void> {
-		if (this.state === StorageState.Closed) {
-			return; // return if already closed
+		if (!this.pendingClose) {
+			this.pendingClose = this.doClose();
 		}
+
+		return this.pendingClose;
+	}
+
+	private async doClose(): Promise<void> {
 
 		// Update state
 		this.state = StorageState.Closed;

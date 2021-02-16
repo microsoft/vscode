@@ -81,12 +81,12 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 		// when test states change, reflect in the tree
 		// todo: optimize this to avoid needing to iterate
-		this._register(results.onTestChanged(([, { item, state, retired, computedState }]) => {
+		this._register(results.onTestChanged(({ item: result }) => {
 			for (const i of this.items.values()) {
-				if (i.test.item.extId === item.extId) {
-					i.ownState = state.state;
-					i.retired = retired;
-					refreshComputedState(computedStateAccessor, i, this.addUpdated, computedState);
+				if (i.test.item.extId === result.item.extId) {
+					i.ownState = result.state.state;
+					i.retired = result.retired;
+					refreshComputedState(computedStateAccessor, i, this.addUpdated, result.computedState);
 					this.addUpdated(i);
 					this.updateEmitter.fire();
 					return;

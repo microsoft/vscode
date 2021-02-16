@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-"@emmetio/abbreviation@^2.2.0":
-  version "2.2.0"
-  resolved "https://registry.yarnpkg.com/@emmetio/abbreviation/-/abbreviation-2.2.0.tgz#9f8dedbdb00e3136d6d37c6415375c82c0bb477f"
-  integrity sha512-NPGVUmnr7cLj4i6MKS4c8NjuoIIJROrruJl/8nXsp2MdbDRHvtfq25foySvv/NbfqTQm+P9JzVLDD9JxGIpvkQ==
+"@emmetio/abbreviation@^2.2.0", "@emmetio/abbreviation@^2.2.1":
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/@emmetio/abbreviation/-/abbreviation-2.2.1.tgz#d9458fe1f09fe042f019c48aa681165ba613a48d"
+  integrity sha512-uUNwNgbH0JPlrdXhy8VQbNPLLG7abMvOaLVMblx22i68Rl9r+2N235ALgIYFUty1yXC9DkVw6xMbz/D4QVARcQ==
   dependencies:
     "@emmetio/scanner" "^1.0.0"
 
@@ -54,15 +54,16 @@
   integrity sha1-Rs/+oRmgoAMxKiHC2bVijLX81EI=
 
 "@types/node@^12.19.9":
-  version "12.19.15"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.19.15.tgz#0de7e978fb43db62da369db18ea088a63673c182"
-  integrity sha512-lowukE3GUI+VSYSu6VcBXl14d61Rp5hA1D+61r16qnwC0lYNSqdxcvRh0pswejorHfS+HgwBasM8jLXz0/aOsw==
+  version "12.20.0"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.20.0.tgz#692dfdecd6c97f5380c42dd50f19261f9f604deb"
+  integrity sha512-0/41wHcurotvSOTHQUFkgL702c3pyWR1mToSrrX3pGPvGfpHTv3Ksx0M4UVuU5VJfjVb62Eyr1eKO1tWNUCg2Q==
 
-"emmet@https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a":
-  version "2.3.0"
-  resolved "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
+emmet@^2.3.0:
+  version "2.3.1"
+  resolved "https://registry.yarnpkg.com/emmet/-/emmet-2.3.1.tgz#77614d949d1d01e5c248d08043a13a7f4d539e47"
+  integrity sha512-u8h++9u3y9QWhn0imUXfQO+s80To5MGD97zd/00wGC39CfNGBPe//ZKepJz9I1LQ2FDRXHrn+e3JaN/53Y5z6A==
   dependencies:
-    "@emmetio/abbreviation" "^2.2.0"
+    "@emmetio/abbreviation" "^2.2.1"
     "@emmetio/css-abbreviation" "^2.1.2"
 
 image-size@^0.5.2:
@@ -75,12 +76,12 @@ jsonc-parser@^2.3.0:
   resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-2.3.1.tgz#59549150b133f2efacca48fe9ce1ec0659af2342"
   integrity sha512-H8jvkz1O50L3dMZCsLqiuB2tA7muqbSg1AtGEkN0leAqGjsUzDJir3Zwr02BhqdcITPg3ei3mZ+HjMocAknhhg==
 
-vscode-emmet-helper@2.2.4:
-  version "2.2.4"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.2.4.tgz#8ab86d2b7fe9e6270b4c77c9fd8d1eb8f3f4c401"
-  integrity sha512-1N6bMzP1ZzkDGzamvsKxQ/lOmBc4+OQdj0dA2C9A5PSeYV9gh5xbJ061sm+VyFHOGZE+VyUQq5m/WFmFsLbKnA==
+vscode-emmet-helper@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.3.0.tgz#a98357ad5ac9c71d7c00396f22b7963b1a74cc5c"
+  integrity sha512-QhU8+HlynMuUkqBYgA3wIDTSsUNkw8GWxLR214Hjvwr0lkFZa0CRqW/PzAI1CFREjSrTxJYQvkVnbfatZzKAuA==
   dependencies:
-    emmet "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
+    emmet "^2.3.0"
     jsonc-parser "^2.3.0"
     vscode-languageserver-textdocument "^1.0.1"
     vscode-languageserver-types "^3.15.1"

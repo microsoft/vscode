@@ -11,7 +11,7 @@ import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecy
 import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -20,17 +20,22 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getOuterEditor, IPeekViewService, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
+import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ITestItem, ITestMessage, ITestState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult, ITestResultService, TestResultItem, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface ITestDto {
 	test: ITestItem,
@@ -39,6 +44,93 @@ interface ITestDto {
 	expectedUri: URI;
 	actualUri: URI;
 	messageUri: URI;
+}
+
+export interface ITestingPeekOpener {
+	_serviceBrand: undefined;
+
+	/**
+	 * Tries to peek the first test error, if the item is in a failed state.
+	 * @returns a boolean indicating whether a peek was opened
+	 */
+	tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>): Promise<boolean>;
+}
+
+export const ITestingPeekOpener = createDecorator<ITestingPeekOpener>('testingPeekOpener');
+
+export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
+	declare _serviceBrand: undefined;
+
+	constructor(
+		@IConfigurationService private readonly configuration: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ITestResultService testResults: ITestResultService,
+	) {
+		super();
+		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
+	}
+
+	/**
+	 * Tries to peek the first test error, if the item is in a failed state.
+	 * @returns a boolean if a peek was opened
+	 */
+	public async tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
+		const index = test.state.messages.findIndex(m => !!m.location);
+		if (index === -1) {
+			return false;
+		}
+
+		const message = test.state.messages[index];
+		const pane = await this.editorService.openEditor({
+			resource: message.location!.uri,
+			options: { selection: message.location!.range, revealIfOpened: true, ...options }
+		});
+
+		const control = pane?.getControl();
+		if (!isCodeEditor(control)) {
+			return false;
+		}
+
+		TestingOutputPeekController.get(control).show(buildTestUri({
+			type: TestUriType.ResultMessage,
+			messageIndex: index,
+			resultId: result.id,
+			testExtId: test.item.extId,
+		}));
+
+		return true;
+	}
+
+	/**
+	 * Opens the peek view on a test failure, based on user preferences.
+	 */
+	private openPeekOnFailure(evt: TestResultItemChange) {
+		if (!isFailedState(evt.item.state.state) || !evt.item.state.messages.length) {
+			return;
+		}
+
+		if (evt.result.isAutoRun && !getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekViewDuringAutoRun)) {
+			return;
+		}
+
+		const editors = this.codeEditorService.listCodeEditors();
+		const cfg = getTestingConfiguration(this.configuration, TestingConfigKeys.AutoOpenPeekView);
+
+		// don't show the peek if the user asked to only auto-open peeks for visible tests,
+		// and this test is not in any of the editors' models.
+		const testUri = evt.item.item.location?.uri.toString();
+		if (cfg === AutoOpenPeekViewWhen.FailureVisible && (!testUri || !editors.some(e => e.getModel()?.uri.toString() === testUri))) {
+			return;
+		}
+
+		const controllers = editors.map(TestingOutputPeekController.get);
+		if (controllers.some(c => c?.isVisible)) {
+			return;
+		}
+
+		this.tryPeekFirstError(evt.result, evt.item);
+	}
 }
 
 /**
@@ -62,6 +154,13 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 */
 	private readonly visible: IContextKey<boolean>;
 
+	/**
+	 * Gets whether a peek is currently shown in the associated editor.
+	 */
+	public get isVisible() {
+		return this.peek.value;
+	}
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -71,6 +170,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
 		this._register(editor.onDidChangeModel(() => this.peek.clear()));
+		this._register(testResults.onTestChanged((evt) => this.closePeekOnTestChange(evt)));
 	}
 
 	/**
@@ -113,13 +213,28 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		this.peek.clear();
 	}
 
-	private async retrieveTest(uri: URI): Promise<ITestDto | undefined> {
+	/**
+	 * If the test we're currently showing has its state change to something
+	 * else, then clear the peek.
+	 */
+	private closePeekOnTestChange(evt: TestResultItemChange) {
+		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous.state === evt.item.state.state) {
+			return;
+		}
+
+		const displayed = this.peek.value?.currentTest();
+		if (displayed?.extId === evt.item.item.extId) {
+			this.peek.clear();
+		}
+	}
+
+	private retrieveTest(uri: URI): ITestDto | undefined {
 		const parts = parseTestUri(uri);
 		if (!parts) {
 			return undefined;
 		}
 
-		const test = this.testResults.getResult(parts.resultId)?.getStateByExtId(parts.testId);
+		const test = this.testResults.getResult(parts.resultId)?.getStateByExtId(parts.testExtId);
 		return test && {
 			test: test.item,
 			state: test.state,
@@ -169,6 +284,11 @@ abstract class TestingOutputPeek extends PeekViewWidget {
 	public abstract setModel(dto: ITestDto): Promise<void>;
 
 	/**
+	 * Returns the test whose data is currently shown in the peek view.
+	 */
+	public abstract currentTest(): ITestItem | undefined;
+
+	/**
 	 * @override
 	 */
 	protected _doLayoutBody(height: number, width: number) {
@@ -205,6 +325,7 @@ const diffEditorOptions: IDiffEditorOptions = {
 
 class TestingDiffOutputPeek extends TestingOutputPeek {
 	private readonly diff = this._disposables.add(new MutableDisposable<EmbeddedDiffEditorWidget>());
+	private test: ITestItem | undefined;
 
 	/**
 	 * @override
@@ -227,6 +348,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 			return;
 		}
 
+		this.test = test;
 		this.show(message.location.range, hintDiffPeekHeight(message));
 		this.setTitle(message.message.toString(), test.label);
 
@@ -246,6 +368,13 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
+	public currentTest() {
+		return this.test;
+	}
+
+	/**
+	 * @override
+	 */
 	protected _doLayoutBody(height: number, width: number) {
 		super._doLayoutBody(height, width);
 		this.diff.value?.layout(this.dimension);
@@ -254,6 +383,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 
 class TestingMessageOutputPeek extends TestingOutputPeek {
 	private readonly preview = this._disposables.add(new MutableDisposable<EmbeddedCodeEditorWidget>());
+	private test: ITestItem | undefined;
 
 	/**
 	 * @override
@@ -276,6 +406,7 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 			return;
 		}
 
+		this.test = test;
 		this.show(message.location.range, hintPeekStrHeight(message.message.toString()));
 		this.setTitle(message.message.toString(), test.label);
 
@@ -285,6 +416,13 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 		} else {
 			this.model.value = undefined;
 		}
+	}
+
+	/**
+	 * @override
+	 */
+	public currentTest() {
+		return this.test;
 	}
 
 	/**
