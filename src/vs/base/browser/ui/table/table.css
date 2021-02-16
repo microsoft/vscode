@@ -1,0 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-table {
+	display: flex;
+	flex-direction: column;
+	position: relative;
+	height: 100%;
+	width: 100%;
+	white-space: nowrap;
+}
+
+.monaco-table > .monaco-list {
+	flex: 1;
+}
