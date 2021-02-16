@@ -61,6 +61,13 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+		try {
+			// return the process if it already exists
+			if (shellLaunchConfig.attachPersistentTerminal) {
+				await this._throwIfNoPty(shellLaunchConfig.attachPersistentTerminal.id);
+				return shellLaunchConfig.attachPersistentTerminal.id;
+			}
+		} catch { }
 		const id = ++persistentTerminalId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
@@ -86,7 +93,9 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
-		return this._throwIfNoPty(id).start();
+		let terminalProcess = this._throwIfNoPty(id);
+		this._logService.info('starting process', terminalProcess);
+		return terminalProcess.start();
 	}
 
 	async shutdown(id: number, immediate: boolean): Promise<void> {
@@ -299,8 +308,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
-		let result = await this._terminalProcess.start();
-		this._logService.info(`starting ${result}`);
+		await this._terminalProcess.start();
 		this._startBarrier.open();
 		return { persistentTerminalId: this._persistentTerminalId };
 	}
