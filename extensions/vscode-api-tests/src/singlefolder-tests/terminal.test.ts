@@ -131,7 +131,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test.skip('processId immediately after createTerminal should fetch the pid', async () => {
+		test('processId immediately after createTerminal should fetch the pid', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -153,7 +153,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test.skip('name in constructor should set terminal.name', async () => {
+		test('name in constructor should set terminal.name', async () => {
 			const terminal = window.createTerminal('a');
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -173,7 +173,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test.skip('creationOptions should be set and readonly for TerminalOptions terminals', async () => {
+		test('creationOptions should be set and readonly for TerminalOptions terminals', async () => {
 			const options = {
 				name: 'foo',
 				hideFromUser: true
@@ -199,7 +199,7 @@ import { assertNoRpc } from '../utils';
 			throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 		});
 
-		test.skip('onDidOpenTerminal should fire when a terminal is created', async () => {
+		test('onDidOpenTerminal should fire when a terminal is created', async () => {
 			const terminal = window.createTerminal('b');
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -219,7 +219,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test.skip('exitStatus.code should be set to undefined after a terminal is disposed', async () => {
+		test('exitStatus.code should be set to undefined after a terminal is disposed', async () => {
 			const terminal = window.createTerminal();
 			const result = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
@@ -310,7 +310,7 @@ import { assertNoRpc } from '../utils';
 		// 	terminal1.show();
 		// });
 
-		suite.skip('hideFromUser', () => {
+		suite('hideFromUser', () => {
 			test('should be available to terminals API', async () => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
 				const result = await new Promise<Terminal>(r => {
@@ -645,7 +645,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		suite.skip('environmentVariableCollection', () => {
+		suite('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
