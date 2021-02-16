@@ -287,7 +287,3 @@ steps:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-    displayName: "Component Detection"
-    continueOnError: true

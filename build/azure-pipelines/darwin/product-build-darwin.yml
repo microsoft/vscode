@@ -388,7 +388,3 @@ steps:
     displayName: Upload configuration (for Bing settings search)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true
-
-  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-    displayName: "Component Detection"
-    continueOnError: true

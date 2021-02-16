@@ -133,7 +133,3 @@ steps:
     artifact: vscode-server-linux-alpine-web
     displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-    displayName: "Component Detection"
-    continueOnError: true

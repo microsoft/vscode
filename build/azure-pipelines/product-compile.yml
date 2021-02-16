@@ -137,3 +137,7 @@ steps:
       targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
       artifactName: Compilation
     displayName: Publish compilation artifact
+
+  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+    displayName: "Component Detection"
+    continueOnError: true
