@@ -68,7 +68,7 @@ export interface IMemoryInfo {
 		"cpus.model" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"initialStartup" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"isVMLikelihood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	}
@@ -324,7 +324,7 @@ export interface IStartupMetrics {
 	};
 
 	readonly hasAccessibilitySupport: boolean;
-	readonly isVMLikelihood?: number;
+	readonly isVMLikelyhood?: number;
 	readonly platform?: string;
 	readonly release?: string;
 	readonly arch?: string;
@@ -546,7 +546,7 @@ export abstract class AbstractTimerService implements ITimerService {
 			meminfo: undefined,
 			cpus: undefined,
 			loadavg: undefined,
-			isVMLikelihood: undefined,
+			isVMLikelyhood: undefined,
 			initialStartup,
 			hasAccessibilitySupport: this._accessibilityService.isScreenReaderOptimized(),
 			emptyWorkbench: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY
@@ -578,7 +578,7 @@ export class TimerService extends AbstractTimerService {
 		return 1;
 	}
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
-		info.isVMLikelihood = 0;
+		info.isVMLikelyhood = 0;
 		info.platform = navigator.userAgent;
 		info.release = navigator.appVersion;
 	}
