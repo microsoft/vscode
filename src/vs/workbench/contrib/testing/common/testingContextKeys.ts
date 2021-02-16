@@ -9,6 +9,8 @@ import { TestExplorerViewMode, TestExplorerViewSorting } from 'vs/workbench/cont
 
 export namespace TestingContextKeys {
 	export const providerCount = new RawContextKey('testing.providerCount', 0);
+	export const hasDebuggableTests = new RawContextKey('testing.hasDebuggableTests', false);
+	export const hasRunnableTests = new RawContextKey('testing.hasRunnableTests', false);
 	export const viewMode = new RawContextKey('testing.explorerViewMode', TestExplorerViewMode.List);
 	export const viewSorting = new RawContextKey('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);
 	export const isRunning = new RawContextKey('testing.isRunning', false);

@@ -197,7 +197,10 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 				group: 'navigation',
 				when: ContextKeyAndExpr.create([
 					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
-					ContextKeyEqualsExpr.create(TestingContextKeys.isRunning.serialize(), false),
+					TestingContextKeys.isRunning.isEqualTo(false),
+					debug
+						? TestingContextKeys.hasDebuggableTests.isEqualTo(true)
+						: TestingContextKeys.hasRunnableTests.isEqualTo(true),
 				])
 			}
 		});
@@ -518,7 +521,6 @@ abstract class RunOrDebugAtCursor extends Action2 {
 			return;
 		}
 
-
 		const testService = accessor.get(ITestService);
 		const collection = testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, model.uri);
 
@@ -694,7 +696,9 @@ abstract class RunOrDebugTestResults extends Action2 {
 				}
 			}
 
-			await this.runTest(testService, toRun);
+			if (toRun.length) {
+				await this.runTest(testService, toRun);
+			}
 		} finally {
 			workspaceTests.dispose();
 		}
