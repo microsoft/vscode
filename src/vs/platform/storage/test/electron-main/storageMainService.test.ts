@@ -23,6 +23,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { Promises } from 'vs/base/common/async';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 flakySuite('StorageMainService (native)', function () {
 
@@ -68,14 +69,16 @@ flakySuite('StorageMainService (native)', function () {
 			await Promises.settled(joiners);
 		}
 
-		onBeforeWindowClose = Event.None;
-		onBeforeWindowUnload = Event.None;
+		onWillLoadWindow = Event.None;
+		onBeforeCloseWindow = Event.None;
+		onBeforeUnloadWindow = Event.None;
 
 		wasRestarted = false;
 		quitRequested = false;
 
 		phase = LifecycleMainPhase.Ready;
 
+		registerWindow(window: ICodeWindow): void { }
 		async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> { }
 		async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean> { return true; }
 		relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; }): void { }
@@ -169,7 +172,7 @@ flakySuite('StorageMainService (native)', function () {
 
 	test('basics (global)', function () {
 		return testStorage(() => {
-			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService());
+			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService(), new TestConfigurationService());
 
 			return storageMainService.globalStorage;
 		}, true);
@@ -179,7 +182,7 @@ flakySuite('StorageMainService (native)', function () {
 		const workspace = { id: generateUuid() };
 
 		return testStorage(() => {
-			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService());
+			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService(), new TestConfigurationService());
 
 			return storageMainService.workspaceStorage(workspace);
 		}, false);
@@ -188,7 +191,7 @@ flakySuite('StorageMainService (native)', function () {
 	test('storage closed onWillShutdown', async function () {
 		const lifecycleMainService = new StorageTestLifecycleMainService();
 		const workspace = { id: generateUuid() };
-		const storageMainService = new StorageMainService(new NullLogService(), environmentService, lifecycleMainService);
+		const storageMainService = new StorageMainService(new NullLogService(), environmentService, lifecycleMainService, new TestConfigurationService());
 
 		let storage = storageMainService.workspaceStorage(workspace);
 		let didCloseStorage = false;

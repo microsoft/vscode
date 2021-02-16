@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from 'vs/base/common/functional';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { GlobalStorageMain, IStorageMain, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
+import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
@@ -28,15 +31,54 @@ export interface IStorageMainService {
 	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain;
 }
 
-export class StorageMainService implements IStorageMainService {
+export class StorageMainService extends Disposable implements IStorageMainService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private enableMainWorkspaceStorage = this.configurationService.getValue<IWindowSettings | undefined>('window')?.enableExperimentalMainProcessWorkspaceStorage;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Global Storage: Warmup when any window opens
+		(async () => {
+			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
+
+			this.globalStorage.initialize();
+		})();
+
+		// Workspace Storage: Warmup when related window with workspace loads
+		if (this.enableMainWorkspaceStorage) {
+			this._register(this.lifecycleMainService.onWillLoadWindow(async e => {
+				if (e.workspace) {
+					await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
+
+					this.workspaceStorage(e.workspace).initialize();
+				}
+			}));
+		}
+
+		// All Storage: Close when shutting down
+		this._register(this.lifecycleMainService.onWillShutdown(e => {
+
+			// Global Storage
+			e.join(this.globalStorage.close());
+
+			// Workspace Storage(s)
+			for (const [, storage] of this.mapWorkspaceToStorage) {
+				e.join(storage.close());
+			}
+		}));
 	}
 
 	//#region Global Storage
@@ -50,7 +92,7 @@ export class StorageMainService implements IStorageMainService {
 
 		this.logService.trace(`StorageMainService: creating global storage`);
 
-		const globalStorage = new GlobalStorageMain(this.logService, this.environmentService, this.lifecycleMainService);
+		const globalStorage = new GlobalStorageMain(this.logService, this.environmentService);
 
 		once(globalStorage.onDidCloseStorage)(() => {
 			this.logService.trace(`StorageMainService: closed global storage`);
@@ -67,7 +109,7 @@ export class StorageMainService implements IStorageMainService {
 	private readonly mapWorkspaceToStorage = new Map<string, IStorageMain>();
 
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
-		const workspaceStorage = new WorkspaceStorageMain(workspace, this.logService, this.environmentService, this.lifecycleMainService);
+		const workspaceStorage = new WorkspaceStorageMain(workspace, this.logService, this.environmentService);
 
 		return workspaceStorage;
 	}

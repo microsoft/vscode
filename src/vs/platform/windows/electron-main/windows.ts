@@ -60,9 +60,13 @@ export const enum WindowMode {
 	Fullscreen
 }
 
+export interface ILoadEvent {
+	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+}
+
 export interface ICodeWindow extends IDisposable {
 
-	readonly onDidLoad: Event<void>;
+	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
 	readonly onDidClose: Event<void>;
 	readonly onDidDestroy: Event<void>;

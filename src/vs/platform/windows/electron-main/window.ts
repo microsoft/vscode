@@ -19,7 +19,7 @@ import product from 'vs/platform/product/common/product';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { defaultWindowState, ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -80,8 +80,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MAX_URL_LENGTH = 2 * ByteSize.MB; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
-	private readonly _onDidLoad = this._register(new Emitter<void>());
-	readonly onDidLoad = this._onDidLoad.event;
+	private readonly _onWillLoad = this._register(new Emitter<ILoadEvent>());
+	readonly onWillLoad = this._onWillLoad.event;
 
 	private readonly _onDidSignalReady = this._register(new Emitter<void>());
 	readonly onDidSignalReady = this._onDidSignalReady.event;
@@ -396,7 +396,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			const closeListener = this.onDidClose(() => handle());
-			const loadListener = this.onDidLoad(() => handle());
+			const loadListener = this.onWillLoad(() => handle());
 		});
 	}
 
@@ -761,7 +761,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Event
-		this._onDidLoad.fire();
+		this._onWillLoad.fire({ workspace: configuration.workspace });
 	}
 
 	async reload(cli?: NativeParsedArgs): Promise<void> {

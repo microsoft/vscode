@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { ICodeWindow, IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -32,7 +32,7 @@ suite('WindowsFinder', () => {
 
 	function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?: URI, openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
-			onDidLoad: Event<void> = Event.None;
+			onWillLoad: Event<ILoadEvent> = Event.None;
 			onDidSignalReady: Event<void> = Event.None;
 			onDidClose: Event<void> = Event.None;
 			onDidDestroy: Event<void> = Event.None;

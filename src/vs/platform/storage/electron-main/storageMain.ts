@@ -6,7 +6,7 @@
 import { promises } from 'fs';
 import { exists, writeFile } from 'vs/base/node/pfs';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
@@ -16,13 +16,12 @@ import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 /**
  * Provides access to global and workspace storage from the
  * electron-main side that is the owner of all storage connections.
  */
-export interface IStorageMain {
+export interface IStorageMain extends IDisposable {
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -101,25 +100,9 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private initializePromise: Promise<void> | undefined = undefined;
 
 	constructor(
-		protected readonly logService: ILogService,
-		private readonly lifecycleMainService: ILifecycleMainService
+		protected readonly logService: ILogService
 	) {
 		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Lifecycle: Warmup (in parallel to window open)
-		(async () => {
-			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
-
-			this.initialize();
-		})();
-
-		// Lifecycle: Shutdown
-		this.lifecycleMainService.onWillShutdown(e => e.join(this.close()));
 	}
 
 	initialize(): Promise<void> {
@@ -202,10 +185,9 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 	constructor(
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService,
-		lifecycleMainService: ILifecycleMainService
+		private readonly environmentService: IEnvironmentService
 	) {
-		super(logService, lifecycleMainService);
+		super(logService);
 	}
 
 	protected async doInitialize(): Promise<IStorage> {
@@ -266,9 +248,8 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
 		logService: ILogService,
 		private readonly environmentService: IEnvironmentService,
-		lifecycleMainService: ILifecycleMainService
 	) {
-		super(logService, lifecycleMainService);
+		super(logService);
 	}
 
 	protected async doInitialize(): Promise<IStorage> {
