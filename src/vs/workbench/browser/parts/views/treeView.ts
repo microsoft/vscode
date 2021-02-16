@@ -873,7 +873,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const resourceLabel = this.labels.create(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
 		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: this.actionViewItemProvider
+			actionViewItemProvider: this.actionViewItemProvider,
+			respectOrientationForPreviousAndNextKey: true
 		});
 
 		return { resourceLabel, icon, actionBar, container, elementDisposable: Disposable.None };

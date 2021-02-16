@@ -199,7 +199,8 @@ abstract class AbstractCellRenderer {
 				}
 
 				return undefined;
-			}
+			},
+			respectOrientationForPreviousAndNextKey: true
 		});
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
@@ -233,7 +234,8 @@ abstract class AbstractCellRenderer {
 				}
 				return createActionViewItem(this.instantiationService, action);
 			},
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			respectOrientationForPreviousAndNextKey: true
 		});
 
 		if (elementClass) {
@@ -1108,7 +1110,8 @@ export class ListTopCellToolbar extends Disposable {
 				}
 
 				return undefined;
-			}
+			},
+			respectOrientationForPreviousAndNextKey: true
 		});
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);

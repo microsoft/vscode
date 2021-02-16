@@ -101,7 +101,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')));
 		disposables.push(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
-		const actions = new ActionBar(actionBarContainer, { animated: false });
+		const actions = new ActionBar(actionBarContainer, { animated: false, respectOrientationForPreviousAndNextKey: true });
 		disposables.push(actions);
 
 		return {
@@ -171,7 +171,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		disposables.push(attachBadgeStyler(badge, this.themeService));
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
-		const actions = new ActionBar(actionBarContainer, { animated: false });
+		const actions = new ActionBar(actionBarContainer, { animated: false, respectOrientationForPreviousAndNextKey: true });
 		disposables.push(actions);
 
 		return {
@@ -234,7 +234,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 		const after = DOM.append(parent, DOM.$('span'));
 		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
 		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
-		const actions = new ActionBar(actionBarContainer, { animated: false });
+		const actions = new ActionBar(actionBarContainer, { animated: false, respectOrientationForPreviousAndNextKey: true });
 
 		return {
 			parent,

@@ -689,7 +689,8 @@ class TestsRenderer implements ITreeRenderer<ITestTreeElement, FuzzyScore, TestT
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
-					: undefined
+					: undefined,
+			respectOrientationForPreviousAndNextKey: true
 		});
 
 		return { label, actionBar, icon };

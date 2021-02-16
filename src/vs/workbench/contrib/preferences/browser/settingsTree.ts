@@ -651,6 +651,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
 			renderDropdownAsChildElement: true,
+			respectOrientationForPreviousAndNextKey: true,
 			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
 		});
 		return toolbar;

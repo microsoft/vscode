@@ -28,6 +28,7 @@ export interface IToolBarOptions {
 	anchorAlignmentProvider?: () => AnchorAlignment;
 	renderDropdownAsChildElement?: boolean;
 	moreIcon?: CSSIcon;
+	readonly respectOrientationForPreviousAndNextKey?: boolean;
 }
 
 /**
@@ -63,6 +64,7 @@ export class ToolBar extends Disposable {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
+			respectOrientationForPreviousAndNextKey: options.respectOrientationForPreviousAndNextKey,
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ToggleMenuAction.ID) {
 					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
