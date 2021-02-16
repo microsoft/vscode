@@ -66,7 +66,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
@@ -402,7 +402,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		// Workspace: Untitled
-		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, this.environmentService.userHome)) {
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, this.environmentMainService.userHome)) {
 			return { title: localize('untitledWorkspace', "Untitled (Workspace)"), description: '' };
 		}
 

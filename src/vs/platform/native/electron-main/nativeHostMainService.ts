@@ -47,7 +47,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -140,7 +140,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
-				cli: this.environmentService.args,
+				cli: this.environmentMainService.args,
 				forceNewWindow: options.forceNewWindow,
 				forceReuseWindow: options.forceReuseWindow,
 				preferNewWindow: options.preferNewWindow,
@@ -293,7 +293,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.windowsMainService.open({
 			context: OpenContext.DIALOG,
 			contextWindowId: windowId,
-			cli: this.environmentService.args,
+			cli: this.environmentMainService.args,
 			urisToOpen: openable,
 			forceNewWindow: options.forceNewWindow
 		});
@@ -386,7 +386,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			const promptOptions = {
 				name: product.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
+				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${product.nameShort}.icns`) : undefined
 			};
 
 			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
@@ -412,28 +412,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Windows
 		if (isWindows) {
-			if (this.environmentService.isBuilt) {
+			if (this.environmentMainService.isBuilt) {
 				return join(dirname(process.execPath), 'bin', `${product.applicationName}.cmd`);
 			}
 
-			return join(this.environmentService.appRoot, 'scripts', 'code-cli.bat');
+			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.bat');
 		}
 
 		// Linux
 		if (isLinux) {
-			if (this.environmentService.isBuilt) {
+			if (this.environmentMainService.isBuilt) {
 				return join(dirname(process.execPath), 'bin', `${product.applicationName}`);
 			}
 
-			return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
+			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
 		}
 
 		// macOS
-		if (this.environmentService.isBuilt) {
-			return join(this.environmentService.appRoot, 'bin', 'code');
+		if (this.environmentMainService.isBuilt) {
+			return join(this.environmentMainService.appRoot, 'bin', 'code');
 		}
 
-		return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
+		return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
 	}
 
 	async getOSStatistics(): Promise<IOSStatistics> {
@@ -505,7 +505,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {

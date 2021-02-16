@@ -207,10 +207,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 export async function serve(
 	windowServer: IPCServer,
 	handle: string,
-	environmentService: IEnvironmentMainService,
+	environmentMainService: IEnvironmentMainService,
 	instantiationService: IInstantiationService
 ): Promise<IDisposable> {
-	const verbose = environmentService.driverVerbose;
+	const verbose = environmentMainService.driverVerbose;
 	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
 
 	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);

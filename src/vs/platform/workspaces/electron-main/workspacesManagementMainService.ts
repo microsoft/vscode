@@ -65,7 +65,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly untitledWorkspacesHome = this.environmentService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
+	private readonly untitledWorkspacesHome = this.environmentMainService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
 
 	private readonly _onDidDeleteUntitledWorkspace = this._register(new Emitter<IWorkspaceIdentifier>());
 	readonly onDidDeleteUntitledWorkspace: Event<IWorkspaceIdentifier> = this._onDidDeleteUntitledWorkspace.event;
@@ -74,7 +74,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent> = this._onDidEnterWorkspace.event;
 
 	constructor(
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService
@@ -101,7 +101,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	}
 
 	private isWorkspacePath(uri: URI): boolean {
-		return isUntitledWorkspace(uri, this.environmentService) || hasWorkspaceFileExtension(uri);
+		return isUntitledWorkspace(uri, this.environmentMainService) || hasWorkspaceFileExtension(uri);
 	}
 
 	private doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace | null {
@@ -186,7 +186,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	}
 
 	isUntitledWorkspace(workspace: IWorkspaceIdentifier): boolean {
-		return isUntitledWorkspace(workspace.configPath, this.environmentService);
+		return isUntitledWorkspace(workspace.configPath, this.environmentMainService);
 	}
 
 	deleteUntitledWorkspaceSync(workspace: IWorkspaceIdentifier): void {
@@ -213,7 +213,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 			rimrafSync(dirname(configPath));
 
 			// Mark Workspace Storage to be deleted
-			const workspaceStoragePath = join(this.environmentService.workspaceStorageHome.fsPath, workspace.id);
+			const workspaceStoragePath = join(this.environmentMainService.workspaceStorageHome.fsPath, workspace.id);
 			if (existsSync(workspaceStoragePath)) {
 				writeFileSync(join(workspaceStoragePath, 'obsolete'), '');
 			}

@@ -102,7 +102,7 @@ export class CodeApplication extends Disposable {
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStateService private readonly stateService: IStateService,
@@ -168,7 +168,7 @@ export class CodeApplication extends Disposable {
 			event.preventDefault();
 		});
 		app.on('remote-get-current-web-contents', event => {
-			if (this.environmentService.args.driver) {
+			if (this.environmentMainService.args.driver) {
 				return; // the driver needs access to web contents
 			}
 
@@ -190,7 +190,7 @@ export class CodeApplication extends Disposable {
 					}
 
 					const srcUri = uri.fsPath.toLowerCase();
-					const rootUri = URI.file(this.environmentService.appRoot).fsPath.toLowerCase();
+					const rootUri = URI.file(this.environmentMainService.appRoot).fsPath.toLowerCase();
 
 					return srcUri.startsWith(rootUri + sep);
 				};
@@ -255,7 +255,7 @@ export class CodeApplication extends Disposable {
 			runningTimeout = setTimeout(() => {
 				this.windowsMainService?.open({
 					context: OpenContext.DOCK /* can also be opening from finder while app is running */,
-					cli: this.environmentService.args,
+					cli: this.environmentMainService.args,
 					urisToOpen: macOpenFileURIs,
 					gotoLineMode: false,
 					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
@@ -328,7 +328,7 @@ export class CodeApplication extends Disposable {
 				args = window.config;
 				env = { ...process.env, ...window.config.userEnv };
 			} else {
-				args = this.environmentService.args;
+				args = this.environmentMainService.args;
 				env = process.env;
 			}
 
@@ -376,7 +376,7 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentService.cachedLanguagesPath, !isLinux)) {
+		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentMainService.cachedLanguagesPath, !isLinux)) {
 			return undefined;
 		}
 
@@ -404,8 +404,8 @@ export class CodeApplication extends Disposable {
 
 	async startup(): Promise<void> {
 		this.logService.debug('Starting VS Code');
-		this.logService.debug(`from: ${this.environmentService.appRoot}`);
-		this.logService.debug('args:', this.environmentService.args);
+		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
+		this.logService.debug('args:', this.environmentMainService.args);
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -448,10 +448,10 @@ export class CodeApplication extends Disposable {
 		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
 
 		// Create driver
-		if (this.environmentService.driverHandle) {
-			const server = await serveDriver(mainProcessElectronServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService);
+		if (this.environmentMainService.driverHandle) {
+			const server = await serveDriver(mainProcessElectronServer, this.environmentMainService.driverHandle, this.environmentMainService, appInstantiationService);
 
-			this.logService.info('Driver started at:', this.environmentService.driverHandle);
+			this.logService.info('Driver started at:', this.environmentMainService.driverHandle);
 			this._register(server);
 		}
 
@@ -468,7 +468,7 @@ export class CodeApplication extends Disposable {
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
 
 		// Tracing: Stop tracing after windows are ready if enabled
-		if (this.environmentService.args.trace) {
+		if (this.environmentMainService.args.trace) {
 			appInstantiationService.invokeFunction(accessor => this.stopTracingEventually(accessor, windows));
 		}
 	}
@@ -509,7 +509,7 @@ export class CodeApplication extends Disposable {
 		// Spawn shared process after the first window has opened and 3s have passed
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentService.args, process.env));
+				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env));
 			}, 3000)).schedule();
 		});
 
@@ -583,18 +583,18 @@ export class CodeApplication extends Disposable {
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 
 		// Backups
-		const backupMainService = new BackupMainService(this.environmentService, this.configurationService, this.logService);
+		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService);
 		services.set(IBackupMainService, backupMainService);
 
 		// URL handling
 		services.set(IURLService, new SyncDescriptor(NativeURLService));
 
 		// Telemetry
-		if (!this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
+		if (!this.environmentMainService.isExtensionDevelopment && !this.environmentMainService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(this.fileService, release(), process.arch, product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
-			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
+			const commonProperties = resolveCommonProperties(this.fileService, release(), process.arch, product.commit, product.version, machineId, product.msftInternalDomains, this.environmentMainService.installSourcePath);
+			const piiPaths = [this.environmentMainService.appRoot, this.environmentMainService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -697,7 +697,7 @@ export class CodeApplication extends Disposable {
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
 		const pendingProtocolLinksToHandle = [
 			// Windows/Linux: protocol handler invokes CLI with --open-url
-			...this.environmentService.args['open-url'] ? this.environmentService.args._urls || [] : [],
+			...this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
@@ -734,7 +734,7 @@ export class CodeApplication extends Disposable {
 		// or open new windows. The URL handler will be invoked from
 		// protocol invocations outside of VSCode.
 		const app = this;
-		const environmentService = this.environmentService;
+		const environmentService = this.environmentMainService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 
@@ -789,10 +789,10 @@ export class CodeApplication extends Disposable {
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
 		// Watch Electron URLs and forward them to the UrlService
-		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentService));
+		this._register(new ElectronURLListener(pendingProtocolLinksToHandle, urlService, windowsMainService, this.environmentMainService));
 
 		// Open our first window
-		const args = this.environmentService.args;
+		const args = this.environmentMainService.args;
 		const macOpenFiles: string[] = (<any>global).macOpenFiles;
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const hasCliArgs = args._.length;
@@ -862,7 +862,7 @@ export class CodeApplication extends Disposable {
 					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")),
 				],
 				cancelId: 1,
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentService), product.nameShort),
+				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri.fsPath, this.environmentMainService), product.nameShort),
 				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 				noLink: true
 			});
@@ -958,13 +958,13 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Start to fetch shell environment (if needed) after window has opened
-		resolveShellEnv(this.logService, this.environmentService.args, process.env);
+		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
 		// will be used as crash reporter id and also update the json file.
 		try {
-			const argvContent = await this.fileService.readFile(this.environmentService.argvResource);
+			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
 			if (argvJSON['enable-crash-reporter'] === undefined) {
@@ -982,7 +982,7 @@ export class CodeApplication extends Disposable {
 				];
 				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
 
-				await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
+				await this.fileService.writeFile(this.environmentMainService.argvResource, VSBuffer.fromString(newArgvString));
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -1002,7 +1002,7 @@ export class CodeApplication extends Disposable {
 
 			recordingStopped = true; // only once
 
-			const path = await contentTracing.stopRecording(joinPath(this.environmentService.userHome, `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
+			const path = await contentTracing.stopRecording(joinPath(this.environmentMainService.userHome, `${product.applicationName}-${Math.random().toString(16).slice(-4)}.trace.txt`).fsPath);
 
 			if (!timeout) {
 				dialogMainService.showMessageBox({

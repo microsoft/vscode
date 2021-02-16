@@ -67,7 +67,7 @@ export class Menubar {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
 		@IStateService private readonly stateService: IStateService,
@@ -499,7 +499,7 @@ export class Menubar {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
-					cli: this.environmentService.args,
+					cli: this.environmentMainService.args,
 					urisToOpen: [openable],
 					forceNewWindow: openInNewWindow,
 					gotoLineMode: false
@@ -716,7 +716,7 @@ export class Menubar {
 		if (activeWindow) {
 			this.logService.trace('menubar#runActionInRenderer', invocation);
 
-			if (isMacintosh && !this.environmentService.isBuilt && !activeWindow.isReady) {
+			if (isMacintosh && !this.environmentMainService.isBuilt && !activeWindow.isReady) {
 				if ((invocation.type === 'commandId' && invocation.commandId === 'workbench.action.toggleDevTools') || (invocation.type !== 'commandId' && invocation.userSettingsLabel === 'alt+cmd+i')) {
 					// prevent this action from running twice on macOS (https://github.com/microsoft/vscode/issues/62719)
 					// we already register a keybinding in bootstrap-window.js for opening developer tools in case something

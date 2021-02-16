@@ -36,10 +36,10 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 	constructor(
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService protected logService: ILogService,
 	) {
-		if (environmentService.disableUpdates) {
+		if (environmentMainService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
@@ -140,11 +140,11 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		private snap: string,
 		private snapRevision: string,
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
-		super(lifecycleMainService, environmentService, logService);
+		super(lifecycleMainService, environmentMainService, logService);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
