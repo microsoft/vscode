@@ -22,7 +22,7 @@ interface IEditorCancellationTokens {
 	cancel(editor: ICodeEditor): void;
 }
 
-const ctxCancellableOperation = new RawContextKey('cancellableOperation', false);
+const ctxCancellableOperation = new RawContextKey('cancellableOperation', false, 'Whether the editor runs a cancellable operation, e.g. like \'Peek References\'');
 
 registerSingleton(IEditorCancellationTokens, class implements IEditorCancellationTokens {
 
