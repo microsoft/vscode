@@ -207,6 +207,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					public: false
 				});
 			}
+			if (provider.candidatePortSource !== undefined) {
+				await this._proxy.$setCandidatePortSource(provider.candidatePortSource);
+			}
 		} else {
 			this._forwardPortProvider = undefined;
 		}

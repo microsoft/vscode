@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { CandidatePort, IRemoteExplorerService, makeAddress } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { PORT_AUTO_FORWARD_SETTING } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
@@ -132,6 +131,27 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		});
 	}
 
+	async $setCandidatePortSource(source: CandidatePortSource): Promise<void> {
+		switch (source) {
+			case CandidatePortSource.None: {
+				const autoDetectionEnablement = this.configurationService.inspect(PORT_AUTO_FORWARD_SETTING);
+				if (autoDetectionEnablement.userRemote === undefined) {
+					// Only update the remote setting if the user hasn't already set it.
+					this.configurationService.updateValue(PORT_AUTO_FORWARD_SETTING, false, ConfigurationTarget.USER_REMOTE);
+				}
+				break;
+			}
+			case CandidatePortSource.Output: {
+				const candidatePortSourceSetting = this.configurationService.inspect(PORT_AUTO_SOURCE_SETTING);
+				if (candidatePortSourceSetting.userRemote === undefined) {
+					// Only update the remote setting if the user hasn't already set it.
+					this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS, ConfigurationTarget.USER_REMOTE);
+				}
+				break;
+			}
+			default: // do nothing, the defaults for these settings should be used.
+		}
+	}
 
 	dispose(): void {
 
