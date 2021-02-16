@@ -15,6 +15,8 @@ const rootCG = path.join(root, '.build', 'builtInExtensionsCG');
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions;
 const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions;
+const token = process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined;
+
 const contentBasePath = 'https://raw.githubusercontent.com';
 const contentFileNames = ['package.json', 'package-lock.json', 'yarn.lock'];
 
@@ -26,7 +28,7 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 	const promises = [];
 	for (const fileName of contentFileNames) {
 		promises.push(new Promise<{ fileName: string, body: Buffer | undefined | null }>(resolve => {
-			got(`${repositoryContentBaseUrl}/${fileName}`)
+			got(`${repositoryContentBaseUrl}/${fileName}?token=${token}`)
 				.then(response => {
 					resolve({ fileName, body: response.rawBody });
 				})

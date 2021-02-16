@@ -140,7 +140,8 @@ steps:
 
   - script: |
       set -e
-      yarn download-builtin-extensions-cg
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+        yarn download-builtin-extensions-cg
     displayName: Built-in extensions component details
 
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
