@@ -18,13 +18,13 @@ import * as vscode from 'vscode';
 
 class RawContentChangeEvent {
 
-	constructor(readonly start: number, readonly deletedCount: number, readonly deletedItems: ExtHostCell[], readonly items: ExtHostCell[]) { }
+	constructor(readonly start: number, readonly deletedCount: number, readonly deletedItems: vscode.NotebookCell[], readonly items: ExtHostCell[]) { }
 
 	static asApiEvent(event: RawContentChangeEvent): vscode.NotebookCellsChangeData {
 		return Object.freeze({
 			start: event.start,
 			deletedCount: event.deletedCount,
-			deletedItems: event.deletedItems.map(data => data.cell),
+			deletedItems: event.deletedItems,
 			items: event.items.map(data => data.cell)
 		});
 	}
@@ -252,12 +252,14 @@ export class ExtHostNotebookDocument extends Disposable {
 				this._cellDisposableMapping.delete(this._cells[j].handle);
 			}
 
+			const changeEvent = new RawContentChangeEvent(splice[0], splice[1], [], newCells);
 			const deletedItems = this._cells.splice(splice[0], splice[1], ...newCells);
 			for (let cell of deletedItems) {
 				removedCellDocuments.push(cell.uri);
+				changeEvent.deletedItems.push(cell.cell);
 			}
 
-			contentChangeEvents.push(new RawContentChangeEvent(splice[0], splice[1], deletedItems, newCells));
+			contentChangeEvents.push(changeEvent);
 		});
 
 		this._documentsAndEditors.acceptDocumentsAndEditorsDelta({
