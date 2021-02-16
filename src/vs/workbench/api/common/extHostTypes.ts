@@ -2863,12 +2863,13 @@ export class NotebookCellRange {
 	}
 
 	constructor(start: number, end: number) {
-		if (start < 0) {
-			throw illegalArgument('start must be positive');
-		}
-		if (end < start) {
-			throw illegalArgument('end cannot be smaller than start');
-		}
+		// todo@rebornix
+		// if (start < 0) {
+		// 	throw illegalArgument('start must be positive');
+		// }
+		// if (end < start) {
+		// 	throw illegalArgument('end cannot be smaller than start');
+		// }
 		this._start = start;
 		this._end = end;
 	}
