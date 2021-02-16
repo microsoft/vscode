@@ -200,7 +200,7 @@ export namespace Sizing {
 	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
-export interface ISplitViewDescriptor<TLayoutContext> {
+export interface ISplitViewDescriptor<TLayoutContext = undefined> {
 	size: number;
 	views: {
 		visible?: boolean;
