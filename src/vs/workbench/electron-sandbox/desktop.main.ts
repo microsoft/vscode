@@ -120,8 +120,8 @@ class DesktopMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService2): void {
 
 		// Workbench Lifecycle
-		this._register(workbench.onShutdown(() => this.dispose()));
 		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
+		this._register(workbench.onShutdown(() => this.dispose()));
 	}
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService2 }> {

@@ -146,22 +146,30 @@ suite('StorageMainService (native)', function () {
 		const workspace = { id: generateUuid() };
 		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), lifecycleMainService, new TestConfigurationService());
 
-		let storage = storageMainService.workspaceStorage(workspace);
-		let didCloseStorage = false;
-		storage.onDidCloseStorage(() => {
-			didCloseStorage = true;
+		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		let didCloseWorkspaceStorage = false;
+		workspaceStorage.onDidCloseStorage(() => {
+			didCloseWorkspaceStorage = true;
 		});
 
-		strictEqual(storage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
+		let globalStorage = storageMainService.globalStorage;
+		let didCloseGlobalStorage = false;
+		globalStorage.onDidCloseStorage(() => {
+			didCloseGlobalStorage = true;
+		});
 
-		await storage.initialize();
+		strictEqual(workspaceStorage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
+
+		await workspaceStorage.initialize();
 
 		await timeout(0);
 		await lifecycleMainService.fireOnWillShutdown();
-		strictEqual(didCloseStorage, true);
+
+		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseWorkspaceStorage, true);
 
 		let storage2 = storageMainService.workspaceStorage(workspace);
-		notStrictEqual(storage, storage2);
+		notStrictEqual(workspaceStorage, storage2);
 
 		return storage2.close();
 	});
