@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { StorageScope, WillSaveStateReason, logStorage, AbstractStorageService } from 'vs/platform/storage/common/storage';
+import { StorageScope, WillSaveStateReason, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { Storage, IStorage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { assertIsDefined } from 'vs/base/common/types';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { mark } from 'vs/base/common/performance';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -72,41 +71,12 @@ export class NativeStorageService2 extends AbstractStorageService {
 		this.periodicFlushScheduler.schedule();
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope): string | undefined;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		return this.getStorage(scope).get(key, fallbackValue);
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope): boolean | undefined;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		return this.getStorage(scope).getBoolean(key, fallbackValue);
-	}
-
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope): number | undefined;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getNumber(key, fallbackValue);
-	}
-
-	protected doStore(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
-		this.getStorage(scope).set(key, value);
-	}
-
-	protected doRemove(key: string, scope: StorageScope): void {
-		this.getStorage(scope).delete(key);
-	}
-
-	private getStorage(scope: StorageScope): IStorage {
-		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
-	}
-
-	protected async doFlush(): Promise<void> {
-		await Promises.settled([
-			this.globalStorage.whenFlushed(),
-			this.workspaceStorage?.whenFlushed() ?? Promise.resolve()
-		]);
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspace ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspace.id, 'state.vscdb').fsPath} [!!! Experimental Main Storage !!!]` : undefined;
 	}
 
 	private doFlushWhenIdle(): void {
@@ -140,15 +110,6 @@ export class NativeStorageService2 extends AbstractStorageService {
 			this.globalStorage.close(),
 			this.workspaceStorage?.close() ?? Promise.resolve()
 		]);
-	}
-
-	async logStorage(): Promise<void> {
-		return logStorage(
-			this.globalStorage.items,
-			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(),
-			this.environmentService.globalStorageHome.fsPath,
-			this.workspace ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspace.id, 'state.vscdb').fsPath} [!!! Experimental Main Storage !!!]` : ''
-		);
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {

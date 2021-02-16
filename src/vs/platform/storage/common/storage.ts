@@ -8,6 +8,8 @@ import { Event, Emitter, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
+import { Promises } from 'vs/base/common/async';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
 const TARGET_KEY = '__$__targetStorageMarker';
@@ -257,6 +259,24 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		this._onWillSaveState.fire({ reason });
 	}
 
+	get(key: string, scope: StorageScope, fallbackValue: string): string;
+	get(key: string, scope: StorageScope): string | undefined;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
+		return this.getStorage(scope)?.get(key, fallbackValue);
+	}
+
+	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope): boolean | undefined;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
+		return this.getStorage(scope)?.getBoolean(key, fallbackValue);
+	}
+
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope): number | undefined;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+		return this.getStorage(scope)?.getNumber(key, fallbackValue);
+	}
+
 	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope, target: StorageTarget): void {
 
 		// We remove the key for undefined/null values
@@ -272,7 +292,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			this.updateKeyTarget(key, scope, target);
 
 			// Store actual value
-			this.doStore(key, value, scope);
+			this.getStorage(scope)?.set(key, value);
 		});
 	}
 
@@ -285,7 +305,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 			this.updateKeyTarget(key, scope, undefined);
 
 			// Remove actual key
-			this.doRemove(key, scope);
+			this.getStorage(scope)?.delete(key);
 		});
 	}
 
@@ -326,7 +346,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (typeof target === 'number') {
 			if (keyTargets[key] !== target) {
 				keyTargets[key] = target;
-				this.doStore(TARGET_KEY, JSON.stringify(keyTargets), scope);
+				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets));
 			}
 		}
 
@@ -334,7 +354,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		else {
 			if (typeof keyTargets[key] === 'number') {
 				delete keyTargets[key];
-				this.doStore(TARGET_KEY, JSON.stringify(keyTargets), scope);
+				this.getStorage(scope)?.set(TARGET_KEY, JSON.stringify(keyTargets));
 			}
 		}
 	}
@@ -378,118 +398,62 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
-	flush(): Promise<void> {
+	async flush(): Promise<void> {
 
 		// Signal event to collect changes
 		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
 
 		// Await flush
-		return this.doFlush();
+		await Promises.settled([
+			this.getStorage(StorageScope.GLOBAL)?.whenFlushed() ?? Promise.resolve(),
+			this.getStorage(StorageScope.WORKSPACE)?.whenFlushed() ?? Promise.resolve()
+		]);
+	}
+
+	async logStorage(): Promise<void> {
+		const globalItems = this.getStorage(StorageScope.GLOBAL)?.items ?? new Map<string, string>();
+		const workspaceItems = this.getStorage(StorageScope.WORKSPACE)?.items ?? new Map<string, string>();
+
+		return logStorage(
+			globalItems,
+			workspaceItems,
+			this.getLogDetails(StorageScope.GLOBAL) ?? '',
+			this.getLogDetails(StorageScope.WORKSPACE) ?? ''
+		);
 	}
 
 	// --- abstract
 
-	abstract get(key: string, scope: StorageScope, fallbackValue: string): string;
-	abstract get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined;
+	protected abstract getStorage(scope: StorageScope): IStorage | undefined;
 
-	abstract getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	abstract getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined;
-
-	abstract getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	abstract getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined;
-
-	protected abstract doStore(key: string, value: string | boolean | number, scope: StorageScope): void;
-
-	protected abstract doRemove(key: string, scope: StorageScope): void;
-
-	protected abstract doFlush(): Promise<void>;
+	protected abstract getLogDetails(scope: StorageScope): string | undefined;
 
 	abstract migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
-
-	abstract logStorage(): void;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private readonly globalCache = new Map<string, string>();
-	private readonly workspaceCache = new Map<string, string>();
+	private globalStorage = new Storage(new InMemoryStorageDatabase());
+	private workspaceStorage = new Storage(new InMemoryStorageDatabase());
 
-	private getCache(scope: StorageScope): Map<string, string> {
-		return scope === StorageScope.GLOBAL ? this.globalCache : this.workspaceCache;
+	constructor() {
+		super();
+
+		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
+		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		const value = this.getCache(scope).get(key);
-
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
-		}
-
-		return value;
+	protected getStorage(scope: StorageScope): IStorage {
+		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		const value = this.getCache(scope).get(key);
-
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
-		}
-
-		return value === 'true';
-	}
-
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		const value = this.getCache(scope).get(key);
-
-		if (isUndefinedOrNull(value)) {
-			return fallbackValue;
-		}
-
-		return parseInt(value, 10);
-	}
-
-	protected doStore(key: string, value: string | boolean | number, scope: StorageScope): void {
-
-		// Otherwise, convert to String and store
-		const valueStr = String(value);
-
-		// Return early if value already set
-		const currentValue = this.getCache(scope).get(key);
-		if (currentValue === valueStr) {
-			return;
-		}
-
-		// Update in cache
-		this.getCache(scope).set(key, valueStr);
-
-		// Events
-		this.emitDidChangeValue(scope, key);
-	}
-
-	protected doRemove(key: string, scope: StorageScope): void {
-		const wasDeleted = this.getCache(scope).delete(key);
-		if (!wasDeleted) {
-			return; // Return early if value already deleted
-		}
-
-		// Events
-		this.emitDidChangeValue(scope, key);
-	}
-
-	logStorage(): void {
-		logStorage(this.globalCache, this.workspaceCache, 'inMemory', 'inMemory');
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		return scope === StorageScope.GLOBAL ? 'inMemory (global)' : 'inMemory (workspace)';
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		// not supported
 	}
-
-	async doFlush(): Promise<void> { }
-
-	async close(): Promise<void> { }
 }
 
 export async function logStorage(global: Map<string, string>, workspace: Map<string, string>, globalPath: string, workspacePath: string): Promise<void> {
