@@ -688,9 +688,7 @@ class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoi
 		toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 			// Need to react with a timeout on the blur event due to possible concurent splices #56443
 			setTimeout(() => {
-				if (!template.breakpoint.name) {
-					wrapUp(true);
-				}
+				wrapUp(!!inputBox.value);
 			});
 		}));
 
