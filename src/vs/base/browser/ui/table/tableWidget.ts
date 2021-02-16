@@ -10,8 +10,9 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { $, append, clearNode, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
-import { Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { ISplitViewDescriptor, IView, LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { Event } from 'vs/base/common/event';
 
 // TODO@joao
 type TCell = any;
@@ -49,12 +50,13 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 	}
 
 	renderTemplate(container: HTMLElement) {
+		const rowContainer = append(container, $('.monaco-table-tr'));
 		const cellContainers: HTMLElement[] = [];
 		const cellTemplateData: unknown[] = [];
 
 		for (let i = 0; i < this.columns.length; i++) {
 			const renderer = this.renderers[i];
-			const cellContainer = append(container, $('.monaco-table-cell'));
+			const cellContainer = append(rowContainer, $('.monaco-table-td', { 'data-col-index': i }));
 
 			cellContainers.push(cellContainer);
 			cellTemplateData.push(renderer.renderTemplate(cellContainer));
@@ -102,6 +104,20 @@ function asListVirtualDelegate<TRow>(delegate: ITableVirtualDelegate<TRow>): ILi
 	};
 }
 
+class ColumnHeader<TRow, TCell> implements IView {
+
+	readonly element: HTMLElement;
+	readonly minimumSize = 120;
+	readonly maximumSize = Number.POSITIVE_INFINITY;
+	readonly onDidChange = Event.None;
+
+	constructor(column: ITableColumn<TRow, TCell>, index: number) {
+		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
+	}
+
+	layout(): void { }
+}
+
 export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 	private domNode: HTMLElement;
@@ -118,26 +134,20 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 	) {
 		this.domNode = append(container, $('.monaco-table'));
 
-		this.splitview = new SplitView(this.domNode, { orientation: Orientation.HORIZONTAL });
+		const descriptor: ISplitViewDescriptor = {
+			size: columns.length,
+			views: columns.map((c, i) => ({ size: 1, view: new ColumnHeader(c, i) }))
+		};
+
+		this.splitview = new SplitView(this.domNode, { orientation: Orientation.HORIZONTAL, descriptor });
 		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
+		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
 
 		this.list = new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [new TableListRenderer(columns, renderers)], _options);
 	}
 
 	splice(start: number, deleteCount: number, elements: TRow[] = []): void {
-		if (start < 0 || start > this.list.length) {
-			throw new TableError(this.user, `Invalid start index: ${start}`);
-		}
-
-		if (deleteCount < 0) {
-			throw new TableError(this.user, `Invalid delete count: ${deleteCount}`);
-		}
-
-		if (deleteCount === 0 && elements.length === 0) {
-			return;
-		}
-
-		throw new Error('Method not implemented');
+		this.list.splice(start, deleteCount, elements);
 	}
 
 	layout(height?: number, width?: number): void {
