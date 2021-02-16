@@ -30,17 +30,6 @@ export interface IStorageMain {
 	readonly onDidChangeStorage: Event<IStorageChangeEvent>;
 
 	/**
-	 * Emitted when the storage is about to persist. This is the right time
-	 * to persist data to ensure it is stored before the application shuts
-	 * down.
-	 *
-	 * Note: this event may be fired many times, not only on shutdown to prevent
-	 * loss of state in situations where the shutdown is not sufficient to
-	 * persist the data properly.
-	 */
-	readonly onWillSaveState: Event<void>;
-
-	/**
 	 * Emitted when the storage is closed.
 	 */
 	readonly onDidCloseStorage: Event<void>;
@@ -103,9 +92,6 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	protected readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
-
-	protected readonly _onWillSaveState = this._register(new Emitter<void>());
-	readonly onWillSaveState = this._onWillSaveState.event;
 
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
@@ -268,15 +254,6 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 		const currentSessionDate = new Date().toUTCString();
 		storage.set(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
 		storage.set(currentSessionDateStorageKey, currentSessionDate);
-	}
-
-	close(): Promise<void> {
-
-		// Signal as event so that clients can still store data
-		this._onWillSaveState.fire();
-
-		// Do it
-		return super.close();
 	}
 }
 

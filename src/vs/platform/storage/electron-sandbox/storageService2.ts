@@ -32,6 +32,7 @@ export class NativeStorageService2 extends AbstractStorageService {
 	) {
 		super();
 
+		// Connect to storage via channel client
 		const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), workspace);
 		this.globalStorage = new Storage(storageDataBaseClient.globalStorage);
 		this.workspaceStorage = storageDataBaseClient.workspaceStorage ? new Storage(storageDataBaseClient.workspaceStorage) : undefined;
