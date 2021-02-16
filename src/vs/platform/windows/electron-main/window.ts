@@ -285,7 +285,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	get id(): number { return this._id; }
 
 	private _win: BrowserWindow;
-	get win(): BrowserWindow { return this._win; }
+	get win(): BrowserWindow | null { return this._win; }
 
 	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
@@ -297,7 +297,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	setRepresentedFilename(filename: string): void {
 		if (isMacintosh) {
-			this.win.setRepresentedFilename(filename);
+			this._win.setRepresentedFilename(filename);
 		} else {
 			this.representedFilename = filename;
 		}
@@ -305,7 +305,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	getRepresentedFilename(): string | undefined {
 		if (isMacintosh) {
-			return this.win.getRepresentedFilename();
+			return this._win.getRepresentedFilename();
 		}
 
 		return this.representedFilename;
@@ -680,7 +680,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
-		if (isMacintosh) {
+		if (isMacintosh && window.win) {
 			this._win.addTabbedWindow(window.win);
 		}
 	}
@@ -1262,26 +1262,26 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
 			switch (action) {
 				case 'Minimize':
-					this.win.minimize();
+					this._win.minimize();
 					break;
 				case 'None':
 					break;
 				case 'Maximize':
 				default:
-					if (this.win.isMaximized()) {
-						this.win.unmaximize();
+					if (this._win.isMaximized()) {
+						this._win.unmaximize();
 					} else {
-						this.win.maximize();
+						this._win.maximize();
 					}
 			}
 		}
 
 		// Linux/Windows: just toggle maximize/minimized state
 		else {
-			if (this.win.isMaximized()) {
-				this.win.unmaximize();
+			if (this._win.isMaximized()) {
+				this._win.unmaximize();
 			} else {
-				this.win.maximize();
+				this._win.maximize();
 			}
 		}
 	}

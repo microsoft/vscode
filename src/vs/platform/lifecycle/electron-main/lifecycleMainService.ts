@@ -15,6 +15,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Promises, Barrier, timeout } from 'vs/base/common/async';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -343,7 +344,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace })));
 
 		// Window Before Closing: Main -> Renderer
-		window.win.on('close', e => {
+		const win = assertIsDefined(window.win);
+		win.on('close', e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -375,7 +377,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 
 		// Window After Closing
-		window.win.on('closed', () => {
+		win.on('closed', () => {
 			this.logService.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count

@@ -35,7 +35,7 @@ import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier, IWorkspaces
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -1200,8 +1200,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
 			once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
 			once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
-			createdWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			createdWindow.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+
+			const webContents = assertIsDefined(createdWindow.win?.webContents);
+			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
+			webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
 
 			// Lifecycle
 			this.lifecycleMainService.registerWindow(createdWindow);

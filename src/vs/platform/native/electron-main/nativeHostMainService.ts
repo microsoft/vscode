@@ -105,7 +105,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return windows.map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace,
-			title: window.win.getTitle(),
+			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
 		}));
@@ -176,7 +176,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async isMaximized(windowId: number | undefined): Promise<boolean> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			return window.win.isMaximized();
 		}
 
@@ -185,21 +185,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async maximizeWindow(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.maximize();
 		}
 	}
 
 	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.unmaximize();
 		}
 	}
 
 	async minimizeWindow(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.minimize();
 		}
 	}
@@ -217,7 +217,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			const [windowWidth, windowHeight] = window.win.getSize();
 			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
 			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
@@ -250,7 +250,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private toBrowserWindow(windowId: number | undefined): BrowserWindow | undefined {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			return window.win;
 		}
 
@@ -563,7 +563,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
 		const window = this.windowById(targetWindowId);
-		if (window) {
+		if (window?.win) {
 			return window.win.close();
 		}
 	}
@@ -573,7 +573,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		const window = this.windowsMainService.getLastActiveWindow();
-		if (window?.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1) {
+		if (window?.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1 && window.win) {
 			window.win.close();
 		}
 
@@ -609,14 +609,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.webContents.openDevTools(options);
 		}
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			const contents = window.win.webContents;
 			contents.toggleDevTools();
 		}
@@ -624,7 +624,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
+		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
 	}

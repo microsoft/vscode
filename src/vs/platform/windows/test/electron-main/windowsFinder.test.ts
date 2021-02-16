@@ -38,7 +38,7 @@ suite('WindowsFinder', () => {
 			onDidDestroy: Event<void> = Event.None;
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
-			win: Electron.BrowserWindow = undefined!;
+			win: Electron.BrowserWindow = null!;
 			config: INativeWindowConfiguration | undefined;
 			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 			backupPath?: string | undefined;
