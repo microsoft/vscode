@@ -80,17 +80,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private static readonly MAX_URL_LENGTH = 2 * ByteSize.MB; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
-	private readonly _onLoad = this._register(new Emitter<void>());
-	readonly onLoad = this._onLoad.event;
+	private readonly _onDidLoad = this._register(new Emitter<void>());
+	readonly onDidLoad = this._onDidLoad.event;
 
-	private readonly _onReady = this._register(new Emitter<void>());
-	readonly onReady = this._onReady.event;
+	private readonly _onDidSignalReady = this._register(new Emitter<void>());
+	readonly onDidSignalReady = this._onDidSignalReady.event;
 
-	private readonly _onClose = this._register(new Emitter<void>());
-	readonly onClose = this._onClose.event;
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose = this._onDidClose.event;
 
-	private readonly _onDestroy = this._register(new Emitter<void>());
-	readonly onDestroy = this._onDestroy.event;
+	private readonly _onDidDestroy = this._register(new Emitter<void>());
+	readonly onDidDestroy = this._onDidDestroy.event;
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	private showTimeoutHandle: NodeJS.Timeout | undefined;
@@ -367,7 +367,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Events
-		this._onReady.fire();
+		this._onDidSignalReady.fire();
 	}
 
 	ready(): Promise<ICodeWindow> {
@@ -395,8 +395,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				resolve();
 			}
 
-			const closeListener = this.onClose(() => handle());
-			const loadListener = this.onLoad(() => handle());
+			const closeListener = this.onDidClose(() => handle());
+			const loadListener = this.onDidLoad(() => handle());
 		});
 	}
 
@@ -409,7 +409,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Window close
 		this._win.on('closed', () => {
-			this._onClose.fire();
+			this._onDidClose.fire();
 
 			this.dispose();
 		});
@@ -538,7 +538,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationUpdated()));
 
 		// Handle Workspace events
-		this._register(this.workspacesManagementMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+		this._register(this.workspacesManagementMainService.onDidDeleteUntitledWorkspace(e => this.onDidDeleteUntitledWorkspace(e)));
 
 		// Inject headers when requests are incoming
 		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
@@ -636,11 +636,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private destroyWindow(): void {
-		this._onDestroy.fire(); // 'close' event will not be fired on destroy(), so signal crash via explicit event
+		this._onDidDestroy.fire(); // 'close' event will not be fired on destroy(), so signal crash via explicit event
 		this._win.destroy(); 	// make sure to destroy the window as it has crashed
 	}
 
-	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
+	private onDidDeleteUntitledWorkspace(workspace: IWorkspaceIdentifier): void {
 
 		// Make sure to update our workspace config if we detect that it
 		// was deleted
@@ -761,7 +761,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Event
-		this._onLoad.fire();
+		this._onDidLoad.fire();
 	}
 
 	async reload(cli?: NativeParsedArgs): Promise<void> {

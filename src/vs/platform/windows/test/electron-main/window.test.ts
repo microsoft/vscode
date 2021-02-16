@@ -32,10 +32,10 @@ suite('WindowsFinder', () => {
 
 	function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?: URI, openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
-			onLoad: Event<void> = Event.None;
-			onReady: Event<void> = Event.None;
-			onClose: Event<void> = Event.None;
-			onDestroy: Event<void> = Event.None;
+			onDidLoad: Event<void> = Event.None;
+			onDidSignalReady: Event<void> = Event.None;
+			onDidClose: Event<void> = Event.None;
+			onDidDestroy: Event<void> = Event.None;
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
 			win: Electron.BrowserWindow = undefined!;

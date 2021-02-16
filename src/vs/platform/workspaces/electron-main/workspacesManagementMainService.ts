@@ -38,8 +38,8 @@ export interface IWorkspacesManagementMainService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
-	readonly onWorkspaceEntered: Event<IWorkspaceEnteredEvent>;
+	readonly onDidDeleteUntitledWorkspace: Event<IWorkspaceIdentifier>;
+	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent>;
 
 	enterWorkspace(intoWindow: ICodeWindow, openedWindows: ICodeWindow[], path: URI): Promise<IEnterWorkspaceResult | null>;
 
@@ -67,11 +67,11 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 	private readonly untitledWorkspacesHome = this.environmentService.untitledWorkspacesHome; // local URI that contains all untitled workspaces
 
-	private readonly _onUntitledWorkspaceDeleted = this._register(new Emitter<IWorkspaceIdentifier>());
-	readonly onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier> = this._onUntitledWorkspaceDeleted.event;
+	private readonly _onDidDeleteUntitledWorkspace = this._register(new Emitter<IWorkspaceIdentifier>());
+	readonly onDidDeleteUntitledWorkspace: Event<IWorkspaceIdentifier> = this._onDidDeleteUntitledWorkspace.event;
 
-	private readonly _onWorkspaceEntered = this._register(new Emitter<IWorkspaceEnteredEvent>());
-	readonly onWorkspaceEntered: Event<IWorkspaceEnteredEvent> = this._onWorkspaceEntered.event;
+	private readonly _onDidEnterWorkspace = this._register(new Emitter<IWorkspaceEnteredEvent>());
+	readonly onDidEnterWorkspace: Event<IWorkspaceEnteredEvent> = this._onDidEnterWorkspace.event;
 
 	constructor(
 		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
@@ -198,7 +198,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		this.doDeleteUntitledWorkspaceSync(workspace);
 
 		// Event
-		this._onUntitledWorkspaceDeleted.fire(workspace);
+		this._onDidDeleteUntitledWorkspace.fire(workspace);
 	}
 
 	async deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -260,7 +260,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		}
 
 		// Emit as event
-		this._onWorkspaceEntered.fire({ window, workspace: result.workspace });
+		this._onDidEnterWorkspace.fire({ window, workspace: result.workspace });
 
 		return result;
 	}

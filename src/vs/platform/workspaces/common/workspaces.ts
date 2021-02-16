@@ -45,7 +45,7 @@ export interface IWorkspacesService {
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 
 	// Workspaces History
-	readonly onRecentlyOpenedChange: Event<void>;
+	readonly onDidChangeRecentlyOpened: Event<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeRecentlyOpened(workspaces: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;

@@ -82,7 +82,7 @@ export class ElectronURLListener {
 		if (isWindowReady) {
 			this.flush();
 		} else {
-			Event.once(windowsMainService.onWindowReady)(this.flush, this, this.disposables);
+			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
 		}
 	}
 

@@ -62,10 +62,10 @@ export const enum WindowMode {
 
 export interface ICodeWindow extends IDisposable {
 
-	readonly onLoad: Event<void>;
-	readonly onReady: Event<void>;
-	readonly onClose: Event<void>;
-	readonly onDestroy: Event<void>;
+	readonly onDidLoad: Event<void>;
+	readonly onDidSignalReady: Event<void>;
+	readonly onDidClose: Event<void>;
+	readonly onDidDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
 
@@ -132,11 +132,11 @@ export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
+	readonly onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
 
-	readonly onWindowOpened: Event<ICodeWindow>;
-	readonly onWindowReady: Event<ICodeWindow>;
-	readonly onWindowDestroyed: Event<ICodeWindow>;
+	readonly onDidOpenWindow: Event<ICodeWindow>;
+	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];

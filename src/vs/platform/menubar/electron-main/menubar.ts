@@ -168,9 +168,9 @@ export class Menubar {
 		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
 
 		// // Listen to some events from window service to update menu
-		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
-		this.nativeHostMainService.onDidBlurWindow(() => this.onWindowFocusChange());
-		this.nativeHostMainService.onDidFocusWindow(() => this.onWindowFocusChange());
+		this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e));
+		this.nativeHostMainService.onDidBlurWindow(() => this.onDidChangeWindowFocus());
+		this.nativeHostMainService.onDidFocusWindow(() => this.onDidChangeWindowFocus());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -225,7 +225,7 @@ export class Menubar {
 		}
 	}
 
-	private onWindowsCountChanged(e: IWindowsCountChangedEvent): void {
+	private onDidChangeWindowsCount(e: IWindowsCountChangedEvent): void {
 		if (!isMacintosh) {
 			return;
 		}
@@ -237,7 +237,7 @@ export class Menubar {
 		}
 	}
 
-	private onWindowFocusChange(): void {
+	private onDidChangeWindowFocus(): void {
 		if (!isMacintosh) {
 			return;
 		}
