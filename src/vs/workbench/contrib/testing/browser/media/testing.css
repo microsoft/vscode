@@ -60,8 +60,20 @@
 	margin-right: 8px;
 }
 
-.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::before {
-	padding: 2px;
+.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after {
+	content: '';
+	display: none;
+	position: absolute;
+	width: 0.4em;
+	height: 0.4em;
+	top: 50%;
+	left: 50%;
+	margin: 0.1em 0 0 0.05em;
+	border-radius: 100%;
+}
+
+.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun.checked::after {
+	display: block;
 }
 
 .codicon-testing-loading-icon::before {
