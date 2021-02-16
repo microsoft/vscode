@@ -700,10 +700,19 @@ function webviewPreloads() {
 			previewContainerNode.style.top = top + 'px';
 			previewContainerNode.id = `${cellId}_preview`;
 			previewContainerNode.classList.add('preview');
+
 			previewContainerNode.addEventListener('dblclick', () => {
 				vscode.postMessage({
 					__vscode_notebook_message: true,
 					type: 'toggleMarkdownPreview',
+					cellId,
+				});
+			});
+
+			previewContainerNode.addEventListener('click', () => {
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'focusMarkdownPreview',
 					cellId,
 				});
 			});

@@ -80,6 +80,12 @@ export interface IClickedDataUrlMessage {
 	downloadName?: string;
 }
 
+export interface IFocusMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'focusMarkdownPreview';
+	cellId: string;
+}
+
 export interface IToggleMarkdownPreviewMessage {
 	__vscode_notebook_message: boolean;
 	type: 'toggleMarkdownPreview';
@@ -264,6 +270,7 @@ export type FromWebviewMessage =
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
+	| IFocusMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
@@ -783,6 +790,11 @@ var requirejs = (function() {
 					this._onDidClickDataLink(data);
 				} else if (data.type === 'customRendererMessage') {
 					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+				} else if (data.type === 'focusMarkdownPreview') {
+					const cell = this.notebookEditor.getCellById(data.cellId);
+					if (cell) {
+						this.notebookEditor.focusNotebookCell(cell, 'container');
+					}
 				} else if (data.type === 'toggleMarkdownPreview') {
 					this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
 				} else if (data.type === 'cell-drag-start') {
