@@ -72,7 +72,6 @@ keytar/node_modules/**
 
 node-pty/binding.gyp
 node-pty/build/**
-node-pty/lib/**
 node-pty/src/**
 node-pty/tools/**
 node-pty/deps/**
@@ -80,6 +79,7 @@ node-pty/scripts/**
 !node-pty/build/Release/*.exe
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
+!node-pty/lib/**
 
 vscode-nsfw/binding.gyp
 vscode-nsfw/build/**
