@@ -87,8 +87,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
-	private _remoteTerminalId: number | undefined;
-	public get remoteTerminalId(): number | undefined { return this._remoteTerminalId; }
+	private _persistentTerminalId: number | undefined;
+	public get persistentTerminalId(): number | undefined { return this._persistentTerminalId; }
 
 	public get hasWrittenData(): boolean {
 		return this._hasWrittenData;
@@ -123,7 +123,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public dispose(immediate: boolean = false): void {
+		this._logService.info(`process is undefined ${this.processState}`);
+
 		if (this._process) {
+			this._logService.info(`exiting ${this.processState}`);
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
 			// killed by the user.
@@ -231,8 +234,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}, LAUNCHING_DURATION);
 
 		const result = await this._process.start();
-		if (result && 'remoteTerminalId' in result) {
-			this._remoteTerminalId = result.remoteTerminalId;
+		if (result && 'persistentTerminalId' in result) {
+			this._persistentTerminalId = result.persistentTerminalId;
 		} else if (result) {
 			// Error
 			return result;
@@ -379,6 +382,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (this.processState === ProcessState.LAUNCHING) {
 			this.processState = ProcessState.KILLED_DURING_LAUNCH;
 		}
+		this._logService.info(`exiting ${exitCode}`);
 
 		// If TerminalInstance did not know about the process exit then it was
 		// triggered by the process, not on VS Code's side.

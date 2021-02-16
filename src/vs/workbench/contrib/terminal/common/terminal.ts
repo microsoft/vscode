@@ -246,7 +246,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-	readonly remoteTerminalId: number | undefined;
+	readonly persistentTerminalId: number | undefined;
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
 
@@ -376,7 +376,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined>;
+	start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined>;
 
 	/**
 	 * Shutdown the terminal process.

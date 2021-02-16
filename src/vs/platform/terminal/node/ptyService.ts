@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
+import { AutoOpenBarrier, Barrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -15,7 +15,7 @@ import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEve
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
-let currentPtyId = 0;
+let persistentTerminalId = 0;
 
 type WorkspaceId = string;
 
@@ -61,7 +61,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
-		const id = ++currentPtyId;
+		const id = ++persistentTerminalId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
@@ -80,10 +80,12 @@ export class PtyService extends Disposable implements IPtyService {
 			this._ptys.delete(id);
 		});
 		this._ptys.set(id, persistentTerminalProcess);
+		this._logService.info('creating process with id', id);
+		this._logService.info('processId of', JSON.stringify(shellLaunchConfig.attachPersistentTerminal));
 		return id;
 	}
 
-	async start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
 		return this._throwIfNoPty(id).start();
 	}
 
@@ -109,7 +111,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	public async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
-		this._logService.info('set args', JSON.stringify(args));
 	}
 
 	public async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
@@ -185,6 +186,7 @@ export class PersistentTerminalProcess extends Disposable {
 	private _orphanRequestQueue = new Queue<boolean>();
 	private _disconnectRunner1: RunOnceScheduler;
 	private _disconnectRunner2: RunOnceScheduler;
+	private _startBarrier: Barrier;
 
 	private _title = '';
 	private _pid = -1;
@@ -198,7 +200,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	constructor(
-		private readonly _id: number,
+		private readonly _persistentTerminalId: number,
 		private readonly _terminalProcess: TerminalProcess,
 		public readonly workspaceId: string,
 		public readonly workspaceName: string,
@@ -209,10 +211,9 @@ export class PersistentTerminalProcess extends Disposable {
 		private readonly _onExit: () => void,
 	) {
 		super();
-
 		this._recorder = new TerminalRecorder(cols, rows);
 		this._seenFirstListener = false;
-
+		this._startBarrier = new Barrier();
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
@@ -272,12 +273,13 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
-		this._register(this._bufferer.startBuffering(this._id, this._terminalProcess.onProcessData));
+		this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessData(e => {
 			this._recorder.recordData(e);
 		}));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			this._bufferer.stopBuffering(this._id);
+			this._logService.info(`exiting ${exitCode}`);
+			this._bufferer.stopBuffering(this._persistentTerminalId);
 
 			const ev: IPtyHostProcessExitEvent = {
 				type: 'exit',
@@ -289,9 +291,18 @@ export class PersistentTerminalProcess extends Disposable {
 			this._onExit();
 		}));
 	}
+	acknowledgeDataEvent(charCount: number): void {
+		throw new Error('Method not implemented.');
+	}
+	getLatency(): Promise<number> {
+		throw new Error('Method not implemented.');
+	}
 
-	public start(): Promise<ITerminalLaunchError | undefined> {
-		return this._terminalProcess.start();
+	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
+		let result = await this._terminalProcess.start();
+		this._logService.info(`starting ${result}`);
+		this._startBarrier.open();
+		return { persistentTerminalId: this._persistentTerminalId };
 	}
 
 	public shutdown(immediate: boolean): void {

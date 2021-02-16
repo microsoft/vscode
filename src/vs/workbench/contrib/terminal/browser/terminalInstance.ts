@@ -373,7 +373,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	public get remoteTerminalId(): number | undefined { return this._processManager.remoteTerminalId; }
+	public get persistentTerminalId(): number | undefined { return this._processManager.persistentTerminalId; }
 
 	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (xtermConstructor) {
@@ -1208,8 +1208,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager.dispose();
+		if (!this._shellLaunchConfig.attachPersistentTerminal) {
+			// Kill and clear up the process, making the process manager ready for a new process
+			this._processManager.dispose();
+		}
 
 		// Launch the process unless this is only a renderer.
 		// In the renderer only cases, we still need to set the title correctly.

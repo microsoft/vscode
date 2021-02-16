@@ -299,7 +299,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public getLayoutInfo(isActive: boolean, isRemote: boolean): ITerminalTabLayoutInfoById {
 		const isHorizontal = this.splitPaneContainer?.orientation === Orientation.HORIZONTAL;
-		const instances = isRemote ? this.terminalInstances.filter(instance => typeof instance.remoteTerminalId === 'number') : this.terminalInstances;
+		const instances = isRemote ? this.terminalInstances.filter(instance => typeof instance.persistentTerminalId === 'number') : this.terminalInstances;
 		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {
 			isActive: isActive,
@@ -307,7 +307,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			terminals: instances.map(t => {
 				return {
 					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,
-					terminal: t.remoteTerminalId ? t.remoteTerminalId : t.id
+					terminal: t.persistentTerminalId ? t.persistentTerminalId : t.id
 				};
 			})
 		};

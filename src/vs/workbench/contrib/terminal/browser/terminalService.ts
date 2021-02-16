@@ -208,17 +208,17 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create tab and terminal
-							terminalInstance = this.createTerminal({ attachExisting: terminalLayout.terminal! });
+							terminalInstance = this.createTerminal({ attachPersistentTerminal: terminalLayout.terminal! });
 							tab = this._getTabForInstance(terminalInstance);
 							if (tabLayout.isActive) {
 								activeTab = tab;
 							}
 						} else {
 							// add split terminals to this tab
-							this.splitInstance(terminalInstance, { attachExisting: terminalLayout.terminal! });
+							this.splitInstance(terminalInstance, { attachPersistentTerminal: terminalLayout.terminal! });
 						}
 					});
-					const activeInstance = this.terminalInstances.find(t => t.shellLaunchConfig.attachExisting?.pid === tabLayout.activeTerminalProcessId);
+					const activeInstance = this.terminalInstances.find(t => t.shellLaunchConfig.attachPersistentTerminal?.pid === tabLayout.activeTerminalProcessId);
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
 					}

@@ -272,10 +272,10 @@ export interface ITerminalInstance {
 	processId: number | undefined;
 
 	/**
-	 * The id of a terminal on the remote server. Defined if this is a terminal created
-	 * by the RemoteTerminalService.
+	 * The id of a persistent terminal. Defined if this is a terminal created
+	 * by the RemoteTerminalService or LocalPtyService.
 	 */
-	readonly remoteTerminalId: number | undefined;
+	readonly persistentTerminalId: number | undefined;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.

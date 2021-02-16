@@ -170,7 +170,7 @@ export interface IPtyService {
 		workspaceName: string
 	): Promise<number>;
 
-	start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined>;
+	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined>;
 
 	shutdown(id: number, immediate: boolean): Promise<void>;
 
@@ -250,7 +250,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachExisting?: { id: number; pid: number; title: string; cwd: string; };
+	attachPersistentTerminal?: { id: number; pid: number; title: string; cwd: string; };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -309,7 +309,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | { remoteTerminalId: number } | undefined>;
+	start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined>;
 
 	/**
 	 * Shutdown the terminal process.
