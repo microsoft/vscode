@@ -107,7 +107,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 		// Merge overlapping ranges
 		if (idx > 0) {
 			if (range.intersection(mergedRanges[mergedRanges.length - 1])) {
-				mergedRanges.push(range.union(mergedRanges[mergedRanges.length - 1]));
+				mergedRanges.push(range.union(mergedRanges.pop()!));
 			} else {
 				mergedRanges.push(range);
 			}

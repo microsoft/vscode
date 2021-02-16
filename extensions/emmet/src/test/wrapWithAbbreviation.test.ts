@@ -364,6 +364,32 @@ suite('Tests for Wrap with Abbreviations', () => {
 
 		return testWrapIndividualLinesWithAbbreviation([new Selection(2, 2, 3, 33)], '.hello$*', wrapIndividualLinesJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
 	});
+
+	test('Wrap with abbreviation merge overlapping computed ranges', () => {
+		const contents = `
+	<div class="nav main">
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div>
+		<div class="nav main">
+			hello
+		</div>
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(1, 2, 1, 2), new Selection(1, 10, 1, 10)], 'div', expectedContents, contents);
+	});
+
+	test('Wrap with abbreviation ignore invalid abbreviation', () => {
+		const contents = `
+	<div class="nav main">
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(1, 2, 1, 2)], 'div]', contents, contents);
+	});
+
 });
 
 
