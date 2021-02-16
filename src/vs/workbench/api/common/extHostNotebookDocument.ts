@@ -13,7 +13,7 @@ import { CellKind, INotebookDocumentPropertiesChangeData } from 'vs/workbench/ap
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IMainCellDto, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IMainCellDto, IOutputDto, IOutputItemDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 
 class RawContentChangeEvent {
@@ -98,6 +98,17 @@ export class ExtHostCell {
 
 	setOutputs(newOutputs: IOutputDto[]): void {
 		this._outputs = newOutputs;
+	}
+
+	setOutputItems(outputId: string, append: boolean, newOutputItems: IOutputItemDto[]) {
+		const output = this._outputs.find(op => op.outputId === outputId);
+		if (output) {
+			if (append) {
+				output.outputs = [...output.outputs, ...newOutputItems];
+			} else {
+				output.outputs = newOutputItems;
+			}
+		}
 	}
 
 	setMetadata(newMetadata: NotebookCellMetadata): void {
@@ -211,6 +222,8 @@ export class ExtHostNotebookDocument extends Disposable {
 				this._moveCell(e.index, e.newIdx);
 			} else if (e.kind === NotebookCellsChangeType.Output) {
 				this._setCellOutputs(e.index, e.outputs);
+			} else if (e.kind === NotebookCellsChangeType.OutputItem) {
+				this._setCellOutputItems(e.index, e.outputId, e.append, e.outputItems);
 			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
 				this._changeCellLanguage(e.index, e.language);
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
@@ -298,6 +311,12 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _setCellOutputs(index: number, outputs: IOutputDto[]): void {
 		const cell = this._cells[index];
 		cell.setOutputs(outputs);
+		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });
+	}
+
+	private _setCellOutputItems(index: number, outputId: string, append: boolean, outputItems: IOutputItemDto[]): void {
+		const cell = this._cells[index];
+		cell.setOutputItems(outputId, append, outputItems);
 		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });
 	}
 
