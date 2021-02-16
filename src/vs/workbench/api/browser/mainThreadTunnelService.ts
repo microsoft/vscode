@@ -149,7 +149,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				}
 				break;
 			}
-			default: // do nothing, the defaults for these settings should be used.
+			default: // Do nothing, the defaults for these settings should be used.
 		}
 	}
 
