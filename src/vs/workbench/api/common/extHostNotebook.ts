@@ -442,7 +442,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
+	async $openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
 		const provider = this._notebookContentProviders.get(viewType);
 		if (!provider) {
 			throw new Error(`NO provider for '${viewType}'`);

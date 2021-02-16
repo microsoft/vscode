@@ -37,5 +37,4 @@ export class NativeLogService extends LogService {
 
 		this._register(disposables);
 	}
-
 }

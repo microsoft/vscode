@@ -16,10 +16,10 @@ import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, UnloadReason 
 import { Emitter, Event } from 'vs/base/common/event';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { Promises, timeout } from 'vs/base/common/async';
+import { Promises } from 'vs/base/common/async';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-suite('StorageMainService (native)', function () {
+suite('StorageMainService', function () {
 
 	class TestStorageMainService extends StorageMainService {
 
@@ -146,23 +146,54 @@ suite('StorageMainService (native)', function () {
 		const workspace = { id: generateUuid() };
 		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), lifecycleMainService, new TestConfigurationService());
 
-		let storage = storageMainService.workspaceStorage(workspace);
-		let didCloseStorage = false;
-		storage.onDidCloseStorage(() => {
-			didCloseStorage = true;
+		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		let didCloseWorkspaceStorage = false;
+		workspaceStorage.onDidCloseStorage(() => {
+			didCloseWorkspaceStorage = true;
 		});
 
-		strictEqual(storage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
+		let globalStorage = storageMainService.globalStorage;
+		let didCloseGlobalStorage = false;
+		globalStorage.onDidCloseStorage(() => {
+			didCloseGlobalStorage = true;
+		});
 
-		await storage.initialize();
+		strictEqual(workspaceStorage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
 
-		await timeout(0);
+		await globalStorage.initialize();
+		await workspaceStorage.initialize();
+
 		await lifecycleMainService.fireOnWillShutdown();
-		strictEqual(didCloseStorage, true);
+
+		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseWorkspaceStorage, true);
 
 		let storage2 = storageMainService.workspaceStorage(workspace);
-		notStrictEqual(storage, storage2);
+		notStrictEqual(workspaceStorage, storage2);
 
 		return storage2.close();
+	});
+
+	test('storage closed before init works', async function () {
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService(), new TestConfigurationService());
+		const workspace = { id: generateUuid() };
+
+		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		let didCloseWorkspaceStorage = false;
+		workspaceStorage.onDidCloseStorage(() => {
+			didCloseWorkspaceStorage = true;
+		});
+
+		let globalStorage1 = storageMainService.globalStorage;
+		let didCloseGlobalStorage = false;
+		globalStorage1.onDidCloseStorage(() => {
+			didCloseGlobalStorage = true;
+		});
+
+		await globalStorage1.close();
+		await workspaceStorage.close();
+
+		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseWorkspaceStorage, true);
 	});
 });

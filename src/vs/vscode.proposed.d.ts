@@ -734,8 +734,149 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region inline value provider: https://github.com/microsoft/vscode/issues/105690
+
+	/**
+	 * The inline values provider interface defines the contract between extensions and the VS Code debugger inline values feature.
+	 * In this contract the provider returns inline value information for a given document range
+	 * and VS Code shows this information in the editor at the end of lines.
+	 */
+	export interface InlineValuesProvider {
+
+		/**
+		 * An optional event to signal that inline values have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineValues?: Event<void> | undefined;
+
+		/**
+		 * Provide "inline value" information for a given document and range.
+		 * VS Code calls this method whenever debugging stops in the given document.
+		 * The returned inline values information is rendered in the editor at the end of lines.
+		 *
+		 * @param document The document for which the inline values information is needed.
+		 * @param viewPort The visible document range for which inline values should be computed.
+		 * @param context A bag containing contextual information like the current location.
+		 * @param token A cancellation token.
+		 * @return An array of InlineValueDescriptors or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideInlineValues(document: TextDocument, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
+	}
+
+	/**
+	 * An open ended information bag passed to the inline value provider.
+	 * A minimal context containes just the document location where the debugger has stopped.
+	 * Additional optional information might be scope information or variables and their values.
+	 */
+	export interface InlineValueContext {
+		/**
+		 * The document range where execution has stopped.
+		 * Typically the end position of the range denotes the line where the inline values are shown.
+		 */
+		stoppedLocation: Range;
+
+		// ... more to come, e.g. Scope information or variable/value candidate information
+	}
+
+	/**
+	 * Inline value information can be provided by different means:
+	 * - directly as a text value (class InlineValueText).
+	 * - as a name to use for a variable lookup (class InlineValueVariableLookup)
+	 * - as an evaluatable expression (class InlineValueEvaluatableExpression)
+	 * The InlineValue types combines all inline value types into one type.
+	 */
+	export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueEvaluatableExpression;
+
+	/**
+	 * Provide inline value as text.
+	 */
+	export class InlineValueText {
+		/**
+		 * The text of the inline value.
+		 */
+		readonly text: string;
+		/**
+		 * The range of the inline value.
+		 */
+		readonly range: Range;
+		/**
+		 * Creates a new InlineValueText object.
+		 *
+		 * @param text The value to be shown for the line.
+		 * @param range The document line where to show the inline value.
+		 */
+		constructor(text: string, range: Range);
+	}
+
+	/**
+	 * Provide inline value through a variable lookup.
+	 */
+	export class InlineValueVariableLookup {
+		/**
+		 * The name of the variable to look up.
+		 */
+		readonly variableName: string;
+		/**
+		 * How to perform the lookup.
+		 */
+		readonly caseSensitiveLookup: boolean;
+		/**
+		 * The range of the inline value.
+		 */
+		readonly range: Range;
+		/**
+		 * Creates a new InlineValueVariableLookup object.
+		 *
+		 * @param variableName The name of the variable to look up.
+		 * @param range The document line where to show the inline value.
+		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
+		 */
+		constructor(variableName: string, range: Range, caseSensitiveLookup?: boolean);
+	}
+
+	/**
+	 * Provide inline value through an expression evaluation.
+	 */
+	export class InlineValueEvaluatableExpression {
+		/**
+		 * The expression to evaluate.
+		 */
+		readonly expression: string;
+		/**
+		 * The range of the inline value.
+		 */
+		readonly range: Range;
+		/**
+		 * Creates a new InlineValueEvaluatableExpression object.
+		 *
+		 * @param expression The expression to evaluate.
+		 * @param range The document line where to show the inline value.
+		 */
+		constructor(expression: string, range: Range);
+	}
+
+	export namespace languages {
+
+		/**
+		 * Register a provider that returns inline values for text documents.
+		 * If debugging has stopped VS Code shows inline values in the editor at the end of lines.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline values provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerInlineValuesProvider(selector: DocumentSelector, provider: InlineValuesProvider): Disposable;
+	}
+
+	//#endregion
+
 	// eslint-disable-next-line vscode-dts-region-comments
-	//#region debug
+	//#region @weinand: variables view action contributions
 
 	/**
 	 * A DebugProtocolVariableContainer is an opaque stand-in type for the intersection of the Scope and Variable types defined in the Debug Adapter Protocol.

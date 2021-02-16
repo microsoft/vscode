@@ -651,7 +651,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
 			renderDropdownAsChildElement: true,
-			respectOrientationForPreviousAndNextKey: true,
 			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
 		});
 		return toolbar;
@@ -1829,7 +1828,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 	}
 }
 
-class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
+export class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 	isCollapsible(element: T): boolean {
 		return false;
 	}

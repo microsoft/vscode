@@ -13,6 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustModel, IWorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
+import { EditorModel } from 'vs/workbench/common/editor';
 
 export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
@@ -23,6 +24,18 @@ export const WorkspaceTrustContext = {
 	TrustState: new RawContextKey<WorkspaceTrustState>('workspaceTrustState', WorkspaceTrustState.Unknown)
 };
 
+export class WorkspaceTrustEditorModel extends EditorModel {
+	constructor(
+		readonly dataModel: IWorkspaceTrustModel,
+		private readonly workspaceTrustService: WorkspaceTrustService
+	) {
+		super();
+	}
+
+	get currentWorkspaceTrustState(): WorkspaceTrustState {
+		return this.workspaceTrustService.getWorkspaceTrustState();
+	}
+}
 export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustModel {
 
 	private storageKey = WORKSPACE_TRUST_STORAGE_KEY;
@@ -82,6 +95,30 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 		this._onDidChangeTrustState.fire();
 	}
 
+	setTrustedFolders(folders: URI[]): void {
+		this.trustStateInfo.localFolders = this.trustStateInfo.localFolders.filter(folder => folder.trustState !== WorkspaceTrustState.Trusted);
+		for (const folder of folders) {
+			this.trustStateInfo.localFolders.push({
+				trustState: WorkspaceTrustState.Trusted,
+				uri: folder.fsPath
+			});
+		}
+
+		this.saveTrustInfo();
+	}
+
+	setUntrustedFolders(folders: URI[]): void {
+		this.trustStateInfo.localFolders = this.trustStateInfo.localFolders.filter(folder => folder.trustState !== WorkspaceTrustState.Untrusted);
+		for (const folder of folders) {
+			this.trustStateInfo.localFolders.push({
+				trustState: WorkspaceTrustState.Untrusted,
+				uri: folder.fsPath
+			});
+		}
+
+		this.saveTrustInfo();
+	}
+
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void {
 		let changed = false;
 
@@ -135,6 +172,10 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 
 		return result;
 	}
+
+	getTrustStateInfo(): IWorkspaceTrustStateInfo {
+		return this.trustStateInfo;
+	}
 }
 
 export class WorkspaceTrustRequestModel extends Disposable implements IWorkspaceTrustRequestModel {
@@ -166,6 +207,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	_serviceBrand: undefined;
 	private readonly dataModel: IWorkspaceTrustModel;
 	readonly requestModel: IWorkspaceTrustRequestModel;
+	private editorModel?: WorkspaceTrustEditorModel;
 
 	private readonly _onDidChangeTrustState = this._register(new Emitter<WorkspaceTrustStateChangeEvent>());
 	readonly onDidChangeTrustState = this._onDidChangeTrustState.event;
@@ -210,6 +252,14 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		this._currentTrustState = trustState;
 
 		this._onDidChangeTrustState.fire({ previousTrustState: previousState, currentTrustState: this._currentTrustState });
+	}
+
+	get workspaceTrustEditorModel(): WorkspaceTrustEditorModel {
+		if (this.editorModel === undefined) {
+			this.editorModel = this._register(new WorkspaceTrustEditorModel(this.dataModel, this));
+		}
+
+		return this.editorModel;
 	}
 
 	private calculateWorkspaceTrustState(): WorkspaceTrustState {

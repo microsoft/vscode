@@ -69,8 +69,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		if (this.enableMainWorkspaceStorage()) {
 			this._register(this.lifecycleMainService.onWillLoadWindow(async e => {
 				if (e.workspace) {
-					await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
-
 					this.workspaceStorage(e.workspace).initialize();
 				}
 			}));

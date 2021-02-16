@@ -537,7 +537,7 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 		const editorGroupTemplate: IEditorGroupTemplateData = Object.create(null);
 		editorGroupTemplate.root = dom.append(container, $('.editor-group'));
 		editorGroupTemplate.name = dom.append(editorGroupTemplate.root, $('span.name'));
-		editorGroupTemplate.actionBar = new ActionBar(container, { respectOrientationForPreviousAndNextKey: true });
+		editorGroupTemplate.actionBar = new ActionBar(container);
 
 		const saveAllInGroupAction = this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL);
 		const saveAllInGroupKey = this.keybindingService.lookupKeybinding(saveAllInGroupAction.id);
@@ -584,7 +584,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.container = container;
 		editorTemplate.actionRunner = new OpenEditorActionRunner();
-		editorTemplate.actionBar = new ActionBar(container, { actionRunner: editorTemplate.actionRunner, respectOrientationForPreviousAndNextKey: true });
+		editorTemplate.actionBar = new ActionBar(container, { actionRunner: editorTemplate.actionRunner });
 		editorTemplate.root = this.labels.create(container);
 
 		return editorTemplate;

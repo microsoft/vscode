@@ -1,0 +1,73 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-icon-label.file-icon.workspacetrusteditor-name-file-icon.ext-file-icon.tab-label::before {
+	font-family: 'codicon';
+	content: '\eb53';
+}
+
+.workspace-trust-editor.settings-editor {
+	max-width: 1000px;
+	padding-top: 11px;
+	padding-left: 15px;
+	padding-right: 15px;
+	margin: auto;
+}
+
+.workspace-trust-editor.settings-editor > .workspace-trust-header {
+	border-bottom: solid 1px;
+}
+
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title {
+	font-size: 24px;
+	font-weight: 600;
+	padding: 10px 0px;
+}
+
+/** Buttons Container */
+.workspace-trust-editor.settings-editor  .workspace-trust-header .workspace-trust-buttons-row {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding-right: 1px;
+	overflow: hidden; /* buttons row should never overflow */
+}
+
+.workspace-trust-editor.settings-editor  .workspace-trust-header .workspace-trust-buttons-row {
+	display: flex;
+	white-space: nowrap;
+	padding: 20px 10px 10px;
+}
+
+/** Buttons */
+.workspace-trust-editor.settings-editor  .workspace-trust-header .workspace-trust-buttons-row .workspace-trust-buttons {
+	display: flex;
+	overflow: hidden;
+}
+
+.workspace-trust-editor.settings-editor  .workspace-trust-header .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button {
+	width: fit-content;
+	width: -moz-fit-content;
+	padding: 5px 10px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin: 4px 5px; /* allows button focus outline to be visible */
+	outline-offset: 2px !important;
+}
+
+.monaco-workbench.vs .workspace-trust-editor.settings-editor  > .workspace-trust-header {
+	border-color: #cccccc;
+}
+
+.monaco-workbench.vs-dark .workspace-trust-editor.settings-editor  > .workspace-trust-header{
+	border-color: #3c3c3c;
+}
+
+
+/** Settings */
+.workspace-trust-editor.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
+	padding-left: 0px;
+}
+
