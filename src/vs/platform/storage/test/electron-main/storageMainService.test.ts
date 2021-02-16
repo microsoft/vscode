@@ -19,7 +19,7 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { Promises } from 'vs/base/common/async';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-suite('StorageMainService (native)', function () {
+suite('StorageMainService', function () {
 
 	class TestStorageMainService extends StorageMainService {
 
@@ -141,7 +141,7 @@ suite('StorageMainService (native)', function () {
 		return testStorage(storageMainService.workspaceStorage(workspace), false);
 	});
 
-	test.skip('storage closed onWillShutdown', async function () {
+	test('storage closed onWillShutdown', async function () {
 		const lifecycleMainService = new StorageTestLifecycleMainService();
 		const workspace = { id: generateUuid() };
 		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), lifecycleMainService, new TestConfigurationService());
@@ -160,6 +160,7 @@ suite('StorageMainService (native)', function () {
 
 		strictEqual(workspaceStorage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
 
+		await globalStorage.initialize();
 		await workspaceStorage.initialize();
 
 		await lifecycleMainService.fireOnWillShutdown();
@@ -171,5 +172,28 @@ suite('StorageMainService (native)', function () {
 		notStrictEqual(workspaceStorage, storage2);
 
 		return storage2.close();
+	});
+
+	test('storage closed before init works', async function () {
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService(), new TestConfigurationService());
+		const workspace = { id: generateUuid() };
+
+		let workspaceStorage = storageMainService.workspaceStorage(workspace);
+		let didCloseWorkspaceStorage = false;
+		workspaceStorage.onDidCloseStorage(() => {
+			didCloseWorkspaceStorage = true;
+		});
+
+		let globalStorage1 = storageMainService.globalStorage;
+		let didCloseGlobalStorage = false;
+		globalStorage1.onDidCloseStorage(() => {
+			didCloseGlobalStorage = true;
+		});
+
+		await globalStorage1.close();
+		await workspaceStorage.close();
+
+		strictEqual(didCloseGlobalStorage, true);
+		strictEqual(didCloseWorkspaceStorage, true);
 	});
 });
