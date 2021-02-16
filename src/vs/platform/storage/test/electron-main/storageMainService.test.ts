@@ -3,46 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
-import { tmpdir } from 'os';
 import { notStrictEqual, strictEqual } from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { rimraf } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageChangeEvent, IStorageMain } from 'vs/platform/storage/electron-main/storageMain';
+import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { joinPath } from 'vs/base/common/resources';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { Promises } from 'vs/base/common/async';
+import { Promises, timeout } from 'vs/base/common/async';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
-flakySuite('StorageMainService (native)', function () {
+suite('StorageMainService (native)', function () {
 
-	class StorageTestEnvironmentService extends NativeEnvironmentService {
+	class TestStorageMainService extends StorageMainService {
 
-		constructor(private globalStorageFolderPath: URI, private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
-			super(parseArgs(process.argv, OPTIONS));
+		protected getStorageOptions(): IStorageMainOptions {
+			return {
+				useInMemoryStorage: true
+			};
 		}
 
-		get globalStorageHome(): URI {
-			return this.globalStorageFolderPath;
-		}
-
-		get workspaceStorageHome(): URI {
-			return this.workspaceStorageFolderPath;
-		}
-
-		get extensionsPath(): string {
-			return this._extensionsPath;
+		protected enableMainWorkspaceStorage(): boolean {
+			return true;
 		}
 	}
 
@@ -87,28 +75,7 @@ flakySuite('StorageMainService (native)', function () {
 		async when(phase: LifecycleMainPhase): Promise<void> { }
 	}
 
-	let testDir: string;
-	let environmentService: StorageTestEnvironmentService;
-
-	setup(async () => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageMainService');
-
-		await promises.mkdir(testDir, { recursive: true });
-
-		const globalStorageFolder = joinPath(URI.file(testDir), 'globalStorage');
-		const workspaceStorageFolder = joinPath(URI.file(testDir), 'workspaceStorage');
-
-		await promises.mkdir(globalStorageFolder.fsPath, { recursive: true });
-
-		environmentService = new StorageTestEnvironmentService(globalStorageFolder, workspaceStorageFolder, testDir);
-	});
-
-	teardown(() => {
-		return rimraf(testDir);
-	});
-
-	async function testStorage(storageFn: () => IStorageMain, isGlobal: boolean): Promise<void> {
-		let storage = storageFn();
+	async function testStorage(storage: IStorageMain, isGlobal: boolean): Promise<void> {
 
 		// Telemetry: added after init
 		if (isGlobal) {
@@ -155,43 +122,27 @@ flakySuite('StorageMainService (native)', function () {
 		// Close
 		await storage.close();
 
-		strictEqual(storageDidClose, true);
-
 		storageChangeListener.dispose();
 		storageCloseListener.dispose();
-
-		// Reopen
-		storage = storageFn();
-		await storage.initialize();
-
-		strictEqual(storage.getNumber('barNumber'), 55);
-		strictEqual(storage.getBoolean('barBoolean'), true);
-
-		await storage.close();
 	}
 
 	test('basics (global)', function () {
-		return testStorage(() => {
-			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService(), new TestConfigurationService());
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService(), new TestConfigurationService());
 
-			return storageMainService.globalStorage;
-		}, true);
+		return testStorage(storageMainService.globalStorage, true);
 	});
 
 	test('basics (workspace)', function () {
 		const workspace = { id: generateUuid() };
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), new StorageTestLifecycleMainService(), new TestConfigurationService());
 
-		return testStorage(() => {
-			const storageMainService = new StorageMainService(new NullLogService(), environmentService, new StorageTestLifecycleMainService(), new TestConfigurationService());
-
-			return storageMainService.workspaceStorage(workspace);
-		}, false);
+		return testStorage(storageMainService.workspaceStorage(workspace), false);
 	});
 
 	test('storage closed onWillShutdown', async function () {
 		const lifecycleMainService = new StorageTestLifecycleMainService();
 		const workspace = { id: generateUuid() };
-		const storageMainService = new StorageMainService(new NullLogService(), environmentService, lifecycleMainService, new TestConfigurationService());
+		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS)), lifecycleMainService, new TestConfigurationService());
 
 		let storage = storageMainService.workspaceStorage(workspace);
 		let didCloseStorage = false;
@@ -203,6 +154,7 @@ flakySuite('StorageMainService (native)', function () {
 
 		await storage.initialize();
 
+		await timeout(0);
 		await lifecycleMainService.fireOnWillShutdown();
 		strictEqual(didCloseStorage, true);
 

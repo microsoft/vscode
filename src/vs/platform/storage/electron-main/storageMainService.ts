@@ -10,7 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { GlobalStorageMain, IStorageMain, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
+import { GlobalStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
@@ -35,8 +35,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private enableMainWorkspaceStorage = this.configurationService.getValue<IWindowSettings | undefined>('window')?.enableExperimentalMainProcessWorkspaceStorage;
-
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -46,6 +44,16 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		super();
 
 		this.registerListeners();
+	}
+
+	protected getStorageOptions(): IStorageMainOptions {
+		return {
+			useInMemoryStorage: !!this.environmentService.extensionTestsLocationURI // no storage during extension tests!
+		};
+	}
+
+	protected enableMainWorkspaceStorage(): boolean {
+		return !!(this.configurationService.getValue<IWindowSettings | undefined>('window')?.enableExperimentalMainProcessWorkspaceStorage);
 	}
 
 	private registerListeners(): void {
@@ -58,7 +66,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		})();
 
 		// Workspace Storage: Warmup when related window with workspace loads
-		if (this.enableMainWorkspaceStorage) {
+		if (this.enableMainWorkspaceStorage()) {
 			this._register(this.lifecycleMainService.onWillLoadWindow(async e => {
 				if (e.workspace) {
 					await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
@@ -92,7 +100,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		this.logService.trace(`StorageMainService: creating global storage`);
 
-		const globalStorage = new GlobalStorageMain(this.logService, this.environmentService);
+		const globalStorage = new GlobalStorageMain(this.getStorageOptions(), this.logService, this.environmentService);
 
 		once(globalStorage.onDidCloseStorage)(() => {
 			this.logService.trace(`StorageMainService: closed global storage`);
@@ -109,7 +117,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private readonly mapWorkspaceToStorage = new Map<string, IStorageMain>();
 
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
-		const workspaceStorage = new WorkspaceStorageMain(workspace, this.logService, this.environmentService);
+		const workspaceStorage = new WorkspaceStorageMain(workspace, this.getStorageOptions(), this.logService, this.environmentService);
 
 		return workspaceStorage;
 	}

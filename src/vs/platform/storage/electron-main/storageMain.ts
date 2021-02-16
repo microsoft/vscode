@@ -17,6 +17,15 @@ import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStora
 import { generateUuid } from 'vs/base/common/uuid';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
+export interface IStorageMainOptions {
+
+	/**
+	 * If enabled, storage will not persist to disk
+	 * but into memory.
+	 */
+	useInMemoryStorage?: boolean;
+}
+
 /**
  * Provides access to global and workspace storage from the
  * electron-main side that is the owner of all storage connections.
@@ -184,6 +193,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 	private static readonly STORAGE_NAME = 'state.vscdb';
 
 	constructor(
+		private readonly options: IStorageMainOptions,
 		logService: ILogService,
 		private readonly environmentService: IEnvironmentService
 	) {
@@ -192,8 +202,8 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 	protected async doInitialize(): Promise<IStorage> {
 		let storagePath: string;
-		if (!!this.environmentService.extensionTestsLocationURI) {
-			storagePath = SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
+		if (this.options.useInMemoryStorage) {
+			storagePath = SQLiteStorageDatabase.IN_MEMORY_PATH;
 		} else {
 			storagePath = join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
 		}
@@ -246,8 +256,9 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 
 	constructor(
 		private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier,
+		private readonly options: IStorageMainOptions,
 		logService: ILogService,
-		private readonly environmentService: IEnvironmentService,
+		private readonly environmentService: IEnvironmentService
 	) {
 		super(logService);
 	}
@@ -273,8 +284,8 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 
 	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string, wasCreated: boolean }> {
 
-		// Return early with in-memory when running extension tests
-		if (!!this.environmentService.extensionTestsLocationURI) {
+		// Return early if using inMemory storage
+		if (this.options.useInMemoryStorage) {
 			return { storageFilePath: SQLiteStorageDatabase.IN_MEMORY_PATH, wasCreated: true };
 		}
 
