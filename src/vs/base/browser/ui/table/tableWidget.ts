@@ -138,7 +138,7 @@ class ColumnHeader<TRow, TCell> implements IView {
 	}
 }
 
-export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
+export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 	private domNode: HTMLElement;
 	private splitview: SplitView;
