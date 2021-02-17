@@ -144,6 +144,7 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 	private splitview: SplitView;
 	private list: List<TRow>;
 	private columnLayoutDisposable: IDisposable;
+	private cachedHeight: number = 0;
 
 	constructor(
 		user: string,
@@ -161,7 +162,13 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 			views: headers.map(view => ({ size: 1, view }))
 		};
 
-		this.splitview = new SplitView(this.domNode, { orientation: Orientation.HORIZONTAL, scrollbarVisibility: ScrollbarVisibility.Hidden, descriptor });
+		this.splitview = new SplitView(this.domNode, {
+			orientation: Orientation.HORIZONTAL,
+			scrollbarVisibility: ScrollbarVisibility.Hidden,
+			getSashOrthogonalSize: () => this.cachedHeight,
+			descriptor
+		});
+
 		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
 		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
 
@@ -180,6 +187,7 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 		height = height ?? getContentHeight(this.domNode);
 		width = width ?? getContentWidth(this.domNode);
 
+		this.cachedHeight = height;
 		this.splitview.layout(width);
 		this.list.layout(height - this.virtualDelegate.headerRowHeight, width);
 	}
