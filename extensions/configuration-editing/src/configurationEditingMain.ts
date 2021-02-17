@@ -22,6 +22,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// task.json variable suggestions
 	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
+
+	// keybindings.json/package.json context key suggestions
+	context.subscriptions.push(registerContextKeyCompletions());
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
@@ -136,3 +139,40 @@ vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', lan
 		return result;
 	}
 }, { label: 'Launch Targets' });
+
+function registerContextKeyCompletions(): vscode.Disposable {
+	type ContextKeyInfo = { key: string, type?: string, description?: string };
+	return vscode.languages.registerCompletionItemProvider(
+		[{ language: 'json', pattern: '**/package.json' }, { language: 'jsonc', pattern: '**/keybindings.json' }],
+		{
+			async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) {
+
+				const replacing = document.getWordRangeAtPosition(position, /[\w.-\d]/);
+				const inserting = replacing?.with(undefined, position);
+				if (!replacing || !inserting) {
+					return;
+				}
+
+				const location = getLocation(document.getText(), document.offsetAt(position));
+				if (!location.matches(['*', 'when']) && !location.matches(['contributes', 'menus', '*', '*', 'when'])) {
+					return;
+				}
+
+				const data = await vscode.commands.executeCommand<ContextKeyInfo[]>('getContextKeyInfo');
+				if (token.isCancellationRequested || !data) {
+					return;
+				}
+
+				const result = new vscode.CompletionList();
+				for (const item of data) {
+					const completion = new vscode.CompletionItem(item.key, vscode.CompletionItemKind.Constant);
+					completion.detail = item.type;
+					completion.range = { replacing, inserting };
+					completion.documentation = item.description;
+					result.items.push(completion);
+				}
+				return result;
+			}
+		}
+	);
+}
