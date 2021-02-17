@@ -1121,13 +1121,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			return this.createOrGetCached(canonicalResource, () => {
 
-				//const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(canonicalResource.scheme);
-
-				// Custom Editor
-				// if (customFactory) {
-				// 	return customFactory.createCustomEditorInput(canonicalResource, this.instantiationService);
-				// }
-
 				// File
 				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
 					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
