@@ -79,7 +79,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 		tunnelType: TunnelType.Add,
 		remoteHost: 'localhost',
 		remotePort: 0,
-		description: '',
+		processDescription: '',
 		wideDescription: '',
 		icon: undefined,
 		tooltip: ''
@@ -128,7 +128,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 	private addProcessInfoFromCandidate(tunnelItem: ITunnelItem) {
 		const key = makeAddress(tunnelItem.remoteHost, tunnelItem.remotePort);
 		if (this._candidates.has(key)) {
-			tunnelItem.description = this._candidates.get(key)!.detail;
+			tunnelItem.processDescription = this._candidates.get(key)!.detail;
 		}
 	}
 
@@ -257,7 +257,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
 		const isWide = templateData.container.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.classList.contains('wide');
-		const description = isWide ? node.wideDescription : node.description;
+		const description = isWide ? node.wideDescription : node.processDescription;
 		const label = isWide ? node.wideLabel : node.label;
 		const tooltip = label + (description ? (' - ' + description) : '');
 		templateData.iconLabel.setLabel(label, description, { title: node instanceof TunnelItem ? node.tooltip : tooltip, extraClasses: ['tunnel-view-label'] });
@@ -415,7 +415,7 @@ class RunningProcessColumn implements ITableColumn<ITunnelItem, string> {
 	readonly weight: number = 1;
 	readonly templateId: string = 'string';
 	project(row: ITunnelItem): string {
-		return row.description!; // TODO@joao TODO@alexr00
+		return row.processDescription ?? '';
 	}
 }
 
@@ -473,22 +473,20 @@ class TunnelItem implements ITunnelItem {
 		private remoteExplorerService?: IRemoteExplorerService
 	) { }
 
-	private static getLabel(name: string | undefined, localAddress: string | undefined, remotePort: number, isWide: boolean = false): string {
+	private static getLabel(name: string | undefined, remotePort: number): string {
 		if (name) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", name);
-		} else if (localAddress) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel1', "{0} \u2192 {1}", remotePort, isWide ? localAddress : TunnelItem.compactLongAddress(localAddress));
 		} else {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}", remotePort);
 		}
 	}
 
 	get label(): string {
-		return TunnelItem.getLabel(this.name, this.localAddress, this.remotePort);
+		return TunnelItem.getLabel(this.name, this.remotePort);
 	}
 
 	get wideLabel(): string {
-		return TunnelItem.getLabel(this.name, this.localAddress, this.remotePort, true);
+		return TunnelItem.getLabel(this.name, this.remotePort);
 	}
 
 	private static compactLongAddress(address: string): string {
@@ -514,49 +512,40 @@ class TunnelItem implements ITunnelItem {
 		return displayAddress;
 	}
 
-	set description(description: string | undefined) {
+	set processDescription(description: string | undefined) {
 		this.runningProcess = description;
 	}
 
-	private static getDescription(item: TunnelItem, isWide: boolean) {
-		const description: string[] = [];
-
+	private static getProcessDescription(item: TunnelItem, isWide: boolean) {
+		let description: string = '';
 		if (item.runningProcess) {
-			let processPid: string;
 			if (item.pid && item.remoteExplorerService?.namedProcesses.has(item.pid)) {
 				// This is a known process. Give it a friendly name.
-				processPid = item.remoteExplorerService.namedProcesses.get(item.pid)!;
+				description = item.remoteExplorerService.namedProcesses.get(item.pid)!;
 			} else if (isWide) {
-				processPid = item.runningProcess.replace(/\0/g, ' ').trim();
+				description = item.runningProcess.replace(/\0/g, ' ').trim();
 			} else {
 				const nullIndex = item.runningProcess.indexOf('\0');
-				processPid = item.runningProcess.substr(0, nullIndex > 0 ? nullIndex : item.runningProcess.length).trim();
-				const spaceIndex = processPid.indexOf(' ', 110);
-				processPid = processPid.substr(0, spaceIndex > 0 ? spaceIndex : processPid.length);
+				description = item.runningProcess.substr(0, nullIndex > 0 ? nullIndex : item.runningProcess.length).trim();
+				const spaceIndex = description.indexOf(' ', 110);
+				description = description.substr(0, spaceIndex > 0 ? spaceIndex : description.length);
 			}
 			if (item.pid) {
-				processPid += ` (${item.pid})`;
+				description += ` (${item.pid})`;
 			}
-			description.push(processPid);
+		} else if (item.source) {
+			description = item.source;
 		}
 
-		if (item.source) {
-			description.push(item.source);
-		}
-
-		if (description.length > 0) {
-			return description.join('  \u2022  ');
-		}
-
-		return undefined;
+		return description;
 	}
 
-	get description(): string | undefined {
-		return TunnelItem.getDescription(this, false);
+	get processDescription(): string | undefined {
+		return TunnelItem.getProcessDescription(this, false);
 	}
 
 	get wideDescription(): string | undefined {
-		return TunnelItem.getDescription(this, true);
+		return TunnelItem.getProcessDescription(this, true);
 	}
 
 	get icon(): ThemeIcon | undefined {
@@ -956,7 +945,7 @@ function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplor
 		const item = TunnelItem.createFromTunnel(remoteExplorerService, forwarded);
 		return {
 			label: item.label,
-			description: item.description,
+			description: item.processDescription,
 			tunnel: item
 		};
 	});
@@ -1092,7 +1081,7 @@ namespace OpenPortInBrowserCommandPaletteAction {
 				const tunnelItem = TunnelItem.createFromTunnel(remoteExplorerService, value[1]);
 				return {
 					label: tunnelItem.label,
-					description: tunnelItem.description,
+					description: tunnelItem.processDescription,
 					tunnel: tunnelItem
 				};
 			});

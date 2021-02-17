@@ -46,7 +46,7 @@ export interface ITunnelItem {
 	name?: string;
 	closeable?: boolean;
 	privacy?: TunnelPrivacy;
-	description?: string;
+	processDescription?: string;
 	wideDescription?: string;
 	readonly icon?: ThemeIcon;
 	readonly label: string;
