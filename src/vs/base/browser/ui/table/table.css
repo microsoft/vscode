@@ -26,7 +26,6 @@
 	font-weight: bold;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	border-right: 1px solid black;
 }
 
 .monaco-table-th,
