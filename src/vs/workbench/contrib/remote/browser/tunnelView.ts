@@ -16,7 +16,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -61,30 +61,25 @@ class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 }
 
 export interface ITunnelViewModel {
-	onForwardedPortsChanged: Event<void>;
-	readonly forwarded: TunnelItem[];
-	readonly detected: TunnelItem[];
-	readonly candidates: TunnelItem[];
+	readonly onForwardedPortsChanged: Event<void>;
+	readonly all: (ITunnelGroup | TunnelItem)[];
 	readonly input: TunnelItem;
-	groupsAndForwarded(): Promise<ITunnelGroup[]>;
+	isEmpty(): boolean;
 }
 
-export class TunnelViewModel extends Disposable implements ITunnelViewModel {
-	private _onForwardedPortsChanged: Emitter<void> = new Emitter();
-	public onForwardedPortsChanged: Event<void> = this._onForwardedPortsChanged.event;
+export class TunnelViewModel implements ITunnelViewModel {
+
+	readonly onForwardedPortsChanged: Event<void>;
 	private model: TunnelModel;
 	private _input: TunnelItem;
 	private _candidates: Map<string, CandidatePort> = new Map();
 
 	constructor(
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService) {
-		super();
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		this.model = remoteExplorerService.tunnelModel;
-		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
-		this._register(this.model.onClosePort(() => this._onForwardedPortsChanged.fire()));
-		this._register(this.model.onPortName(() => this._onForwardedPortsChanged.fire()));
-		this._register(this.model.onCandidatesChanged(() => this._onForwardedPortsChanged.fire()));
+		this.onForwardedPortsChanged = Event.any(this.model.onForwardPort, this.model.onClosePort, this.model.onPortName, this.model.onCandidatesChanged);
 		this._input = {
 			label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
 			wideLabel: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
@@ -98,10 +93,10 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		};
 	}
 
-	async groupsAndForwarded(): Promise<ITunnelGroup[]> {
+	get all(): (ITunnelGroup | TunnelItem)[] {
 		const groups: (ITunnelGroup | TunnelItem)[] = [];
 		this._candidates = new Map();
-		(await this.model.candidates).forEach(candidate => {
+		this.model.candidates.forEach(candidate => {
 			this._candidates.set(makeAddress(candidate.host, candidate.port), candidate);
 		});
 		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
@@ -115,7 +110,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			});
 		}
 		if (!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
-			const candidates = await this.candidates;
+			const candidates = this.candidates;
 			if (candidates.length > 0) {
 				groups.push({
 					label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
@@ -137,7 +132,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		}
 	}
 
-	get forwarded(): TunnelItem[] {
+	private get forwarded(): TunnelItem[] {
 		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
 			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel);
 			this.addProcessInfoFromCandidate(tunnelItem);
@@ -155,7 +150,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		return forwarded;
 	}
 
-	get detected(): TunnelItem[] {
+	private get detected(): TunnelItem[] {
 		return Array.from(this.model.detected.values()).map(tunnel => {
 			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel, TunnelType.Detected, false);
 			this.addProcessInfoFromCandidate(tunnelItem);
@@ -163,7 +158,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		});
 	}
 
-	get candidates(): TunnelItem[] {
+	private get candidates(): TunnelItem[] {
 		const candidates: TunnelItem[] = [];
 		this._candidates.forEach(value => {
 			if (!mapHasAddressLocalhostOrAllInterfaces(this.model.forwarded, value.host, value.port) &&
@@ -178,8 +173,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		return this._input;
 	}
 
-	dispose() {
-		super.dispose();
+	isEmpty(): boolean {
+		return this.forwarded.length === 0 && this.candidates.length === 0 && this.detected.length === 0;
 	}
 }
 
@@ -391,7 +386,7 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 
 	async getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
 		if (element instanceof TunnelViewModel) {
-			return element.groupsAndForwarded();
+			return element.all;
 		} else if (element instanceof TunnelItem) {
 			return [];
 		} else if ((<ITunnelGroup>element).items) {
@@ -712,8 +707,7 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return (this.viewModel.forwarded.length === 0) && (this.viewModel.candidates.length === 0) &&
-			(this.viewModel.detected.length === 0) && !this.isEditing;
+		return this.viewModel.isEmpty() && !this.isEditing;
 	}
 
 	focus(): void {
