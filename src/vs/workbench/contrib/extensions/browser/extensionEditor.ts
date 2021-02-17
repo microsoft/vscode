@@ -69,6 +69,12 @@ import { insane } from 'vs/base/common/insane/insane';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	return insane(documentContent, {
+		allowedAttributes: {
+			// https://github.com/microsoft/vscode/issues/116591
+			'h1': ['align'],
+			'h4': ['align'],
+			'p': ['align']
+		},
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';
 		}
