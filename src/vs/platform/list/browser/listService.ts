@@ -26,9 +26,11 @@ import { AsyncDataTree, IAsyncDataTreeOptions, CompressibleAsyncDataTree, ITreeC
 import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
 import { IKeyboardNavigationEventFilter, IAbstractTreeOptions, RenderIndentGuides, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ITableOptions, ITableOptionsUpdate, Table } from 'vs/base/browser/ui/table/tableWidget';
+import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 
-export type ListWidget = List<any> | PagedList<any> | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any>;
-export type WorkbenchListWidget = WorkbenchList<any> | WorkbenchPagedList<any> | WorkbenchObjectTree<any, any> | WorkbenchCompressibleObjectTree<any, any> | WorkbenchDataTree<any, any, any> | WorkbenchAsyncDataTree<any, any, any> | WorkbenchCompressibleAsyncDataTree<any, any, any>;
+export type ListWidget = List<any> | PagedList<any> | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any> | Table<any>;
+export type WorkbenchListWidget = WorkbenchList<any> | WorkbenchPagedList<any> | WorkbenchObjectTree<any, any> | WorkbenchCompressibleObjectTree<any, any> | WorkbenchDataTree<any, any, any> | WorkbenchAsyncDataTree<any, any, any> | WorkbenchCompressibleAsyncDataTree<any, any, any> | WorkbenchTable<any>;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -189,9 +191,7 @@ export interface IWorkbenchListOptionsUpdate extends IListOptionsUpdate {
 	readonly overrideStyles?: IColorMapping;
 }
 
-export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IListOptions<T> {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
-}
+export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IListOptions<T> { }
 
 export class WorkbenchList<T> extends List<T> {
 
@@ -317,9 +317,7 @@ export class WorkbenchList<T> extends List<T> {
 	}
 }
 
-export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IPagedListOptions<T> {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
-}
+export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IPagedListOptions<T> { }
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
@@ -400,6 +398,140 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		super.dispose();
 
 		this.disposables.dispose();
+	}
+}
+
+export interface IWorkbenchTableOptionsUpdate extends ITableOptionsUpdate {
+	readonly overrideStyles?: IColorMapping;
+}
+
+export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate, ITableOptions<T> { }
+
+export class WorkbenchTable<TRow> extends Table<TRow> {
+
+	readonly contextKeyService: IContextKeyService;
+	private readonly themeService: IThemeService;
+
+	private listHasSelectionOrFocus: IContextKey<boolean>;
+	private listDoubleSelection: IContextKey<boolean>;
+	private listMultiSelection: IContextKey<boolean>;
+	private horizontalScrolling: boolean | undefined;
+
+	private _styler: IDisposable | undefined;
+	private _useAltAsMultipleSelectionModifier: boolean;
+
+	private readonly disposables: DisposableStore;
+
+	constructor(
+		user: string,
+		container: HTMLElement,
+		delegate: ITableVirtualDelegate<TRow>,
+		columns: ITableColumn<TRow, any>[],
+		renderers: ITableRenderer<TRow, any>[],
+		options: IWorkbenchTableOptions<TRow>,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : configurationService.getValue<boolean>(horizontalScrollingKey);
+		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+
+		super(user, container, delegate, columns, renderers,
+			{
+				keyboardSupport: false,
+				...computeStyles(themeService.getColorTheme(), defaultListStyles),
+				...workbenchListOptions,
+				horizontalScrolling
+			}
+		);
+
+		this.disposables = new DisposableStore();
+		this.disposables.add(workbenchListOptionsDisposable);
+
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.themeService = themeService;
+
+		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
+		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
+		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
+		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+		this.horizontalScrolling = options.horizontalScrolling;
+
+		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+
+		this.disposables.add(this.contextKeyService);
+		this.disposables.add((listService as ListService).register(this));
+
+		if (options.overrideStyles) {
+			this.updateStyles(options.overrideStyles);
+		}
+
+		this.disposables.add(this.onDidChangeSelection(() => {
+			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.contextKeyService.bufferChangeEvents(() => {
+				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.listMultiSelection.set(selection.length > 1);
+				this.listDoubleSelection.set(selection.length === 2);
+			});
+		}));
+		this.disposables.add(this.onDidChangeFocus(() => {
+			const selection = this.getSelection();
+			const focus = this.getFocus();
+
+			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+		}));
+		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
+				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+			}
+
+			let options: IListOptionsUpdate = {};
+
+			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
+				const horizontalScrolling = configurationService.getValue<boolean>(horizontalScrollingKey);
+				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(listSmoothScrolling)) {
+				const smoothScrolling = configurationService.getValue<boolean>(listSmoothScrolling);
+				options = { ...options, smoothScrolling };
+			}
+			if (Object.keys(options).length > 0) {
+				this.updateOptions(options);
+			}
+		}));
+	}
+
+	updateOptions(options: IWorkbenchTableOptionsUpdate): void {
+		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.updateStyles(options.overrideStyles);
+		}
+	}
+
+	dispose(): void {
+		super.dispose();
+		if (this._styler) {
+			this._styler.dispose();
+		}
+	}
+
+	private updateStyles(styles: IColorMapping): void {
+		if (this._styler) {
+			this._styler.dispose();
+		}
+
+		this._styler = attachListStyler(this, this.themeService, styles);
+	}
+
+	get useAltAsMultipleSelectionModifier(): boolean {
+		return this._useAltAsMultipleSelectionModifier;
 	}
 }
 

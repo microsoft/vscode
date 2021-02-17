@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./table';
-import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { ITableColumn, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -13,13 +13,10 @@ import { $, append, clearNode, getContentHeight, getContentWidth } from 'vs/base
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 
 // TODO@joao
 type TCell = any;
-
-export interface ITableOptions<TRow> extends IListOptions<TRow> { }
-export interface ITableStyles extends IListStyles { }
 
 interface RowTemplateData {
 	readonly container: HTMLElement;
@@ -138,13 +135,44 @@ class ColumnHeader<TRow, TCell> implements IView {
 	}
 }
 
+export interface ITableOptions<TRow> extends IListOptions<TRow> { }
+export interface ITableOptionsUpdate extends IListOptionsUpdate { }
+export interface ITableStyles extends IListStyles { }
+
 export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
-	private domNode: HTMLElement;
+	readonly domNode: HTMLElement;
 	private splitview: SplitView;
 	private list: List<TRow>;
 	private columnLayoutDisposable: IDisposable;
 	private cachedHeight: number = 0;
+
+	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
+	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
+
+	get onDidScroll(): Event<ScrollEvent> { return this.list.onDidScroll; }
+	get onMouseClick(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseClick; }
+	get onMouseDblClick(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseDblClick; }
+	get onMouseMiddleClick(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseMiddleClick; }
+	get onPointer(): Event<ITableMouseEvent<TRow>> { return this.list.onPointer; }
+	get onMouseUp(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseUp; }
+	get onMouseDown(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseDown; }
+	get onMouseOver(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseOver; }
+	get onMouseMove(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseMove; }
+	get onMouseOut(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseOut; }
+	get onTouchStart(): Event<ITableTouchEvent<TRow>> { return this.list.onTouchStart; }
+	get onTap(): Event<ITableGestureEvent<TRow>> { return this.list.onTap; }
+
+	get onDidFocus(): Event<void> { return this.list.onDidFocus; }
+	get onDidBlur(): Event<void> { return this.list.onDidBlur; }
+
+	get scrollTop(): number { return this.list.scrollTop; }
+	set scrollTop(scrollTop: number) { this.list.scrollTop = scrollTop; }
+	get scrollLeft(): number { return this.list.scrollLeft; }
+	set scrollLeft(scrollLeft: number) { this.list.scrollLeft = scrollLeft; }
+	get scrollHeight(): number { return this.list.scrollHeight; }
+	get renderHeight(): number { return this.list.renderHeight; }
+	get onDidDispose(): Event<void> { return this.list.onDidDispose; }
 
 	constructor(
 		user: string,
@@ -179,8 +207,20 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 			(([index, size]) => renderer.layoutColumn(index, size));
 	}
 
+	updateOptions(options: ITableOptionsUpdate): void {
+		this.list.updateOptions(options);
+	}
+
 	splice(start: number, deleteCount: number, elements: TRow[] = []): void {
 		this.list.splice(start, deleteCount, elements);
+	}
+
+	get length(): number {
+		return this.list.length;
+	}
+
+	getHTMLElement(): HTMLElement {
+		return this.domNode;
 	}
 
 	layout(height?: number, width?: number): void {
@@ -192,12 +232,60 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.layout(height - this.virtualDelegate.headerRowHeight, width);
 	}
 
+	toggleKeyboardNavigation(): void {
+		this.list.toggleKeyboardNavigation();
+	}
+
 	style(styles: ITableStyles): void {
 		this.list.style(styles);
 	}
 
 	domFocus(): void {
 		this.list.domFocus();
+	}
+
+	setSelection(indexes: number[], browserEvent?: UIEvent): void {
+		this.list.setSelection(indexes, browserEvent);
+	}
+
+	getSelection(): number[] {
+		return this.list.getSelection();
+	}
+
+	setFocus(indexes: number[], browserEvent?: UIEvent): void {
+		this.list.setFocus(indexes, browserEvent);
+	}
+
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
+		this.list.focusNext(n, loop, browserEvent);
+	}
+
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
+		this.list.focusPrevious(n, loop, browserEvent);
+	}
+
+	focusNextPage(browserEvent?: UIEvent): void {
+		this.list.focusNextPage(browserEvent);
+	}
+
+	focusPreviousPage(browserEvent?: UIEvent): void {
+		this.list.focusPreviousPage(browserEvent);
+	}
+
+	focusFirst(browserEvent?: UIEvent): void {
+		this.list.focusFirst(browserEvent);
+	}
+
+	focusLast(browserEvent?: UIEvent): void {
+		this.list.focusLast(browserEvent);
+	}
+
+	getFocus(): number[] {
+		return this.list.getFocus();
+	}
+
+	reveal(index: number, relativeTop?: number): void {
+		this.list.reveal(index, relativeTop);
 	}
 
 	dispose(): void {
