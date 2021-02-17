@@ -36,7 +36,8 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 
 	constructor(
 		private columns: ITableColumn<TRow, TCell>[],
-		renderers: ITableRenderer<TCell, unknown>[]
+		renderers: ITableRenderer<TCell, unknown>[],
+		private getColumnSize: (index: number) => number
 	) {
 		const rendererMap = new Map(renderers.map(r => [r.templateId, r]));
 		this.renderers = [];
@@ -61,6 +62,7 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 			const renderer = this.renderers[i];
 			const cellContainer = append(rowContainer, $('.monaco-table-td', { 'data-col-index': i }));
 
+			cellContainer.style.width = `${this.getColumnSize(i)}px`;
 			cellContainers.push(cellContainer);
 			cellTemplateData.push(renderer.renderTemplate(cellContainer));
 		}
@@ -163,7 +165,7 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
 		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
 
-		const renderer = new TableListRenderer(columns, renderers);
+		const renderer = new TableListRenderer(columns, renderers, i => this.splitview.getViewSize(i));
 		this.list = new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options);
 
 		this.columnLayoutDisposable = Event.any(...headers.map(h => h.onDidLayout))
