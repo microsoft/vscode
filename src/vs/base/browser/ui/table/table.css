@@ -33,6 +33,7 @@
 .monaco-table-td {
 	box-sizing: border-box;
 	padding: 0 10px;
+	flex-shrink: 0;
 }
 
 .monaco-table-th[data-col-index="0"],

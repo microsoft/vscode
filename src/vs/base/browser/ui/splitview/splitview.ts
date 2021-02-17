@@ -33,6 +33,7 @@ export interface ISplitViewOptions<TLayoutContext = undefined> {
 	readonly inverseAltBehavior?: boolean;
 	readonly proportionalLayout?: boolean; // default true,
 	readonly descriptor?: ISplitViewDescriptor<TLayoutContext>;
+	readonly scrollbarVisibility?: ScrollbarVisibility;
 }
 
 /**
@@ -309,8 +310,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		this.scrollable = new Scrollable(125, scheduleAtNextAnimationFrame);
 		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
-			vertical: this.orientation === Orientation.VERTICAL ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden,
-			horizontal: this.orientation === Orientation.HORIZONTAL ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden
+			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,
+			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
 		}, this.scrollable));
 
 		this._register(this.scrollableElement.onScroll(e => {

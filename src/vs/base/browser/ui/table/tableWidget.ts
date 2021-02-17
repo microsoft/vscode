@@ -13,6 +13,7 @@ import { $, append, clearNode, getContentHeight, getContentWidth } from 'vs/base
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 // TODO@joao
 type TCell = any;
@@ -158,7 +159,7 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 			views: headers.map(view => ({ size: 1, view }))
 		};
 
-		this.splitview = new SplitView(this.domNode, { orientation: Orientation.HORIZONTAL, descriptor });
+		this.splitview = new SplitView(this.domNode, { orientation: Orientation.HORIZONTAL, scrollbarVisibility: ScrollbarVisibility.Hidden, descriptor });
 		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
 		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
 
