@@ -245,10 +245,10 @@ export class TerminalViewPane extends ViewPane {
 						await terminal.copySelection();
 						terminal.clearSelection();
 					} else {
-						if (!BrowserFeatures.clipboard.readText) {
+						if (BrowserFeatures.clipboard.readText) {
 							terminal.paste();
 						} else {
-							this._notificationService.info('This browser doesn\'t support the clipboard.readText API needed to trigger a paste');
+							this._notificationService.info(`This browser doesn\'t support the clipboard.readText API needed to trigger a paste, try ${platform.isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
 						}
 					}
 					// Clear selection after all click event bubbling is finished on Mac to prevent
