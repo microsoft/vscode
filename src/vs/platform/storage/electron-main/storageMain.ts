@@ -50,7 +50,7 @@ export interface IStorageMain extends IDisposable {
 	/**
 	 * Required call to ensure the service can be used.
 	 */
-	initialize(): Promise<void>;
+	init(): Promise<void>;
 
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
@@ -60,31 +60,15 @@ export interface IStorageMain extends IDisposable {
 	get(key: string, fallbackValue?: string): string | undefined;
 
 	/**
-	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided defaultValue if the element is null or undefined. The element
-	 * will be converted to a boolean.
-	 */
-	getBoolean(key: string, fallbackValue: boolean): boolean;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
-
-	/**
-	 * Retrieve an element stored with the given key from storage. Use
-	 * the provided defaultValue if the element is null or undefined. The element
-	 * will be converted to a number using parseInt with a base of 10.
-	 */
-	getNumber(key: string, fallbackValue: number): number;
-	getNumber(key: string, fallbackValue?: number): number | undefined;
-
-	/**
 	 * Store a string value under the given key to storage. The value will
 	 * be converted to a string.
 	 */
-	store(key: string, value: string | boolean | number | undefined | null): void;
+	set(key: string, value: string | boolean | number | undefined | null): void;
 
 	/**
 	 * Delete an element stored under the provided key from storage.
 	 */
-	remove(key: string): void;
+	delete(key: string): void;
 
 	/**
 	 * Close the storage connection.
@@ -114,16 +98,25 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		super();
 	}
 
-	initialize(): Promise<void> {
+	init(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
 				try {
-					const storage = await this.doInitialize();
 
-					// Replace our in-memory storage with the initialized
-					// one once that is finished and use it from then on
+					// Create storage via subclasses
+					const storage = await this.doCreate();
+
+					// Replace our in-memory storage with the real
+					// once as soon as possible without awaiting
+					// the init call.
 					this.storage.dispose();
 					this.storage = storage;
+
+					// Re-emit storage changes via event
+					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
+
+					// Await storage init
+					await this.doInit(storage);
 
 					// Ensure we track wether storage is new or not
 					const isNewStorage = storage.getBoolean(IS_NEW_KEY);
@@ -148,7 +141,11 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		};
 	}
 
-	protected abstract doInitialize(): Promise<IStorage>;
+	protected doInit(storage: IStorage): Promise<void> {
+		return storage.init();
+	}
+
+	protected abstract doCreate(): Promise<IStorage>;
 
 	get items(): Map<string, string> { return this.storage.items; }
 
@@ -158,27 +155,23 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		return this.storage.get(key, fallbackValue);
 	}
 
-	getBoolean(key: string, fallbackValue: boolean): boolean;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined;
-	getBoolean(key: string, fallbackValue?: boolean): boolean | undefined {
-		return this.storage.getBoolean(key, fallbackValue);
-	}
-
-	getNumber(key: string, fallbackValue: number): number;
-	getNumber(key: string, fallbackValue?: number): number | undefined;
-	getNumber(key: string, fallbackValue?: number): number | undefined {
-		return this.storage.getNumber(key, fallbackValue);
-	}
-
-	store(key: string, value: string | boolean | number | undefined | null): Promise<void> {
+	set(key: string, value: string | boolean | number | undefined | null): Promise<void> {
 		return this.storage.set(key, value);
 	}
 
-	remove(key: string): Promise<void> {
+	delete(key: string): Promise<void> {
 		return this.storage.delete(key);
 	}
 
 	async close(): Promise<void> {
+
+		// Ensure we are not accidentally leaving
+		// a pending initialized storage behind in
+		// case close() was called before init()
+		// finishes
+		if (this.initializePromise) {
+			await this.initializePromise;
+		}
 
 		// Propagate to storage lib
 		await this.storage.close();
@@ -200,7 +193,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 		super(logService);
 	}
 
-	protected async doInitialize(): Promise<IStorage> {
+	protected async doCreate(): Promise<IStorage> {
 		let storagePath: string;
 		if (this.options.useInMemoryStorage) {
 			storagePath = SQLiteStorageDatabase.IN_MEMORY_PATH;
@@ -208,24 +201,19 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 			storagePath = join(this.environmentService.globalStorageHome.fsPath, GlobalStorageMain.STORAGE_NAME);
 		}
 
-		// Create Storage
-		const storage = new Storage(new SQLiteStorageDatabase(storagePath, {
+		return new Storage(new SQLiteStorageDatabase(storagePath, {
 			logging: this.createLogginOptions()
 		}));
+	}
 
-		// Re-emit storage changes via event
-		this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
-
-		// Forward init to SQLite DB
-		await storage.init();
+	protected async doInit(storage: IStorage): Promise<void> {
+		await super.doInit(storage);
 
 		// Apply global telemetry values as part of the initialization
 		this.updateTelemetryState(storage);
-
-		return storage;
 	}
 
-	private updateTelemetryState(storage: Storage): void {
+	private updateTelemetryState(storage: IStorage): void {
 
 		// Instance UUID (once)
 		const instanceId = storage.get(instanceStorageKey, undefined);
@@ -263,23 +251,12 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		super(logService);
 	}
 
-	protected async doInitialize(): Promise<IStorage> {
-
-		// Prepare workspace storage folder for DB
+	protected async doCreate(): Promise<IStorage> {
 		const { storageFilePath, wasCreated } = await this.prepareWorkspaceStorageFolder();
 
-		// Create Storage
-		const storage = new Storage(new SQLiteStorageDatabase(storageFilePath, {
+		return new Storage(new SQLiteStorageDatabase(storageFilePath, {
 			logging: this.createLogginOptions()
 		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
-
-		// Re-emit storage changes via event
-		this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
-
-		// Forward init to SQLite DB
-		await storage.init();
-
-		return storage;
 	}
 
 	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string, wasCreated: boolean }> {
@@ -298,15 +275,16 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 			return { storageFilePath: workspaceStorageDatabasePath, wasCreated: false };
 		}
 
+		// Ensure storage folder exists
 		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
-		// Write metadata into folder
+		// Write metadata into folder (but do not await)
 		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);
 
 		return { storageFilePath: workspaceStorageDatabasePath, wasCreated: true };
 	}
 
-	private ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath: string): void {
+	private async ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath: string): Promise<void> {
 		let meta: object | undefined = undefined;
 		if (isSingleFolderWorkspaceIdentifier(this.workspace)) {
 			meta = { folder: this.workspace.uri.toString() };
@@ -315,17 +293,15 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		}
 
 		if (meta) {
-			(async () => {
-				try {
-					const workspaceStorageMetaPath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_META_NAME);
-					const storageExists = await exists(workspaceStorageMetaPath);
-					if (!storageExists) {
-						await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
-					}
-				} catch (error) {
-					this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);
+			try {
+				const workspaceStorageMetaPath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_META_NAME);
+				const storageExists = await exists(workspaceStorageMetaPath);
+				if (!storageExists) {
+					await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
 				}
-			})();
+			} catch (error) {
+				this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);
+			}
 		}
 	}
 }

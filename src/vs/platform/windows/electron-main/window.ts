@@ -269,7 +269,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Request handling
 		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentMainService, this.fileService, {
 			get: key => storageMainService.globalStorage.get(key),
-			store: (key, value) => storageMainService.globalStorage.store(key, value)
+			store: (key, value) => storageMainService.globalStorage.set(key, value)
 		});
 
 		// Eventing
