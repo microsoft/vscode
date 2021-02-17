@@ -9,16 +9,14 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { builtinProviderDisplayName } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { CustomEditorDescriptor, CustomEditorInfo, CustomEditorPriority } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
-import { DEFAULT_EDITOR_ID } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
-
 export const defaultCustomEditor = new CustomEditorInfo({
-	id: DEFAULT_EDITOR_ID,
+	id: 'default',
 	displayName: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
 	providerDisplayName: builtinProviderDisplayName,
 	selector: [

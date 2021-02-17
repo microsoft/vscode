@@ -206,8 +206,9 @@ export interface IEditorOptions {
 	 * - `undefined`: let the editor decide for itself
 	 * - `false`: disable overrides
 	 * - `string`: specific override by id
+	 * - `null`: shows a picker for the user to decide
 	 */
-	readonly override?: false | string;
+	readonly override?: false | string | null;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

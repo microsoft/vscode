@@ -20,7 +20,7 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, ICustomEditorInfo, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
@@ -1009,7 +1009,7 @@ export class EditorOptions implements IEditorOptions {
 	 * - `false`: disable overrides
 	 * - `string`: specific override by id
 	 */
-	override?: false | string;
+	override?: false | string | null;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -1067,7 +1067,7 @@ export class EditorOptions implements IEditorOptions {
 			this.index = options.index;
 		}
 
-		if (typeof options.override === 'string' || options.override === false) {
+		if (typeof options.override === 'string' || options.override === false || options.override === null) {
 			this.override = options.override;
 		}
 
@@ -1637,3 +1637,23 @@ export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService
 }
 
 //#endregion
+
+//#region Editor Open With
+export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
+
+export const builtinProviderDisplayName = localize('builtinProviderDisplayName', "Built-in");
+
+export const DEFAULT_CUSTOM_EDITOR: ICustomEditorInfo = {
+	id: 'default',
+	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	providerDisplayName: builtinProviderDisplayName
+};
+
+export type CustomEditorAssociation = {
+	readonly viewType: string;
+	readonly filenamePattern?: string;
+};
+
+export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
+
+////#endregion
