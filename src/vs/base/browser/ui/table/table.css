@@ -31,8 +31,11 @@
 .monaco-table-th,
 .monaco-table-td {
 	box-sizing: border-box;
-	padding: 0 10px;
+	padding-left: 10px;
 	flex-shrink: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-table-th[data-col-index="0"],

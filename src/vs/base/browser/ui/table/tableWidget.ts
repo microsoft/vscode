@@ -196,6 +196,10 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 		this.list.style(styles);
 	}
 
+	domFocus(): void {
+		this.list.domFocus();
+	}
+
 	dispose(): void {
 		this.splitview.dispose();
 		this.list.dispose();
