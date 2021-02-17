@@ -31,7 +31,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onPtyHostExit = this._onPtyHostExit.event;
 	private readonly _onPtyHostStart = this._register(new Emitter<void>());
 	readonly onPtyHostStart = this._onPtyHostStart.event;
-	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent }>());
+	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;

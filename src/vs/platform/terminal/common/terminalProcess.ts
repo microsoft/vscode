@@ -150,7 +150,6 @@ export interface IPtyHostProcessDataEvent {
 }
 export interface ReplayEntry { cols: number; rows: number; data: string; }
 export interface IPtyHostProcessReplayEvent {
-	type: 'replay';
 	events: ReplayEntry[];
 }
 export interface IPtyHostProcessExitEvent {

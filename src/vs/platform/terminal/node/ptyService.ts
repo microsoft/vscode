@@ -28,7 +28,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent }>());
+	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -81,7 +81,6 @@ export class PtyService extends Disposable implements IPtyService {
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
 		process.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		process.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
-		process.onProcessReplay(event => this._onProcessReplay.fire(event));
 		if (process.onProcessOverrideDimensions) {
 			process.onProcessOverrideDimensions(event => this._onProcessOverrideDimensions.fire({ id, event }));
 		}
@@ -94,9 +93,8 @@ export class PtyService extends Disposable implements IPtyService {
 			persistentTerminalProcess.dispose();
 			this._ptys.delete(id);
 		});
+		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		this._ptys.set(id, persistentTerminalProcess);
-		this._logService.info('creating process with id', id);
-		this._logService.info('processId of', JSON.stringify(shellLaunchConfig.attachPersistentTerminal));
 		return id;
 	}
 
@@ -273,7 +271,7 @@ export class PersistentTerminalProcess extends Disposable {
 				this._disconnectRunner2.cancel();
 				if (this._seenFirstListener) {
 					// only replay events to subsequent (reconnected) listeners
-					this.triggerReplay();
+					// this.triggerReplay();
 				}
 				this._seenFirstListener = true;
 			},
@@ -303,7 +301,7 @@ export class PersistentTerminalProcess extends Disposable {
 				cwd: e.cwd
 			};
 			this._events.fire(ev);
-			this.triggerReplay();
+			// this.triggerReplay();
 		}));
 
 		this._register(this.onOrphanQuestionReply((event: IOrphanQuestionReplyArgs) => {
@@ -350,6 +348,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
+		await this.triggerReplay();
 		await this._terminalProcess.start();
 		return { persistentTerminalId: this._persistentTerminalId };
 	}
@@ -396,7 +395,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 
 		this._logService.info(`Replaying ${dataLength} chars and ${ev.events.length} size events.`);
-		this._events.fire(ev);
+		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
 	}
 

@@ -41,6 +41,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._localPtyService.onProcessOverrideDimensions(e => e.id === this._localPtyId && this._onProcessOverrideDimensions.fire(e.event));
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => e.id === this._localPtyId && this._onProcessResolvedShellLaunchConfig.fire(e.event));
 		this._localPtyService.onProcessReplay(event => {
+			if (event.id !== this._localPtyId) {
+				return;
+			}
 			try {
 				this._inReplay = true;
 
@@ -57,8 +60,11 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 			// remove size override
 			this._onProcessOverrideDimensions.fire(undefined);
+
 			return;
 		});
+
+
 		if (this._localPtyService.onPtyHostExit) {
 			this._localPtyService.onPtyHostExit(() => {
 				this._onProcessExit.fire(undefined);

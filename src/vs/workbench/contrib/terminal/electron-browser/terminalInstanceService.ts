@@ -174,5 +174,4 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	private _getWorkspaceName(): string {
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
-
 }

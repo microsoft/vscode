@@ -157,7 +157,7 @@ export interface IPtyService {
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
-	readonly onProcessReplay: Event<{ event: IPtyHostProcessReplayEvent }>;
+	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
