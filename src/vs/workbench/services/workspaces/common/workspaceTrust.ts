@@ -17,7 +17,7 @@ import { EditorModel } from 'vs/workbench/common/editor';
 
 export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
-export const WORKSPACE_TRUST_URI = URI.parse('workspaceTrust:/Trusted Workspaces');
+//export const WORKSPACE_TRUST_URI = URI.parse('workspaceTrust:/Trusted Workspaces');
 
 export const WorkspaceTrustContext = {
 	PendingRequest: new RawContextKey<boolean>('workspaceTrustPendingRequest', false),

@@ -20,7 +20,6 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkspaceTrustFileSystemProvider } from 'vs/workbench/contrib/workspace/common/workspaceTrustFileSystemProvider';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -178,14 +177,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	LifecyclePhase.Starting
 );
 
-/*
- * Trusted Workspace JSON Editor
- */
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	WorkspaceTrustFileSystemProvider,
-	LifecyclePhase.Ready
-);
-
 /**
  * Trusted Workspace GUI Editor
  */
@@ -308,7 +299,7 @@ registerAction2(class extends Action2 {
 
 		const input = instantiationService.createInstance(WorkspaceTrustEditorInput);
 
-		editorService.openEditor(input, { pinned: true });
+		editorService.openEditor(input, { pinned: true, revealIfOpened: true });
 		return;
 	}
 });
