@@ -992,6 +992,12 @@ export interface MainThreadWindowShape extends IDisposable {
 	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
 
+export enum CandidatePortSource {
+	None = 0,
+	Process = 1,
+	Output = 2
+}
+
 export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
@@ -1000,6 +1006,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$setRemoteTunnelService(processId: number): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
+	$setCandidatePortSource(source: CandidatePortSource): Promise<void>;
 }
 
 export interface MainThreadTimelineShape extends IDisposable {

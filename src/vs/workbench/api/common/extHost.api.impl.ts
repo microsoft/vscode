@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -1134,6 +1134,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
 			CancellationError: errors.CancellationError,
 			CancellationTokenSource: CancellationTokenSource,
+			CandidatePortSource: CandidatePortSource,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
 			CodeActionTrigger: extHostTypes.CodeActionTrigger,

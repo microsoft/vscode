@@ -204,6 +204,12 @@ declare module 'vscode' {
 		elevationRequired?: boolean;
 	}
 
+	export enum CandidatePortSource {
+		None = 0,
+		Process = 1,
+		Output = 2
+	}
+
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
@@ -238,6 +244,8 @@ declare module 'vscode' {
 			elevation: boolean;
 			public: boolean;
 		};
+
+		candidatePortSource?: CandidatePortSource;
 	}
 
 	export namespace workspace {
