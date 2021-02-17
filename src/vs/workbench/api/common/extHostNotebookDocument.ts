@@ -47,7 +47,7 @@ export class ExtHostCell {
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _outputs: IOutputDto[];
+	private _outputs: extHostTypes.NotebookCellOutput[];
 	private _metadata: extHostTypes.NotebookCellMetadata;
 
 	readonly handle: number;
@@ -64,7 +64,7 @@ export class ExtHostCell {
 		this.handle = _cellData.handle;
 		this.uri = URI.revive(_cellData.uri);
 		this.cellKind = _cellData.cellKind;
-		this._outputs = _cellData.outputs;
+		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
 		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(_cellData.metadata ?? {});
 	}
 
@@ -87,7 +87,7 @@ export class ExtHostCell {
 				cellKind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
 				document: data.document,
 				get language() { return data!.document.languageId; },
-				get outputs() { return that._outputs.map(extHostTypeConverters.NotebookCellOutput.to); },
+				get outputs() { return that._outputs.slice(0); },
 				set outputs(_value) { throw new Error('Use WorkspaceEdit to update cell outputs.'); },
 				get metadata() { return that._metadata; },
 				set metadata(_value) { throw new Error('Use WorkspaceEdit to update cell metadata.'); },
@@ -97,17 +97,17 @@ export class ExtHostCell {
 	}
 
 	setOutputs(newOutputs: IOutputDto[]): void {
-		this._outputs = newOutputs;
+		this._outputs = newOutputs.map(extHostTypeConverters.NotebookCellOutput.to);
 	}
 
 	setOutputItems(outputId: string, append: boolean, newOutputItems: IOutputItemDto[]) {
-		const output = this._outputs.find(op => op.outputId === outputId);
+		const newItems = newOutputItems.map(extHostTypeConverters.NotebookCellOutputItem.to);
+		const output = this._outputs.find(op => op.id === outputId);
 		if (output) {
-			if (append) {
-				output.outputs = [...output.outputs, ...newOutputItems];
-			} else {
-				output.outputs = newOutputItems;
+			if (!append) {
+				output.outputs.length = 0;
 			}
+			output.outputs.push(...newItems);
 		}
 	}
 

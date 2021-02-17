@@ -159,13 +159,8 @@ export interface IOutputItemDto {
 
 export interface IOutputDto {
 	outputs: IOutputItemDto[];
-	/**
-	 * { mime_type: value }
-	 */
-	// data: { [key: string]: unknown; }
-
-	// metadata?: NotebookCellOutputMetadata;
 	outputId: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface ICellOutput {

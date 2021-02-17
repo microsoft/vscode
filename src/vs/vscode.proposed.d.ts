@@ -1507,9 +1507,9 @@ declare module 'vscode' {
 
 		readonly mime: string;
 		readonly value: unknown;
-		readonly metadata?: Record<string, string | number | boolean | unknown>;
+		readonly metadata?: Record<string, any>;
 
-		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean | unknown>);
+		constructor(mime: string, value: unknown, metadata?: Record<string, any>);
 	}
 
 	// @jrieken
@@ -1517,7 +1517,11 @@ declare module 'vscode' {
 	export class NotebookCellOutput {
 		readonly id: string;
 		readonly outputs: NotebookCellOutputItem[];
-		constructor(outputs: NotebookCellOutputItem[], id?: string);
+		readonly metadata?: Record<string, any>;
+
+		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, any>);
+
+		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: Record<string, any>);
 	}
 
 	//#endregion
