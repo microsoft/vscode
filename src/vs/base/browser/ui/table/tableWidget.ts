@@ -5,14 +5,14 @@
 
 import 'vs/css!./table';
 import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { ITableColumn, ITableRenderer, ITableVirtualDelegate, TableError } from 'vs/base/browser/ui/table/table';
+import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { $, append, clearNode, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
-import { ISplitViewDescriptor, IView, LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 
 // TODO@joao
 type TCell = any;
@@ -31,22 +31,24 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 	static TemplateId = 'row';
 	readonly templateId = TableListRenderer.TemplateId;
 	private renderers: ITableRenderer<TCell, unknown>[];
+	private renderedTemplates = new Set<RowTemplateData>();
 
 	constructor(
 		private columns: ITableColumn<TRow, TCell>[],
 		renderers: ITableRenderer<TCell, unknown>[]
 	) {
 		const rendererMap = new Map(renderers.map(r => [r.templateId, r]));
+		this.renderers = [];
 
-		this.renderers = columns.map(column => {
-			const result = rendererMap.get(column.templateId);
+		for (const column of columns) {
+			const renderer = rendererMap.get(column.templateId);
 
-			if (!result) {
+			if (!renderer) {
 				throw new Error(`Table cell renderer for template id ${column.templateId} not found.`);
 			}
 
-			return result;
-		});
+			this.renderers.push(renderer);
+		}
 	}
 
 	renderTemplate(container: HTMLElement) {
@@ -62,7 +64,10 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 			cellTemplateData.push(renderer.renderTemplate(cellContainer));
 		}
 
-		return { container, cellContainers, cellTemplateData };
+		const result = { container, cellContainers, cellTemplateData };
+		this.renderedTemplates.add(result);
+
+		return result;
 	}
 
 	renderElement(element: TRow, index: number, templateData: RowTemplateData, height: number | undefined): void {
@@ -94,6 +99,13 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 		}
 
 		clearNode(templateData.container);
+		this.renderedTemplates.delete(templateData);
+	}
+
+	layoutColumn(index: number, size: number): void {
+		for (const { cellContainers } of this.renderedTemplates) {
+			cellContainers[index].style.width = `${size}px`;
+		}
 	}
 }
 
@@ -111,11 +123,16 @@ class ColumnHeader<TRow, TCell> implements IView {
 	readonly maximumSize = Number.POSITIVE_INFINITY;
 	readonly onDidChange = Event.None;
 
-	constructor(column: ITableColumn<TRow, TCell>, index: number) {
+	private _onDidLayout = new Emitter<[number, number]>();
+	readonly onDidLayout = this._onDidLayout.event;
+
+	constructor(column: ITableColumn<TRow, TCell>, private index: number) {
 		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
 	}
 
-	layout(): void { }
+	layout(size: number): void {
+		this._onDidLayout.fire([this.index, size]);
+	}
 }
 
 export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
@@ -123,27 +140,33 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 	private domNode: HTMLElement;
 	private splitview: SplitView;
 	private list: List<TRow>;
+	private columnLayoutDisposable: IDisposable;
 
 	constructor(
-		private user: string,
+		user: string,
 		container: HTMLElement,
 		private virtualDelegate: ITableVirtualDelegate<TRow>,
 		columns: ITableColumn<TRow, TCell>[],
 		renderers: ITableRenderer<TCell, unknown>[],
-		private _options?: ITableOptions<TRow>
+		_options?: ITableOptions<TRow>
 	) {
 		this.domNode = append(container, $('.monaco-table'));
 
+		const headers = columns.map((c, i) => new ColumnHeader(c, i));
 		const descriptor: ISplitViewDescriptor = {
 			size: columns.length,
-			views: columns.map((c, i) => ({ size: 1, view: new ColumnHeader(c, i) }))
+			views: headers.map(view => ({ size: 1, view }))
 		};
 
 		this.splitview = new SplitView(this.domNode, { orientation: Orientation.HORIZONTAL, descriptor });
 		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
 		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
 
-		this.list = new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [new TableListRenderer(columns, renderers)], _options);
+		const renderer = new TableListRenderer(columns, renderers);
+		this.list = new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options);
+
+		this.columnLayoutDisposable = Event.any(...headers.map(h => h.onDidLayout))
+			(([index, size]) => renderer.layoutColumn(index, size));
 	}
 
 	splice(start: number, deleteCount: number, elements: TRow[] = []): void {
@@ -165,5 +188,6 @@ export class TableWidget<TRow> implements ISpliceable<TRow>, IThemable, IDisposa
 	dispose(): void {
 		this.splitview.dispose();
 		this.list.dispose();
+		this.columnLayoutDisposable.dispose();
 	}
 }

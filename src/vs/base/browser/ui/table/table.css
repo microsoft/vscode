@@ -26,12 +26,12 @@
 	font-weight: bold;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	box-sizing: border-box;
 	border-right: 1px solid black;
 }
 
 .monaco-table-th,
 .monaco-table-td {
+	box-sizing: border-box;
 	padding: 0 10px;
 }
 
