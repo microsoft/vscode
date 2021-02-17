@@ -126,6 +126,7 @@ export class MenuId {
 	static readonly TunnelContext = new MenuId('TunnelContext');
 	static readonly TunnelInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
+	static readonly TunnelLocalAddressInline = new MenuId('TunnelLocalAddressInline');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
 	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');

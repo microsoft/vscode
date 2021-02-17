@@ -41,12 +41,13 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { forwardPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { copyAddressIcon, forwardPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
+import { Codicon } from 'vs/base/common/codicons';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
@@ -392,21 +393,36 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 	}
 }
 
-class LabelColumn implements ITableColumn<ITunnelItem, string> {
+class LabelColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = nls.localize('label', "Label");
 	readonly weight: number = 1;
-	readonly templateId: string = 'string';
-	project(row: ITunnelItem): string {
-		return row.label;
+	readonly templateId: string = 'actionbar';
+	project(row: ITunnelItem): ActionBarCell {
+		const label = row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`;
+		const icon = row.processDescription ? Codicon.circleFilled : Codicon.circleOutline;
+		const context: [string, any][] =
+			[
+				['view', TUNNEL_VIEW_ID],
+				['tunnelType', row.tunnelType],
+				['tunnelCloseable', row.closeable]
+			];
+		return { label, icon, tunnel: row, context };
 	}
 }
 
-class LocalAddressColumn implements ITableColumn<ITunnelItem, string> {
+class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = nls.localize('local address', "Local Address");
 	readonly weight: number = 1;
-	readonly templateId: string = 'string';
-	project(row: ITunnelItem): string {
-		return row.localAddress!; // TODO@joao TODO@alexr00
+	readonly templateId: string = 'actionbar';
+	project(row: ITunnelItem): ActionBarCell {
+		const context: [string, any][] =
+			[
+				['view', TUNNEL_VIEW_ID],
+				['tunnelType', row.tunnelType],
+				['tunnelCloseable', row.closeable]
+			];
+		const label = row.localAddress ?? '';
+		return { label, menuId: MenuId.TunnelLocalAddressInline, context, tunnel: row };
 	}
 }
 
@@ -433,6 +449,82 @@ class StringRenderer implements ITableRenderer<string, HTMLElement> {
 
 	disposeTemplate(templateData: HTMLElement): void {
 		// noop
+	}
+}
+
+interface IActionBarTemplateData {
+	elementDisposable: IDisposable;
+	container: HTMLElement;
+	label: IconLabel;
+	icon: HTMLElement;
+	actionBar: ActionBar;
+}
+
+interface ActionBarCell {
+	label: string;
+	icon?: Codicon;
+	menuId?: MenuId;
+	context: [string, any][];
+	tunnel: ITunnelItem;
+}
+
+class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCell, IActionBarTemplateData> {
+	readonly templateId = 'actionbar';
+	private _actionRunner: ActionRunner | undefined;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
+	) { super(); }
+
+	set actionRunner(actionRunner: ActionRunner) {
+		this._actionRunner = actionRunner;
+	}
+
+	renderTemplate(container: HTMLElement): IActionBarTemplateData {
+		container.classList.add('ports-view-actionbar-cell');
+		const icon = dom.append(container, dom.$('.ports-view-actionbar-cell-icon'));
+		const label = new IconLabel(container, { supportHighlights: true });
+		const actionsContainer = dom.append(container, dom.$('.actions'));
+		const actionBar = new ActionBar(actionsContainer, {
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
+			respectOrientationForPreviousAndNextKey: true
+		});
+		return { label, icon, actionBar, container, elementDisposable: Disposable.None };
+	}
+
+	renderElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData): void {
+		// reset
+		templateData.actionBar.clear();
+		templateData.icon.className = 'ports-view-actionbar-cell-icon';
+		templateData.icon.hidden = true;
+
+		templateData.label.setLabel(element.label);
+		templateData.actionBar.context = element.tunnel;
+		const contextKeyService = this.contextKeyService.createOverlay(element.context);
+		const disposableStore = new DisposableStore();
+		templateData.elementDisposable = disposableStore;
+		if (element.menuId) {
+			const menu = disposableStore.add(this.menuService.createMenu(element.menuId, contextKeyService));
+			const actions: IAction[] = [];
+			disposableStore.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
+			if (actions) {
+				templateData.actionBar.push(actions, { icon: true, label: false });
+				if (this._actionRunner) {
+					templateData.actionBar.actionRunner = this._actionRunner;
+				}
+			}
+		}
+		if (element.icon) {
+			templateData.icon.className = `ports-view-actionbar-cell-icon ${ThemeIcon.asClassName(element.icon)}`;
+			templateData.icon.hidden = false;
+		}
+	}
+
+	disposeTemplate(templateData: IActionBarTemplateData): void {
+		templateData.actionBar.dispose();
+		templateData.elementDisposable.dispose();
 	}
 }
 
@@ -654,13 +746,15 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('ports-view');
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
+		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService, this.menuService);
+
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
 		this.table = this.instantiationService.createInstance(WorkbenchTable,
 			'RemoteTunnels',
 			widgetContainer,
 			new TunnelTreeVirtualDelegate(),
 			[new LabelColumn(), new LocalAddressColumn(), new RunningProcessColumn()],
-			[new StringRenderer()],
+			[new StringRenderer(), actionBarRenderer],
 			{
 				// 		keyboardNavigationLabelProvider: {
 				// 			getKeyboardNavigationLabel: (item: ITunnelItem | ITunnelGroup) => {
@@ -682,7 +776,7 @@ export class TunnelPanel extends ViewPane {
 		) as WorkbenchTable<ITunnelItem>;
 
 		const actionRunner: ActionRunner = new ActionRunner();
-		renderer.actionRunner = actionRunner;
+		actionBarRenderer.actionRunner = actionRunner;
 
 		// this._register(this.tree.onContextMenu(e => this.onContextMenu(e, actionRunner)));
 		// this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
@@ -1421,4 +1515,15 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 		icon: stopForwardIcon
 	},
 	when: TunnelCloseableContextKey
+}));
+
+MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
+	group: '0_manage',
+	order: 0,
+	command: {
+		id: CopyAddressAction.INLINE_ID,
+		title: CopyAddressAction.INLINE_LABEL,
+		icon: copyAddressIcon
+	},
+	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
 }));
