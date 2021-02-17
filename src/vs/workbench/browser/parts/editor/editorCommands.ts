@@ -498,7 +498,7 @@ function registerOpenEditorAPICommands(): void {
 			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
-		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
+		const textOptions: ITextEditorOptions = optionsArg ? optionsArg : {};
 
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
 		return editorService.openEditor(input, { override: id, ...textOptions }, group);

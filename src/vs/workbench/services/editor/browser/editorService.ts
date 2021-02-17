@@ -724,7 +724,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			overrideToUse = allEditorOverrides[0];
 		}
 		if (overrideToUse) {
-			openSelectedEditor({
+			return openSelectedEditor({
 				item: { handler: overrideToUse[0], ...overrideToUse[1] },
 				openInBackground: false
 			});
@@ -1518,6 +1518,10 @@ export class DelegatingEditorService implements IEditorService {
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
+			// If the override option is provided we want to open that specific editor or show a picker
+			if (resolvedOptions && (resolvedOptions.override === null || typeof resolvedOptions.override === 'string')) {
+				return await this.editorService.openEditor(resolvedEditor, { ...resolvedOptions, override: withNullAsUndefined(resolvedOptions.override) }, resolvedGroup);
+			}
 			// Pass on to editor open handler
 			const editorPane = await this.editorOpenHandler(
 				(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => group.openEditor(editor, options),
