@@ -50,6 +50,11 @@ const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We 
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
 
+class InlineSegment {
+	constructor(public column: number, public text: string) {
+	}
+}
+
 function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IDecorationOptions {
 	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
@@ -579,14 +584,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		if (InlineValuesProviderRegistry.has(model)) {
 
-			const findVariable = async (key: string): Promise<string | undefined> => {
+			const findVariable = async (_key: string, caseSensitiveLookup: boolean): Promise<string | undefined> => {
 				const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
+				const key = caseSensitiveLookup ? _key : _key.toLowerCase();
 				for (let scope of scopes) {
 					const variables = await scope.getChildren();
-					for (let v of variables) {
-						if (v.name === key) {
-							return v.value;
-						}
+					const found = variables.find(v => caseSensitiveLookup ? (v.name === key) : (v.name.toLowerCase() === key));
+					if (found) {
+						return found.value;
 					}
 				}
 				return undefined;
@@ -601,24 +606,36 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			allDecorations = [];
 
+			const lineDecorations = new Map<number, InlineSegment[]>();
+
 			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
 				if (result) {
 					for (let iv of result) {
-						let text: string;
+
+						let text: string | undefined = undefined;
 						switch (iv.type) {
 							case 'text':
 								text = iv.text;
 								break;
 							case 'variable':
-								const value = await findVariable(iv.variableName);
-								text = `${iv.variableName} = ${value}`;
+								const value = await findVariable(iv.variableName, iv.caseSensitiveLookup);
+								if (value) {
+									text = `${iv.variableName} = ${value}`;
+								}
 								break;
 							case 'expression':
 								text = `eval(${iv.expression})`;
 								break;
 						}
+
 						if (text) {
-							allDecorations.push(createInlineValueDecoration(iv.range.startLineNumber, text, iv.range.startColumn));
+							const line = iv.range.startLineNumber;
+							let lineSegments = lineDecorations.get(line);
+							if (!lineSegments) {
+								lineSegments = [];
+								lineDecorations.set(line, lineSegments);
+							}
+							lineSegments.push(new InlineSegment(range.startColumn, text));
 						}
 					}
 				}
@@ -628,7 +645,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			await Promise.all(promises);
 
-		} else {	// one-size-fits-all strategy
+			// sort line segments and concatenate them into a decoration
+
+			lineDecorations.forEach((segments, line) => {
+				if (segments.length > 0) {
+					segments = segments.sort((a, b) => a.column - b.column);
+					const text = segments.map(s => s.text).join(', ');
+					allDecorations.push(createInlineValueDecoration(line, text));
+				}
+			});
+
+		} else {
+			// old "one-size-fits-all" strategy
 
 			const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
 			// Get all top level variables in the scope chain

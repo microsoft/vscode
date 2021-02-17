@@ -1259,7 +1259,7 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 
 export interface ContextKeyInfo {
 	readonly key: string;
-	readonly type: string;
+	readonly type?: string;
 	readonly description?: string;
 }
 
@@ -1281,7 +1281,7 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 		if (typeof metaOrHide === 'object') {
 			RawContextKey._info.push({ ...metaOrHide, key });
 		} else if (metaOrHide !== true) {
-			RawContextKey._info.push({ key, description: metaOrHide, type: typeof defaultValue });
+			RawContextKey._info.push({ key, description: metaOrHide, type: defaultValue !== null && defaultValue !== undefined ? typeof defaultValue : undefined });
 		}
 	}
 

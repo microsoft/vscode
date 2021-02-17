@@ -123,6 +123,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				label: kernel.label,
 				extension: this._extension.identifier,
 				extensionLocation: this._extension.extensionLocation,
+				providerHandle: this._handle,
 				description: kernel.description,
 				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
@@ -713,23 +714,31 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				}
 				const that = this;
 
-				const document = new ExtHostNotebookDocument(this._documentsAndEditors, {
-					emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
-						that._onDidChangeNotebookCells.fire(event);
+				const document = new ExtHostNotebookDocument(
+					this._documentsAndEditors,
+					{
+						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
+							that._onDidChangeNotebookCells.fire(event);
+						},
+						emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
+							that._onDidChangeCellOutputs.fire(event);
+						},
+						emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
+							that._onDidChangeCellLanguage.fire(event);
+						},
+						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
+							that._onDidChangeCellMetadata.fire(event);
+						},
+						emitDocumentMetadataChange(event: vscode.NotebookDocumentMetadataChangeEvent): void {
+							that._onDidChangeNotebookDocumentMetadata.fire(event);
+						}
 					},
-					emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
-						that._onDidChangeCellOutputs.fire(event);
-					},
-					emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
-						that._onDidChangeCellLanguage.fire(event);
-					},
-					emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
-						that._onDidChangeCellMetadata.fire(event);
-					},
-					emitDocumentMetadataChange(event: vscode.NotebookDocumentMetadataChangeEvent): void {
-						that._onDidChangeNotebookDocumentMetadata.fire(event);
-					}
-				}, viewType, modelData.contentOptions, typeConverters.NotebookDocumentMetadata.to(modelData.metadata ?? {}), uri, storageRoot);
+					viewType,
+					modelData.contentOptions,
+					modelData.metadata ? typeConverters.NotebookDocumentMetadata.to(modelData.metadata) : new extHostTypes.NotebookDocumentMetadata(),
+					uri,
+					storageRoot
+				);
 
 				document.acceptModelChanged({
 					versionId: modelData.versionId,

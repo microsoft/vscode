@@ -23,7 +23,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_URI } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export class OpenFileAction extends Action {
 
@@ -258,13 +258,13 @@ class WorkspaceTrustManageAction extends Action2 {
 			title: { value: nls.localize('manageTrustAction', "Manage Workspace Trust"), original: 'Manage Workspace Trust' },
 			precondition: ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true),
 			category: nls.localize('workspacesCategory', "Workspaces"),
-			f1: true,
+			f1: true
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: WORKSPACE_TRUST_URI, mode: 'jsonc', options: { pinned: true } });
+	async run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('workbench.trust.manage');
 	}
 }
 

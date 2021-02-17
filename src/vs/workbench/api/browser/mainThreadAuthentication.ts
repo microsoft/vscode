@@ -227,6 +227,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 						}
 					} else {
 						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, [session]);
+						return undefined;
 					}
 				}
 			} else {
@@ -234,6 +235,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					session = await this.selectSession(providerId, extensionId, extensionName, sessions, !!options.clearSessionPreference);
 				} else {
 					this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, sessions);
+					return undefined;
 				}
 			}
 		} else {

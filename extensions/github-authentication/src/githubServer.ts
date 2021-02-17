@@ -229,7 +229,7 @@ export class GitHubServer {
 
 				/* __GDPR__
 					"session" : {
-						"isEdu": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('session', {

@@ -9687,11 +9687,6 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@4.2.0-dev.20201207:
-  version "4.2.0-dev.20201207"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201207.tgz#19a34bc7d2d42a7467c512c63f135587ac848807"
-  integrity sha512-fPHBDi/fgdX4WiRC7cFVv/aL069PgUaDWuLYUSHatWZujz/Lkc9bkf/zL3rKdNSCxlNKAMs3fhJv/yompOphZA==
-
 typescript@^2.6.2:
   version "2.6.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
@@ -9701,6 +9696,11 @@ typescript@^3.0.1:
   version "3.9.7"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.7.tgz#98d600a5ebdc38f40cb277522f12dc800e9e25fa"
   integrity sha512-BLbiRkiBzAwsjut4x/dsibSTB6yWpwT5qWmC2OfuCg3GgVQCSgMs4vEctYPhsaGtd0AeuuHMkjZ2h2WG8MSzRw==
+
+typescript@^4.3.0-dev.20210216:
+  version "4.3.0-dev.20210216"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210216.tgz#233327e6094008c02265ba140f8d9ece9133421e"
+  integrity sha512-pJLcC/kqnE+0rftTRc2/gYBkz9nl+kJfaU8sSOLYnzUvD8p+LOZMzXfaLoKPdGFJ6U9+Ox/sYV9HBTJVEjSTYg==
 
 typical@^4.0.0:
   version "4.0.0"

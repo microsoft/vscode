@@ -1549,9 +1549,9 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true,
 			override: path.overrideId
 		} : {
-				pinned: true,
-				override: path.overrideId
-			};
+			pinned: true,
+			override: path.overrideId
+		};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {

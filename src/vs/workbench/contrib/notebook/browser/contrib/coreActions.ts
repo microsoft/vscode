@@ -1607,19 +1607,81 @@ interface ILanguagePickInput extends IQuickPickItem {
 	description: string;
 }
 
-export class ChangeCellLanguageAction extends NotebookCellAction {
+
+interface IChangeCellContext extends INotebookCellActionContext {
+	// TODO@rebornix : `cells`
+	// range: ICellRange;
+	language?: string;
+}
+
+export class ChangeCellLanguageAction extends NotebookCellAction<ICellRange> {
 	constructor() {
 		super({
 			id: CHANGE_CELL_LANGUAGE,
 			title: localize('changeLanguage', 'Change Cell Language'),
+			description: {
+				description: localize('changeLanguage', 'Change Cell Language'),
+				args: [
+					{
+						name: 'range',
+						description: 'The cell range',
+						schema: {
+							'type': 'object',
+							'required': ['start', 'end'],
+							'properties': {
+								'start': {
+									'type': 'number'
+								},
+								'end': {
+									'type': 'number'
+								}
+							}
+						}
+					},
+					{
+						name: 'language',
+						description: 'The target cell language',
+						schema: {
+							'type': 'string'
+						}
+					}
+				]
+			}
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		this.showLanguagePicker(accessor, context);
+	protected getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): IChangeCellContext | undefined {
+		if (!context || typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
+			return;
+		}
+
+		const language = additionalArgs.length && typeof additionalArgs[0] === 'string' ? additionalArgs[0] : undefined;
+		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
+
+		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.viewCells.length) {
+			return;
+		}
+
+		const cells = activeEditorContext.notebookEditor.viewModel.viewCells;
+
+		// TODO@rebornix, support multiple cells
+		return {
+			notebookEditor: activeEditorContext.notebookEditor,
+			cell: cells[context.start],
+			language
+		};
 	}
 
-	private async showLanguagePicker(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+
+	async runWithContext(accessor: ServicesAccessor, context: IChangeCellContext): Promise<void> {
+		if (context.language) {
+			await this.setLanguage(context, context.language);
+		} else {
+			await this.showLanguagePicker(accessor, context);
+		}
+	}
+
+	private async showLanguagePicker(accessor: ServicesAccessor, context: IChangeCellContext) {
 		const topItems: ILanguagePickInput[] = [];
 		const mainItems: ILanguagePickInput[] = [];
 
@@ -1671,21 +1733,25 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 
 		const selection = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode") }) as ILanguagePickInput | undefined;
 		if (selection && selection.languageId) {
-			if (selection.languageId === 'markdown' && context.cell?.language !== 'markdown') {
-				const newCell = await changeCellToKind(CellKind.Markdown, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown');
-				if (newCell) {
-					context.notebookEditor.focusNotebookCell(newCell, 'editor');
-				}
-			} else if (selection.languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markdown) {
-				await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, selection.languageId);
-			} else {
-				const index = context.notebookEditor.viewModel.notebookDocument.cells.indexOf(context.cell.model);
-				context.notebookEditor.viewModel.notebookDocument.applyEdits(
-					context.notebookEditor.viewModel.notebookDocument.versionId,
-					[{ editType: CellEditType.CellLanguage, index, language: selection.languageId }],
-					true, undefined, () => undefined, undefined
-				);
+			await this.setLanguage(context, selection.languageId);
+		}
+	}
+
+	private async setLanguage(context: IChangeCellContext, languageId: string) {
+		if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
+			const newCell = await changeCellToKind(CellKind.Markdown, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown');
+			if (newCell) {
+				context.notebookEditor.focusNotebookCell(newCell, 'editor');
 			}
+		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markdown) {
+			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, languageId);
+		} else {
+			const index = context.notebookEditor.viewModel.notebookDocument.cells.indexOf(context.cell.model);
+			context.notebookEditor.viewModel.notebookDocument.applyEdits(
+				context.notebookEditor.viewModel.notebookDocument.versionId,
+				[{ editType: CellEditType.CellLanguage, index, language: languageId }],
+				true, undefined, () => undefined, undefined
+			);
 		}
 	}
 
