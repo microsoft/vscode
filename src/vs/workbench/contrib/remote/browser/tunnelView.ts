@@ -7,7 +7,6 @@ import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -46,23 +45,24 @@ import { forwardPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, priva
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
+import { TableWidget } from 'vs/base/browser/ui/table/tableWidget';
+import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
-class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
-	getHeight(element: ITunnelItem): number {
-		return 22;
-	}
+class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
-	getTemplateId(element: ITunnelItem): string {
-		return 'tunnelItemTemplate';
+	readonly headerRowHeight: number = 22;
+
+	getHeight(): number {
+		return 22;
 	}
 }
 
 export interface ITunnelViewModel {
 	readonly onForwardedPortsChanged: Event<void>;
-	readonly all: (ITunnelGroup | TunnelItem)[];
+	readonly all: TunnelItem[];
 	readonly input: TunnelItem;
 	isEmpty(): boolean;
 }
@@ -93,36 +93,36 @@ export class TunnelViewModel implements ITunnelViewModel {
 		this.onForwardedPortsChanged = Event.any(this.model.onForwardPort, this.model.onClosePort, this.model.onPortName, this.model.onCandidatesChanged);
 	}
 
-	get all(): (ITunnelGroup | TunnelItem)[] {
-		const groups: (ITunnelGroup | TunnelItem)[] = [];
+	get all(): TunnelItem[] {
+		const result: TunnelItem[] = [];
 		this._candidates = new Map();
 		this.model.candidates.forEach(candidate => {
 			this._candidates.set(makeAddress(candidate.host, candidate.port), candidate);
 		});
 		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
-			groups.push(...this.forwarded);
+			result.push(...this.forwarded);
 		}
-		if (this.model.detected.size > 0) {
-			groups.push({
-				label: nls.localize('remote.tunnelsView.detected', "Static Ports"),
-				tunnelType: TunnelType.Detected,
-				items: this.detected
-			});
+		// if (this.model.detected.size > 0) {
+		// 	result.push({
+		// 		label: nls.localize('remote.tunnelsView.detected', "Static Ports"),
+		// 		tunnelType: TunnelType.Detected,
+		// 		items: this.detected
+		// 	});
+		// }
+		// if (!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
+		// 	const candidates = this.candidates;
+		// 	if (candidates.length > 0) {
+		// 		result.push({
+		// 			label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
+		// 			tunnelType: TunnelType.Candidate,
+		// 			items: candidates
+		// 		});
+		// 	}
+		// }
+		if (result.length === 0) {
+			result.push(this.input);
 		}
-		if (!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
-			const candidates = this.candidates;
-			if (candidates.length > 0) {
-				groups.push({
-					label: nls.localize('remote.tunnelsView.candidates', "Not Forwarded"),
-					tunnelType: TunnelType.Candidate,
-					items: candidates
-				});
-			}
-		}
-		if (groups.length === 0) {
-			groups.push(this.input);
-		}
-		return groups;
+		return result;
 	}
 
 	private addProcessInfoFromCandidate(tunnelItem: ITunnelItem) {
@@ -392,6 +392,50 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 	}
 }
 
+class LabelColumn implements ITableColumn<ITunnelItem, string> {
+	readonly label: string = nls.localize('label', "Label");
+	readonly weight: number = 1;
+	readonly templateId: string = 'string';
+	project(row: ITunnelItem): string {
+		return row.label;
+	}
+}
+
+class LocalAddressColumn implements ITableColumn<ITunnelItem, string> {
+	readonly label: string = nls.localize('local address', "Local Address");
+	readonly weight: number = 1;
+	readonly templateId: string = 'string';
+	project(row: ITunnelItem): string {
+		return row.localAddress!; // TODO@joao TODO@alexr00
+	}
+}
+
+class RunningProcessColumn implements ITableColumn<ITunnelItem, string> {
+	readonly label: string = nls.localize('process', "Running Process");
+	readonly weight: number = 1;
+	readonly templateId: string = 'string';
+	project(row: ITunnelItem): string {
+		return row.description!; // TODO@joao TODO@alexr00
+	}
+}
+
+class StringRenderer implements ITableRenderer<string, HTMLElement> {
+
+	readonly templateId = 'string';
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return container;
+	}
+
+	renderElement(element: string, index: number, container: HTMLElement): void {
+		container.textContent = element;
+	}
+
+	disposeTemplate(templateData: HTMLElement): void {
+		// noop
+	}
+}
+
 interface ITunnelGroup {
 	tunnelType: TunnelType;
 	label: string;
@@ -477,10 +521,6 @@ class TunnelItem implements ITunnelItem {
 	private static getDescription(item: TunnelItem, isWide: boolean) {
 		const description: string[] = [];
 
-		if (item.name && item.localAddress) {
-			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", item.remotePort, isWide ? item.localAddress : TunnelItem.compactLongAddress(item.localAddress)));
-		}
-
 		if (item.runningProcess) {
 			let processPid: string;
 			if (item.pid && item.remoteExplorerService?.namedProcesses.has(item.pid)) {
@@ -559,12 +599,12 @@ const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false);
 const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb);
 
-class TunnelDataTree extends WorkbenchAsyncDataTree<any, any, any> { }
-
 export class TunnelPanel extends ViewPane {
+
 	static readonly ID = TUNNEL_VIEW_ID;
 	static readonly TITLE = nls.localize('remote.tunnel', "Ports");
-	private tree!: TunnelDataTree;
+
+	private table!: TableWidget<ITunnelItem>;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelPrivacyContext: IContextKey<TunnelPrivacy | undefined>;
@@ -621,86 +661,84 @@ export class TunnelPanel extends ViewPane {
 		super.renderBody(container);
 
 		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
-		const treeContainer = dom.append(panelContainer, dom.$('.customview-tree'));
-		treeContainer.classList.add('ports-view');
-		treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
+		const widgetContainer = dom.append(panelContainer, dom.$('.customview-tree'));
+		widgetContainer.classList.add('ports-view');
+		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
-		this.tree = this.instantiationService.createInstance(TunnelDataTree,
+		this.table = new TableWidget(
 			'RemoteTunnels',
-			treeContainer,
+			widgetContainer,
 			new TunnelTreeVirtualDelegate(),
-			[renderer],
-			new TunnelDataSource(),
+			[new LabelColumn(), new LocalAddressColumn(), new RunningProcessColumn()],
+			[new StringRenderer()],
 			{
-				collapseByDefault: (e: ITunnelItem | ITunnelGroup): boolean => {
-					return false;
-				},
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (item: ITunnelItem | ITunnelGroup) => {
-						return item.label;
-					}
-				},
-				multipleSelectionSupport: false,
-				accessibilityProvider: {
-					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
-						if (item instanceof TunnelItem) {
-							return item.tooltip;
-						} else {
-							return item.label;
-						}
-					},
-					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
-				}
+				// 		keyboardNavigationLabelProvider: {
+				// 			getKeyboardNavigationLabel: (item: ITunnelItem | ITunnelGroup) => {
+				// 				return item.label;
+				// 			}
+				// 		},
+				// 		multipleSelectionSupport: false,
+				// 		accessibilityProvider: {
+				// 			getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
+				// 				if (item instanceof TunnelItem) {
+				// 					return item.tooltip;
+				// 				} else {
+				// 					return item.label;
+				// 				}
+				// 			},
+				// 			getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
+				// 		}
 			}
 		);
+
 		const actionRunner: ActionRunner = new ActionRunner();
 		renderer.actionRunner = actionRunner;
 
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e, actionRunner)));
-		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
-		this._register(this.tree.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
-		this._register(this.tree.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
+		// this._register(this.tree.onContextMenu(e => this.onContextMenu(e, actionRunner)));
+		// this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
+		// this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		// this._register(this.tree.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
+		// this._register(this.tree.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
 
-		this.tree.setInput(this.viewModel);
+		this.table.splice(0, 0, this.viewModel.all);
 		this._register(this.viewModel.onForwardedPortsChanged(() => {
 			this._onDidChangeViewWelcomeState.fire();
-			this.tree.updateChildren(undefined, true);
+			this.table.splice(0, Number.POSITIVE_INFINITY, this.viewModel.all);
 		}));
 
-		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
-			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
-				this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
-			}
-		}));
+		// this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
+		// 	if (e.element && (e.element.tunnelType === TunnelType.Add)) {
+		// 		this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
+		// 	}
+		// }));
 
-		this._register(this.remoteExplorerService.onDidChangeEditable(async e => {
-			this.isEditing = !!this.remoteExplorerService.getEditableData(e);
-			this._onDidChangeViewWelcomeState.fire();
+		// this._register(this.remoteExplorerService.onDidChangeEditable(async e => {
+		// 	this.isEditing = !!this.remoteExplorerService.getEditableData(e);
+		// 	this._onDidChangeViewWelcomeState.fire();
 
-			if (!this.isEditing) {
-				treeContainer.classList.remove('highlight');
-			}
+		// 	if (!this.isEditing) {
+		// 		widgetContainer.classList.remove('highlight');
+		// 	}
 
-			await this.tree.updateChildren(undefined, false);
+		// 	await this.tree.updateChildren(undefined, false);
 
-			if (this.isEditing) {
-				treeContainer.classList.add('highlight');
-				if (!e) {
-					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
-					this.tree.reveal(this.viewModel.input);
-				}
-			} else {
-				this.tree.domFocus();
-			}
-		}));
+		// 	if (this.isEditing) {
+		// 		widgetContainer.classList.add('highlight');
+		// 		if (!e) {
+		// 			// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
+		// 			this.tree.reveal(this.viewModel.input);
+		// 		}
+		// 	} else {
+		// 		this.tree.domFocus();
+		// 	}
+		// }));
 	}
 
-	private get contributedContextMenu(): IMenu {
-		const contributedContextMenu = this._register(this.menuService.createMenu(MenuId.TunnelContext, this.tree.contextKeyService));
-		return contributedContextMenu;
-	}
+	// private get contributedContextMenu(): IMenu {
+	// 	const contributedContextMenu = this._register(this.menuService.createMenu(MenuId.TunnelContext, this.tree.contextKeyService));
+	// 	return contributedContextMenu;
+	// }
 
 	shouldShowWelcome(): boolean {
 		return this.viewModel.isEmpty() && !this.isEditing;
@@ -708,7 +746,7 @@ export class TunnelPanel extends ViewPane {
 
 	focus(): void {
 		super.focus();
-		this.tree.domFocus();
+		this.table.domFocus();
 	}
 
 	private onFocusChanged(elements: ITunnelItem[]) {
@@ -729,49 +767,49 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	private onContextMenu(treeEvent: ITreeContextMenuEvent<ITunnelItem | ITunnelGroup>, actionRunner: ActionRunner): void {
-		if ((treeEvent.element !== null) && !(treeEvent.element instanceof TunnelItem)) {
-			return;
-		}
-		const node: ITunnelItem | null = treeEvent.element;
-		const event: UIEvent = treeEvent.browserEvent;
+		// if ((treeEvent.element !== null) && !(treeEvent.element instanceof TunnelItem)) {
+		// 	return;
+		// }
+		// const node: ITunnelItem | null = treeEvent.element;
+		// const event: UIEvent = treeEvent.browserEvent;
 
-		event.preventDefault();
-		event.stopPropagation();
+		// event.preventDefault();
+		// event.stopPropagation();
 
-		if (node) {
-			this.tree!.setFocus([node]);
-			this.tunnelTypeContext.set(node.tunnelType);
-			this.tunnelCloseableContext.set(!!node.closeable);
-			this.tunnelPrivacyContext.set(node.privacy);
-			this.portChangableContextKey.set(!!node.localPort);
-		} else {
-			this.tunnelTypeContext.set(TunnelType.Add);
-			this.tunnelCloseableContext.set(false);
-			this.tunnelPrivacyContext.set(undefined);
-			this.portChangableContextKey.set(false);
-		}
+		// if (node) {
+		// 	this.tree!.setFocus([node]);
+		// 	this.tunnelTypeContext.set(node.tunnelType);
+		// 	this.tunnelCloseableContext.set(!!node.closeable);
+		// 	this.tunnelPrivacyContext.set(node.privacy);
+		// 	this.portChangableContextKey.set(!!node.localPort);
+		// } else {
+		// 	this.tunnelTypeContext.set(TunnelType.Add);
+		// 	this.tunnelCloseableContext.set(false);
+		// 	this.tunnelPrivacyContext.set(undefined);
+		// 	this.portChangableContextKey.set(false);
+		// }
 
-		const actions: IAction[] = [];
-		this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions));
+		// const actions: IAction[] = [];
+		// this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions));
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => treeEvent.anchor,
-			getActions: () => actions,
-			getActionViewItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
-				if (keybinding) {
-					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
-				}
-				return undefined;
-			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree!.domFocus();
-				}
-			},
-			getActionsContext: () => node,
-			actionRunner
-		});
+		// this.contextMenuService.showContextMenu({
+		// 	getAnchor: () => treeEvent.anchor,
+		// 	getActions: () => actions,
+		// 	getActionViewItem: (action) => {
+		// 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
+		// 		if (keybinding) {
+		// 			return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+		// 		}
+		// 		return undefined;
+		// 	},
+		// 	onHide: (wasCancelled?: boolean) => {
+		// 		if (wasCancelled) {
+		// 			this.tree!.domFocus();
+		// 		}
+		// 	},
+		// 	getActionsContext: () => node,
+		// 	actionRunner
+		// });
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<ITunnelGroup | ITunnelItem | null>): void {
@@ -782,7 +820,7 @@ export class TunnelPanel extends ViewPane {
 
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.tree.layout(height, width);
+		this.table.layout(height, width);
 	}
 }
 
