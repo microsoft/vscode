@@ -225,15 +225,20 @@ export class CodeApplication extends Disposable {
 				this.nativeHostMainService?.openExternal(undefined, url);
 			});
 
+			const webviewFrameUrl = 'about:blank?webviewFrame';
+
 			session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
-				if (permission === 'clipboard-read') {
-					return callback(true);
+				if (details.requestingUrl === webviewFrameUrl) {
+					return callback(permission === 'clipboard-read');
 				}
 				return callback(false);
 			});
 
-			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */) => {
-				return permission === 'clipboard-read';
+			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
+				if (details.requestingUrl === webviewFrameUrl) {
+					return permission === 'clipboard-read';
+				}
+				return false;
 			});
 		});
 
