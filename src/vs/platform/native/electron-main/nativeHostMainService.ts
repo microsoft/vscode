@@ -739,13 +739,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private async withKeytar(): Promise<typeof import('keytar')> {
 		if (this.environmentMainService.disableKeytar) {
 			throw new Error('keytar has been disabled via --disable-keytar option');
-			// return {
-			// 	getPassword: async (service: string, account: string): Promise<string | null> => null,
-			// 	setPassword: async (service: string, account: string, password: string): Promise<void> => { },
-			// 	deletePassword: async (service: string, account: string): Promise<boolean> => true,
-			// 	findPassword: async (service: string): Promise<string | null> => null,
-			// 	findCredentials: async (service: string): Promise<Array<{ account: string, password: string }>> => []
-			// };
 		}
 
 		return await import('keytar');
