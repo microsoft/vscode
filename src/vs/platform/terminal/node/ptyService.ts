@@ -11,7 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, IOrphanQuestionReplyArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, IOrphanQuestionReplyArgs, IOnTerminalProcessEventArguments } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
@@ -188,6 +188,14 @@ export class PtyService extends Disposable implements IPtyService {
 	private _orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
 		const persistentTerminalProcess = this._throwIfNoPty(args.id);
 		persistentTerminalProcess.orphanQuestionReply();
+	}
+
+	onTerminalProcessEvent(args: IOnTerminalProcessEventArguments): Event<IPtyHostProcessEvent> {
+		const persistentTerminalProcess = this._throwIfNoPty(args.id);
+		if (!persistentTerminalProcess) {
+			throw new Error('Missing terminal');
+		}
+		return persistentTerminalProcess.events;
 	}
 }
 

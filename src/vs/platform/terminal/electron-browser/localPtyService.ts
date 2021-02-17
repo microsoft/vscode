@@ -12,7 +12,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IGetTerminalLayoutInfoArgs, IOrphanQuestionReplyArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IOrphanQuestionReplyArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 enum Constants {
 	MaxRestarts = 5
@@ -31,7 +31,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onPtyHostExit = this._onPtyHostExit.event;
 	private readonly _onPtyHostStart = this._register(new Emitter<void>());
 	readonly onPtyHostStart = this._onPtyHostStart.event;
-
+	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent | undefined }>());
+	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
@@ -97,6 +98,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 		return proxy;
 	}
 

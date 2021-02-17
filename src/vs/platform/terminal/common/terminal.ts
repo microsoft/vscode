@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IGetTerminalLayoutInfoArgs, IOrphanQuestionReplyArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IOrphanQuestionReplyArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -157,6 +157,7 @@ export interface IPtyService {
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
+	readonly onProcessReplay: Event<{ event: IPtyHostProcessReplayEvent | undefined }>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
