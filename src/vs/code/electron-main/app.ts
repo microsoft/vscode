@@ -37,7 +37,7 @@ import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, OpenContext, WindowError } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -465,7 +465,7 @@ export class CodeApplication extends Disposable {
 		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer, fileProtocolHandler));
 
 		// Post Open Windows Tasks
-		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
 
 		// Tracing: Stop tracing after windows are ready if enabled
 		if (this.environmentMainService.args.trace) {
@@ -926,10 +926,27 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private async afterWindowOpen(accessor: ServicesAccessor): Promise<void> {
+	private async afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): Promise<void> {
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
+
+		// Observe shared process for errors
+		const telemetryService = accessor.get(ITelemetryService);
+		this._register(sharedProcess.onDidError(e => {
+
+			// Logging
+			onUnexpectedError(new Error(e.message));
+
+			// Telemetry
+			type SharedProcessErrorClassification = {
+				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			};
+			type SharedProcessErrorEvent = {
+				type: WindowError;
+			};
+			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type: e.type });
+		}));
 
 		// Windows: install mutex
 		const win32MutexName = product.win32MutexName;
