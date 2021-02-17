@@ -7,13 +7,14 @@ import * as nls from 'vs/nls';
 import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape {
@@ -26,7 +27,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
@@ -132,25 +134,30 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	async $setCandidatePortSource(source: CandidatePortSource): Promise<void> {
-		switch (source) {
-			case CandidatePortSource.None: {
-				const autoDetectionEnablement = this.configurationService.inspect(PORT_AUTO_FORWARD_SETTING);
-				if (autoDetectionEnablement.userRemote === undefined) {
-					// Only update the remote setting if the user hasn't already set it.
-					this.configurationService.updateValue(PORT_AUTO_FORWARD_SETTING, false, ConfigurationTarget.USER_REMOTE);
+		// Must wait for the remote environment before trying to set settings there.
+		this.remoteAgentService.getEnvironment().then(() => {
+			switch (source) {
+				case CandidatePortSource.None: {
+					const autoDetectionEnablement = this.configurationService.inspect(PORT_AUTO_FORWARD_SETTING);
+					if (autoDetectionEnablement.userRemote === undefined) {
+						// Only update the remote setting if the user hasn't already set it.
+						this.configurationService.updateValue(PORT_AUTO_FORWARD_SETTING, false, ConfigurationTarget.USER_REMOTE);
+					}
+					break;
 				}
-				break;
-			}
-			case CandidatePortSource.Output: {
-				const candidatePortSourceSetting = this.configurationService.inspect(PORT_AUTO_SOURCE_SETTING);
-				if (candidatePortSourceSetting.userRemote === undefined) {
-					// Only update the remote setting if the user hasn't already set it.
-					this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS, ConfigurationTarget.USER_REMOTE);
+				case CandidatePortSource.Output: {
+					const candidatePortSourceSetting = this.configurationService.inspect(PORT_AUTO_SOURCE_SETTING);
+					if (candidatePortSourceSetting.userRemote === undefined) {
+						// Only update the remote setting if the user hasn't already set it.
+						this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, ConfigurationTarget.USER_REMOTE);
+					}
+					break;
 				}
-				break;
+				default: // Do nothing, the defaults for these settings should be used.
 			}
-			default: // Do nothing, the defaults for these settings should be used.
-		}
+		}).catch(() => {
+			// The remote failed to get setup. Errors from that area will already be surfaced to the user.
+		});
 	}
 
 	dispose(): void {
