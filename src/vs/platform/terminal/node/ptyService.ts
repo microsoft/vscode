@@ -28,7 +28,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent | undefined }>());
+	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -45,6 +45,7 @@ export class PtyService extends Disposable implements IPtyService {
 	) {
 		super();
 	}
+
 	onPtyHostExit?: Event<number> | undefined;
 	onPtyHostStart?: Event<void> | undefined;
 
@@ -68,14 +69,12 @@ export class PtyService extends Disposable implements IPtyService {
 		this._ptys.clear();
 	}
 
+	async reconnectTerminalProcess(id: number): Promise<number> {
+		await this._throwIfNoPty(id);
+		return id;
+	}
+
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
-		try {
-			// return the process if it already exists
-			if (shellLaunchConfig.attachPersistentTerminal) {
-				await this._throwIfNoPty(shellLaunchConfig.attachPersistentTerminal.id);
-				return shellLaunchConfig.attachPersistentTerminal.id;
-			}
-		} catch { }
 		const id = ++persistentTerminalId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
@@ -120,6 +119,10 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async getInitialCwd(id: number): Promise<string> {
 		return this._throwIfNoPty(id).getInitialCwd();
+	}
+
+	async triggerReplay(id: number): Promise<void> {
+		return this._throwIfNoPty(id).triggerReplay();
 	}
 
 	async getCwd(id: number): Promise<string> {
@@ -265,11 +268,12 @@ export class PersistentTerminalProcess extends Disposable {
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 		this._events = this._register(new Emitter<IPtyHostProcessEvent>({
 			onListenerDidAdd: () => {
+				this._logService.info('listener', this._seenFirstListener);
 				this._disconnectRunner1.cancel();
 				this._disconnectRunner2.cancel();
 				if (this._seenFirstListener) {
 					// only replay events to subsequent (reconnected) listeners
-					this._triggerReplay();
+					this.triggerReplay();
 				}
 				this._seenFirstListener = true;
 			},
@@ -299,6 +303,7 @@ export class PersistentTerminalProcess extends Disposable {
 				cwd: e.cwd
 			};
 			this._events.fire(ev);
+			this.triggerReplay();
 		}));
 
 		this._register(this.onOrphanQuestionReply((event: IOrphanQuestionReplyArgs) => {
@@ -306,26 +311,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 
 		this._register(this.onProcessReplay((event: IPtyHostProcessReplayEvent) => {
-			try {
-				this._logService.info(`replaying ${JSON.stringify(event)}`);
-				this._inReplay = true;
-
-				for (const e of event.events) {
-					if (e.cols !== 0 || e.rows !== 0) {
-						// never override with 0x0 as that is a marker for an unknown initial size
-						this._onProcessOverrideDimensions.fire({ cols: e.cols, rows: e.rows, forceExactSize: true });
-					}
-					this._onProcessData.fire({ data: e.data, sync: true });
-
-					// remove size override
-					this._onProcessOverrideDimensions.fire(undefined);
-
-					return;
-				}
-				this._events.fire(event);
-			} finally {
-				this._inReplay = false;
-			}
+			this._events.fire(event);
 		}));
 
 		this._register(this._terminalProcess.onProcessTitleChanged((title) => {
@@ -402,7 +388,7 @@ export class PersistentTerminalProcess extends Disposable {
 		return this._terminalProcess.getCwd();
 	}
 
-	private _triggerReplay(): void {
+	public triggerReplay(): void {
 		const ev = this._recorder.generateReplayEvent();
 		let dataLength = 0;
 		for (const e of ev.events) {

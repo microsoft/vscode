@@ -31,7 +31,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onPtyHostExit = this._onPtyHostExit.event;
 	private readonly _onPtyHostStart = this._register(new Emitter<void>());
 	readonly onPtyHostStart = this._onPtyHostStart.event;
-	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent | undefined }>());
+	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
@@ -98,7 +98,10 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
-		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
+		this._register(proxy.onProcessReplay(e => {
+			this._logService.info(`Replaying ${e}`);
+			this._onProcessReplay.fire(e);
+		}));
 		return proxy;
 	}
 
@@ -106,9 +109,11 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._isDisposed = true;
 		super.dispose();
 	}
-
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		return this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
+	}
+	reconnectTerminalProcess(id: number): Promise<number> {
+		return this._proxy.reconnectTerminalProcess(id);
 	}
 	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
 		return this._proxy.start(id);
@@ -133,6 +138,9 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
+	}
+	triggerReplay(id: number): Promise<void> {
+		return this._proxy.triggerReplay(id);
 	}
 	orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
 		return this._proxy.orphanQuestionReply(args);

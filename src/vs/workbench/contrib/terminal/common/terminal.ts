@@ -358,49 +358,6 @@ export interface IWindowsShellHelper extends IDisposable {
 	getShellName(): Promise<string>;
 }
 
-/**
- * An interface representing a raw terminal child process, this contains a subset of the
- * child_process.ChildProcess node.js interface.
- */
-export interface ITerminalChildProcess {
-	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessExit: Event<number | undefined>;
-	onProcessReady: Event<{ pid: number, cwd: string }>;
-	onProcessTitleChanged: Event<string>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-
-	/**
-	 * Starts the process.
-	 *
-	 * @returns undefined when the process was successfully started, otherwise an object containing
-	 * information on what went wrong.
-	 */
-	start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined>;
-
-	/**
-	 * Shutdown the terminal process.
-	 *
-	 * @param immediate When true the process will be killed immediately, otherwise the process will
-	 * be given some time to make sure no additional data comes through.
-	 */
-	shutdown(immediate: boolean): void;
-	input(data: string): void;
-	resize(cols: number, rows: number): void;
-
-	/**
-	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
-	 * control to ensure remote processes to not get too far ahead of the client and flood the
-	 * connection.
-	 * @param charCount The number of characters being acknowledged.
-	 */
-	acknowledgeDataEvent(charCount: number): void;
-
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
-}
-
 export const enum FlowControlConstants {
 	/**
 	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for

@@ -157,7 +157,7 @@ export interface IPtyService {
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
-	readonly onProcessReplay: Event<{ event: IPtyHostProcessReplayEvent | undefined }>;
+	readonly onProcessReplay: Event<{ event: IPtyHostProcessReplayEvent }>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -170,6 +170,8 @@ export interface IPtyService {
 		workspaceId: string,
 		workspaceName: string
 	): Promise<number>;
+
+	reconnectTerminalProcess(id: number): Promise<number>;
 
 	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined>;
 
@@ -191,6 +193,8 @@ export interface IPtyService {
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 
 	orphanQuestionReply(args: IOrphanQuestionReplyArgs): void;
+
+	triggerReplay(id: number): Promise<void>;
 }
 
 export interface IShellLaunchConfig {
