@@ -1488,6 +1488,29 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0].outputs[0].outputs.length, 3);
 		assert.deepStrictEqual(vscode.window.activeNotebookEditor!.document.cells[0].outputs[0].outputs[2], newItem);
 	});
+
+	test('#115855 onDidSaveNotebookDocument', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+		});
+
+		const cellChangeEventRet = await cellsChangeEvent;
+		assert.strictEqual(cellChangeEventRet.document === vscode.window.activeNotebookEditor?.document, true);
+		assert.strictEqual(cellChangeEventRet.document.isDirty, true);
+
+		await withEvent(vscode.notebook.onDidSaveNotebookDocument, async event => {
+			await vscode.commands.executeCommand('workbench.action.files.saveAll');
+			await event;
+			assert.strictEqual(cellChangeEventRet.document.isDirty, false);
+		});
+		await saveAllFilesAndCloseAll(resource);
+	});
+
 	// });
 
 	// suite('webview', () => {
