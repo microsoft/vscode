@@ -147,16 +147,21 @@ function registerContextKeyCompletions(): vscode.Disposable {
 		{
 			async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) {
 
-				const replacing = document.getWordRangeAtPosition(position, /[\w.-\d]/);
-				const inserting = replacing?.with(undefined, position);
-				if (!replacing || !inserting) {
+				const location = getLocation(document.getText(), document.offsetAt(position));
+
+				if (location.isAtPropertyKey) {
 					return;
 				}
 
-				const location = getLocation(document.getText(), document.offsetAt(position));
 				if (!location.matches(['*', 'when']) && !location.matches(['contributes', 'menus', '*', '*', 'when'])) {
 					return;
 				}
+
+				const replacing = document.getWordRangeAtPosition(position, /[^"\s]+/);
+				if (!replacing) {
+					return;
+				}
+				const inserting = replacing.with(undefined, position);
 
 				const data = await vscode.commands.executeCommand<ContextKeyInfo[]>('getContextKeyInfo');
 				if (token.isCancellationRequested || !data) {
