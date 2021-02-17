@@ -388,7 +388,7 @@ export class CodeApplication extends Disposable {
 
 			// take only the message and stack property
 			const friendlyError = {
-				message: err.message,
+				message: `[uncaught exception in main]: ${err.message}`,
 				stack: err.stack
 			};
 
