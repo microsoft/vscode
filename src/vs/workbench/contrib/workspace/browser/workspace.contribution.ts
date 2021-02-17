@@ -29,6 +29,7 @@ import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } fro
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -180,6 +181,24 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 /**
  * Trusted Workspace GUI Editor
  */
+class WorkspaceTrustEditorInputInputFactory implements IEditorInputFactory {
+
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
+
+	serialize(input: WorkspaceTrustEditorInput): string {
+		return '{}';
+	}
+
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WorkspaceTrustEditorInput {
+		return instantiationService.createInstance(WorkspaceTrustEditorInput);
+	}
+}
+
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
+	.registerEditorInputFactory(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputInputFactory);
+
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		WorkspaceTrustEditor,
