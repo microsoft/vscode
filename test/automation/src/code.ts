@@ -138,6 +138,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-telemetry',
 		'--no-cached-data',
 		'--disable-updates',
+		'--disable-keytar',
 		'--disable-crash-reporter',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
