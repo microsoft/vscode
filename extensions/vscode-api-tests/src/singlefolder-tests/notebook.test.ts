@@ -90,24 +90,20 @@ suite('Notebook API tests', function () {
 			openNotebook: async (_resource: vscode.Uri): Promise<vscode.NotebookData> => {
 				if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
 					return {
-						metadata: {},
+						metadata: new vscode.NotebookDocumentMetadata(),
 						cells: []
 					};
 				}
 
 				const dto: vscode.NotebookData = {
-					metadata: {
-						custom: { testMetadata: false }
-					},
+					metadata: new vscode.NotebookDocumentMetadata().with({ custom: { testMetadata: false } }),
 					cells: [
 						{
 							source: 'test',
 							language: 'typescript',
 							cellKind: vscode.NotebookCellKind.Code,
 							outputs: [],
-							metadata: {
-								custom: { testCellMetadata: 123 }
-							}
+							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 						}
 					]
 				};
@@ -599,7 +595,7 @@ suite('Notebook API tests', function () {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: true, executionOrder: 17 });
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: true, executionOrder: 17 }));
 		});
 
 		const document = vscode.window.activeNotebookEditor?.document!;
@@ -620,7 +616,7 @@ suite('Notebook API tests', function () {
 		const event = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
 
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: true, executionOrder: 17 });
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: true, executionOrder: 17 }));
 		});
 
 		const data = await event;
@@ -642,7 +638,7 @@ suite('Notebook API tests', function () {
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, { runnable: false });
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ runnable: false }));
 		});
 
 		await cellsChangeEvent;
@@ -661,7 +657,7 @@ suite('Notebook API tests', function () {
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, { runnable: false });
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ runnable: false }));
 		});
 
 		await cellsChangeEvent;
@@ -876,14 +872,14 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(cell.outputs.length, 0);
 
 		let metadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
-		await updateCellMetadata(resource, cell, { ...cell.metadata, runnable: false });
+		await updateCellMetadata(resource, cell, cell.metadata.with({ runnable: false }));
 		await metadataChangeEvent;
 
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
 		metadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
-		await updateCellMetadata(resource, cell, { ...cell.metadata, runnable: true });
+		await updateCellMetadata(resource, cell, cell.metadata.with({ runnable: true }));
 		await metadataChangeEvent;
 
 		await vscode.commands.executeCommand('notebook.cell.execute');
@@ -904,7 +900,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(cell.outputs.length, 0);
 
 		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: false });
+			updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: false }));
 			await event;
 		});
 
@@ -912,7 +908,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
 		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
+			updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
 			await event;
 		});
 
@@ -952,7 +948,7 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cells[0];
 
 		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
+			updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
 			await event;
 		});
 
@@ -993,7 +989,7 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cells[0];
 
 		const metadataChangeEvent = asPromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
+		updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
 		await metadataChangeEvent;
 		assert.strictEqual(editor.document.metadata.runnable, true);
 
@@ -1033,7 +1029,7 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cells[0];
 
 		const metadataChangeEvent = asPromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		updateNotebookMetadata(editor.document.uri, { ...editor.document.metadata, runnable: true });
+		updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
 		await metadataChangeEvent;
 
 		await vscode.commands.executeCommand('notebook.cell.execute');

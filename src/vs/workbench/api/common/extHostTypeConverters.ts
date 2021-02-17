@@ -1418,7 +1418,7 @@ export namespace NotebookCellRange {
 
 export namespace NotebookCellMetadata {
 
-	export function to(data: vscode.NotebookCellMetadata): types.NotebookCellMetadata {
+	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
 		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.runnable, data.hasExecutionOrder, data.executionOrder, data.runStartTime, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
@@ -1429,7 +1429,7 @@ export namespace NotebookDocumentMetadata {
 		return data;
 	}
 
-	export function to(data: vscode.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
+	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
 		return new types.NotebookDocumentMetadata(data.editable, data.runnable, data.cellEditable, data.cellRunnable, data.cellHasExecutionOrder, data.displayOrder, data.custom, data.runState, data.trusted);
 	}
 

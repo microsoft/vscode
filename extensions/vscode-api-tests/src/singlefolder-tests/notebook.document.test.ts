@@ -12,8 +12,8 @@ suite('Notebook Document', function () {
 	const contentProvider = new class implements vscode.NotebookContentProvider {
 		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
 			return {
-				cells: [{ cellKind: vscode.NotebookCellKind.Code, source: uri.toString(), language: 'javascript', metadata: {}, outputs: [] }],
-				metadata: {}
+				cells: [{ cellKind: vscode.NotebookCellKind.Code, source: uri.toString(), language: 'javascript', metadata: new vscode.NotebookCellMetadata(), outputs: [] }],
+				metadata: new vscode.NotebookDocumentMetadata()
 			};
 		}
 		async resolveNotebook(_document: vscode.NotebookDocument, _webview: vscode.NotebookCommunication) {

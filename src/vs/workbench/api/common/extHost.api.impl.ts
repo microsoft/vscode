@@ -1273,6 +1273,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellRunState;
 			},
+			get NotebookDocumentMetadata() {
+				return extHostTypes.NotebookDocumentMetadata;
+			},
+			get NotebookCellMetadata() {
+				return extHostTypes.NotebookCellMetadata;
+			},
 			get NotebookRunState() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookRunState;

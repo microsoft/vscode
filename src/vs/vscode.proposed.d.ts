@@ -1162,34 +1162,44 @@ declare module 'vscode' {
 		Idle = 2
 	}
 
-	// TODO@API
-	// make this a class, allow modified using with-pattern
-	export interface NotebookCellMetadata {
+	export class NotebookCellMetadata {
 		/**
 		 * Controls whether a cell's editor is editable/readonly.
 		 */
-		editable?: boolean;
-
+		readonly editable?: boolean;
 		/**
 		 * Controls if the cell has a margin to support the breakpoint UI.
 		 * This metadata is ignored for markdown cell.
 		 */
-		breakpointMargin?: boolean;
-
+		readonly breakpointMargin?: boolean;
 		/**
 		 * Whether a code cell's editor is collapsed
 		 */
-		inputCollapsed?: boolean;
-
+		readonly outputCollapsed?: boolean;
 		/**
 		 * Whether a code cell's outputs are collapsed
 		 */
-		outputCollapsed?: boolean;
-
+		readonly inputCollapsed?: boolean;
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
-		custom?: { [key: string]: any; };
+		readonly custom?: Record<string, any>;
+
+		// todo@API duplicates status bar API
+		readonly statusMessage?: string;
+
+		// run related API, will be removed
+		readonly runnable?: boolean;
+		readonly hasExecutionOrder?: boolean;
+		readonly executionOrder?: number;
+		readonly runState?: NotebookCellRunState;
+		readonly runStartTime?: number;
+		readonly lastRunDuration?: number;
+
+		constructor(editable?: boolean, breakpointMargin?: boolean, runnable?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runState?: NotebookCellRunState, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
+
+		// todo@API write a proper signature
+		with(change: Partial<Omit<NotebookCellMetadata, 'with'>>): NotebookCellMetadata;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1201,39 +1211,48 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 		readonly language: string;
 		readonly outputs: readonly NotebookCellOutput[];
-		readonly metadata: NotebookCellMetadata;
-		/** @deprecated use WorkspaceEdit.replaceCellOutput */
-		// outputs: CellOutput[];
-		// readonly outputs2: NotebookCellOutput[];
-		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
-		// metadata: NotebookCellMetadata;
+		readonly metadata: NotebookCellMetadata
 	}
 
+	export class NotebookDocumentMetadata {
 
-	export interface NotebookDocumentMetadata {
 		/**
 		 * Controls if users can add or delete cells
 		 * Defaults to true
 		 */
-		editable?: boolean;
-
+		readonly editable: boolean;
 		/**
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
 		 * Defaults to true.
 		 */
-		cellEditable?: boolean;
-		displayOrder?: GlobPattern[];
-
+		readonly cellEditable: boolean;
 		/**
 		 * Additional attributes of the document metadata.
 		 */
-		custom?: { [key: string]: any; };
-
+		readonly custom: { [key: string]: any; };
 		/**
 		 * Whether the document is trusted, default to true
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
-		trusted?: boolean;
+		readonly trusted: boolean;
+
+		// todo@API how does glob apply to mime times?
+		readonly displayOrder: GlobPattern[];
+
+		// todo@API is this a kernel property?
+		readonly cellHasExecutionOrder: boolean;
+
+		// run related, remove infer from kernel, exec
+		// todo@API infer from kernel
+		// todo@API remove
+		readonly runnable: boolean;
+		readonly cellRunnable: boolean;
+		readonly runState: NotebookRunState;
+
+		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, displayOrder?: GlobPattern[], custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
+
+		// TODO@API make this a proper signature
+		with(change: Partial<Omit<NotebookDocumentMetadata, 'with'>>): NotebookDocumentMetadata;
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1640,34 +1659,6 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
-	export interface NotebookDocumentMetadata {
-
-		/**
-		 * Controls whether the full notebook can be run at once.
-		 * Defaults to true
-		 */
-		// todo@API infer from kernel
-		// todo@API remove
-		runnable?: boolean;
-
-		/**
-		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
-		 * Defaults to true.
-		 */
-		cellRunnable?: boolean;
-
-		/**
-		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
-		 * Defaults to true.
-		 */
-		cellHasExecutionOrder?: boolean;
-
-		/**
-		 * The document's current run state
-		 */
-		runState?: NotebookRunState;
-	}
-
 	// todo@API use the NotebookCellExecution-object as a container to model and enforce
 	// the flow of a cell execution
 
@@ -1688,49 +1679,6 @@ declare module 'vscode' {
 	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellExecution;
 	// export const onDidStartNotebookCellExecution: Event<any>;
 	// export const onDidStopNotebookCellExecution: Event<any>;
-
-	export interface NotebookCellMetadata {
-
-		/**
-		 * Controls if the cell is executable.
-		 * This metadata is ignored for markdown cell.
-		 */
-		// todo@API infer from kernel
-		runnable?: boolean;
-
-		/**
-		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
-		 * Defaults to true.
-		 */
-		hasExecutionOrder?: boolean;
-
-		/**
-		 * The order in which this cell was executed.
-		 */
-		executionOrder?: number;
-
-		/**
-		 * A status message to be shown in the cell's status bar
-		 */
-		// todo@API duplicates status bar API
-		statusMessage?: string;
-
-		/**
-		 * The cell's current run state
-		 */
-		runState?: NotebookCellRunState;
-
-		/**
-		 * If the cell is running, the time at which the cell started running
-		 */
-		runStartTime?: number;
-
-		/**
-		 * The total duration of the cell's last run
-		 */
-		// todo@API depends on having output
-		lastRunDuration?: number;
-	}
 
 	export interface NotebookKernel {
 		readonly id?: string;
