@@ -258,13 +258,13 @@ class WorkspaceTrustManageAction extends Action2 {
 			title: { value: nls.localize('manageTrustAction', "Manage Workspace Trust"), original: 'Manage Workspace Trust' },
 			precondition: ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true),
 			category: nls.localize('workspacesCategory', "Workspaces"),
-			f1: true,
+			f1: true
 		});
 	}
 
-	run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: WORKSPACE_TRUST_URI, mode: 'jsonc', options: { pinned: true } });
+	async run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('workbench.trust.manage');
 	}
 }
 
