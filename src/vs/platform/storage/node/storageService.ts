@@ -164,7 +164,7 @@ export class NativeStorageService extends AbstractStorageService {
 	async close(): Promise<void> {
 
 		// Stop periodic scheduler and idle runner as we now collect state normally
-		this.stopFlushScheduler();
+		this.stopFlushWhenIdle();
 
 		// Signal as event so that clients can still store data
 		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);

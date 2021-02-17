@@ -241,7 +241,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	private initializationPromise: Promise<void> | undefined;
 
-	private readonly flushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), this.options.flushInterval));
+	private readonly flushWhenIdleScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), this.options.flushInterval));
 	private readonly runFlushWhenIdle = this._register(new MutableDisposable());
 
 	constructor(private options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
@@ -250,21 +250,21 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	private doFlushWhenIdle(): void {
 		this.runFlushWhenIdle.value = runWhenIdle(() => {
-			if (this.shouldScheduleFlush()) {
+			if (this.shouldFlushWhenIdle()) {
 				this.flush();
 			}
 
 			// repeat
-			this.flushScheduler.schedule();
+			this.flushWhenIdleScheduler.schedule();
 		});
 	}
 
-	protected shouldScheduleFlush(): boolean {
+	protected shouldFlushWhenIdle(): boolean {
 		return true;
 	}
 
-	protected stopFlushScheduler(): void {
-		dispose([this.runFlushWhenIdle, this.flushScheduler]);
+	protected stopFlushWhenIdle(): void {
+		dispose([this.runFlushWhenIdle, this.flushWhenIdleScheduler]);
 	}
 
 	initialize(): Promise<void> {
@@ -282,7 +282,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 				// long running operation.
 				// Instead, periodically ask customers to save save. The library will be clever enough
 				// to only save state that has actually changed.
-				this.flushScheduler.schedule();
+				this.flushWhenIdleScheduler.schedule();
 			})();
 		}
 

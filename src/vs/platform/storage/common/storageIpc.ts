@@ -109,8 +109,23 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 
 export class StorageDatabaseChannelClient extends Disposable {
 
-	readonly globalStorage = new GlobalStorageDatabaseClient(this.channel);
-	readonly workspaceStorage = this.workspace ? new WorkspaceStorageDatabaseClient(this.channel, this.workspace) : undefined;
+	private _globalStorage: GlobalStorageDatabaseClient | undefined = undefined;
+	get globalStorage() {
+		if (!this._globalStorage) {
+			this._globalStorage = new GlobalStorageDatabaseClient(this.channel);
+		}
+
+		return this._globalStorage;
+	}
+
+	private _workspaceStorage: WorkspaceStorageDatabaseClient | undefined = undefined;
+	get workspaceStorage() {
+		if (!this._workspaceStorage && this.workspace) {
+			this._workspaceStorage = new WorkspaceStorageDatabaseClient(this.channel, this.workspace);
+		}
+
+		return this._workspaceStorage;
+	}
 
 	constructor(
 		private channel: IChannel,

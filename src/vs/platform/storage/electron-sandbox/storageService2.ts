@@ -23,7 +23,7 @@ export class NativeStorageService2 extends AbstractStorageService {
 	// in the current window, when entering a workspace!
 	private workspaceStorage: IStorage | undefined = undefined;
 	private workspaceStorageId: string | undefined = undefined;
-	private workspaceStorageDisposables = this._register(new MutableDisposable());
+	private workspaceStorageDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
@@ -49,21 +49,21 @@ export class NativeStorageService2 extends AbstractStorageService {
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorage;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined;
 	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined {
-
-		// Keep id around for logging
-		this.workspaceStorageId = workspace?.id;
-
-		// Create new
 		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), workspace);
+
 		if (storageDataBaseClient.workspaceStorage) {
 			const workspaceStorage = new Storage(storageDataBaseClient.workspaceStorage);
 
-			this.workspaceStorageDisposables.value = workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key));
+			this.workspaceStorageDisposable.value = workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key));
+			this.workspaceStorageId = workspace?.id;
 
 			return workspaceStorage;
-		}
+		} else {
+			this.workspaceStorageDisposable.clear();
+			this.workspaceStorageId = undefined;
 
-		return undefined;
+			return undefined;
+		}
 	}
 
 	protected async doInitialize(): Promise<void> {
@@ -91,7 +91,7 @@ export class NativeStorageService2 extends AbstractStorageService {
 	async close(): Promise<void> {
 
 		// Stop periodic scheduler and idle runner as we now collect state normally
-		this.stopFlushScheduler();
+		this.stopFlushWhenIdle();
 
 		// Signal as event so that clients can still store data
 		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
