@@ -15,6 +15,7 @@ import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedP
 import { Disposable } from 'vs/base/common/lifecycle';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { assertIsDefined } from 'vs/base/common/types';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -201,9 +202,11 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this.window.on('close', this.windowCloseListener);
 
 		// Crashes & Unrsponsive & Failed to load
-		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`SharedProcess: crashed (detail: ${details?.reason})`));
-		this.window.on('unresponsive', () => this.logService.error('SharedProcess: detected unresponsive window'));
-		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('SharedProcess: failed to load window, ', errorDescription));
+		// We use `onUnexpectedError` explicitly because the error handler
+		// will send the error to the active window to log in devtools too
+		this.window.webContents.on('render-process-gone', (event, details) => onUnexpectedError(new Error(`SharedProcess: crashed (detail: ${details?.reason})`)));
+		this.window.on('unresponsive', () => onUnexpectedError(new Error('SharedProcess: detected unresponsive window')));
+		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => onUnexpectedError(new Error(`SharedProcess: failed to load window: ${errorDescription}`)));
 	}
 
 	spawn(userEnv: NodeJS.ProcessEnv): void {
