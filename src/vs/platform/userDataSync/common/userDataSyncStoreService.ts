@@ -30,7 +30,7 @@ const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
 const REQUEST_SESSION_LIMIT = 100;
 const REQUEST_SESSION_INTERVAL = 1000 * 60 * 5; /* 5 minutes */
 
-type UserDataSyncStore = IUserDataSyncStore & { defaultType: UserDataSyncStoreType; type: UserDataSyncStoreType };
+type UserDataSyncStore = IUserDataSyncStore & { defaultType: UserDataSyncStoreType; };
 
 export abstract class AbstractUserDataSyncStoreManagementService extends Disposable implements IUserDataSyncStoreManagementService {
 
@@ -41,10 +41,10 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	private _userDataSyncStore: UserDataSyncStore | undefined;
 	get userDataSyncStore(): UserDataSyncStore | undefined { return this._userDataSyncStore; }
 
-	private get userDataSyncStoreType(): UserDataSyncStoreType | undefined {
+	protected get userDataSyncStoreType(): UserDataSyncStoreType | undefined {
 		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType;
 	}
-	private set userDataSyncStoreType(type: UserDataSyncStoreType | undefined) {
+	protected set userDataSyncStoreType(type: UserDataSyncStoreType | undefined) {
 		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
 	}
 
@@ -55,6 +55,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
+		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.GLOBAL && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -96,12 +97,6 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		return undefined;
 	}
 
-	set(type: UserDataSyncStoreType) {
-		if (this.userDataSyncStore) {
-			this.userDataSyncStoreType = type;
-		}
-	}
-
 	abstract switch(type: UserDataSyncStoreType): Promise<void>;
 	abstract getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
 
@@ -132,8 +127,8 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	}
 
 	async switch(type: UserDataSyncStoreType): Promise<void> {
-		if (this.userDataSyncStore?.canSwitch && type !== this.userDataSyncStore.type) {
-			this.set(type);
+		if (type !== this.userDataSyncStoreType) {
+			this.userDataSyncStoreType = type;
 			this.updateUserDataSyncStore();
 		}
 	}

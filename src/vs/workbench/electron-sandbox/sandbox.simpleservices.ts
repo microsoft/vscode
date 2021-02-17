@@ -644,8 +644,6 @@ class SimpleUserDataSyncStoreManagementService implements IUserDataSyncStoreMana
 
 	userDataSyncStore: IUserDataSyncStore | undefined = undefined;
 
-	set(type: UserDataSyncStoreType): void { }
-
 	async switch(type: UserDataSyncStoreType): Promise<void> { }
 
 	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined> { return undefined; }

@@ -27,8 +27,11 @@ import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'v
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncStoreManagementService, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { Promises } from 'vs/base/common/async';
+import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { Event } from 'vs/base/common/event';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
 
@@ -513,7 +516,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -546,14 +549,22 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					const userDataAutoSyncEnablementService = accessor.get(IUserDataAutoSyncEnablementService);
 					const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
 					const storageService = accessor.get(IStorageService);
+					const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
+					const userDataSyncService = accessor.get(IUserDataSyncService);
 
 					const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
+					const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
 					let userDataSyncStoreType: UserDataSyncStoreType | undefined;
-					if (isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
+					if (userDataSyncStore && isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
 						&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
 						userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
 						if (!userDataSyncStoreType) {
 							return;
+						}
+						storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+						if (userDataSyncStoreType === 'stable') {
+							// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
+							await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
 						}
 					}
 
@@ -567,12 +578,26 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					});
 
 					if (res.confirmed) {
-						if (userDataSyncStoreType !== undefined) {
-							userDataSyncStoreManagementService.set(userDataSyncStoreType);
-							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-							await storageService.flush();
+						const promises: Promise<any>[] = [];
+
+						// If sync is happening wait until it is finished before reload
+						if (userDataSyncService.status === SyncStatus.Syncing) {
+							promises.push(Event.toPromise(Event.filter(userDataSyncService.onDidChangeStatus, status => status !== SyncStatus.Syncing)));
 						}
+
+						// Synchronise the store type option in insiders service, so that other clients using insiders service are also updated.
+						if (isSwitchingToInsiders) {
+							promises.push(userDataSyncWorkbenchService.synchroniseUserDataSyncStoreType());
+						}
+
+						await Promises.settled(promises);
+
 						productQualityChangeHandler(newQuality);
+					} else {
+						// Reset
+						if (userDataSyncStoreType) {
+							storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL);
+						}
 					}
 				}
 
@@ -586,7 +611,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							nls.localize('cancel', "Cancel"),
 						],
 						{
-							detail: nls.localize('selectSyncService.detail', "Insiders version of VSCode will synchronize your settings, keybindings, extensions, snippets and UI State using separete insiders settings sync service by default."),
+							detail: nls.localize('selectSyncService.detail', "Insiders version of VSCode will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
 							cancelId: 2
 						}
 					);

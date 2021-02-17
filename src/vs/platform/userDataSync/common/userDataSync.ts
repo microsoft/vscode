@@ -108,6 +108,7 @@ export type IAuthenticationProvider = { id: string, scopes: string[] };
 
 export interface IUserDataSyncStore {
 	readonly url: URI;
+	readonly type: UserDataSyncStoreType;
 	readonly defaultUrl: URI;
 	readonly stableUrl: URI;
 	readonly insidersUrl: URI;
@@ -149,7 +150,6 @@ export interface IUserDataSyncStoreManagementService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeUserDataSyncStore: Event<void>;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-	set(type: UserDataSyncStoreType): void;
 	switch(type: UserDataSyncStoreType): Promise<void>;
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
 }
@@ -192,6 +192,12 @@ export interface IUserDataSyncBackupStoreService {
 
 export const HEADER_OPERATION_ID = 'x-operation-id';
 export const HEADER_EXECUTION_ID = 'X-Execution-Id';
+
+export function createSyncHeaders(executionId: string): IHeaders {
+	const headers: IHeaders = {};
+	headers[HEADER_EXECUTION_ID] = executionId;
+	return headers;
+}
 
 //#endregion
 

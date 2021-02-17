@@ -111,7 +111,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IOutputService private readonly outputService: IOutputService,
 		@IUserDataSyncAccountService readonly authTokenService: IUserDataSyncAccountService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -323,13 +323,31 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 				return;
+
+			case UserDataSyncErrorCode.ServiceChanged:
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: this.userDataSyncStoreManagementService.userDataSyncStore?.type === 'insiders' ?
+						localize('service switched to insiders', "Settings Sync has been switched to insiders service") :
+						localize('service switched to stable', "Settings Sync has been switched to stable service"),
+				});
+
+				return;
+
 			case UserDataSyncErrorCode.DefaultServiceChanged:
-				// Check if Settings Sync got turned off because default service has changed.
-				// Then ask user to turn on sync again.
-				if (!this.userDataAutoSyncEnablementService.isEnabled()) {
+				// Settings sync is using separate service
+				if (this.userDataAutoSyncEnablementService.isEnabled()) {
 					this.notificationService.notify({
 						severity: Severity.Info,
-						message: localize('switched to insiders', "Settings sync was turned off because VSCode now uses a separate service. Please turn on sync again."),
+						message: localize('using separate service', "Settings sync now uses a separate service, more information is available in the [Settings Sync Documentation](https://aka.ms/vscode-settings-sync-help#_syncing-stable-versus-insiders)."),
+					});
+				}
+
+				// If settings sync got turned off then ask user to turn on sync again.
+				else {
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: localize('service changed and turned off', "Settings sync was turned off because VSCode now uses a separate service. Please turn on sync again."),
 						actions: {
 							primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
 						}
@@ -1035,7 +1053,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): Promise<any> {
-				return that.userDataAutoSyncService.triggerSync([syncNowCommand.id], false, true);
+				return that.userDataSyncWorkbenchService.syncNow();
 			}
 		}));
 	}

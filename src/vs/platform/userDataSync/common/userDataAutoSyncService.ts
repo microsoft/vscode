@@ -185,6 +185,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this._register(userDataSyncStoreService.onDidChangeDonotMakeRequestsUntil(() => this.updateAutoSync()));
 			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false, false)));
 			this._register(Event.filter(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false, false)));
+			this._register(this.userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.triggerSync(['userDataSyncStoreChanged'], false, false)));
 		}
 	}
 
@@ -345,7 +346,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				this.logService.info('Auto Sync: Turned off sync because default sync service is changed.');
 			}
 
-			// Service has changed by the user. So turn off and turn on sync silently
+			// Service has changed by the user. So turn off and turn on sync.
+			// Show a prompt to the user about service change.
 			else {
 				await this.turnOff(false, true /* force soft turnoff on error */, true /* do not disable machine */);
 				await this.turnOn();
