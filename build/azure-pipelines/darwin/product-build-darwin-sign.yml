@@ -1,0 +1,181 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "12.18.3"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+
+  - script: |
+      set -e
+      cat << EOF > ~/.netrc
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+
+      git config user.email "vscode@microsoft.com"
+      git config user.name "VSCode"
+    displayName: Prepare tooling
+
+  - script: |
+      set -e
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+    displayName: Merge distro
+
+  - script: |
+      mkdir -p .build
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
+    displayName: Prepare yarn cache flags
+
+  - task: Cache@2
+    inputs:
+      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - script: |
+      set -e
+      tar -xzf .build/node_modules_cache/cache.tgz
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
+
+  - script: |
+      set -e
+      npm install -g node-gyp@latest
+      node-gyp --version
+    displayName: Update node-gyp
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
+
+  - script: |
+      set -e
+      export npm_config_arch=$(VSCODE_ARCH)
+      export npm_config_node_gyp=$(which node-gyp)
+      export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --frozen-lockfile && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    displayName: Install dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
+
+  - script: |
+      set -e
+      node build/azure-pipelines/mixin
+    displayName: Mix in quality
+
+  - download: current
+    artifact: vscode-darwin-$(VSCODE_ARCH)
+    displayName: Download $(VSCODE_ARCH) artifact
+
+# hmmmm
+  - script: |
+      set -e
+      cp $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+      unzip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+    displayName: Unzip
+
+# hmmmm
+  - script: |
+      set -e
+      security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+      security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+      security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+      echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+      security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+      VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
+    displayName: Set Hardened Entitlements
+
+#FIX THIS
+  - script: |
+      set -e
+      pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+    displayName: Archive build
+
+  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+    inputs:
+      ConnectedServiceName: "ESRP CodeSign"
+      FolderPath: "$(agent.builddirectory)"
+      Pattern: "VSCode-darwin-$(VSCODE_ARCH).zip"
+      signConfigType: inlineSignParams
+      inlineOperation: |
+        [
+          {
+            "keyCode": "CP-401337-Apple",
+            "operationSetCode": "MacAppDeveloperSign",
+            "parameters": [
+              {
+                "parameterName": "Hardening",
+                "parameterValue": "--options=runtime"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          }
+        ]
+      SessionTimeout: 60
+    displayName: Codesign
+
+# what is this doing
+  - script: |
+      zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip "*.pkg"
+    displayName: Clean
+
+  - script: |
+      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")
+      echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
+    displayName: Export bundle identifier
+
+  - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+    inputs:
+      ConnectedServiceName: "ESRP CodeSign"
+      FolderPath: "$(agent.builddirectory)"
+      Pattern: "VSCode-darwin-$(VSCODE_ARCH).zip"
+      signConfigType: inlineSignParams
+      inlineOperation: |
+        [
+          {
+            "keyCode": "CP-401337-Apple",
+            "operationSetCode": "MacAppNotarize",
+            "parameters": [
+              {
+                "parameterName": "BundleId",
+                "parameterValue": "$(BundleIdentifier)"
+              }
+            ],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          }
+        ]
+      SessionTimeout: 60
+    displayName: Notarization
