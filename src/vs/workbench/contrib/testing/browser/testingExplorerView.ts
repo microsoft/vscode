@@ -151,7 +151,10 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	private createFilterActionBar() {
-		const bar = new ActionBar(this.container, { actionViewItemProvider: action => this.getActionViewItem(action) });
+		const bar = new ActionBar(this.container, {
+			actionViewItemProvider: action => this.getActionViewItem(action),
+			triggerKeys: { keyDown: false, keys: [] },
+		});
 		bar.push(new Action(Testing.FilterActionId));
 		bar.getContainer().classList.add('testing-filter-action-bar');
 		return bar;
