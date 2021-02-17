@@ -68,6 +68,17 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.workspaceTrustEditorModel = model;
 	}
 
+	private getHeaderContainerClass(trustState: WorkspaceTrustState): string {
+		switch (trustState) {
+			case WorkspaceTrustState.Trusted:
+				return 'workspace-trust-header workspace-trust-trusted';
+			case WorkspaceTrustState.Untrusted:
+				return 'workspace-trust-header workspace-trust-untrusted';
+			case WorkspaceTrustState.Unknown:
+				return 'workspace-trust-header workspace-trust-unknown';
+		}
+	}
+
 	private getHeaderTitleText(trustState: WorkspaceTrustState): string {
 		switch (trustState) {
 			case WorkspaceTrustState.Trusted:
@@ -93,6 +104,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private render(model: WorkspaceTrustEditorModel): void {
 		this.headerTitle.innerText = this.getHeaderTitleText(model.currentWorkspaceTrustState);
 		this.headerDescription.innerText = this.getHeaderDescriptionText(model.currentWorkspaceTrustState);
+		this.headerContainer.className = this.getHeaderContainerClass(model.currentWorkspaceTrustState);
 
 		clearNode(this.headerButtons);
 		const buttonBar = this._register(new ButtonBar(this.headerButtons));
