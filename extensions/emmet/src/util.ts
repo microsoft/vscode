@@ -374,6 +374,16 @@ export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined
 	return currentNode;
 }
 
+export function isOffsetInsideOpenOrCloseTag(node: FlatNode, offset: number): boolean {
+	const htmlNode = node as HtmlFlatNode;
+	if ((htmlNode.open && offset > htmlNode.open.start && offset < htmlNode.open.end)
+		|| (htmlNode.close && offset > htmlNode.close.start && offset < htmlNode.close.end)) {
+		return true;
+	}
+
+	return false;
+}
+
 export function offsetRangeToSelection(document: vscode.TextDocument, start: number, end: number): vscode.Selection {
 	const startPos = document.positionAt(start);
 	const endPos = document.positionAt(end);

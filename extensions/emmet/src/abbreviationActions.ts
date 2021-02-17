@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
-import { getEmmetHelper, getFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument } from './util';
+import { getEmmetHelper, getFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
 import { getRootNode as parseDocument } from './parseDocument';
 
 const localize = nls.loadMessageBundle();
@@ -56,28 +56,16 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 			let { start, end } = rangeToReplace;
 
 			const startOffset = document.offsetAt(start);
-			const startNode = getFlatNode(rootNode, startOffset, true) as (HtmlNode | undefined);
-			if (
-				startNode &&
-				(
-					(startNode.open && startOffset > startNode.open.start && startOffset < startNode.open.end) ||
-					(startNode.close && startOffset > startNode.close.start && startOffset < startNode.close.end)
-				)
-			) {
+			const startNode = getFlatNode(rootNode, startOffset, true);
+			if (startNode && isOffsetInsideOpenOrCloseTag(startNode, startOffset)) {
 				start = document.positionAt(startNode.start);
 				const nodeEndPosition = document.positionAt(startNode.end);
 				end = nodeEndPosition.isAfter(end) ? nodeEndPosition : end;
 			}
 
 			const endOffset = document.offsetAt(end);
-			const endNode = getFlatNode(rootNode, endOffset, true) as (HtmlNode | undefined);
-			if (
-				endNode &&
-				(
-					(endNode.open && endOffset > endNode.open.start && endOffset < endNode.open.end) ||
-					(endNode.close && endOffset > endNode.close.start && endOffset < endNode.close.end)
-				)
-			) {
+			const endNode = getFlatNode(rootNode, endOffset, true);
+			if (endNode && isOffsetInsideOpenOrCloseTag(endNode, endOffset)) {
 				const nodeStartPosition = document.positionAt(endNode.start);
 				start = nodeStartPosition.isBefore(start) ? nodeStartPosition : start;
 				const nodeEndPosition = document.positionAt(endNode.end);
@@ -103,14 +91,10 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 		}
 
 		return rangeToReplace;
-	}).reduce((mergedRanges, range, idx) => {
+	}).reduce((mergedRanges, range) => {
 		// Merge overlapping ranges
-		if (idx > 0) {
-			if (range.intersection(mergedRanges[mergedRanges.length - 1])) {
-				mergedRanges.push(range.union(mergedRanges.pop()!));
-			} else {
-				mergedRanges.push(range);
-			}
+		if (mergedRanges.length > 0 && range.intersection(mergedRanges[mergedRanges.length - 1])) {
+			mergedRanges.push(range.union(mergedRanges.pop()!));
 		} else {
 			mergedRanges.push(range);
 		}
