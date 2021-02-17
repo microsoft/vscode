@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -19,7 +20,9 @@ import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -223,6 +226,7 @@ export class TestingExplorerViewModel extends Disposable {
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
+		@ITestService private readonly testService: ITestService,
 		@ITestExplorerFilterState filterState: TestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -274,7 +278,9 @@ export class TestingExplorerViewModel extends Disposable {
 		this._register(this.tree);
 
 		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
-			if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
+			if (evt.equals(KeyCode.Enter)) {
+				this.handleExecuteKeypress(evt);
+			} else if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
 				filterState.text.value = evt.browserEvent.key;
 				filterState.focusInput();
 			}
@@ -399,6 +405,27 @@ export class TestingExplorerViewModel extends Disposable {
 		return lookup && isFailedState(lookup[1].state.state)
 			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })
 			: false;
+	}
+
+	private handleExecuteKeypress(evt: IKeyboardEvent) {
+		const focused = this.tree.getFocus();
+		const selected = this.tree.getSelection();
+		let targeted: (ITestTreeElement | null)[];
+		if (focused.length === 1 && selected.includes(focused[0])) {
+			evt.browserEvent?.preventDefault();
+			targeted = selected;
+		} else {
+			targeted = focused;
+		}
+
+		const toRun = targeted
+			.map(e => e?.test)
+			.filter(isDefined)
+			.filter(e => e.item.runnable);
+
+		if (toRun.length) {
+			this.testService.runTests({ debug: false, tests: toRun.map(t => ({ providerId: t.providerId, testId: t.id })) });
+		}
 	}
 
 	private updatePreferredProjection() {
