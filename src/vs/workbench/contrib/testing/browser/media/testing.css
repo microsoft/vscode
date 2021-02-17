@@ -12,6 +12,7 @@
 .test-explorer > .test-explorer-tree {
 	flex-grow: 1;
 	height: 0px;
+	position: relative;
 }
 
 .test-explorer .test-item {
@@ -79,6 +80,20 @@
 .codicon-testing-loading-icon::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
 	animation: codicon-spin 1.25s steps(30) infinite;
+}
+
+.testing-no-test-placeholder {
+	display: none;
+	padding: 0 20px;
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	z-index: 1;
+}
+
+.testing-no-test-placeholder.visible {
+	display: block;
 }
 
 /** -- peek */

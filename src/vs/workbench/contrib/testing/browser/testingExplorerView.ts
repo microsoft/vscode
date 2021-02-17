@@ -7,13 +7,14 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, IActionViewItem } from 'vs/base/common/actions';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
@@ -30,6 +31,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -42,6 +44,7 @@ import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -180,11 +183,35 @@ export class TestingExplorerView extends ViewPane {
 	}
 }
 
+class EmptyTestsWidget extends Disposable {
+	private readonly el: HTMLElement;
+	constructor(
+		container: HTMLElement,
+		@ICommandService commandService: ICommandService,
+		@IThemeService themeService: IThemeService,
+	) {
+		super();
+		const el = this.el = dom.append(container, dom.$('.testing-no-test-placeholder'));
+		const emptyParagraph = dom.append(el, dom.$('p'));
+		emptyParagraph.innerText = localize('testingNoTest', 'No tests have been found in this workspace yet.');
+		const buttonLabel = localize('testingFindExtension', 'Find Test Extensions');
+		const button = this._register(new Button(el, { title: buttonLabel }));
+		button.label = buttonLabel;
+		this._register(attachButtonStyler(button, themeService));
+		this._register(button.onDidClick(() => commandService.executeCommand('testing.searchForTestExtension')));
+	}
+
+	public setVisible(isVisible: boolean) {
+		this.el.classList.toggle('visible', isVisible);
+	}
+}
+
 export class TestingExplorerViewModel extends Disposable {
 	public tree: ObjectTree<ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	public projection!: ITestTreeProjection;
 
+	private readonly emptyTestsWidget: EmptyTestsWidget;
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 
@@ -226,6 +253,8 @@ export class TestingExplorerViewModel extends Disposable {
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
+		@ICommandService commandService: ICommandService,
+		@IThemeService themeService: IThemeService,
 		@ITestService private readonly testService: ITestService,
 		@ITestExplorerFilterState filterState: TestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -237,6 +266,7 @@ export class TestingExplorerViewModel extends Disposable {
 	) {
 		super();
 
+		this.emptyTestsWidget = this._register(instantiationService.createInstance(EmptyTestsWidget, listContainer));
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
 
@@ -428,6 +458,12 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 	}
 
+	private shouldShowEmptyPlaceholder() {
+		return !!this.listener
+			&& this.listener.subscription.busyProviders === 0
+			&& this.listener.subscription.isEmpty;
+	}
+
 	private updatePreferredProjection() {
 		this.projection?.dispose();
 		if (!this.listener) {
@@ -441,12 +477,18 @@ export class TestingExplorerViewModel extends Disposable {
 			this.projection = this.instantiationService.createInstance(HierarchicalByLocationProjection, this.listener);
 		}
 
-		this.projection.onUpdate(this.deferUpdate, this);
-		this.projection.applyTo(this.tree);
+		const scheduler = new RunOnceScheduler(() => this.applyProjectionChanges(), 200);
+		this.projection.onUpdate(() => {
+			if (!scheduler.isScheduled()) {
+				scheduler.schedule();
+			}
+		});
+
+		this.applyProjectionChanges();
 	}
 
-	@throttle(200)
-	private deferUpdate() {
+	private applyProjectionChanges() {
+		this.emptyTestsWidget.setVisible(this.shouldShowEmptyPlaceholder());
 		this.projection.applyTo(this.tree);
 	}
 

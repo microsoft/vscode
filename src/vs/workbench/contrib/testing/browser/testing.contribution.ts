@@ -51,7 +51,6 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar);
 
-
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
@@ -80,7 +79,7 @@ viewsRegistry.registerViews([{
 	order: -999,
 	containerIcon: testingViewIcon,
 	// temporary until release, at which point we can show the welcome view:
-	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.serialize(), 0),
+	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.key, 0),
 }], viewContainer);
 
 registerAction2(Action.TestingViewAsListAction);
@@ -105,6 +104,7 @@ registerAction2(Action.ReRunFailedTests);
 registerAction2(Action.DebugFailedTests);
 registerAction2(Action.ReRunLastRun);
 registerAction2(Action.DebugLastRun);
+registerAction2(Action.SearchForTestExtension);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);

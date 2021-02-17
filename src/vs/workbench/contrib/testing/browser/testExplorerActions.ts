@@ -19,6 +19,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -30,6 +31,7 @@ import { ITestResult, ITestResultService } from 'vs/workbench/contrib/testing/co
 import { ITestService, waitForAllRoots, waitForAllTests } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 const category = localize('testing.category', 'Test');
 
@@ -826,5 +828,22 @@ export class DebugLastRun extends RunOrDebugLastRun {
 
 	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({ debug: true, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	}
+}
+
+export class SearchForTestExtension extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.searchForTestExtension',
+			title: localize('testing.searchForTestExtension', "Search for Test Extension"),
+			f1: false,
+		});
+	}
+
+	public async run(accessor: ServicesAccessor) {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		viewlet.search('tag:testing @sort:installs');
+		viewlet.focus();
 	}
 }
