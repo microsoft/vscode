@@ -28,6 +28,8 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessReplay = this._register(new Emitter<{ event: IPtyHostProcessReplayEvent | undefined }>());
+	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string } }>());
@@ -80,6 +82,7 @@ export class PtyService extends Disposable implements IPtyService {
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
 		process.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		process.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
+		process.onProcessReplay(event => this._onProcessReplay.fire(event));
 		if (process.onProcessOverrideDimensions) {
 			process.onProcessOverrideDimensions(event => this._onProcessOverrideDimensions.fire({ id, event }));
 		}

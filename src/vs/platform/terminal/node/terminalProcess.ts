@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -50,8 +51,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
-	private readonly _onProcessReplay = this._register(new Emitter<{ pid: number, cwd: string }>());
-	public get onProcessReplay(): Event<{ pid: number, cwd: string }> { return this._onProcessReplay.event; }
+	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent | undefined }>());
+	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 
