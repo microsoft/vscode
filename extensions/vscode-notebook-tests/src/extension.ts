@@ -11,7 +11,7 @@ function wait(ms: number): Promise<void> {
 	return new Promise(r => setTimeout(r, ms));
 }
 
-export function smokeTestActivate(context: vscode.ExtensionContext): any {
+export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.createNewNotebook', async () => {
 		const workspacePath = vscode.workspace.workspaceFolders![0].uri.fsPath;
 		const notebookPath = path.join(workspacePath, 'test.smoke-nb');
