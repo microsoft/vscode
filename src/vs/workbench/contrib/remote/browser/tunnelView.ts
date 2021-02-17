@@ -71,8 +71,19 @@ export class TunnelViewModel implements ITunnelViewModel {
 
 	readonly onForwardedPortsChanged: Event<void>;
 	private model: TunnelModel;
-	private _input: TunnelItem;
 	private _candidates: Map<string, CandidatePort> = new Map();
+
+	readonly input = {
+		label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
+		wideLabel: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
+		tunnelType: TunnelType.Add,
+		remoteHost: 'localhost',
+		remotePort: 0,
+		description: '',
+		wideDescription: '',
+		icon: undefined,
+		tooltip: ''
+	};
 
 	constructor(
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
@@ -80,17 +91,6 @@ export class TunnelViewModel implements ITunnelViewModel {
 	) {
 		this.model = remoteExplorerService.tunnelModel;
 		this.onForwardedPortsChanged = Event.any(this.model.onForwardPort, this.model.onClosePort, this.model.onPortName, this.model.onCandidatesChanged);
-		this._input = {
-			label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
-			wideLabel: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
-			tunnelType: TunnelType.Add,
-			remoteHost: 'localhost',
-			remotePort: 0,
-			description: '',
-			wideDescription: '',
-			icon: undefined,
-			tooltip: ''
-		};
 	}
 
 	get all(): (ITunnelGroup | TunnelItem)[] {
@@ -120,7 +120,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 			}
 		}
 		if (groups.length === 0) {
-			groups.push(this._input);
+			groups.push(this.input);
 		}
 		return groups;
 	}
@@ -145,7 +145,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 			}
 		});
 		if (this.remoteExplorerService.getEditableData(undefined)) {
-			forwarded.push(this._input);
+			forwarded.push(this.input);
 		}
 		return forwarded;
 	}
@@ -167,10 +167,6 @@ export class TunnelViewModel implements ITunnelViewModel {
 			}
 		});
 		return candidates;
-	}
-
-	get input(): TunnelItem {
-		return this._input;
 	}
 
 	isEmpty(): boolean {
