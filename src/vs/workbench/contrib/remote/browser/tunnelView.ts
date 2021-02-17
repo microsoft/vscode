@@ -45,8 +45,8 @@ import { forwardPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, priva
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
-import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
@@ -593,7 +593,7 @@ export class TunnelPanel extends ViewPane {
 	static readonly ID = TUNNEL_VIEW_ID;
 	static readonly TITLE = nls.localize('remote.tunnel', "Ports");
 
-	private table!: Table<ITunnelItem>;
+	private table!: WorkbenchTable<ITunnelItem>;
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelPrivacyContext: IContextKey<TunnelPrivacy | undefined>;
@@ -655,7 +655,7 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
-		this.table = new Table(
+		this.table = this.instantiationService.createInstance(WorkbenchTable,
 			'RemoteTunnels',
 			widgetContainer,
 			new TunnelTreeVirtualDelegate(),
@@ -679,7 +679,7 @@ export class TunnelPanel extends ViewPane {
 				// 			getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
 				// 		}
 			}
-		);
+		) as WorkbenchTable<ITunnelItem>;
 
 		const actionRunner: ActionRunner = new ActionRunner();
 		renderer.actionRunner = actionRunner;
