@@ -556,8 +556,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				const result: INotebookKernel[] = [];
 				const kernelsDto = await that._proxy.$provideNotebookKernels(handle, uri, token);
 				for (const dto of kernelsDto) {
-					console.log('kerneldto', dto.providerHandle);
-
 					result.push({
 						id: dto.id,
 						friendlyId: dto.friendlyId,
