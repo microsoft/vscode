@@ -329,11 +329,11 @@ class DesktopMain extends Disposable {
 			storageService = new NativeStorageService2(payload, mainProcessService, this.environmentService);
 		} else {
 			const storageDataBaseClient = new StorageDatabaseChannelClient(mainProcessService.getChannel('storage'), payload);
-			storageService = new NativeStorageService(storageDataBaseClient.globalStorage, logService, this.environmentService);
+			storageService = new NativeStorageService(storageDataBaseClient.globalStorage, payload, logService, this.environmentService);
 		}
 
 		try {
-			await storageService.initialize(payload);
+			await storageService.initialize();
 
 			return storageService;
 		} catch (error) {

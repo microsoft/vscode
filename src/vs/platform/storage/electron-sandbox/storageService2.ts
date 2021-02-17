@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { StorageScope, WillSaveStateReason, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { Storage, IStorage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises } from 'vs/base/common/async';
 import { mark } from 'vs/base/common/performance';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
@@ -24,11 +24,6 @@ export class NativeStorageService2 extends AbstractStorageService {
 	private workspaceStorage: IStorage | undefined = undefined;
 	private workspaceStorageId: string | undefined = undefined;
 	private workspaceStorageDisposables = this._register(new MutableDisposable());
-
-	private initializePromise: Promise<void> | undefined;
-
-	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 60 * 1000 /* every minute */));
-	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
 		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
@@ -71,15 +66,7 @@ export class NativeStorageService2 extends AbstractStorageService {
 		return undefined;
 	}
 
-	initialize(): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = this.doInitialize();
-		}
-
-		return this.initializePromise;
-	}
-
-	private async doInitialize(): Promise<void> {
+	protected async doInitialize(): Promise<void> {
 
 		// Init all storage locations
 		mark('code/willInitStorage');
@@ -91,11 +78,6 @@ export class NativeStorageService2 extends AbstractStorageService {
 		} finally {
 			mark('code/didInitStorage');
 		}
-
-		// On some OS we do not get enough time to persist state on shutdown (e.g. when
-		// Windows restarts after applying updates). In other cases, VSCode might crash,
-		// so we periodically save state to reduce the chance of loosing any state.
-		this.periodicFlushScheduler.schedule();
 	}
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
@@ -106,28 +88,10 @@ export class NativeStorageService2 extends AbstractStorageService {
 		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath} [!!! Experimental Main Storage !!!]` : undefined;
 	}
 
-	private doFlushWhenIdle(): void {
-
-		// Dispose any previous idle runner
-		dispose(this.runWhenIdleDisposable);
-
-		// Run when idle
-		this.runWhenIdleDisposable = runWhenIdle(() => {
-
-			// send event to collect state
-			this.flush();
-
-			// repeat
-			this.periodicFlushScheduler.schedule();
-		});
-	}
-
 	async close(): Promise<void> {
 
 		// Stop periodic scheduler and idle runner as we now collect state normally
-		this.periodicFlushScheduler.dispose();
-		dispose(this.runWhenIdleDisposable);
-		this.runWhenIdleDisposable = undefined;
+		this.stopFlushScheduler();
 
 		// Signal as event so that clients can still store data
 		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);

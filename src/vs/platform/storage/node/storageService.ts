@@ -15,7 +15,7 @@ import { copy, exists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises } from 'vs/base/common/async';
 
 export class NativeStorageService extends AbstractStorageService {
 
@@ -28,13 +28,9 @@ export class NativeStorageService extends AbstractStorageService {
 	private workspaceStorage: IStorage | undefined;
 	private workspaceStorageListener: IDisposable | undefined;
 
-	private initializePromise: Promise<void> | undefined;
-
-	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 60000 /* every minute */));
-	private runWhenIdleDisposable: IDisposable | undefined = undefined;
-
 	constructor(
 		private globalStorageDatabase: IStorageDatabase,
+		private payload: IWorkspaceInitializationPayload | undefined,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
@@ -49,26 +45,13 @@ export class NativeStorageService extends AbstractStorageService {
 		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 	}
 
-	initialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = this.doInitialize(payload);
-		}
-
-		return this.initializePromise;
-	}
-
-	private async doInitialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
+	protected async doInitialize(): Promise<void> {
 
 		// Init all storage locations
 		await Promises.settled([
 			this.initializeGlobalStorage(),
-			payload ? this.initializeWorkspaceStorage(payload) : Promise.resolve()
+			this.payload ? this.initializeWorkspaceStorage(this.payload) : Promise.resolve()
 		]);
-
-		// On some OS we do not get enough time to persist state on shutdown (e.g. when
-		// Windows restarts after applying updates). In other cases, VSCode might crash,
-		// so we periodically save state to reduce the chance of loosing any state.
-		this.periodicFlushScheduler.schedule();
 	}
 
 	private initializeGlobalStorage(): Promise<void> {
@@ -178,28 +161,10 @@ export class NativeStorageService extends AbstractStorageService {
 		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStoragePath;
 	}
 
-	private doFlushWhenIdle(): void {
-
-		// Dispose any previous idle runner
-		dispose(this.runWhenIdleDisposable);
-
-		// Run when idle
-		this.runWhenIdleDisposable = runWhenIdle(() => {
-
-			// send event to collect state
-			this.flush();
-
-			// repeat
-			this.periodicFlushScheduler.schedule();
-		});
-	}
-
 	async close(): Promise<void> {
 
 		// Stop periodic scheduler and idle runner as we now collect state normally
-		this.periodicFlushScheduler.dispose();
-		dispose(this.runWhenIdleDisposable);
-		this.runWhenIdleDisposable = undefined;
+		this.stopFlushScheduler();
 
 		// Signal as event so that clients can still store data
 		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
