@@ -768,7 +768,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return notebookModel;
 
 		} else {
-			const dataDto = await provider.controller.resolveNotebookDocument(viewType, uri, backupId);
+			const dataDto = await provider.controller.openNotebook(viewType, uri, backupId);
 			let cells = dataDto.data.cells.length ? dataDto.data.cells : (uri.scheme === Schemas.untitled ? [{
 				cellKind: CellKind.Code,
 				language: 'plaintext', //TODO@jrieken unsure what this is

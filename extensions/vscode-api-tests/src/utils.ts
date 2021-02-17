@@ -48,6 +48,10 @@ export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 }
 
+export function saveAllEditors(): Thenable<any> {
+	return vscode.commands.executeCommand('workbench.action.files.saveAll');
+}
+
 export async function revertAllDirty(): Promise<void> {
 	return vscode.commands.executeCommand('_workbench.revertAllDirty');
 }
@@ -118,7 +122,7 @@ export function assertNoRpcFromEntry(entry: [obj: any, name: string]) {
 	assert.strictEqual(proxyPaths.length, 0, proxyPaths.join('\n')); // happens...
 }
 
-export async function asPromise<T>(event: vscode.Event<T>, timeout = 1000): Promise<T> {
+export async function asPromise<T>(event: vscode.Event<T>, timeout = 5000): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 
 		const handle = setTimeout(() => {

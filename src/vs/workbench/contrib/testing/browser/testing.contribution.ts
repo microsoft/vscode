@@ -101,6 +101,10 @@ registerAction2(Action.DebugAtCursor);
 registerAction2(Action.RunAtCursor);
 registerAction2(Action.DebugCurrentFile);
 registerAction2(Action.RunCurrentFile);
+registerAction2(Action.ReRunFailedTests);
+registerAction2(Action.DebugFailedTests);
+registerAction2(Action.ReRunLastRun);
+registerAction2(Action.DebugLastRun);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);

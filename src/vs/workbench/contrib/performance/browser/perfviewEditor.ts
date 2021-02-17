@@ -156,7 +156,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		if (metrics.meminfo) {
 			md.li(`Memory(Process): ${(metrics.meminfo.workingSetSize / ByteSize.KB).toFixed(2)} MB working set(${(metrics.meminfo.privateBytes / ByteSize.KB).toFixed(2)}MB private, ${(metrics.meminfo.sharedBytes / ByteSize.KB).toFixed(2)}MB shared)`);
 		}
-		md.li(`VM(likelyhood): ${metrics.isVMLikelyhood}%`);
+		md.li(`VM(likelihood): ${metrics.isVMLikelyhood}%`);
 		md.li(`Initial Startup: ${metrics.initialStartup}`);
 		md.li(`Has ${metrics.windowCount - 1} other windows`);
 		md.li(`Screen Reader Active: ${metrics.hasAccessibilitySupport}`);
@@ -174,6 +174,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['window.loadUrl() => begin to require(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
 		table.push(['require(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
 		table.push(['wait for shell environment', metrics.timers.ellapsedWaitForShellEnv, '[renderer]', undefined]);
+		table.push(['init storage (global & workspace)', metrics.timers.ellapsedStorageInit, '[renderer]', undefined]);
 		table.push(['require & init workspace storage', metrics.timers.ellapsedWorkspaceStorageInit, '[renderer]', undefined]);
 		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
 		if (isWeb) {

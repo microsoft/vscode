@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { StorageScope, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
+import { StorageScope, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -14,7 +14,6 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { runWhenIdle, RunOnceScheduler, Promises } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -100,56 +99,16 @@ export class BrowserStorageService extends AbstractStorageService {
 		this.periodicFlushScheduler.schedule();
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope): string | undefined;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		return this.getStorage(scope).get(key, fallbackValue);
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope): boolean | undefined;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		return this.getStorage(scope).getBoolean(key, fallbackValue);
-	}
-
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope): number | undefined;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getNumber(key, fallbackValue);
-	}
-
-	protected doStore(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
-		this.getStorage(scope).set(key, value);
-	}
-
-	protected doRemove(key: string, scope: StorageScope): void {
-		this.getStorage(scope).delete(key);
-	}
-
-	private getStorage(scope: StorageScope): IStorage {
-		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
-	}
-
-	async logStorage(): Promise<void> {
-		const [globalStorage, workspaceStorage, globalStorageFile, workspaceStorageFile] = assertAllDefined(this.globalStorage, this.workspaceStorage, this.globalStorageFile, this.workspaceStorageFile);
-
-		const result = await Promise.all([
-			globalStorage.items,
-			workspaceStorage.items
-		]);
-
-		return logStorage(result[0], result[1], globalStorageFile.toString(), workspaceStorageFile.toString());
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		return scope === StorageScope.GLOBAL ? this.globalStorageFile?.toString() : this.workspaceStorageFile?.toString();
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
-	}
-
-	protected async doFlush(): Promise<void> {
-		await Promises.settled([
-			this.getStorage(StorageScope.GLOBAL).whenFlushed(),
-			this.getStorage(StorageScope.WORKSPACE).whenFlushed()
-		]);
 	}
 
 	private doFlushWhenIdle(): void {

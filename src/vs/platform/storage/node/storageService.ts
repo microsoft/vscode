@@ -6,7 +6,7 @@
 import { promises } from 'fs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { StorageScope, WillSaveStateReason, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
+import { StorageScope, WillSaveStateReason, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
@@ -170,47 +170,12 @@ export class NativeStorageService extends AbstractStorageService {
 		}
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope): string | undefined;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		return this.getStorage(scope).get(key, fallbackValue);
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope): boolean | undefined;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		return this.getStorage(scope).getBoolean(key, fallbackValue);
-	}
-
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope): number | undefined;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getNumber(key, fallbackValue);
-	}
-
-	protected doStore(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
-		this.getStorage(scope).set(key, value);
-	}
-
-	protected doRemove(key: string, scope: StorageScope): void {
-		this.getStorage(scope).delete(key);
-	}
-
-	private getStorage(scope: StorageScope): IStorage {
-		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
-	}
-
-	protected async doFlush(): Promise<void> {
-		const promises: Promise<unknown>[] = [];
-		if (this.globalStorage) {
-			promises.push(this.globalStorage.whenFlushed());
-		}
-
-		if (this.workspaceStorage) {
-			promises.push(this.workspaceStorage.whenFlushed());
-		}
-
-		await Promises.settled(promises);
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStoragePath;
 	}
 
 	private doFlushWhenIdle(): void {
@@ -246,21 +211,13 @@ export class NativeStorageService extends AbstractStorageService {
 		]);
 	}
 
-	async logStorage(): Promise<void> {
-		return logStorage(
-			this.globalStorage.items,
-			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(), // Shared process storage does not has workspace storage
-			this.environmentService.globalStorageHome.fsPath,
-			this.workspaceStoragePath || '');
-	}
-
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
 			return; // no migration needed if running in memory
 		}
 
 		// Close workspace DB to be able to copy
-		await this.getStorage(StorageScope.WORKSPACE).close();
+		await this.workspaceStorage?.close();
 
 		// Prepare new workspace storage folder
 		const result = await this.prepareWorkspaceStorageFolder(toWorkspace);

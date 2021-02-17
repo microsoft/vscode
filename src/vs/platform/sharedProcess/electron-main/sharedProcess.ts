@@ -26,7 +26,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
@@ -164,11 +164,11 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		const config: ISharedProcessConfiguration = {
 			machineId: this.machineId,
 			windowId: this.window.id,
-			appRoot: this.environmentService.appRoot,
-			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-			backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
+			appRoot: this.environmentMainService.appRoot,
+			nodeCachedDataDir: this.environmentMainService.nodeCachedDataDir,
+			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
 			userEnv: this.userEnv,
-			args: this.environmentService.args,
+			args: this.environmentMainService.args,
 			logLevel: this.logService.getLevel()
 		};
 

@@ -852,7 +852,6 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
 			additionalScrollHeight,
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
-			expandOnlyOnDoubleClick: configurationService.getValue(openModeSettingKey) === 'doubleClick',
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick')
 		} as TOptions
 	};
@@ -952,9 +951,6 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					const horizontalScrolling = configurationService.getValue<boolean>(horizontalScrollingKey);
 					newOptions = { ...newOptions, horizontalScrolling };
 				}
-				if (e.affectsConfiguration(openModeSettingKey)) {
-					newOptions = { ...newOptions, expandOnlyOnDoubleClick: configurationService.getValue(openModeSettingKey) === 'doubleClick' };
-				}
 				if (e.affectsConfiguration(treeExpandMode) && options.expandOnlyOnTwistieClick === undefined) {
 					newOptions = { ...newOptions, expandOnlyOnTwistieClick: configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick' };
 				}
@@ -1021,7 +1017,7 @@ configurationRegistry.registerConfiguration({
 			'description': localize({
 				key: 'openModeModifier',
 				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
-			}, "Controls how to open items in trees and lists using the mouse (if supported). For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable. ")
+			}, "Controls how to open items in trees and lists using the mouse (if supported). For parents with children in trees, this setting will control if a single click expands the parent or a double click. Note that some trees and lists might choose to ignore this setting if it is not applicable.")
 		},
 		[horizontalScrollingKey]: {
 			'type': 'boolean',
@@ -1065,8 +1061,8 @@ configurationRegistry.registerConfiguration({
 		[treeExpandMode]: {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
-			default: 'singleClick',
-			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names."),
+			default: 'doubleClick',
+			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
 		}
 	}
 });

@@ -661,6 +661,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const output = cell.outputs[outputIndex];
 		output.appendData(items);
+		this._eventEmitter.emit({
+			kind: NotebookCellsChangeType.OutputItem,
+			index: this._cells.indexOf(cell),
+			outputId: output.outputId,
+			outputItems: items,
+			append: true,
+			transient: this.transientOptions.transientOutputs
+		}, true);
 	}
 
 	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, items: IOutputItemDto[]) {
@@ -677,6 +685,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const output = cell.outputs[outputIndex];
 		output.replaceData(items);
+		this._eventEmitter.emit({
+			kind: NotebookCellsChangeType.OutputItem,
+			index: this._cells.indexOf(cell),
+			outputId: output.outputId,
+			outputItems: items,
+			append: false,
+			transient: this.transientOptions.transientOutputs
+		}, true);
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {

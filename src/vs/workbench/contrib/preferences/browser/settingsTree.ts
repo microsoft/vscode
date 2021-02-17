@@ -1828,7 +1828,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 	}
 }
 
-class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
+export class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 	isCollapsible(element: T): boolean {
 		return false;
 	}

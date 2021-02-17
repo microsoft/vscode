@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./workspaceTrustEditor';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
@@ -24,7 +26,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
-import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_URI } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
+import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
+import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -181,6 +186,20 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	LifecyclePhase.Ready
 );
 
+/**
+ * Trusted Workspace GUI Editor
+ */
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		WorkspaceTrustEditor,
+		WorkspaceTrustEditor.ID,
+		localize('workspaceTrustEditor', "Workspace Trust Editor")
+	),
+	[
+		new SyncDescriptor(WorkspaceTrustEditorInput)
+	]
+);
+
 /*
  * Actions
  */
@@ -285,7 +304,11 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: WORKSPACE_TRUST_URI, mode: 'jsonc', options: { pinned: true } });
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const input = instantiationService.createInstance(WorkspaceTrustEditorInput);
+
+		editorService.openEditor(input);
 		return;
 	}
 });

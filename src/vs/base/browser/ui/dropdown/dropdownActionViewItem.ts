@@ -172,12 +172,14 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 			const menuActionsProvider = {
 				getActions: () => {
 					const actionsProvider = (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider;
-					return [this._action, ...(Array.isArray(actionsProvider) ? actionsProvider : actionsProvider.getActions())];
+					return [this._action, ...(Array.isArray(actionsProvider)
+						? actionsProvider
+						: (actionsProvider as IActionProvider).getActions()) // TODO: microsoft/TypeScript#42768
+					];
 				}
 			};
 			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', undefined)), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
 			this.dropdownMenuActionViewItem.render(this.element);
 		}
 	}
-
 }

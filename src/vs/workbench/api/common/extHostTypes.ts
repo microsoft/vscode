@@ -2439,6 +2439,51 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	}
 }
 
+@es5ClassCompat
+export class InlineValueText implements vscode.InlineValueText {
+	readonly range: Range;
+	readonly text: string;
+
+	constructor(text: string, range: Range) {
+		this.text = text;
+		this.range = range;
+	}
+}
+
+@es5ClassCompat
+export class InlineValueVariableLookup implements vscode.InlineValueVariableLookup {
+	readonly variableName: string;
+	readonly caseSensitiveLookup: boolean;
+	readonly range: Range;
+
+	constructor(variableName: string, range: Range, caseSensitiveLookup: boolean) {
+		this.variableName = variableName;
+		this.caseSensitiveLookup = caseSensitiveLookup;
+		this.range = range;
+	}
+}
+
+@es5ClassCompat
+export class InlineValueEvaluatableExpression implements vscode.InlineValueEvaluatableExpression {
+	readonly expression: string;
+	readonly range: Range;
+
+	constructor(expression: string, range: Range) {
+		this.expression = expression;
+		this.range = range;
+	}
+}
+
+@es5ClassCompat
+export class InlineValueContext implements vscode.InlineValueContext {
+
+	readonly stoppedLocation: vscode.Range;
+
+	constructor(range: vscode.Range) {
+		this.stoppedLocation = range;
+	}
+}
+
 //#region file api
 
 export enum FileChangeType {
@@ -2848,6 +2893,32 @@ export enum ColorThemeKind {
 //#endregion Theming
 
 //#region Notebook
+
+export class NotebookCellRange {
+
+	private _start: number;
+	private _end: number;
+
+	get start() {
+		return this._start;
+	}
+
+	get end() {
+		return this._end;
+	}
+
+	constructor(start: number, end: number) {
+		// todo@rebornix
+		// if (start < 0) {
+		// 	throw illegalArgument('start must be positive');
+		// }
+		// if (end < start) {
+		// 	throw illegalArgument('end cannot be smaller than start');
+		// }
+		this._start = start;
+		this._end = end;
+	}
+}
 
 export class NotebookCellMetadata {
 

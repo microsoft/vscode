@@ -278,6 +278,7 @@
 					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/platform/*/test/{common,browser}/**"
 				]

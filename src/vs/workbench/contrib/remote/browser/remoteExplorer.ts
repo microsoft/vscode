@@ -219,10 +219,13 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
 					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, false));
 			} else if (environment?.os === OperatingSystem.Linux) {
-				this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService,
-					openerService, externalOpenerService, tunnelService, hostService));
+				const useProc = (this.configurationService.getValue('remote.autoForwardPortsSource') === 'process');
+				if (useProc) {
+					this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService,
+						openerService, externalOpenerService, tunnelService, hostService));
+				}
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, true));
+					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, useProc));
 			}
 		});
 	}
@@ -435,7 +438,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 		}
 		this.urlFinder = this._register(new UrlFinder(this.terminalService, this.debugService));
 		this._register(this.urlFinder.onDidMatchLocalUrl(async (localUrl) => {
-			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, localUrl.host, localUrl.port)) {
+			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, localUrl.host, localUrl.port)) {
 				return;
 			}
 			if (this.portsAttributes.getAttributes(localUrl.port)?.onAutoForward === OnPortForward.Ignore) {
@@ -542,6 +545,9 @@ class ProcAutomaticPortForwarding extends Disposable {
 		const allTunnels = <RemoteTunnel[]>(await Promise.all(this.remoteExplorerService.tunnelModel.candidates.map(async (value) => {
 			const address = makeAddress(value.host, value.port);
 			if (this.initialCandidates.has(address)) {
+				return undefined;
+			}
+			if (this.notifiedOnly.has(address) || this.autoForwarded.has(address)) {
 				return undefined;
 			}
 			const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, value.host, value.port);

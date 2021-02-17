@@ -57,6 +57,11 @@ export interface ITestResult {
 	readonly isAutoRun?: boolean;
 
 	/**
+	 * Gets all tests involved in the run.
+	 */
+	tests: IterableIterator<TestResultItem>;
+
+	/**
 	 * Gets the state of the test by its extension-assigned ID.
 	 */
 	getStateByExtId(testExtId: string): TestResultItem | undefined;
@@ -147,6 +152,7 @@ const makeNodeAndChildren = (
 	test: IncrementalTestCollectionItem,
 	byExtId: Map<string, TestResultItem>,
 	byInternalId: Map<string, TestResultItem>,
+	isExecutedDirectly = true,
 ): TestResultItem => {
 	const existing = byInternalId.get(test.id);
 	if (existing) {
@@ -154,10 +160,14 @@ const makeNodeAndChildren = (
 	}
 
 	const mapped = itemToNode(test, byExtId, byInternalId);
+	if (isExecutedDirectly) {
+		mapped.direct = true;
+	}
+
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
 		if (child) {
-			makeNodeAndChildren(collection, child, byExtId, byInternalId);
+			makeNodeAndChildren(collection, child, byExtId, byInternalId, false);
 		}
 	}
 
@@ -173,6 +183,7 @@ export interface TestResultItem extends IncrementalTestCollectionItem {
 	state: ITestState;
 	computedState: TestRunState;
 	retired: boolean;
+	direct?: true;
 }
 
 /**
@@ -230,7 +241,7 @@ export class LiveTestResult implements ITestResult {
 	public readonly counts: { [K in TestRunState]: number } = makeEmptyCounts();
 
 	/**
-	 * Gets all tests involved in the run by ID.
+	 * @inheritdoc
 	 */
 	public get tests() {
 		return this.testByInternalId.values();
@@ -419,6 +430,13 @@ class HydratedTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public readonly isComplete = true;
+
+	/**
+	 * @inheritdoc
+	 */
+	public get tests() {
+		return this.byExtId.values();
+	}
 
 	private readonly byExtId = new Map<string, TestResultItem>();
 

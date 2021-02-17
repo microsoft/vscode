@@ -9,35 +9,42 @@ import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { NativeStorageService2 } from 'vs/platform/storage/electron-sandbox/storageService2';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
+import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleSignService, SimpleStorageService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { LoggerService } from 'vs/workbench/services/log/electron-sandbox/loggerService';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { SimpleConfigurationService, simpleFileSystemProvider, SimpleSignService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 
 class DesktopMain extends Disposable {
 
@@ -65,7 +72,10 @@ class DesktopMain extends Disposable {
 	private reviveUris() {
 
 		// Workspace
-		this.configuration.workspace = reviveIdentifier(this.configuration.workspace);
+		const workspace = reviveIdentifier(this.configuration.workspace);
+		if (isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace)) {
+			this.configuration.workspace = workspace;
+		}
 
 		// Files
 		const filesToWait = this.configuration.filesToWait;
@@ -107,14 +117,14 @@ class DesktopMain extends Disposable {
 		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
-	private registerListeners(workbench: Workbench, storageService: SimpleStorageService): void {
+	private registerListeners(workbench: Workbench, storageService: NativeStorageService2): void {
 
 		// Workbench Lifecycle
-		this._register(workbench.onShutdown(() => this.dispose()));
 		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
+		this._register(workbench.onShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: SimpleStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService2 }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -142,8 +152,12 @@ class DesktopMain extends Disposable {
 		// Product
 		serviceCollection.set(IProductService, this.productService);
 
+		// Logger
+		const loggerService = new LoggerService(mainProcessService);
+		serviceCollection.set(ILoggerService, loggerService);
+
 		// Log
-		const logService = new SimpleLogService();
+		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, loggerService, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
@@ -209,6 +223,8 @@ class DesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
+		const payload = this.resolveWorkspaceInitializationPayload();
+
 		const services = await Promise.all([
 			this.createWorkspaceService().then(service => {
 
@@ -221,10 +237,18 @@ class DesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService().then(service => {
+			this.createStorageService(payload, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
+
+				return service;
+			}),
+
+			this.createKeyboardLayoutService(mainProcessService).then(service => {
+
+				// KeyboardLayout
+				serviceCollection.set(IKeyboardLayoutService, service);
 
 				return service;
 			})
@@ -247,12 +271,56 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
+
+		// Fallback to empty workspace if we have no payload yet.
+		if (!workspaceInitializationPayload) {
+			let id: string;
+			if (this.configuration.backupPath) {
+				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			} else if (this.environmentService.isExtensionDevelopment) {
+				id = 'ext-dev'; // extension development window never stores backups and is a singleton
+			} else {
+				throw new Error('Unexpected window configuration without backupPath');
+			}
+
+			workspaceInitializationPayload = { id };
+		}
+
+		return workspaceInitializationPayload;
+	}
+
 	private async createWorkspaceService(): Promise<IWorkspaceContextService> {
 		return new SimpleWorkspaceService();
 	}
 
-	private async createStorageService(): Promise<SimpleStorageService> {
-		return new SimpleStorageService();
+	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService2> {
+		const storageService = new NativeStorageService2(payload, mainProcessService, this.environmentService);
+
+		try {
+			await storageService.initialize();
+
+			return storageService;
+		} catch (error) {
+			onUnexpectedError(error);
+
+			return storageService;
+		}
+	}
+
+	private async createKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
+		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+
+		try {
+			await keyboardLayoutService.initialize();
+
+			return keyboardLayoutService;
+		} catch (error) {
+			onUnexpectedError(error);
+
+			return keyboardLayoutService;
+		}
 	}
 }
 

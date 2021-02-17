@@ -90,7 +90,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	//TODO@rebornix noop setter?
 	selection?: vscode.NotebookCell;
 
-	private _visibleRanges: vscode.NotebookCellRange[] = [];
+	private _visibleRanges: extHostTypes.NotebookCellRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
 	private _active: boolean = false;
 	private _visible: boolean = false;
@@ -153,11 +153,11 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		return this._visibleRanges;
 	}
 
-	set visibleRanges(_range: vscode.NotebookCellRange[]) {
+	set visibleRanges(_range) {
 		throw readonly('visibleRanges');
 	}
 
-	_acceptVisibleRanges(value: vscode.NotebookCellRange[]): void {
+	_acceptVisibleRanges(value: extHostTypes.NotebookCellRange[]): void {
 		this._visibleRanges = value;
 	}
 
@@ -233,13 +233,13 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 
 		return this._proxy.$trySetDecorations(
 			this.id,
-			range,
+			extHostConverter.NotebookCellRange.from(range),
 			decorationType.key
 		);
 	}
 
 	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {
-		this._proxy.$tryRevealRange(this.id, range, revealType || extHostTypes.NotebookEditorRevealType.Default);
+		this._proxy.$tryRevealRange(this.id, extHostConverter.NotebookCellRange.from(range), revealType ?? extHostTypes.NotebookEditorRevealType.Default);
 	}
 
 	async postMessage(message: any): Promise<boolean> {

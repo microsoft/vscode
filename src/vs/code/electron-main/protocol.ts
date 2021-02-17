@@ -48,10 +48,10 @@ export class FileProtocolHandler extends Disposable {
 	}
 
 	injectWindowsMainService(windowsMainService: IWindowsMainService): void {
-		this._register(windowsMainService.onWindowReady(window => {
+		this._register(windowsMainService.onDidSignalReadyWindow(window => {
 			if (window.config?.extensionDevelopmentPath || window.config?.extensionTestsPath) {
 				const disposables = new DisposableStore();
-				disposables.add(Event.any(window.onClose, window.onDestroy)(() => disposables.dispose()));
+				disposables.add(Event.any(window.onDidClose, window.onDidDestroy)(() => disposables.dispose()));
 
 				// Allow access to extension development path
 				if (window.config.extensionDevelopmentPath) {

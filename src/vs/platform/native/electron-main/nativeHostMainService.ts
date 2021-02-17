@@ -47,7 +47,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -76,14 +76,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Events
 
-	readonly onDidOpenWindow = Event.map(this.windowsMainService.onWindowOpened, window => window.id);
+	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
 
 	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
 	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 	readonly onDidFocusWindow = Event.any(
-		Event.map(Event.filter(Event.map(this.windowsMainService.onWindowsCountChanged, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
+		Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
 	);
 
@@ -105,7 +105,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return windows.map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace,
-			title: window.win.getTitle(),
+			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
 		}));
@@ -140,7 +140,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
-				cli: this.environmentService.args,
+				cli: this.environmentMainService.args,
 				forceNewWindow: options.forceNewWindow,
 				forceReuseWindow: options.forceReuseWindow,
 				preferNewWindow: options.preferNewWindow,
@@ -176,7 +176,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async isMaximized(windowId: number | undefined): Promise<boolean> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			return window.win.isMaximized();
 		}
 
@@ -185,21 +185,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async maximizeWindow(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.maximize();
 		}
 	}
 
 	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.unmaximize();
 		}
 	}
 
 	async minimizeWindow(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.minimize();
 		}
 	}
@@ -217,7 +217,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			const [windowWidth, windowHeight] = window.win.getSize();
 			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
 			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
@@ -250,7 +250,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private toBrowserWindow(windowId: number | undefined): BrowserWindow | undefined {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			return window.win;
 		}
 
@@ -293,7 +293,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.windowsMainService.open({
 			context: OpenContext.DIALOG,
 			contextWindowId: windowId,
-			cli: this.environmentService.args,
+			cli: this.environmentMainService.args,
 			urisToOpen: openable,
 			forceNewWindow: options.forceNewWindow
 		});
@@ -386,7 +386,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			const promptOptions = {
 				name: product.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
+				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${product.nameShort}.icns`) : undefined
 			};
 
 			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
@@ -412,28 +412,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Windows
 		if (isWindows) {
-			if (this.environmentService.isBuilt) {
+			if (this.environmentMainService.isBuilt) {
 				return join(dirname(process.execPath), 'bin', `${product.applicationName}.cmd`);
 			}
 
-			return join(this.environmentService.appRoot, 'scripts', 'code-cli.bat');
+			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.bat');
 		}
 
 		// Linux
 		if (isLinux) {
-			if (this.environmentService.isBuilt) {
+			if (this.environmentMainService.isBuilt) {
 				return join(dirname(process.execPath), 'bin', `${product.applicationName}`);
 			}
 
-			return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
+			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
 		}
 
 		// macOS
-		if (this.environmentService.isBuilt) {
-			return join(this.environmentService.appRoot, 'bin', 'code');
+		if (this.environmentMainService.isBuilt) {
+			return join(this.environmentMainService.appRoot, 'bin', 'code');
 		}
 
-		return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
+		return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
 	}
 
 	async getOSStatistics(): Promise<IOSStatistics> {
@@ -505,7 +505,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceNewTabbedWindow: true, forceEmpty: true });
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {
@@ -563,7 +563,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
 		const window = this.windowById(targetWindowId);
-		if (window) {
+		if (window?.win) {
 			return window.win.close();
 		}
 	}
@@ -573,7 +573,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		const window = this.windowsMainService.getLastActiveWindow();
-		if (window?.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1) {
+		if (window?.isExtensionDevelopmentHost && this.windowsMainService.getWindowCount() > 1 && window.win) {
 			window.win.close();
 		}
 
@@ -609,14 +609,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			window.win.webContents.openDevTools(options);
 		}
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window) {
+		if (window?.win) {
 			const contents = window.win.webContents;
 			contents.toggleDevTools();
 		}
@@ -624,7 +624,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
 		const window = this.windowById(windowId);
-		if (window && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
+		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
 	}

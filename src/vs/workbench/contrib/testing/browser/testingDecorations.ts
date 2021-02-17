@@ -33,6 +33,7 @@ import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/te
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
+	private currentUri?: URI;
 	private lastDecorations: ITestDecoration[] = [];
 
 	constructor(
@@ -52,9 +53,22 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
+
+		this._register(this.results.onTestChanged(({ item: result }) => {
+			if (this.currentUri && result.item.location?.uri.toString() === this.currentUri.toString()) {
+				this.setDecorations(this.currentUri);
+			}
+		}));
+		this._register(this.results.onResultsChanged(() => {
+			if (this.currentUri) {
+				this.setDecorations(this.currentUri);
+			}
+		}));
 	}
 
 	private attachModel(uri?: URI) {
+		this.currentUri = uri;
+
 		if (!uri) {
 			this.collection.value = undefined;
 			this.clearDecorations();
@@ -62,15 +76,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		}
 
 		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri));
-		this._register(this.results.onTestChanged(({ item: result }) => {
-			if (result.item.location?.uri.toString() === uri.toString()) {
-				this.setDecorations(uri);
-			}
-		}));
-		this._register(this.results.onResultsChanged(() => {
-			this.setDecorations(uri);
-		}));
-
 		this.setDecorations(uri);
 	}
 

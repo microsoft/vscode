@@ -198,10 +198,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				} else if (typeof selector === 'string') {
 					informOnce(selector);
 				} else {
-					if (typeof selector.scheme === 'undefined') {
+					const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
+					if (typeof filter.scheme === 'undefined') {
 						informOnce(selector);
 					}
-					if (!extension.enableProposedApi && typeof selector.exclusive === 'boolean') {
+					if (!extension.enableProposedApi && typeof filter.exclusive === 'boolean') {
 						throwProposedApiError(extension);
 					}
 				}
@@ -408,6 +409,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerEvaluatableExpressionProvider(selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);
+			},
+			registerInlineValuesProvider(selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerInlineValuesProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
@@ -1165,6 +1170,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EndOfLine: extHostTypes.EndOfLine,
 			EnvironmentVariableMutatorType: extHostTypes.EnvironmentVariableMutatorType,
 			EvaluatableExpression: extHostTypes.EvaluatableExpression,
+			InlineValueText: extHostTypes.InlineValueText,
+			InlineValueVariableLookup: extHostTypes.InlineValueVariableLookup,
+			InlineValueEvaluatableExpression: extHostTypes.InlineValueEvaluatableExpression,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
@@ -1252,6 +1260,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get TimelineItem() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TimelineItem;
+			},
+			get NotebookCellRange() {
+				return extHostTypes.NotebookCellRange;
 			},
 			get NotebookCellKind() {
 				// checkProposedApiEnabled(extension);
