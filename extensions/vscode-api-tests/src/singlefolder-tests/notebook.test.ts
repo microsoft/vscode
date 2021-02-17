@@ -1403,7 +1403,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.document.getText(), 'var abc = 0;');
 
 		// no kernel -> no default language
-		assert.strictEqual(vscode.window.activeNotebookEditor!.kernel, undefined);
+		// assert.strictEqual(vscode.window.activeNotebookEditor!.kernel, undefined);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.language, 'typescript');
 
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
@@ -1508,6 +1508,21 @@ suite('Notebook API tests', function () {
 			await event;
 			assert.strictEqual(cellChangeEventRet.document.isDirty, false);
 		});
+		await saveAllFilesAndCloseAll(resource);
+	});
+
+
+	test('#116808, active kernel should not be undefined', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await withEvent(vscode.notebook.onDidChangeActiveNotebookKernel, async event => {
+			await event;
+			assert.notStrictEqual(vscode.window.activeNotebookEditor?.kernel, undefined);
+			assert.strictEqual(vscode.window.activeNotebookEditor?.kernel?.id, 'mainKernel');
+		});
+
 		await saveAllFilesAndCloseAll(resource);
 	});
 

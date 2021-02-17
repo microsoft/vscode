@@ -123,6 +123,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				label: kernel.label,
 				extension: this._extension.identifier,
 				extensionLocation: this._extension.extensionLocation,
+				providerHandle: this._handle,
 				description: kernel.description,
 				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
