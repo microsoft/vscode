@@ -18,11 +18,11 @@ export const TERMINAL_VIEW_ID = 'terminal';
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false, true);
 
 /** A context key that is set when the integrated terminal has focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false, 'Whether the terminal is focused');
+export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
 
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
 /** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
-export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined, { type: 'string', description: 'The shell type of the active terminal' });
+export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined, { type: 'string', description: nls.localize('terminalShellTypeContextKey', "The shell type of the active terminal") });
 
 export const KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE = new RawContextKey<boolean>('terminalAltBufferActive', false, true);
 
@@ -33,7 +33,7 @@ export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMIN
 export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false, true);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
-export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false, 'Whether text is selected in the active terminal');
+export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false, nls.localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal"));
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
@@ -48,7 +48,7 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolea
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
 
-export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false, 'Whether terminal processes can be launched');
+export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false, nls.localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched"));
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
