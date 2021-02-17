@@ -6,12 +6,12 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { AutoOpenBarrier, Barrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
+import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, IOrphanQuestionReplyArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
@@ -42,6 +42,12 @@ export class PtyService extends Disposable implements IPtyService {
 		private readonly _logService: ILogService
 	) {
 		super();
+	}
+	onPtyHostExit?: Event<number> | undefined;
+	onPtyHostStart?: Event<void> | undefined;
+
+	orphanQuestionReply(args: IOrphanQuestionReplyArgs): Promise<void> {
+		return this._throwIfNoPty(args.id).orphanQuestionReply();
 	}
 
 	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
@@ -94,7 +100,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
 		let terminalProcess = this._throwIfNoPty(id);
-		this._logService.info('starting process', terminalProcess);
 		return terminalProcess.start();
 	}
 
@@ -176,6 +181,11 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		return pty;
 	}
+
+	private _orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
+		const persistentTerminalProcess = this._throwIfNoPty(args.id);
+		persistentTerminalProcess.orphanQuestionReply();
+	}
 }
 
 export class PersistentTerminalProcess extends Disposable {
@@ -195,7 +205,16 @@ export class PersistentTerminalProcess extends Disposable {
 	private _orphanRequestQueue = new Queue<boolean>();
 	private _disconnectRunner1: RunOnceScheduler;
 	private _disconnectRunner2: RunOnceScheduler;
-	private _startBarrier: Barrier;
+	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
+	public get onProcessReplay(): Event<IPtyHostProcessReplayEvent> { return this._onProcessReplay.event; }
+	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
+	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
+	public readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
+	public readonly onProcessData: Event<IProcessDataEvent> = this._onProcessData.event;
+	public readonly _onOrphanQuestionReply = this._register(new Emitter<IOrphanQuestionReplyArgs>());
+	public readonly onOrphanQuestionReply: Event<IOrphanQuestionReplyArgs> = this._onOrphanQuestionReply.event;
+
+	private _inReplay = false;
 
 	private _title = '';
 	private _pid = -1;
@@ -222,7 +241,7 @@ export class PersistentTerminalProcess extends Disposable {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
 		this._seenFirstListener = false;
-		this._startBarrier = new Barrier();
+
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
@@ -233,7 +252,6 @@ export class PersistentTerminalProcess extends Disposable {
 			this._logService.info(`The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
-
 		this._events = this._register(new Emitter<IPtyHostProcessEvent>({
 			onListenerDidAdd: () => {
 				this._disconnectRunner1.cancel();
@@ -270,6 +288,33 @@ export class PersistentTerminalProcess extends Disposable {
 				cwd: e.cwd
 			};
 			this._events.fire(ev);
+		}));
+
+		this._register(this.onOrphanQuestionReply((event: IOrphanQuestionReplyArgs) => {
+			this.orphanQuestionReply();
+		}));
+
+		this._register(this.onProcessReplay((event: IPtyHostProcessReplayEvent) => {
+			try {
+				this._logService.info(`replaying ${JSON.stringify(event)}`);
+				this._inReplay = true;
+
+				for (const e of event.events) {
+					if (e.cols !== 0 || e.rows !== 0) {
+						// never override with 0x0 as that is a marker for an unknown initial size
+						this._onProcessOverrideDimensions.fire({ cols: e.cols, rows: e.rows, forceExactSize: true });
+					}
+					this._onProcessData.fire({ data: e.data, sync: true });
+
+					// remove size override
+					this._onProcessOverrideDimensions.fire(undefined);
+
+					return;
+				}
+				this._events.fire(event);
+			} finally {
+				this._inReplay = false;
+			}
 		}));
 
 		this._register(this._terminalProcess.onProcessTitleChanged((title) => {
@@ -309,7 +354,6 @@ export class PersistentTerminalProcess extends Disposable {
 
 	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
 		await this._terminalProcess.start();
-		this._startBarrier.open();
 		return { persistentTerminalId: this._persistentTerminalId };
 	}
 
@@ -318,14 +362,23 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	public input(data: string): void {
+		if (this._inReplay) {
+			return;
+		}
 		return this._terminalProcess.input(data);
 	}
 
 	public acknowledgeCharCount(charCount: number): void {
+		if (this._inReplay) {
+			return;
+		}
 		return this._terminalProcess.acknowledgeDataEvent(charCount);
 	}
 
 	public resize(cols: number, rows: number): void {
+		if (this._inReplay) {
+			return;
+		}
 		this._recorder.recordResize(cols, rows);
 		return this._terminalProcess.resize(cols, rows);
 	}

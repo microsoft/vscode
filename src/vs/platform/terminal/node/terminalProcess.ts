@@ -50,6 +50,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get onProcessExit(): Event<number> { return this._onProcessExit.event; }
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	private readonly _onProcessReplay = this._register(new Emitter<{ pid: number, cwd: string }>());
+	public get onProcessReplay(): Event<{ pid: number, cwd: string }> { return this._onProcessReplay.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 

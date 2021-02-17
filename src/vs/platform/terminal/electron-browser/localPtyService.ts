@@ -12,7 +12,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IOrphanQuestionReplyArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 enum Constants {
 	MaxRestarts = 5
@@ -131,6 +131,9 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
+	}
+	orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
+		return this._proxy.orphanQuestionReply(args);
 	}
 	public setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
 		return this._proxy.setTerminalLayoutInfo(args);
