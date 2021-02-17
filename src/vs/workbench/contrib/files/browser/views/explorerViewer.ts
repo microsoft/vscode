@@ -1229,7 +1229,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 				res = await reader.read();
 			}
-			writeableStream.end(res.value instanceof Uint8Array ? VSBuffer.wrap(res.value) : undefined);
+			writeableStream.end(undefined);
 		} catch (error) {
 			writeableStream.end(error);
 		}

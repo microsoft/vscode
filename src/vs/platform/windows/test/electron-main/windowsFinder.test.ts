@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
 import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { ICodeWindow, IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -32,13 +32,13 @@ suite('WindowsFinder', () => {
 
 	function createTestCodeWindow(options: { lastFocusTime: number, openedFolderUri?: URI, openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
-			onLoad: Event<void> = Event.None;
-			onReady: Event<void> = Event.None;
-			onClose: Event<void> = Event.None;
-			onDestroy: Event<void> = Event.None;
+			onWillLoad: Event<ILoadEvent> = Event.None;
+			onDidSignalReady: Event<void> = Event.None;
+			onDidClose: Event<void> = Event.None;
+			onDidDestroy: Event<void> = Event.None;
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
-			win: Electron.BrowserWindow = undefined!;
+			win: Electron.BrowserWindow = null!;
 			config: INativeWindowConfiguration | undefined;
 			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 			backupPath?: string | undefined;

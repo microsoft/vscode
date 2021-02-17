@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./checkbox';
-import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -73,6 +72,26 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	updateChecked(): void {
 		if (this.checkbox) {
 			this.checkbox.checked = this._action.checked;
+		}
+	}
+
+	focus(): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = 0;
+			this.checkbox.focus();
+		}
+	}
+
+	blur(): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = -1;
+			this.checkbox.domNode.blur();
+		}
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
 		}
 	}
 
@@ -191,12 +210,10 @@ export class Checkbox extends Widget {
 	}
 
 	enable(): void {
-		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
 	disable(): void {
-		DOM.removeTabIndexAndUpdateFocus(this.domNode);
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 }

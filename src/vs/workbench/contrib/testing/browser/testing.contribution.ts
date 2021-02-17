@@ -19,7 +19,7 @@ import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { CloseTestPeek, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { CloseTestPeek, ITestingPeekOpener, TestingOutputPeekController, TestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -38,6 +38,7 @@ registerSingleton(ITestService, TestService);
 registerSingleton(ITestResultService, TestResultService);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState);
 registerSingleton(ITestingAutoRun, TestingAutoRun, true);
+registerSingleton(ITestingPeekOpener, TestingPeekOpener);
 registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
@@ -96,6 +97,14 @@ registerAction2(Action.DebugAllAction);
 registerAction2(Action.EditFocusedTest);
 registerAction2(Action.ClearTestResultsAction);
 registerAction2(Action.ToggleAutoRun);
+registerAction2(Action.DebugAtCursor);
+registerAction2(Action.RunAtCursor);
+registerAction2(Action.DebugCurrentFile);
+registerAction2(Action.RunCurrentFile);
+registerAction2(Action.ReRunFailedTests);
+registerAction2(Action.DebugFailedTests);
+registerAction2(Action.ReRunLastRun);
+registerAction2(Action.DebugLastRun);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
@@ -124,6 +133,16 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, extId: string) => {
 		accessor.get(ITestExplorerFilterState).reveal.value = extId;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'vscode.peekTestError',
+	handler: async (accessor: ServicesAccessor, extId: string) => {
+		const lookup = accessor.get(ITestResultService).getStateByExtId(extId);
+		if (lookup) {
+			accessor.get(ITestingPeekOpener).tryPeekFirstError(lookup[0], lookup[1]);
+		}
 	}
 });
 

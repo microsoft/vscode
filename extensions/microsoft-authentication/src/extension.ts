@@ -20,7 +20,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
 		onDidChangeSessions: onDidChangeSessions.event,
-		getAllSessions: () => Promise.resolve(loginService.sessions),
 		getSessions: (scopes: string[]) => loginService.getSessions(scopes),
 		createSession: async (scopes: string[]) => {
 			try {

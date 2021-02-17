@@ -52,7 +52,7 @@ class TestGlobalStyleSheet extends GlobalStyleSheet {
 
 suite('Decoration Render Options', () => {
 	let options: IDecorationRenderOptions = {
-		gutterIconPath: URI.parse('https://github.com/microsoft/vscode/blob/master/resources/linux/code.png'),
+		gutterIconPath: URI.parse('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png'),
 		gutterIconSize: 'contain',
 		backgroundColor: 'red',
 		borderColor: 'yellow'
@@ -79,7 +79,7 @@ suite('Decoration Render Options', () => {
 		const s = new TestCodeEditorServiceImpl(themeServiceMock, styleSheet);
 		s.registerDecorationType('example', options);
 		const sheet = readStyleSheet(styleSheet);
-		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/master/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
+		assert(sheet.indexOf(`{background:url('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png') center center no-repeat;background-size:contain;}`) >= 0);
 		assert(sheet.indexOf(`{background-color:red;border-color:yellow;box-sizing: border-box;}`) >= 0);
 	});
 

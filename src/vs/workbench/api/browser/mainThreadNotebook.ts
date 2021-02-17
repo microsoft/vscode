@@ -10,7 +10,8 @@ import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { IExtUri } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
+import { IExtUri, isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,6 +31,7 @@ import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection }
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
@@ -121,6 +123,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookService private _notebookService: INotebookService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -202,6 +205,22 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	registerListeners() {
+
+		// forward changes to dirty state
+		// todo@bpasero this seem way too complicated... is there an easy way to
+		// the actual resource from a working copy?
+		this._register(this._workingCopyService.onDidChangeDirty(e => {
+			if (e.resource.scheme !== Schemas.vscodeNotebook) {
+				return;
+			}
+			for (const notebook of this._notebookService.getNotebookTextModels()) {
+				if (isEqual(notebook.uri.with({ scheme: Schemas.vscodeNotebook }), e.resource)) {
+					this._proxy.$acceptDirtyStateChanged(notebook.uri, e.isDirty());
+					break;
+				}
+			}
+		}));
+
 		this._notebookService.listNotebookEditors().forEach((e) => {
 			this._addNotebookEditor(e);
 		});
@@ -461,7 +480,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			},
 			viewOptions: options.viewOptions,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
-				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
+				const data = await this._proxy.$openNotebook(viewType, mainthreadTextModel.uri);
 				mainthreadTextModel.metadata = data.metadata;
 				mainthreadTextModel.transientOptions = contentOptions;
 
@@ -475,8 +494,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					});
 				});
 			},
-			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string) => {
-				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
+			openNotebook: async (viewType: string, uri: URI, backupId?: string) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId);
 				return {
 					data,
 					transientOptions: contentOptions
@@ -501,7 +520,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		const disposable = this._notebookService.registerNotebookController(viewType, extension, controller);
 		this._notebookProviders.set(viewType, { controller, disposable });
-		return;
 	}
 
 	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void> {
@@ -538,7 +556,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				const result: INotebookKernel[] = [];
 				const kernelsDto = await that._proxy.$provideNotebookKernels(handle, uri, token);
 				for (const dto of kernelsDto) {
-
 					result.push({
 						id: dto.id,
 						friendlyId: dto.friendlyId,

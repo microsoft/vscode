@@ -13,7 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultService, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
@@ -82,7 +82,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 			isRunning = true;
 			rerunIds.clear();
-			await this.testService.runTests({ debug: false, tests });
+			await this.testService.runTests({ debug: false, tests, isAutoRun: true });
 			isRunning = false;
 
 			if (rerunIds.size > 0) {
@@ -90,10 +90,15 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 			}
 		}, delay));
 
-		store.add(this.results.onTestRetired(test => {
+		store.add(this.results.onTestChanged(evt => {
+			if (evt.reason !== TestResultItemChangeReason.Retired) {
+				return;
+			}
+
+			const { extId } = evt.item.item;
 			const workspaceTest = mapFind(workspaceTests.workspaceFolderCollections,
-				([, c]) => c.getNodeById(test.id) ?? Iterable.find(c.all, t => t.item.extId === test.item.extId));
-			const subject = workspaceTest ?? test;
+				([, c]) => c.getNodeById(evt.item.id) ?? Iterable.find(c.all, t => t.item.extId === extId));
+			const subject = workspaceTest ?? evt.item;
 
 			rerunIds.set(subject.id, ({ testId: subject.id, providerId: subject.providerId }));
 

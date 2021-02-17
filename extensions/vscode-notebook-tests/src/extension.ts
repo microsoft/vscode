@@ -11,7 +11,7 @@ function wait(ms: number): Promise<void> {
 	return new Promise(r => setTimeout(r, ms));
 }
 
-export function smokeTestActivate(context: vscode.ExtensionContext): any {
+export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.createNewNotebook', async () => {
 		const workspacePath = vscode.workspace.workspaceFolders![0].uri.fsPath;
 		const notebookPath = path.join(workspacePath, 'test.smoke-nb');
@@ -23,25 +23,21 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookSmokeTest', {
 		openNotebook: async (_resource: vscode.Uri) => {
 			const dto: vscode.NotebookData = {
-				metadata: {},
+				metadata: new vscode.NotebookDocumentMetadata(),
 				cells: [
 					{
 						source: 'code()',
 						language: 'typescript',
 						cellKind: vscode.NotebookCellKind.Code,
 						outputs: [],
-						metadata: {
-							custom: { testCellMetadata: 123 }
-						}
+						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					},
 					{
 						source: 'Markdown Cell',
 						language: 'markdown',
 						cellKind: vscode.NotebookCellKind.Markdown,
 						outputs: [],
-						metadata: {
-							custom: { testCellMetadata: 123 }
-						}
+						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					}
 				]
 			};

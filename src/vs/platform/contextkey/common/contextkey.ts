@@ -1259,7 +1259,7 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 
 export interface ContextKeyInfo {
 	readonly key: string;
-	readonly type: string;
+	readonly type?: string;
 	readonly description?: string;
 }
 
@@ -1273,12 +1273,16 @@ export class RawContextKey<T> extends ContextKeyDefinedExpr {
 
 	private readonly _defaultValue: T | undefined;
 
-	constructor(readonly key: string, defaultValue: T | undefined, description?: string) {
+	constructor(readonly key: string, defaultValue: T | undefined, metaOrHide?: string | true | { type: string, description: string }) {
 		super(key);
 		this._defaultValue = defaultValue;
 
 		// collect all context keys into a central place
-		RawContextKey._info.push({ key, description, type: typeof defaultValue });
+		if (typeof metaOrHide === 'object') {
+			RawContextKey._info.push({ ...metaOrHide, key });
+		} else if (metaOrHide !== true) {
+			RawContextKey._info.push({ key, description: metaOrHide, type: defaultValue !== null && defaultValue !== undefined ? typeof defaultValue : undefined });
+		}
 	}
 
 	public bindTo(target: IContextKeyService): IContextKey<T> {

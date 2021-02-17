@@ -534,8 +534,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('manage', "Manage"),
 			animated: false,
-			preventLoopNavigation: true,
-			ignoreOrientationForPreviousAndNextKey: true
+			preventLoopNavigation: true
 		}));
 
 		this.globalActivityAction = this._register(new ActivityAction({

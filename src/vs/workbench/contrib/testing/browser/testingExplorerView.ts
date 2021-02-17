@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -19,7 +20,9 @@ import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -50,11 +53,10 @@ import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/b
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
@@ -224,12 +226,14 @@ export class TestingExplorerViewModel extends Disposable {
 		listContainer: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		private listener: TestSubscriptionListener | undefined,
+		@ITestService private readonly testService: ITestService,
 		@ITestExplorerFilterState filterState: TestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
+		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
 	) {
 		super();
 
@@ -257,7 +261,11 @@ export class TestingExplorerViewModel extends Disposable {
 				filter: this.filter,
 			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 
-		this._register(Event.any(filterState.currentDocumentOnly.onDidChange, filterState.text.onDidChange)(this.tree.refilter, this.tree));
+		this._register(Event.any(
+			filterState.currentDocumentOnly.onDidChange,
+			filterState.text.onDidChange,
+			filterState.stateFilter.onDidChange,
+		)(this.tree.refilter, this.tree));
 		this._register(editorService.onDidActiveEditorChange(() => {
 			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
 				if (this.projection.hasTestInDocument(editorService.activeEditor.resource)) {
@@ -270,8 +278,16 @@ export class TestingExplorerViewModel extends Disposable {
 		this._register(this.tree);
 
 		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
-			if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
+			if (evt.equals(KeyCode.Enter)) {
+				this.handleExecuteKeypress(evt);
+			} else if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
 				filterState.text.value = evt.browserEvent.key;
+				filterState.focusInput();
+			}
+		}));
+
+		this._register(onDidChangeVisibility(visible => {
+			if (visible) {
 				filterState.focusInput();
 			}
 		}));
@@ -386,35 +402,30 @@ export class TestingExplorerViewModel extends Disposable {
 	 */
 	private async tryPeekError(item: ITestTreeElement) {
 		const lookup = item.test && this.testResults.getStateByExtId(item.test.item.extId);
-		if (!lookup || !isFailedState(lookup[1].state.state)) {
-			return false;
+		return lookup && isFailedState(lookup[1].state.state)
+			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })
+			: false;
+	}
+
+	private handleExecuteKeypress(evt: IKeyboardEvent) {
+		const focused = this.tree.getFocus();
+		const selected = this.tree.getSelection();
+		let targeted: (ITestTreeElement | null)[];
+		if (focused.length === 1 && selected.includes(focused[0])) {
+			evt.browserEvent?.preventDefault();
+			targeted = selected;
+		} else {
+			targeted = focused;
 		}
 
-		const [result, test] = lookup;
-		const index = test.state.messages.findIndex(m => !!m.location);
-		if (index === -1) {
-			return;
+		const toRun = targeted
+			.map(e => e?.test)
+			.filter(isDefined)
+			.filter(e => e.item.runnable);
+
+		if (toRun.length) {
+			this.testService.runTests({ debug: false, tests: toRun.map(t => ({ providerId: t.providerId, testId: t.id })) });
 		}
-
-		const message = test.state.messages[index];
-		const pane = await this.editorService.openEditor({
-			resource: message.location!.uri,
-			options: { selection: message.location!.range, preserveFocus: true }
-		});
-
-		const control = pane?.getControl();
-		if (!isCodeEditor(control)) {
-			return false;
-		}
-
-		TestingOutputPeekController.get(control).show(buildTestUri({
-			type: TestUriType.ResultMessage,
-			messageIndex: index,
-			resultId: result.id,
-			testId: item.test!.item.extId,
-		}));
-
-		return true;
 	}
 
 	private updatePreferredProjection() {
@@ -549,13 +560,24 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 			this.setFilter(this.state.text.value);
 		}
 
-		switch (Math.min(this.testFilterText(element), this.testLocation(element))) {
+		switch (Math.min(this.testFilterText(element), this.testLocation(element), this.testState(element))) {
 			case FilterResult.Exclude:
 				return TreeVisibility.Hidden;
 			case FilterResult.Include:
 				return TreeVisibility.Visible;
 			default:
 				return TreeVisibility.Recurse;
+		}
+	}
+
+	private testState(element: ITestTreeElement): FilterResult {
+		switch (this.state.stateFilter.value) {
+			case TestExplorerStateFilter.All:
+				return FilterResult.Include;
+			case TestExplorerStateFilter.OnlyExecuted:
+				return element.ownState !== TestRunState.Unset ? FilterResult.Include : FilterResult.Inherit;
+			case TestExplorerStateFilter.OnlyFailed:
+				return isFailedState(element.ownState) ? FilterResult.Include : FilterResult.Inherit;
 		}
 	}
 

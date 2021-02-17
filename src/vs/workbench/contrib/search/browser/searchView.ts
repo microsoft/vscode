@@ -1038,17 +1038,7 @@ export class SearchView extends ViewPane {
 		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 
-		const messagesSize = this.messagesElement.style.display === 'none' ?
-			0 :
-			dom.getTotalHeight(this.messagesElement);
-
-		const searchResultContainerHeight = this.size.height -
-			messagesSize -
-			dom.getTotalHeight(this.searchWidgetsContainerElement);
-
-		this.resultsElement.style.height = searchResultContainerHeight + 'px';
-
-		this.tree.layout(searchResultContainerHeight, this.size.width);
+		this.tree.layout(); // The tree will measure its container
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -1112,7 +1102,7 @@ export class SearchView extends ViewPane {
 			this.tree.domFocus();
 			const selection = this.tree.getSelection();
 			if (selection.length === 0) {
-				this.tree.focusNext();
+				this.tree.focusNext(undefined, undefined, getSelectionKeyboardEvent());
 			}
 		}
 	}

@@ -127,13 +127,13 @@ export abstract class MenubarControl extends Disposable {
 		this.updateService.onStateChange(() => this.onUpdateStateChange());
 
 		// Listen for changes in recently opened menu
-		this._register(this.workspacesService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); }));
+		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => { this.onDidChangeRecentlyOpened(); }));
 
 		// Listen to keybindings change
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateMenubar()));
 
 		// Update recent menu items on formatter registration
-		this._register(this.labelService.onDidChangeFormatters(() => { this.onRecentlyOpenedChange(); }));
+		this._register(this.labelService.onDidChangeFormatters(() => { this.onDidChangeRecentlyOpened(); }));
 	}
 
 	protected updateMenubar(): void {
@@ -189,7 +189,7 @@ export abstract class MenubarControl extends Disposable {
 	protected onDidChangeWindowFocus(hasFocus: boolean): void {
 		// When we regain focus, update the recent menu items
 		if (hasFocus) {
-			this.onRecentlyOpenedChange();
+			this.onDidChangeRecentlyOpened();
 		}
 	}
 
@@ -205,7 +205,7 @@ export abstract class MenubarControl extends Disposable {
 		// Since we try not update when hidden, we should
 		// try to update the recently opened list on visibility changes
 		if (event.affectsConfiguration('window.menuBarVisibility')) {
-			this.onRecentlyOpenedChange();
+			this.onDidChangeRecentlyOpened();
 		}
 	}
 
@@ -213,7 +213,7 @@ export abstract class MenubarControl extends Disposable {
 		return isMacintosh && isNative ? false : getMenuBarVisibility(this.configurationService) === 'hidden';
 	}
 
-	protected onRecentlyOpenedChange(): void {
+	protected onDidChangeRecentlyOpened(): void {
 
 		// Do not update recently opened when the menubar is hidden #108712
 		if (!this.menubarHidden) {
@@ -543,7 +543,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 	private onDidVisibilityChange(visible: boolean): void {
 		this.visible = visible;
-		this.onRecentlyOpenedChange();
+		this.onDidChangeRecentlyOpened();
 		this._onVisibilityChange.fire(visible);
 	}
 
@@ -765,12 +765,12 @@ export class CustomMenubarControl extends MenubarControl {
 		super.onUpdateStateChange();
 	}
 
-	protected onRecentlyOpenedChange(): void {
+	protected onDidChangeRecentlyOpened(): void {
 		if (!this.visible) {
 			return;
 		}
 
-		super.onRecentlyOpenedChange();
+		super.onDidChangeRecentlyOpened();
 	}
 
 	protected onUpdateKeybindings(): void {

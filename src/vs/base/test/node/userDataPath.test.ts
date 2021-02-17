@@ -3,17 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('mz/fs');
-const path = require('path');
-const Koa = require('koa');
-const _ = require('koa-route');
-const serve = require('koa-static');
-const mount = require('koa-mount');
+import * as assert from 'assert';
+import { getDefaultUserDataPath } from 'vs/base/node/userDataPath';
 
-const app = new Koa();
+suite('User data path', () => {
 
-app.use(serve('public'));
-app.use(mount('/static', serve('../../out')));
-
-app.listen(3000);
-console.log('http://localhost:3000');
+	test('getDefaultUserDataPath', () => {
+		const path = getDefaultUserDataPath();
+		assert.ok(path.length > 0);
+	});
+});

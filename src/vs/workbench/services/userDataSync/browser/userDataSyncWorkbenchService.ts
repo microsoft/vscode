@@ -206,7 +206,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		let accounts: Map<string, UserDataSyncAccount> = new Map<string, UserDataSyncAccount>();
 		let currentAccount: UserDataSyncAccount | null = null;
 
-		const sessions = await this.authenticationService.getAllSessions(authenticationProviderId) || [];
+		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
 		for (const session of sessions) {
 			const account: UserDataSyncAccount = new UserDataSyncAccount(authenticationProviderId, session);
 			accounts.set(account.accountName, account);

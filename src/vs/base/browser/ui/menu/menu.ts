@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { IActionRunner, IAction, SubmenuAction, Separator, IActionViewItemProvider, EmptySubmenuAction } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, addDisposableListener, append, $, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventType, EventHelper, EventLike, isAncestor, addDisposableListener, append, $, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -617,20 +617,23 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		if (this.getAction().enabled) {
 			if (this.element) {
 				this.element.classList.remove('disabled');
+				this.element.removeAttribute('aria-disabled');
 			}
 
 			if (this.item) {
 				this.item.classList.remove('disabled');
+				this.item.removeAttribute('aria-disabled');
 				this.item.tabIndex = 0;
 			}
 		} else {
 			if (this.element) {
 				this.element.classList.add('disabled');
+				this.element.setAttribute('aria-disabled', 'true');
 			}
 
 			if (this.item) {
 				this.item.classList.add('disabled');
-				removeTabIndexAndUpdateFocus(this.item);
+				this.item.setAttribute('aria-disabled', 'true');
 			}
 		}
 	}
