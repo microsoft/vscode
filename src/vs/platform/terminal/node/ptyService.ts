@@ -302,7 +302,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 	}
 	acknowledgeDataEvent(charCount: number): void {
-		throw new Error('Method not implemented.');
+		return this._terminalProcess.acknowledgeDataEvent(charCount);
 	}
 	getLatency(): Promise<number> {
 		throw new Error('Method not implemented.');

@@ -194,7 +194,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				if (shellLaunchConfig.attachPersistentTerminal) {
 					this._process = await this._terminalInstanceService.fetchPersistentTerminalProcess(shellLaunchConfig.attachPersistentTerminal.id);
 				} else {
-					shellLaunchConfig.flowControl = false;
 					this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
 			}
