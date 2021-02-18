@@ -111,15 +111,17 @@ class DocumentAndEditorState {
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
+
+	private readonly _proxy: ExtHostNotebookShape;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
-	private readonly _proxy: ExtHostNotebookShape;
 	private readonly _toDisposeOnEditorRemove = new Map<string, IDisposable>();
-	private _currentState?: DocumentAndEditorState;
 	private readonly _editorEventListenersMapping: Map<string, DisposableStore> = new Map();
 	private readonly _documentEventListenersMapping: ResourceMap<DisposableStore> = new ResourceMap();
 	private readonly _cellStatusBarEntries: Map<number, IDisposable> = new Map();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
+
+	private _currentState?: DocumentAndEditorState;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -156,9 +158,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			item.emitter.dispose();
 			item.provider.dispose();
 		}
-
 		dispose(this._editorEventListenersMapping.values());
 		dispose(this._documentEventListenersMapping.values());
+		dispose(this._toDisposeOnEditorRemove.values());
+		dispose(this._cellStatusBarEntries.values());
 	}
 
 	async $tryApplyEdits(_viewType: string, resource: UriComponents, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean> {
@@ -459,7 +462,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		// if (!isEmptyChange) {
 		this._currentState = newState;
-		await this._emitDelta(delta);
+		this._emitDelta(delta);
 		// }
 	}
 
@@ -657,9 +660,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 
 		if (statusBarEntry.visible) {
-			this._cellStatusBarEntries.set(
-				id,
-				this._cellStatusBarService.addEntry(statusBarEntry));
+			this._cellStatusBarEntries.set(id, this._cellStatusBarService.addEntry(statusBarEntry));
 		}
 	}
 
