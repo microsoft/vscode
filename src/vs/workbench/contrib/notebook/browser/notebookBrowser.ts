@@ -162,6 +162,7 @@ export interface ICommonNotebookEditor {
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	getCellById(cellId: string): IGenericCellViewModel | undefined;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
@@ -604,6 +605,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
 
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
+	getCellById(cellId: string): ICellViewModel | undefined;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 }
 
