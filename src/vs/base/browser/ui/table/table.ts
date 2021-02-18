@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 
 export interface ITableColumn<TRow, TCell> {
 	readonly label: string;
-	readonly tooltip: string;
+	readonly tooltip?: string;
 	readonly weight: number;
 	readonly templateId: string;
 
