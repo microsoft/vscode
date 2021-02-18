@@ -1218,7 +1218,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
 	});
 
-	test.only('Reset executionOrder, startTime, lastRunDuration, custom once it has been set', async function () {
+	test('Reset executionOrder, startTime, lastRunDuration, custom once it has been set', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		const document = await vscode.notebook.openNotebookDocument(resource);
 
