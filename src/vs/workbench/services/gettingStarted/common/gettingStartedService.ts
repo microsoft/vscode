@@ -18,6 +18,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { FileAccess } from 'vs/base/common/network';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -117,7 +118,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
-				: joinPath(extension.extensionLocation, path);
+				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
 
 			if (typeof path === 'string') {
 				const converted = convertPath(path);

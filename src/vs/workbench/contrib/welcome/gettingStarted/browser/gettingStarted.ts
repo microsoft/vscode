@@ -257,7 +257,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.src = sources[themeType].toString();
+		element.src = sources[themeType].toString(true);
 	}
 
 	createEditor(parent: HTMLElement) {
