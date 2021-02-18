@@ -258,6 +258,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
 
+	readonly onPtyDisconnect: Event<void>;
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;

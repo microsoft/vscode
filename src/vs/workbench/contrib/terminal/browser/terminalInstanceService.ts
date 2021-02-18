@@ -10,7 +10,7 @@ import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -25,8 +25,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	private readonly _onPtyHostExit = this._register(new Emitter<void>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
+	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
+	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
 	private readonly _onRequestDefaultShellAndArgs = this._register(new Emitter<IDefaultShellAndArgsRequest>());
-	public get onRequestDefaultShellAndArgs(): Event<IDefaultShellAndArgsRequest> { return this._onRequestDefaultShellAndArgs.event; }
+	readonly onRequestDefaultShellAndArgs = this._onRequestDefaultShellAndArgs.event;
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {

@@ -10,12 +10,16 @@ import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 
+// TODO: On disconnect/restart, this will overwrite the older terminals
 let currentPtyId = 0;
 
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, ITerminalChildProcess> = new Map();
+
+	private readonly _onHeartbeat = this._register(new Emitter<void>());
+	readonly onHeartbeat = this._onHeartbeat.event;
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
