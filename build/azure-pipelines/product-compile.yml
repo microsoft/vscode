@@ -144,12 +144,6 @@ steps:
         yarn download-builtin-extensions-cg
     displayName: Built-in extensions component details
 
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: $(Build.SourcesDirectory)
-      artifactName: SourceDirectory
-    displayName: Publish source directory
-
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"
     inputs:
