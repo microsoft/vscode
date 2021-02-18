@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { CellKind, INotebookDocumentPropertiesChangeData } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
@@ -146,6 +146,7 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _disposed = false;
 
 	constructor(
+		private readonly _proxy: MainThreadNotebookShape,
 		private readonly _documentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
@@ -177,7 +178,8 @@ export class ExtHostNotebookDocument extends Disposable {
 				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
 				get metadata() { return that._metadata; },
 				set metadata(_value: Required<vscode.NotebookDocumentMetadata>) { throw new Error('Use WorkspaceEdit to update metadata.'); },
-				get contentOptions() { return that._contentOptions; }
+				get contentOptions() { return that._contentOptions; },
+				save() { return that._save(); }
 			});
 		}
 		return this._notebook;
@@ -230,6 +232,13 @@ export class ExtHostNotebookDocument extends Disposable {
 				this._changeCellMetadata(e.index, e.metadata);
 			}
 		});
+	}
+
+	private async _save(): Promise<boolean> {
+		if (this._disposed) {
+			return Promise.reject(new Error('Document has been closed'));
+		}
+		return this._proxy.$trySaveDocument(this.uri);
 	}
 
 	private _spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {

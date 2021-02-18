@@ -1281,6 +1281,15 @@ declare module 'vscode' {
 		readonly cells: ReadonlyArray<NotebookCell>;
 		readonly contentOptions: NotebookDocumentContentOptions;
 		readonly metadata: NotebookDocumentMetadata;
+
+		/**
+		 * Save the document. The saving will be handled by the corresponding content provider
+		 *
+		 * @return A promise that will resolve to true when the document
+		 * has been saved. If the file was not dirty or the save failed,
+		 * will return false.
+		 */
+		save(): Thenable<boolean>;
 	}
 
 	// todo@API maybe have a NotebookCellPosition sibling

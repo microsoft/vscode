@@ -669,6 +669,15 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return uri;
 	}
 
+	async $trySaveDocument(uriComponents: UriComponents) {
+		const uri = URI.revive(uriComponents);
+
+		const ref = await this._notebookModelResolverService.resolve(uri);
+		const saveResult = await ref.object.save();
+		ref.dispose();
+		return saveResult;
+	}
+
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,

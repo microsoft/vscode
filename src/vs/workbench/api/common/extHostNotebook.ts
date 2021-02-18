@@ -715,6 +715,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const that = this;
 
 				const document = new ExtHostNotebookDocument(
+					this._proxy,
 					this._documentsAndEditors,
 					{
 						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
