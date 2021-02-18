@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
