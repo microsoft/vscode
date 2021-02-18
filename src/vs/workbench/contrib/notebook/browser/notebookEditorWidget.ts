@@ -1978,11 +1978,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		await this._resolveWebview();
 
+		if (!this._webview) {
+			return;
+		}
+
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		if (this._webview.markdownPreviewMapping.has(cell.id)) {
-			await this._webview!.showMarkdownPreview(cell.id, cell.getText(), cellTop);
+			await this._webview.showMarkdownPreview(cell.id, cell.getText(), cellTop);
 		} else {
-			await this._webview!.createMarkdownPreview(cell.id, cell.getText(), cellTop);
+			await this._webview.createMarkdownPreview(cell.id, cell.getText(), cellTop);
 		}
 	}
 
@@ -1993,7 +1997,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		await this._resolveWebview();
 
-		await this._webview!.hideMarkdownPreview(cell.id);
+		await this._webview?.hideMarkdownPreview(cell.id);
 	}
 
 	async removeMarkdownPreview(cell: MarkdownCellViewModel) {
@@ -2003,7 +2007,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		await this._resolveWebview();
 
-		await this._webview!.removeMarkdownPreview(cell.id);
+		await this._webview?.removeMarkdownPreview(cell.id);
 	}
 
 	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
@@ -2144,6 +2148,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._onWillDispose.fire();
 		// dispose webview first
 		this._webview?.dispose();
+		this._webview = null;
 
 		this.notebookService.removeNotebookEditor(this);
 		dispose(this._contributions.values());
