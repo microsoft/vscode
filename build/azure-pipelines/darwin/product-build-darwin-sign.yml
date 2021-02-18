@@ -188,3 +188,56 @@ steps:
         ]
       SessionTimeout: 60
     displayName: Notarization
+
+  - script: |
+      set -e
+      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
+    displayName: Verify start after signing (export configuration)
+
+# hmm
+  - script: |
+      set -e
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+      node build/azure-pipelines/common/createAsset.js \
+        "darwin-$(VSCODE_ARCH)" \
+        archive \
+        "VSCode-darwin-$(VSCODE_ARCH).zip" \
+        ../VSCode-darwin-$(VSCODE_ARCH).zip
+    displayName: Publish Clients
+
+  - script: |
+      set -e
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+      VSCODE_ARCH="$(VSCODE_ARCH)" ./build/azure-pipelines/darwin/publish-server.sh
+    displayName: Publish Servers
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
+    artifact: vscode-server-darwin-$(VSCODE_ARCH)
+    displayName: Publish server archive
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
+    artifact: vscode-server-darwin-$(VSCODE_ARCH)-web
+    displayName: Publish web server archive
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - script: |
+      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+      VSCODE_ARCH="$(VSCODE_ARCH)" \
+      yarn gulp upload-vscode-configuration
+    displayName: Upload configuration (for Bing settings search)
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+    continueOnError: true
+
+  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+    displayName: "Component Detection"
+    continueOnError: true
