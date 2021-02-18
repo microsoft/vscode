@@ -99,6 +99,7 @@ steps:
   - script: |
       set -e
       unzip $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      rm $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Unzip
 
 # hmmmm
