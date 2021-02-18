@@ -215,6 +215,18 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.splice(start, deleteCount, elements);
 	}
 
+	rerender(): void {
+		this.list.rerender();
+	}
+
+	row(index: number): TRow {
+		return this.list.element(index);
+	}
+
+	indexOf(element: TRow): number {
+		return this.list.indexOf(element);
+	}
+
 	get length(): number {
 		return this.list.length;
 	}

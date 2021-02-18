@@ -45,7 +45,7 @@ import { copyAddressIcon, forwardPortIcon, openBrowserIcon, openPreviewIcon, por
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
-import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { ITableColumn, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Codicon } from 'vs/base/common/codicons';
 
@@ -778,44 +778,47 @@ export class TunnelPanel extends ViewPane {
 		const actionRunner: ActionRunner = new ActionRunner();
 		actionBarRenderer.actionRunner = actionRunner;
 
-		// this._register(this.tree.onContextMenu(e => this.onContextMenu(e, actionRunner)));
-		// this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
-		// this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
-		// this._register(this.tree.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
-		// this._register(this.tree.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
+		// this._register(this.table.onContextMenu(e => this.onContextMenu(e, actionRunner)));
+		this._register(this.table.onMouseDblClick(e => this.onMouseDblClick(e)));
+		this._register(this.table.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this._register(this.table.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
+		this._register(this.table.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
 
-		this.table.splice(0, 0, this.viewModel.all);
+		const rerender = () => this.table.splice(0, Number.POSITIVE_INFINITY, this.viewModel.all);
+
+		rerender();
 		this._register(this.viewModel.onForwardedPortsChanged(() => {
 			this._onDidChangeViewWelcomeState.fire();
-			this.table.splice(0, Number.POSITIVE_INFINITY, this.viewModel.all);
+			rerender();
 		}));
 
-		// this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
-		// 	if (e.element && (e.element.tunnelType === TunnelType.Add)) {
-		// 		this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
-		// 	}
-		// }));
+		// TODO@joao why the debounce?
+		this._register(Event.debounce(this.table.onDidOpen, (last, event) => event, 75, true)(e => {
+			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
+				this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
+			}
+		}));
 
-		// this._register(this.remoteExplorerService.onDidChangeEditable(async e => {
-		// 	this.isEditing = !!this.remoteExplorerService.getEditableData(e);
-		// 	this._onDidChangeViewWelcomeState.fire();
+		this._register(this.remoteExplorerService.onDidChangeEditable(e => {
+			this.isEditing = !!this.remoteExplorerService.getEditableData(e);
+			this._onDidChangeViewWelcomeState.fire();
 
-		// 	if (!this.isEditing) {
-		// 		widgetContainer.classList.remove('highlight');
-		// 	}
+			if (!this.isEditing) {
+				widgetContainer.classList.remove('highlight');
+			}
 
-		// 	await this.tree.updateChildren(undefined, false);
+			rerender();
 
-		// 	if (this.isEditing) {
-		// 		widgetContainer.classList.add('highlight');
-		// 		if (!e) {
-		// 			// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
-		// 			this.tree.reveal(this.viewModel.input);
-		// 		}
-		// 	} else {
-		// 		this.tree.domFocus();
-		// 	}
-		// }));
+			if (this.isEditing) {
+				widgetContainer.classList.add('highlight');
+				if (!e) {
+					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
+					this.table.reveal(this.table.indexOf(this.viewModel.input));
+				}
+			} else {
+				this.table.domFocus();
+			}
+		}));
 	}
 
 	// private get contributedContextMenu(): IMenu {
@@ -895,7 +898,7 @@ export class TunnelPanel extends ViewPane {
 		// });
 	}
 
-	private onMouseDblClick(e: ITreeMouseEvent<ITunnelGroup | ITunnelItem | null>): void {
+	private onMouseDblClick(e: ITableMouseEvent<ITunnelItem>): void {
 		if (!e.element) {
 			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
 		}
