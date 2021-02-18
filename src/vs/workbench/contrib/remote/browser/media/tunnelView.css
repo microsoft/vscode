@@ -46,6 +46,7 @@
 
 .ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {
 	margin-top: 3px;
+	padding-right: 3px;
 }
 
 .ports-view .monaco-list .monaco-list-row.selected .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {
