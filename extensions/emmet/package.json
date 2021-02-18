@@ -217,6 +217,11 @@
               "type": "boolean",
               "default": false,
               "description": "%emmetPreferencesOutputReverseAttributes%"
+            },
+            "css.color.short": {
+              "type": "boolean",
+              "default": true,
+              "description": "%emmetPreferencesCssColorShort%"
             }
           }
         },
