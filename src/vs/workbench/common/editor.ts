@@ -1639,6 +1639,7 @@ export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService
 //#endregion
 
 //#region Editor Open With
+
 export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
 
 export const builtinProviderDisplayName = localize('builtinProviderDisplayName', "Built-in");
