@@ -35,8 +35,8 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const extensions = await this.extensionManagementService.getInstalled();
-		const extensionData = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
-		extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
+		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
+		const extensionData = enabledExtensions.map((extension): IssueReporterExtensionData => {
 			const { manifest } = extension;
 			const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
 			const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
@@ -52,7 +52,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				isTheme,
 				isBuiltin,
 			};
-		}));
+		});
 		const experiments = await this.experimentService.getCurrentExperiments();
 		const githubSessions = await this.authenticationService.getSessions('github');
 		const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
