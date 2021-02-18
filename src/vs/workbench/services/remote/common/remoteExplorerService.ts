@@ -45,6 +45,7 @@ export interface ITunnelItem {
 	localPort?: number;
 	name?: string;
 	closeable?: boolean;
+	source: string;
 	privacy?: TunnelPrivacy;
 	processDescription?: string;
 	wideDescription?: string;

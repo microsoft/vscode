@@ -82,7 +82,8 @@ export class TunnelViewModel implements ITunnelViewModel {
 		processDescription: '',
 		wideDescription: '',
 		icon: undefined,
-		tooltip: ''
+		tooltip: '',
+		source: ''
 	};
 
 	constructor(
@@ -163,7 +164,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 		this._candidates.forEach(value => {
 			if (!mapHasAddressLocalhostOrAllInterfaces(this.model.forwarded, value.host, value.port) &&
 				!mapHasAddressLocalhostOrAllInterfaces(this.model.detected, value.host, value.port)) {
-				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail, undefined, value.pid));
+				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, '', undefined, undefined, false, undefined, value.detail, value.pid));
 			}
 		});
 		return candidates;
@@ -425,12 +426,44 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	}
 }
 
-class RunningProcessColumn implements ITableColumn<ITunnelItem, string> {
+class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = nls.localize('process', "Running Process");
 	readonly weight: number = 1;
-	readonly templateId: string = 'string';
-	project(row: ITunnelItem): string {
-		return row.processDescription ?? '';
+	readonly templateId: string = 'actionbar';
+	project(row: ITunnelItem): ActionBarCell {
+		return { label: row.processDescription ?? '', tunnel: row, context: [] };
+	}
+}
+
+class SourceColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
+	readonly label: string = nls.localize('source', "Source");
+	readonly weight: number = 1;
+	readonly templateId: string = 'actionbar';
+	project(row: ITunnelItem): ActionBarCell {
+		const context: [string, any][] =
+			[
+				['view', TUNNEL_VIEW_ID],
+				['tunnelType', row.tunnelType],
+				['tunnelCloseable', row.closeable]
+			];
+		const label = row.source;
+		return { label, context, tunnel: row };
+	}
+}
+
+class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
+	readonly label: string = nls.localize('privacy', "Privacy");
+	readonly weight: number = 1;
+	readonly templateId: string = 'actionbar';
+	project(row: ITunnelItem): ActionBarCell {
+		const context: [string, any][] =
+			[
+				['view', TUNNEL_VIEW_ID],
+				['tunnelType', row.tunnelType],
+				['tunnelCloseable', row.closeable]
+			];
+		const label = row.privacy === TunnelPrivacy.Public ? nls.localize('tunnel.privacyPublic', "Public") : nls.localize('tunnel.privacyPrivate', "Private");
+		return { label, context, tunnel: row, icon: row.icon };
 	}
 }
 
@@ -461,7 +494,7 @@ interface IActionBarTemplateData {
 
 interface ActionBarCell {
 	label: string;
-	icon?: Codicon;
+	icon?: ThemeIcon;
 	menuId?: MenuId;
 	context: [string, any][];
 	tunnel: ITunnelItem;
@@ -538,12 +571,12 @@ class TunnelItem implements ITunnelItem {
 		return new TunnelItem(type,
 			tunnel.remoteHost,
 			tunnel.remotePort,
+			tunnel.source ?? (tunnel.restore ? nls.localize('tunnel.user', "User Forwarded") : nls.localize('tunnel.automatic', "Auto Forwarded")),
 			tunnel.localAddress,
 			tunnel.localPort,
 			closeable === undefined ? tunnel.closeable : closeable,
 			tunnel.name,
 			tunnel.runningProcess,
-			tunnel.source,
 			tunnel.pid,
 			tunnel.privacy,
 			remoteExplorerService);
@@ -553,12 +586,12 @@ class TunnelItem implements ITunnelItem {
 		public tunnelType: TunnelType,
 		public remoteHost: string,
 		public remotePort: number,
+		public source: string,
 		public localAddress?: string,
 		public localPort?: number,
 		public closeable?: boolean,
 		public name?: string,
 		private runningProcess?: string,
-		private source?: string,
 		private pid?: number,
 		public privacy?: TunnelPrivacy,
 		private remoteExplorerService?: IRemoteExplorerService
@@ -624,8 +657,6 @@ class TunnelItem implements ITunnelItem {
 			if (item.pid) {
 				description += ` (${item.pid})`;
 			}
-		} else if (item.source) {
-			description = item.source;
 		}
 
 		return description;
@@ -641,9 +672,8 @@ class TunnelItem implements ITunnelItem {
 
 	get icon(): ThemeIcon | undefined {
 		switch (this.privacy) {
-			case TunnelPrivacy.Private: return privatePortIcon;
 			case TunnelPrivacy.Public: return publicPortIcon;
-			default: return undefined;
+			default: return privatePortIcon;
 
 		}
 	}
@@ -751,7 +781,7 @@ export class TunnelPanel extends ViewPane {
 			'RemoteTunnels',
 			widgetContainer,
 			new TunnelTreeVirtualDelegate(),
-			[new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()],
+			[new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn(), new PrivacyColumn(), new SourceColumn()],
 			[new StringRenderer(), actionBarRenderer],
 			{
 				keyboardNavigationLabelProvider: {
