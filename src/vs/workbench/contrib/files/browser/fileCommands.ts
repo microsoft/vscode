@@ -359,7 +359,6 @@ CommandsRegistry.registerCommand({
 		if (uri) {
 			const input = editorService.createEditorInput({ resource: uri });
 			editorService.openEditor(input, { override: null }, editorGroupsService.activeGroup);
-			//openEditorWith(accessor, input, undefined, undefined, editorGroupsService.activeGroup);
 		}
 	}
 });
