@@ -12,7 +12,6 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 const setupIcon = registerIcon('getting-started-setup', Codicon.heart, localize('getting-started-setup-icon', "Icon used for the setup category of getting started"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of getting started"));
 const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
-const extensionsIcon = registerIcon('getting-started-extensions', Codicon.extensions, localize('getting-started-extensions-icon', "Icon used for the extensions category of getting started"));
 
 
 type GettingStartedItem = {
