@@ -723,6 +723,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return toDisposable(() => {
 			kernelChangeEventListener.dispose();
 			d.dispose();
+			this._onDidChangeKernels.fire(undefined);
 		});
 	}
 
