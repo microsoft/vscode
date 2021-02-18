@@ -50,7 +50,6 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-
 export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly terminalId: number;
 
