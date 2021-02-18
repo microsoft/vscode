@@ -124,8 +124,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -706,8 +705,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			let targetGroup = group;
 			if (picked.keyMods?.alt || picked.keyMods?.ctrlCmd) {
 				const direction = preferredSideBySideGroupDirection(this.configurationService);
-				targetGroup = this.editorGroupsService.findGroup({ direction }, group.id);
-				targetGroup = targetGroup ?? this.editorGroupsService.addGroup(group, direction);
+				targetGroup = this.editorGroupService.findGroup({ direction }, group.id);
+				targetGroup = targetGroup ?? this.editorGroupService.addGroup(group, direction);
 			}
 			const openOptions: IEditorOptions = {
 				...editorOptions,
