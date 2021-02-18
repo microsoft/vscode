@@ -22,7 +22,6 @@ let Unicode11Addon: typeof XTermUnicode11Addon;
 let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
-
 	public _serviceBrand: undefined;
 
 	private readonly _onPtyHostExit = this._register(new Emitter<void>());
