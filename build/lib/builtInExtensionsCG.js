@@ -15,17 +15,17 @@ const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../produ
 const builtInExtensions = productjson.builtInExtensions;
 const webBuiltInExtensions = productjson.webBuiltInExtensions;
 const token = process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined;
-const contentBasePath = 'https://raw.githubusercontent.com';
+const contentBasePath = 'raw.githubusercontent.com';
 const contentFileNames = ['package.json', 'package-lock.json', 'yarn.lock'];
 async function downloadExtensionDetails(extension) {
     var _a, _b, _c;
     const extensionLabel = `${extension.name}@${extension.version}`;
     const repository = url.parse(extension.repo).path.substr(1);
-    const repositoryContentBaseUrl = `${contentBasePath}/${repository}/v${extension.version}`;
+    const repositoryContentBaseUrl = `https://${token ? `${token}@` : ''}${contentBasePath}/${repository}/v${extension.version}`;
     const promises = [];
     for (const fileName of contentFileNames) {
         promises.push(new Promise(resolve => {
-            got_1.default(`${repositoryContentBaseUrl}/${fileName}?token=${token}`)
+            got_1.default(`${repositoryContentBaseUrl}/${fileName}`)
                 .then(response => {
                 resolve({ fileName, body: response.rawBody });
             })
