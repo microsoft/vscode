@@ -32,31 +32,20 @@ import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWi
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
 	static compute(before: DocumentAndEditorState | undefined, after: DocumentAndEditorState): INotebookDocumentsAndEditorsDelta {
 		if (!before) {
-			const apiEditors = [];
-			for (let id in after.textEditors) {
-				const editor = after.textEditors.get(id)!;
-				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.getSelectionHandles(), visibleRanges: editor.visibleRanges });
-			}
-
 			return {
-				addedDocuments: [],
-				addedEditors: apiEditors,
+				addedDocuments: [...after.documents].map(DocumentAndEditorState._asModelAddData),
+				addedEditors: [...after.textEditors.values()].map(DocumentAndEditorState._asEditorAddData),
 				visibleEditors: [...after.visibleEditors].map(editor => editor[0])
 			};
 		}
 		const documentDelta = diffSets(before.documents, after.documents);
 		const editorDelta = diffMaps(before.textEditors, after.textEditors);
-		const addedAPIEditors = editorDelta.added.map(add => ({
-			id: add.getId(),
-			documentUri: add.uri!,
-			selections: add.getSelectionHandles(),
-			visibleRanges: add.visibleRanges
-		}));
+		const addedAPIEditors = editorDelta.added.map(DocumentAndEditorState._asEditorAddData);
 
 		const removedAPIEditors = editorDelta.removed.map(removed => removed.getId());
 
@@ -66,29 +55,7 @@ class DocumentAndEditorState {
 		const visibleEditorDelta = diffMaps(before.visibleEditors, after.visibleEditors);
 
 		return {
-			addedDocuments: documentDelta.added.map((e: NotebookTextModel): INotebookModelAddedData => {
-				return {
-					viewType: e.viewType,
-					uri: e.uri,
-					metadata: e.metadata,
-					versionId: e.versionId,
-					cells: e.cells.map(cell => ({
-						handle: cell.handle,
-						uri: cell.uri,
-						source: cell.textBuffer.getLinesContent(),
-						eol: cell.textBuffer.getEOL(),
-						language: cell.language,
-						cellKind: cell.cellKind,
-						outputs: cell.outputs,
-						metadata: cell.metadata
-					})),
-					contentOptions: e.transientOptions,
-					// attachedEditor: editorId ? {
-					// 	id: editorId,
-					// 	selections: document.textModel.selections
-					// } : undefined
-				};
-			}),
+			addedDocuments: documentDelta.added.map(DocumentAndEditorState._asModelAddData),
 			removedDocuments: documentDelta.removed.map(e => e.uri),
 			addedEditors: addedAPIEditors,
 			removedEditors: removedAPIEditors,
@@ -106,6 +73,35 @@ class DocumentAndEditorState {
 		readonly visibleEditors: Map<string, IEditor>
 	) {
 		//
+	}
+
+	private static _asModelAddData(e: NotebookTextModel): INotebookModelAddedData {
+		return {
+			viewType: e.viewType,
+			uri: e.uri,
+			metadata: e.metadata,
+			versionId: e.versionId,
+			cells: e.cells.map(cell => ({
+				handle: cell.handle,
+				uri: cell.uri,
+				source: cell.textBuffer.getLinesContent(),
+				eol: cell.textBuffer.getEOL(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: cell.metadata
+			})),
+			contentOptions: e.transientOptions,
+		};
+	}
+
+	private static _asEditorAddData(add: IEditor): INotebookEditorAddData {
+		return {
+			id: add.getId(),
+			documentUri: add.uri!,
+			selections: add.getSelectionHandles(),
+			visibleRanges: add.visibleRanges
+		};
 	}
 }
 
