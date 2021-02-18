@@ -195,6 +195,7 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify start after signing (export configuration)
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
       set -e
@@ -208,26 +209,6 @@ steps:
         "VSCode-darwin-$(VSCODE_ARCH).zip" \
         ../VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Publish Clients
-
-  - script: |
-      set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      VSCODE_ARCH="$(VSCODE_ARCH)" ./build/azure-pipelines/darwin/publish-server.sh
-    displayName: Publish Servers
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-
-  - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
-    artifact: vscode-server-darwin-$(VSCODE_ARCH)
-    displayName: Publish server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-
-  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
-    artifact: vscode-server-darwin-$(VSCODE_ARCH)-web
-    displayName: Publish web server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
