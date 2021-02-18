@@ -96,9 +96,10 @@ export class FileProtocolHandler extends Disposable {
 			return callback({
 				path: fileUri.fsPath
 			});
-		}
+		} else {
+			this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
 
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath}}`);
-		callback({ error: -3 /* ABORTED */ });
+			return callback({ error: -3 /* ABORTED */ });
+		}
 	}
 }

@@ -8,8 +8,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$inbox -label:\"needs more info\"",
-    "editable": true
+    "value": "$inbox -label:\"needs more info\""
   },
   {
     "kind": 1,
@@ -20,8 +19,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$inbox=repo:microsoft/vscode is:open no:assignee -label:feature-request -label:testplan-item -label:plan-item ",
-    "editable": true
+    "value": "$inbox=repo:microsoft/vscode is:open no:assignee -label:feature-request -label:testplan-item -label:plan-item "
   },
   {
     "kind": 1,
@@ -44,7 +42,6 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$inbox",
-    "editable": true
+    "value": "$inbox"
   }
 ]

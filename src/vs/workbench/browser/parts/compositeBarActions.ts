@@ -125,6 +125,7 @@ export interface ICompositeBarColors {
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	colors: (theme: IColorTheme) => ICompositeBarColors;
+	hasPopup?: boolean;
 }
 
 export class ActivityActionViewItem extends BaseActionViewItem {
@@ -199,7 +200,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		this.container = container;
 
-		this.container.setAttribute('role', 'tab');
+		if (this.options.hasPopup) {
+			this.container.setAttribute('role', 'button');
+			this.container.setAttribute('aria-haspopup', 'true');
+		} else {
+			this.container.setAttribute('role', 'tab');
+		}
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
@@ -386,7 +392,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(action, { icon: true, colors }, themeService);
+		super(action, { icon: true, colors, hasPopup: true }, themeService);
 	}
 
 	showMenu(): void {

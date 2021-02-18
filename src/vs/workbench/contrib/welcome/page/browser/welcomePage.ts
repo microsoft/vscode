@@ -336,7 +336,7 @@ class WelcomePage extends Disposable {
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: Promise<IRecentlyOpened>, installedExtensions: Promise<IExtensionStatus[]>): void {
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
+		const enabled = this.configurationService.getValue(configurationKey) === 'welcomePage';
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
 			showOnStartup.setAttribute('checked', 'checked');

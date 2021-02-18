@@ -118,6 +118,10 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const lineDecorations = this._editor.getLineDecorations(lineNumber).filter((d) => {
+			if (d.options.isWholeLine) {
+				return true;
+			}
+
 			const startColumn = (d.range.startLineNumber === lineNumber) ? d.range.startColumn : 1;
 			const endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 			if (startColumn > hoverRange.startColumn || hoverRange.endColumn > endColumn) {

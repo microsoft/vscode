@@ -3,115 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IServerChannel, IChannel, IPCServer } from 'vs/base/parts/ipc/common/ipc';
+import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService, IManualSyncTask, IUserDataManifest, IUserDataSyncStoreManagementService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncUtilService, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-
-export class UserDataSyncChannel implements IServerChannel {
-
-	constructor(private server: IPCServer, private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
-
-	listen(_: unknown, event: string): Event<any> {
-		switch (event) {
-			case 'onDidChangeStatus': return this.service.onDidChangeStatus;
-			case 'onDidChangeConflicts': return this.service.onDidChangeConflicts;
-			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
-			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
-			case 'onSyncErrors': return this.service.onSyncErrors;
-			case 'onDidResetLocal': return this.service.onDidResetLocal;
-			case 'onDidResetRemote': return this.service.onDidResetRemote;
-		}
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	async call(context: any, command: string, args?: any): Promise<any> {
-		try {
-			const result = await this._call(context, command, args);
-			return result;
-		} catch (e) {
-			this.logService.error(e);
-			throw e;
-		}
-	}
-
-	private _call(context: any, command: string, args?: any): Promise<any> {
-		switch (command) {
-			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
-
-			case 'createManualSyncTask': return this.createManualSyncTask();
-
-			case 'replace': return this.service.replace(URI.revive(args[0]));
-			case 'reset': return this.service.reset();
-			case 'resetRemote': return this.service.resetRemote();
-			case 'resetLocal': return this.service.resetLocal();
-			case 'hasPreviouslySynced': return this.service.hasPreviouslySynced();
-			case 'hasLocalData': return this.service.hasLocalData();
-			case 'accept': return this.service.accept(args[0], URI.revive(args[1]), args[2], args[3]);
-			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
-			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
-			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
-			case 'getAssociatedResources': return this.service.getAssociatedResources(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
-			case 'getMachineId': return this.service.getMachineId(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
-		}
-		throw new Error('Invalid call');
-	}
-
-	private async createManualSyncTask(): Promise<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }> {
-		const manualSyncTask = await this.service.createManualSyncTask();
-		const manualSyncTaskChannel = new ManualSyncTaskChannel(manualSyncTask, this.logService);
-		this.server.registerChannel(`manualSyncTask-${manualSyncTask.id}`, manualSyncTaskChannel);
-		return { id: manualSyncTask.id, manifest: manualSyncTask.manifest, status: manualSyncTask.status };
-	}
-}
-
-class ManualSyncTaskChannel implements IServerChannel {
-
-	constructor(
-		private readonly manualSyncTask: IManualSyncTask,
-		private readonly logService: ILogService
-	) { }
-
-	listen(_: unknown, event: string): Event<any> {
-		switch (event) {
-			case 'onSynchronizeResources': return this.manualSyncTask.onSynchronizeResources;
-		}
-		throw new Error(`Event not found: ${event}`);
-	}
-
-	async call(context: any, command: string, args?: any): Promise<any> {
-		try {
-			const result = await this._call(context, command, args);
-			return result;
-		} catch (e) {
-			this.logService.error(e);
-			throw e;
-		}
-	}
-
-	private async _call(context: any, command: string, args?: any): Promise<any> {
-		switch (command) {
-			case 'preview': return this.manualSyncTask.preview();
-			case 'accept': return this.manualSyncTask.accept(URI.revive(args[0]), args[1]);
-			case 'merge': return this.manualSyncTask.merge(URI.revive(args[0]));
-			case 'discard': return this.manualSyncTask.discard(URI.revive(args[0]));
-			case 'discardConflicts': return this.manualSyncTask.discardConflicts();
-			case 'apply': return this.manualSyncTask.apply();
-			case 'pull': return this.manualSyncTask.pull();
-			case 'push': return this.manualSyncTask.push();
-			case 'stop': return this.manualSyncTask.stop();
-			case '_getStatus': return this.manualSyncTask.status;
-			case 'dispose': return this.manualSyncTask.dispose();
-		}
-		throw new Error('Invalid call');
-	}
-
-}
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class UserDataAutoSyncChannel implements IServerChannel {
 
@@ -233,5 +133,35 @@ export class UserDataSyncStoreManagementServiceChannel implements IServerChannel
 			case 'getPreviousUserDataSyncStore': return this.service.getPreviousUserDataSyncStore();
 		}
 		throw new Error('Invalid call');
+	}
+}
+
+export class UserDataSyncStoreManagementServiceChannelClient extends Disposable {
+
+	readonly onDidChangeUserDataSyncStore: Event<void>;
+
+	constructor(private readonly channel: IChannel) {
+		super();
+		this.onDidChangeUserDataSyncStore = this.channel.listen<void>('onDidChangeUserDataSyncStore');
+	}
+
+	async switch(type: UserDataSyncStoreType): Promise<void> {
+		return this.channel.call('switch', [type]);
+	}
+
+	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore> {
+		const userDataSyncStore = await this.channel.call<IUserDataSyncStore>('getPreviousUserDataSyncStore');
+		return this.revive(userDataSyncStore);
+	}
+
+	private revive(userDataSyncStore: IUserDataSyncStore): IUserDataSyncStore {
+		return {
+			url: URI.revive(userDataSyncStore.url),
+			defaultUrl: URI.revive(userDataSyncStore.defaultUrl),
+			insidersUrl: URI.revive(userDataSyncStore.insidersUrl),
+			stableUrl: URI.revive(userDataSyncStore.stableUrl),
+			canSwitch: userDataSyncStore.canSwitch,
+			authenticationProviders: userDataSyncStore.authenticationProviders,
+		};
 	}
 }

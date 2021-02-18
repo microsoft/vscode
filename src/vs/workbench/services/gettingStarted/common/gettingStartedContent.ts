@@ -40,6 +40,26 @@ type GettingStartedCategory = {
 type GettingStartedContent = GettingStartedCategory[];
 
 export const content: GettingStartedContent = [
+	// {
+	// 	id: 'topLevelCommandPalette',
+	// 	title: localize('gettingStarted.commandPalette.title', "Command Palette"),
+	// 	description: localize('gettingStarted.commandPalette.description', "The one keybinding to show you everything VS Code can do."),
+	// 	icon: Codicon.symbolColor,
+	// 	content: {
+	// 		type: 'command',
+	// 		command: 'workbench.action.showCommands',
+	// 	}
+	// },
+	// {
+	// 	id: 'topLevelSeeExtensions',
+	// 	title: localize('gettingStarted.languageSupport.title', "Install Language Support"),
+	// 	description: localize('gettingStarted.languageSupport.description', "Want even more features? Install extensions to add support for languages like Python, C, or Java."),
+	// 	icon: Codicon.extensions,
+	// 	content: {
+	// 		type: 'command',
+	// 		command: 'workbench.extensions.action.showPopularExtensions',
+	// 	}
+	// },
 	{
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),

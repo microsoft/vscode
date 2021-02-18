@@ -212,6 +212,11 @@
               "type": "number",
               "default": 0.3,
               "description": "%emmetPreferencesCssFuzzySearchMinScore%"
+            },
+            "output.reverseAttributes": {
+              "type": "boolean",
+              "default": false,
+              "description": "%emmetPreferencesOutputReverseAttributes%"
             }
           }
         },
@@ -430,8 +435,7 @@
     "deps": "yarn add vscode-emmet-helper"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9",
-    "emmet": "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
+    "@types/node": "^12.19.9"
   },
   "dependencies": {
     "@emmetio/abbreviation": "^2.2.0",
@@ -439,7 +443,7 @@
     "@emmetio/html-matcher": "^0.3.3",
     "@emmetio/math-expression": "^1.0.4",
     "image-size": "^0.5.2",
-    "vscode-emmet-helper": "2.2.4",
+    "vscode-emmet-helper": "^2.3.0",
     "vscode-languageserver-textdocument": "^1.0.1"
   }
 }

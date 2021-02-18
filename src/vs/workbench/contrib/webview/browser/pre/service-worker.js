@@ -2,13 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+
+/// <reference no-default-lib="true"/>
 /// <reference lib="webworker" />
+
+const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
 const VERSION = 1;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
-const rootPath = self.location.pathname.replace(/\/service-worker.js$/, '');
+const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
 /**
  * Root path for resources
@@ -101,11 +106,12 @@ const localhostRequestStore = new RequestStore();
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
 
-self.addEventListener('message', async (event) => {
+sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
 		case 'version':
 			{
-				self.clients.get(event.source.id).then(client => {
+				const source = /** @type {Client} */ (event.source);
+				sw.clients.get(source.id).then(client => {
 					if (client) {
 						client.postMessage({
 							channel: 'version',
@@ -153,26 +159,26 @@ self.addEventListener('message', async (event) => {
 	console.log('Unknown message');
 });
 
-self.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
 
 	// See if it's a resource request
-	if (requestUrl.origin === self.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
+	if (requestUrl.origin === sw.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
 		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
 	// See if it's a localhost request
-	if (requestUrl.origin !== self.origin && requestUrl.host.match(/^localhost:(\d+)$/)) {
+	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^localhost:(\d+)$/)) {
 		return event.respondWith(processLocalhostRequest(event, requestUrl));
 	}
 });
 
-self.addEventListener('install', (event) => {
-	event.waitUntil(self.skipWaiting()); // Activate worker immediately
+sw.addEventListener('install', (event) => {
+	event.waitUntil(sw.skipWaiting()); // Activate worker immediately
 });
 
-self.addEventListener('activate', (event) => {
-	event.waitUntil(self.clients.claim()); // Become available to all pages
+sw.addEventListener('activate', (event) => {
+	event.waitUntil(sw.clients.claim()); // Become available to all pages
 });
 
 /**
@@ -180,7 +186,7 @@ self.addEventListener('activate', (event) => {
  * @param {URL} requestUrl
  */
 async function processResourceRequest(event, requestUrl) {
-	const client = await self.clients.get(event.clientId);
+	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		console.log('Could not find inner client for request');
 		return notFound();
@@ -252,7 +258,7 @@ async function processResourceRequest(event, requestUrl) {
  * @param {URL} requestUrl
  */
 async function processLocalhostRequest(event, requestUrl) {
-	const client = await self.clients.get(event.clientId);
+	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
 		// that are not spawned by vs code
@@ -299,7 +305,7 @@ function getWebviewIdForClient(client) {
 }
 
 async function getOuterIframeClient(webviewId) {
-	const allClients = await self.clients.matchAll({ includeUncontrolled: true });
+	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.find(client => {
 		const clientUrl = new URL(client.url);
 		return (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`) && clientUrl.search.match(new RegExp('\\bid=' + webviewId));

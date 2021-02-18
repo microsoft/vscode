@@ -9,6 +9,7 @@ import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 const localize = nls.loadMessageBundle();
 
@@ -40,6 +41,8 @@ export class GitHubServer {
 
 	private _pendingStates = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, Promise<string>>();
+
+	constructor(private readonly telemetryReporter: TelemetryReporter) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
 		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
@@ -209,5 +212,37 @@ export class GitHubServer {
 			Logger.error(`Getting account info failed: ${result.statusText}`);
 			throw new Error(result.statusText);
 		}
+	}
+
+	public async checkIsEdu(token: string): Promise<void> {
+		try {
+			const result = await fetch('https://education.github.com/api/user', {
+				headers: {
+					Authorization: `token ${token}`,
+					'faculty-check-preview': 'true',
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (result.ok) {
+				const json: { student: boolean, faculty: boolean } = await result.json();
+
+				/* __GDPR__
+					"session" : {
+						"isEdu": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('session', {
+					isEdu: json.student
+						? 'student'
+						: json.faculty
+							? 'faculty'
+							: 'none'
+				});
+			}
+		} catch (e) {
+			// No-op
+		}
+
 	}
 }

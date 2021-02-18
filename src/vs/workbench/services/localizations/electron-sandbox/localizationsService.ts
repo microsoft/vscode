@@ -5,7 +5,7 @@
 
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 // @ts-ignore: interface is implemented via proxy

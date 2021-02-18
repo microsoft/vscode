@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CellKind, CellEditType, CellOutputKind, NotebookTextModelChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellEditType, NotebookTextModelChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { assertType } from 'vs/base/common/types';
 
 suite('NotebookTextModel', () => {
 	const instantiationService = setupInstantiationService();
@@ -197,15 +196,13 @@ suite('NotebookTextModel', () => {
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [{
-						outputKind: CellOutputKind.Rich,
 						outputId: 'someId',
-						data: { 'text/markdown': '_Hello_' }
+						outputs: [{ mime: 'text/markdown', value: '_Hello_' }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 1);
-				assert.strictEqual(textModel.cells[0].outputs[0].outputKind, CellOutputKind.Rich);
 
 				// append
 				textModel.applyEdits(textModel.versionId, [{
@@ -213,17 +210,14 @@ suite('NotebookTextModel', () => {
 					editType: CellEditType.Output,
 					append: true,
 					outputs: [{
-						outputKind: CellOutputKind.Rich,
 						outputId: 'someId2',
-						data: { 'text/markdown': '_Hello2_' }
+						outputs: [{ mime: 'text/markdown', value: '_Hello2_' }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 2);
 				let [first, second] = textModel.cells[0].outputs;
-				assertType(first.outputKind === CellOutputKind.Rich);
-				assertType(second.outputKind === CellOutputKind.Rich);
 				assert.strictEqual(first.outputId, 'someId');
 				assert.strictEqual(second.outputId, 'someId2');
 
@@ -232,16 +226,14 @@ suite('NotebookTextModel', () => {
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [{
-						outputKind: CellOutputKind.Rich,
 						outputId: 'someId3',
-						data: { 'text/plain': 'Last, replaced output' }
+						outputs: [{ mime: 'text/plain', value: 'Last, replaced output' }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 1);
 				assert.strictEqual(textModel.cells[0].outputs.length, 1);
 				[first] = textModel.cells[0].outputs;
-				assertType(first.outputKind === CellOutputKind.Rich);
 				assert.strictEqual(first.outputId, 'someId3');
 			}
 		);

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, PauseableEmitter } from 'vs/base/common/event';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression, RawContextKey, ContextKeyInfo } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -287,6 +287,13 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ScopedContextKeyService(this, domNode);
 	}
 
+	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IContextKeyService {
+		if (this._isDisposed) {
+			throw new Error(`AbstractContextKeyService has been disposed`);
+		}
+		return new OverlayContextKeyService(this, overlay);
+	}
+
 	public contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
@@ -405,27 +412,25 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 class ScopedContextKeyService extends AbstractContextKeyService {
 
 	private _parent: AbstractContextKeyService;
-	private _domNode: IContextKeyServiceTarget | undefined;
+	private _domNode: IContextKeyServiceTarget;
 
 	private readonly _parentChangeListener = new MutableDisposable();
 
-	constructor(parent: AbstractContextKeyService, domNode?: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, domNode: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
 		this._updateParentChangeListener();
 
-		if (domNode) {
-			this._domNode = domNode;
-			if (this._domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
-				let extraInfo = '';
-				if ((this._domNode as HTMLElement).classList) {
-					extraInfo = Array.from((this._domNode as HTMLElement).classList.values()).join(', ');
-				}
-
-				console.error(`Element already has context attribute${extraInfo ? ': ' + extraInfo : ''}`);
+		this._domNode = domNode;
+		if (this._domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
+			let extraInfo = '';
+			if ((this._domNode as HTMLElement).classList) {
+				extraInfo = Array.from((this._domNode as HTMLElement).classList.values()).join(', ');
 			}
-			this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
+
+			console.error(`Element already has context attribute${extraInfo ? ': ' + extraInfo : ''}`);
 		}
+		this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
 	}
 
 	private _updateParentChangeListener(): void {
@@ -434,14 +439,15 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public dispose(): void {
-		this._onDidChangeContext.dispose();
-		this._isDisposed = true;
-		this._parent.disposeContext(this._myContextId);
-		this._parentChangeListener?.dispose();
-		if (this._domNode) {
-			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
-			this._domNode = undefined;
+		if (this._isDisposed) {
+			return;
 		}
+
+		this._onDidChangeContext.dispose();
+		this._parent.disposeContext(this._myContextId);
+		this._parentChangeListener.dispose();
+		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
+		this._isDisposed = true;
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
@@ -484,6 +490,76 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 }
 
+class OverlayContext implements IContext {
+
+	constructor(private parent: IContext, private overlay: ReadonlyMap<string, any>) { }
+
+	getValue<T>(key: string): T | undefined {
+		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getValue(key);
+	}
+}
+
+class OverlayContextKeyService implements IContextKeyService {
+
+	declare _serviceBrand: undefined;
+	private overlay: Map<string, any>;
+
+	get contextId(): number {
+		return this.parent.contextId;
+	}
+
+	get onDidChangeContext(): Event<IContextKeyChangeEvent> {
+		return this.parent.onDidChangeContext;
+	}
+
+	constructor(private parent: AbstractContextKeyService | OverlayContextKeyService, overlay: Iterable<[string, any]>) {
+		this.overlay = new Map(overlay);
+	}
+
+	bufferChangeEvents(callback: Function): void {
+		this.parent.bufferChangeEvents(callback);
+	}
+
+	createKey<T>(): IContextKey<T> {
+		throw new Error('Not supported.');
+	}
+
+	getContext(target: IContextKeyServiceTarget | null): IContext {
+		return new OverlayContext(this.parent.getContext(target), this.overlay);
+	}
+
+	getContextValuesContainer(contextId: number): IContext {
+		const parentContext = this.parent.getContextValuesContainer(contextId);
+		return new OverlayContext(parentContext, this.overlay);
+	}
+
+	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
+		const context = this.getContextValuesContainer(this.contextId);
+		const result = KeybindingResolver.contextMatchesRules(context, rules);
+		return result;
+	}
+
+	getContextKeyValue<T>(key: string): T | undefined {
+		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getContextKeyValue(key);
+	}
+
+	createScoped(): IContextKeyService {
+		throw new Error('Not supported.');
+	}
+
+	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IContextKeyService {
+		return new OverlayContextKeyService(this, overlay);
+	}
+
+	updateParent(): void {
+		throw new Error('Not supported.');
+	}
+
+	dispose(): void {
+		// noop
+	}
+}
+
 function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 	while (domNode) {
 		if (domNode.hasAttribute(KEYBINDING_CONTEXT_ATTR)) {
@@ -500,4 +576,17 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 
 CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
 	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
+});
+
+CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
+	const result: ContextKeyInfo[] = [];
+	const seen = new Set<string>();
+	for (let info of RawContextKey.all()) {
+		if (!seen.has(info.key)) {
+			seen.add(info.key);
+			result.push(info);
+		}
+	}
+	result.sort((a, b) => a.key.localeCompare(b.key));
+	console.log(JSON.stringify(result, undefined, 2));
 });
