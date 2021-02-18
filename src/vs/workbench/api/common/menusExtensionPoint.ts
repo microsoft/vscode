@@ -167,6 +167,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: true
 	},
 	{
+		key: 'testing/item/context',
+		id: MenuId.TestItem,
+		description: localize('testing.item.title', "The contributed test item menu"),
+		proposed: true
+	},
+	{
 		key: 'extension/context',
 		id: MenuId.ExtensionContext,
 		description: localize('menus.extensionContext', "The extension context menu")
