@@ -369,6 +369,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				return model.getCellByHandle(handle);
 			}).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
+			if (viewSelections.length) {
+				this.setFocus([viewSelections[0]]);
+			}
 		}));
 
 		const hiddenRanges = model.getHiddenRanges();
