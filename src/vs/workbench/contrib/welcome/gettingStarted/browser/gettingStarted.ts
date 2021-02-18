@@ -366,14 +366,20 @@ export class GettingStartedPage extends EditorPane {
 		assertIsDefined(this.container.querySelector('.product-name')).textContent = this.productService.nameLong;
 		this.registerDispatchListeners();
 
+		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
 
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			if (!this.currentCategory) {
 				throw Error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
 			}
-			this.setSlide('details');
 			this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
+			this.setSlide('details');
+		} else if (!someItemsComplete) {
+			this.currentCategory = assertIsDefined(this.gettingStartedCategories.find(category => category.content.type === 'items'));
+			this.editorInput.selectedCategory = this.currentCategory?.id;
+			this.buildCategorySlide(this.editorInput.selectedCategory);
+			this.setSlide('details');
 		} else {
 			this.setSlide('categories');
 		}
