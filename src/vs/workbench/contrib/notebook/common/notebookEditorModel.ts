@@ -14,7 +14,7 @@ import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapab
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
-import { IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -67,6 +67,20 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		};
 
 		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
+		this._register(this._fileService.onDidFilesChange(async e => {
+			if (this.isDirty() || !this.isResolved()) {
+				// skip when dirty or unresolved...
+				return;
+			}
+			if (!e.affects(this.resource, FileChangeType.UPDATED)) {
+				// no my file
+				return;
+			}
+			const stats = await this._resolveStats(this.resource);
+			if (stats && this._lastResolvedFileStat && stats.etag !== this._lastResolvedFileStat.etag) {
+				this.load({ forceReadFromDisk: true });
+			}
+		}));
 	}
 
 	isResolved(): this is IResolvedNotebookEditorModel {
@@ -148,7 +162,9 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
-			return this._loadFromProvider(undefined);
+			this._loadFromProvider(undefined);
+			assertType(this.isResolved());
+			return this;
 		}
 
 		if (this.isResolved()) {
@@ -161,17 +177,18 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
-		return this._loadFromProvider(backup?.meta?.backupId);
+		await this._loadFromProvider(backup?.meta?.backupId);
+		assertType(this.isResolved());
+		return this;
 	}
 
-	private async _loadFromProvider(backupId: string | undefined): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
+	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
 
 		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId);
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
 		if (this.isDisposed()) {
-			// todo@jrieken ugly... we have been disposed which means we cannot return anything...
-			return this as any;
+			return;
 		}
 
 		if (!this.notebook) {
@@ -219,28 +236,23 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			// UPDATE exitsing notebook with data that we have just fetched
 			this.notebook.metadata = data.data.metadata;
 			this.notebook.transientOptions = data.transientOptions;
-			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: data.data.cells.length, cells: data.data.cells }];
+			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this.notebook.cells.length, cells: data.data.cells }];
 			this.notebook.applyEdits(this.notebook.versionId, edits, true, undefined, () => undefined, undefined);
 		}
 
 		if (backupId) {
-			await this._backupFileService.discardBackup(this._workingCopyResource);
+			this._backupFileService.discardBackup(this._workingCopyResource);
 			this.setDirty(true);
 		} else {
 			this.setDirty(false);
 		}
-		assertType(this.isResolved());
-		return this;
 	}
 
-	private async _assertStat() {
+	private async _assertStat(): Promise<'overwrite' | 'revert' | 'none'> {
 		this._logService.debug('[notebook editor model] start assert stat');
 		const stats = await this._resolveStats(this.resource);
 		if (this._lastResolvedFileStat && stats && stats.mtime > this._lastResolvedFileStat.mtime) {
-			this._logService.debug(`[notebook editor model] noteboook file on disk is newer:
-LastResolvedStat: ${this._lastResolvedFileStat ? JSON.stringify(this._lastResolvedFileStat) : undefined}.
-Current stat: ${JSON.stringify(stats)}
-`);
+			this._logService.debug(`[notebook editor model] noteboook file on disk is newer:\nLastResolvedStat: ${this._lastResolvedFileStat ? JSON.stringify(this._lastResolvedFileStat) : undefined}.\nCurrent stat: ${JSON.stringify(stats)}`);
 			this._lastResolvedFileStat = stats;
 			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
 				const handle = this._notificationService.prompt(
@@ -308,11 +320,9 @@ Current stat: ${JSON.stringify(stats)}
 			if (!this.isResolved()) {
 				return;
 			}
-			const tokenSource = new CancellationTokenSource();
-			await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
+			await this._notebookService.save(this.notebook.viewType, this.notebook.uri, CancellationToken.None);
 			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true));
-			const newStats = await this._resolveStats(this.resource);
-			this._lastResolvedFileStat = newStats;
+			this._lastResolvedFileStat = await this._resolveStats(this.resource);
 			this.setDirty(false);
 		})()).then(() => {
 			return true;
@@ -337,11 +347,9 @@ Current stat: ${JSON.stringify(stats)}
 			return true;
 		}
 
-		const tokenSource = new CancellationTokenSource();
-		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
+		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, CancellationToken.None);
 		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true));
-		const newStats = await this._resolveStats(this.resource);
-		this._lastResolvedFileStat = newStats;
+		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 		this.setDirty(false);
 		return true;
 	}
