@@ -959,7 +959,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
 		const element = this.view.element(viewIndex);
 
-		if (!element.editorAttached) {
+		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
+		if (element.editState === CellEditState.Editing && !element.editorAttached) {
 			return getEditorAttachedPromise(element);
 		}
 
