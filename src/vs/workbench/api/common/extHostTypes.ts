@@ -2443,33 +2443,33 @@ export class InlineValueText implements vscode.InlineValueText {
 	readonly range: Range;
 	readonly text: string;
 
-	constructor(text: string, range: Range) {
-		this.text = text;
+	constructor(range: Range, text: string) {
 		this.range = range;
+		this.text = text;
 	}
 }
 
 @es5ClassCompat
 export class InlineValueVariableLookup implements vscode.InlineValueVariableLookup {
-	readonly variableName: string;
-	readonly caseSensitiveLookup: boolean;
 	readonly range: Range;
+	readonly variableName?: string;
+	readonly caseSensitiveLookup: boolean;
 
-	constructor(variableName: string, range: Range, caseSensitiveLookup: boolean) {
+	constructor(range: Range, variableName?: string, caseSensitiveLookup: boolean = true) {
+		this.range = range;
 		this.variableName = variableName;
 		this.caseSensitiveLookup = caseSensitiveLookup;
-		this.range = range;
 	}
 }
 
 @es5ClassCompat
 export class InlineValueEvaluatableExpression implements vscode.InlineValueEvaluatableExpression {
-	readonly expression: string;
 	readonly range: Range;
+	readonly expression?: string;
 
-	constructor(expression: string, range: Range) {
-		this.expression = expression;
+	constructor(range: Range, expression?: string) {
 		this.range = range;
+		this.expression = expression;
 	}
 }
 

@@ -855,21 +855,21 @@ export namespace InlineValue {
 		if (inlineValue instanceof types.InlineValueText) {
 			return <modes.InlineValueText>{
 				type: 'text',
-				text: inlineValue.text,
-				range: Range.from(inlineValue.range)
+				range: Range.from(inlineValue.range),
+				text: inlineValue.text
 			};
 		} else if (inlineValue instanceof types.InlineValueVariableLookup) {
 			return <modes.InlineValueVariableLookup>{
 				type: 'variable',
+				range: Range.from(inlineValue.range),
 				variableName: inlineValue.variableName,
-				caseSensitiveLookup: inlineValue.caseSensitiveLookup,
-				range: Range.from(inlineValue.range)
+				caseSensitiveLookup: inlineValue.caseSensitiveLookup
 			};
 		} else if (inlineValue instanceof types.InlineValueEvaluatableExpression) {
 			return <modes.InlineValueExpression>{
 				type: 'expression',
-				expression: inlineValue.expression,
-				range: Range.from(inlineValue.range)
+				range: Range.from(inlineValue.range),
+				expression: inlineValue.expression
 			};
 		} else {
 			throw new Error(`Unknown 'InlineValue' type`);
@@ -880,19 +880,19 @@ export namespace InlineValue {
 		switch (inlineValue.type) {
 			case 'text':
 				return <vscode.InlineValueText>{
-					text: inlineValue.text,
-					range: Range.to(inlineValue.range)
+					range: Range.to(inlineValue.range),
+					text: inlineValue.text
 				};
 			case 'variable':
 				return <vscode.InlineValueVariableLookup>{
+					range: Range.to(inlineValue.range),
 					variableName: inlineValue.variableName,
-					caseSensitiveLookup: inlineValue.caseSensitiveLookup,
-					range: Range.to(inlineValue.range)
+					caseSensitiveLookup: inlineValue.caseSensitiveLookup
 				};
 			case 'expression':
 				return <vscode.InlineValueEvaluatableExpression>{
-					expression: inlineValue.expression,
-					range: Range.to(inlineValue.range)
+					range: Range.to(inlineValue.range),
+					expression: inlineValue.expression
 				};
 		}
 	}

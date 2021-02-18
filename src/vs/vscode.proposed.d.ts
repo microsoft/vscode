@@ -773,7 +773,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An open ended information bag passed to the inline value provider.
+	 * A value-object that contains additional information when requesting inline values from a InlineValuesProvider.
 	 * A minimal context containes just the document location where the debugger has stopped.
 	 * Additional optional information might be scope information or variables and their values.
 	 */
@@ -801,74 +801,81 @@ declare module 'vscode' {
 	 */
 	export class InlineValueText {
 		/**
+		 * The document range for which the inline value applies.
+		 */
+		readonly range: Range;
+		/**
 		 * The text of the inline value.
 		 */
 		readonly text: string;
 		/**
-		 * The range of the inline value.
-		 */
-		readonly range: Range;
-		/**
 		 * Creates a new InlineValueText object.
 		 *
-		 * @param text The value to be shown for the line.
 		 * @param range The document line where to show the inline value.
+		 * @param text The value to be shown for the line.
 		 */
-		constructor(text: string, range: Range);
+		constructor(range: Range, text: string);
 	}
 
 	/**
 	 * Provide inline value through a variable lookup.
+	 * If only a range is specified, the variable name will be extracted from the underlying document.
+	 * An optional variable name can be used to override the extracted name.
 	 */
 	export class InlineValueVariableLookup {
 		/**
-		 * The name of the variable to look up.
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the variable name from the underlying document.
 		 */
-		readonly variableName: string;
+		readonly range: Range;
+		/**
+		 * If specified the name of the variable to look up.
+		 */
+		readonly variableName?: string;
 		/**
 		 * How to perform the lookup.
 		 */
 		readonly caseSensitiveLookup: boolean;
 		/**
-		 * The range of the inline value.
-		 */
-		readonly range: Range;
-		/**
 		 * Creates a new InlineValueVariableLookup object.
 		 *
-		 * @param variableName The name of the variable to look up.
 		 * @param range The document line where to show the inline value.
+		 * @param variableName The name of the variable to look up.
 		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
 		 */
-		constructor(variableName: string, range: Range, caseSensitiveLookup?: boolean);
+		constructor(range: Range, variableName?: string, caseSensitiveLookup?: boolean);
 	}
 
 	/**
-	 * Provide inline value through an expression evaluation.
+	 * Provide an inline value through an expression evaluation.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
 	 */
 	export class InlineValueEvaluatableExpression {
 		/**
-		 * The expression to evaluate.
-		 */
-		readonly expression: string;
-		/**
-		 * The range of the inline value.
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the evaluatable expression from the underlying document.
 		 */
 		readonly range: Range;
 		/**
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+		/**
 		 * Creates a new InlineValueEvaluatableExpression object.
 		 *
-		 * @param expression The expression to evaluate.
-		 * @param range The document line where to show the inline value.
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
 		 */
-		constructor(expression: string, range: Range);
+		constructor(range: Range, expression?: string);
 	}
 
 	export namespace languages {
 
 		/**
-		 * Register a provider that returns inline values for text documents.
-		 * If debugging has stopped VS Code shows inline values in the editor at the end of lines.
+		 * Register a provider that returns data for the debugger's 'inline value' feature.
+		 * Whenever the generic VS Code debugger has stopped in a source file, providers registered for the language of the file
+		 * are called to return textual data that will be shown in the editor at the end of lines.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
 		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
