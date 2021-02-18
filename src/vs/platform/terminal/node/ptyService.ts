@@ -69,17 +69,18 @@ export class PtyService extends Disposable implements IPtyService {
 		this._ptys.clear();
 	}
 
-	async reconnectTerminalProcess(id: number): Promise<number> {
+	async fetchPersistentTerminalProcess(id: number): Promise<number> {
 		await this._throwIfNoPty(id);
+		this._logService.info('fetched process to reconnect', id);
 		return id;
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		const id = ++persistentTerminalId;
+		this._logService.info('creating process', id);
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
-		process.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		process.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
 		if (process.onProcessOverrideDimensions) {
 			process.onProcessOverrideDimensions(event => this._onProcessOverrideDimensions.fire({ id, event }));
@@ -94,6 +95,7 @@ export class PtyService extends Disposable implements IPtyService {
 			this._ptys.delete(id);
 		});
 		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
+		persistentTerminalProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		this._ptys.set(id, persistentTerminalProcess);
 		return id;
 	}
@@ -186,10 +188,10 @@ export class PtyService extends Disposable implements IPtyService {
 		return pty;
 	}
 
-	private _orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
-		const persistentTerminalProcess = this._throwIfNoPty(args.id);
-		persistentTerminalProcess.orphanQuestionReply();
-	}
+	// private _orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
+	// 	const persistentTerminalProcess = this._throwIfNoPty(args.id);
+	// 	persistentTerminalProcess.orphanQuestionReply();
+	// }
 
 	onTerminalProcessEvent(args: IOnTerminalProcessEventArguments): Event<IPtyHostProcessEvent> {
 		const persistentTerminalProcess = this._throwIfNoPty(args.id);
@@ -211,6 +213,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _recorder: TerminalRecorder;
 	private _seenFirstListener: boolean;
+	private _isStarted: boolean = false;
 
 	private _orphanQuestionBarrier: AutoOpenBarrier | null;
 	private _orphanQuestionReplyTime: number;
@@ -219,6 +222,8 @@ export class PersistentTerminalProcess extends Disposable {
 	private _disconnectRunner2: RunOnceScheduler;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
 	public get onProcessReplay(): Event<IPtyHostProcessReplayEvent> { return this._onProcessReplay.event; }
+	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
+	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	public readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
@@ -301,7 +306,7 @@ export class PersistentTerminalProcess extends Disposable {
 				cwd: e.cwd
 			};
 			this._events.fire(ev);
-			// this.triggerReplay();
+			this.triggerReplay();
 		}));
 
 		this._register(this.onOrphanQuestionReply((event: IOrphanQuestionReplyArgs) => {
@@ -321,9 +326,12 @@ export class PersistentTerminalProcess extends Disposable {
 			this._events.fire(ev);
 		}));
 
+		this._register(this._terminalProcess.onProcessReady(e => this._onProcessReady.fire(e)));
+
 		// Buffer data events to reduce the amount of messages going to the renderer
 		this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessData(e => {
+			// console.trace(`data ${e}`);
 			this._recorder.recordData(e);
 		}));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
@@ -348,8 +356,14 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
-		await this.triggerReplay();
-		await this._terminalProcess.start();
+		if (!this._isStarted) {
+			await this._terminalProcess.start();
+			this._isStarted = true;
+		} else {
+			// TODO: Fix me
+			this._onProcessReady.fire({ pid: -1, cwd: '' });
+		}
+		// TODO: Pass back launch error
 		return { persistentTerminalId: this._persistentTerminalId };
 	}
 

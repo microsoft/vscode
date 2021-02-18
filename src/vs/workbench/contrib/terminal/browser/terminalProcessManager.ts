@@ -190,7 +190,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
 				if (shellLaunchConfig.attachPersistentTerminal) {
-					this._process = await this._terminalInstanceService.reconnectTerminalProcess(shellLaunchConfig.attachPersistentTerminal.id);
+					this._process = await this._terminalInstanceService.fetchPersistentTerminalProcess(shellLaunchConfig.attachPersistentTerminal.id);
 				} else {
 					shellLaunchConfig.flowControl = false;
 					this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);

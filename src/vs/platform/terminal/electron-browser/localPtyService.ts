@@ -110,10 +110,12 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+		this._logService.info('LocalPtyService.createProcess');
 		return this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
 	}
-	reconnectTerminalProcess(id: number): Promise<number> {
-		return this._proxy.reconnectTerminalProcess(id);
+	fetchPersistentTerminalProcess(id: number): Promise<number> {
+		this._logService.info('LocalPtyService.fetchPersistentTerminalProcess');
+		return this._proxy.fetchPersistentTerminalProcess(id);
 	}
 	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
 		return this._proxy.start(id);
@@ -138,9 +140,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
-	}
-	triggerReplay(id: number): Promise<void> {
-		return this._proxy.triggerReplay(id);
 	}
 	orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
 		return this._proxy.orphanQuestionReply(args);

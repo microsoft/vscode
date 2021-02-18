@@ -171,7 +171,7 @@ export interface IPtyService {
 		workspaceName: string
 	): Promise<number>;
 
-	reconnectTerminalProcess(id: number): Promise<number>;
+	fetchPersistentTerminalProcess(id: number): Promise<number>;
 
 	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined>;
 
@@ -193,8 +193,6 @@ export interface IPtyService {
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 
 	orphanQuestionReply(args: IOrphanQuestionReplyArgs): void;
-
-	triggerReplay(id: number): Promise<void>;
 }
 
 export interface IShellLaunchConfig {
