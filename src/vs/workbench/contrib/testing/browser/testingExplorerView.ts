@@ -294,11 +294,16 @@ export class TestingExplorerViewModel extends Disposable {
 				filter: this.filter,
 			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 
-		this._register(Event.any(
-			filterState.currentDocumentOnly.onDidChange,
-			filterState.text.onDidChange,
-			filterState.stateFilter.onDidChange,
-		)(this.tree.refilter, this.tree));
+		this._register(filterState.currentDocumentOnly.onDidChange(() => {
+			if (!filterState.currentDocumentOnly.value) {
+				this.filter.filterToUri(undefined);
+			} else if (editorService.activeEditor?.resource && this.projection.hasTestInDocument(editorService.activeEditor.resource)) {
+				this.filter.filterToUri(editorService.activeEditor.resource);
+			}
+
+			this.tree.refilter();
+		}));
+
 		this._register(editorService.onDidActiveEditorChange(() => {
 			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
 				if (this.projection.hasTestInDocument(editorService.activeEditor.resource)) {
@@ -307,6 +312,11 @@ export class TestingExplorerViewModel extends Disposable {
 				}
 			}
 		}));
+
+		this._register(Event.any(
+			filterState.text.onDidChange,
+			filterState.stateFilter.onDidChange,
+		)(this.tree.refilter, this.tree));
 
 		this._register(this.tree);
 
@@ -593,8 +603,8 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 		}
 	}
 
-	public filterToUri(uri: URI) {
-		this._filterToUri = uri.toString();
+	public filterToUri(uri: URI | undefined) {
+		this._filterToUri = uri?.toString();
 	}
 
 	/**
