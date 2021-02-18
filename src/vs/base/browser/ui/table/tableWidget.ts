@@ -9,7 +9,7 @@ import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, 
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { $, append, clearNode, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -142,11 +142,15 @@ export interface ITableStyles extends IListStyles { }
 
 export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
+	private static InstanceCount = 0;
+	readonly domId = `table_id_${++Table.InstanceCount}`;
+
 	readonly domNode: HTMLElement;
 	private splitview: SplitView;
 	private list: List<TRow>;
 	private columnLayoutDisposable: IDisposable;
 	private cachedHeight: number = 0;
+	private styleElement: HTMLStyleElement;
 
 	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
 	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
@@ -184,7 +188,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		renderers: ITableRenderer<TCell, unknown>[],
 		_options?: ITableOptions<TRow>
 	) {
-		this.domNode = append(container, $('.monaco-table'));
+		this.domNode = append(container, $(`.monaco-table.${this.domId}`));
 
 		const headers = columns.map((c, i) => new ColumnHeader(c, i));
 		const descriptor: ISplitViewDescriptor = {
@@ -207,6 +211,9 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 		this.columnLayoutDisposable = Event.any(...headers.map(h => h.onDidLayout))
 			(([index, size]) => renderer.layoutColumn(index, size));
+
+		this.styleElement = createStyleSheet(this.domNode);
+		this.style({});
 	}
 
 	updateOptions(options: ITableOptionsUpdate): void {
@@ -251,6 +258,14 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	}
 
 	style(styles: ITableStyles): void {
+		const content: string[] = [];
+
+		content.push(`.monaco-table.${this.domId} > .monaco-split-view2 .monaco-sash.vertical::before {
+			top: ${this.virtualDelegate.headerRowHeight + 1}px;
+			height: calc(100% - ${this.virtualDelegate.headerRowHeight}px);
+		}`);
+
+		this.styleElement.textContent = content.join('\n');
 		this.list.style(styles);
 	}
 

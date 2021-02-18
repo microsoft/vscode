@@ -831,6 +831,14 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
 
+		if (styles.tableColumnsBorder) {
+			content.push(`
+				.monaco-table:hover > .monaco-split-view2,
+				.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+					border-color: ${styles.tableColumnsBorder};
+			}`);
+		}
+
 		this.styleElement.textContent = content.join('\n');
 	}
 }
@@ -886,6 +894,7 @@ export interface IListStyles {
 	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
 	treeIndentGuidesStroke?: Color;
+	tableColumnsBorder?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -897,7 +906,8 @@ const defaultStyles: IListStyles = {
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
 	listDropBackground: Color.fromHex('#383B3D'),
-	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
+	treeIndentGuidesStroke: Color.fromHex('#a9a9a9'),
+	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2)
 };
 
 const DefaultOptions: IListOptions<any> = {
