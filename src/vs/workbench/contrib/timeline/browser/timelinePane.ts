@@ -1240,18 +1240,18 @@ class TimelinePaneCommands extends Disposable {
 	}
 
 	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
-		const scoped = this.contextKeyService.createScoped();
-		scoped.createKey('view', this.pane.id);
-		scoped.createKey(context.key, context.value);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['view', this.pane.id],
+			[context.key, context.value],
+		]);
 
-		const menu = this.menuService.createMenu(menuId, scoped);
+		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		menu.dispose();
-		scoped.dispose();
 
 		return result;
 	}

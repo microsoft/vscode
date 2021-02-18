@@ -247,6 +247,9 @@ jobs:
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
 
+      - name: Run Trusted Types Checks
+        run: yarn tsec-compile-check
+
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
 

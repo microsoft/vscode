@@ -87,6 +87,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		this._register(this.model.onCandidatesChanged(() => this._onForwardedPortsChanged.fire()));
 		this._input = {
 			label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
+			wideLabel: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
 			tunnelType: TunnelType.Add,
 			remoteHost: 'localhost',
 			remotePort: 0,
@@ -265,14 +266,16 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
 		const isWide = templateData.container.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.classList.contains('wide');
 		const description = isWide ? node.wideDescription : node.description;
-		const label = node.label + (description ? (' - ' + description) : '');
-		templateData.iconLabel.setLabel(node.label, description, { title: node instanceof TunnelItem ? node.tooltip : label, extraClasses: ['tunnel-view-label'] });
+		const label = isWide ? node.wideLabel : node.label;
+		const tooltip = label + (description ? (' - ' + description) : '');
+		templateData.iconLabel.setLabel(label, description, { title: node instanceof TunnelItem ? node.tooltip : tooltip, extraClasses: ['tunnel-view-label'] });
 
 		templateData.actionBar.context = node;
-		const contextKeyService = this._register(this.contextKeyService.createScoped());
-		contextKeyService.createKey('view', this.viewId);
-		contextKeyService.createKey('tunnelType', node.tunnelType);
-		contextKeyService.createKey('tunnelCloseable', node.closeable);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['view', this.viewId],
+			['tunnelType', node.tunnelType],
+			['tunnelCloseable', node.closeable],
+		]);
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		const menu = disposableStore.add(this.menuService.createMenu(MenuId.TunnelInline, contextKeyService));
@@ -293,7 +296,6 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		}
 
 		menu.dispose();
-		contextKeyService.dispose();
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
@@ -434,14 +436,23 @@ class TunnelItem implements ITunnelItem {
 		public privacy?: TunnelPrivacy,
 		private remoteExplorerService?: IRemoteExplorerService
 	) { }
-	get label(): string {
-		if (this.name) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", this.name);
-		} else if (this.localAddress) {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel1', "{0} \u2192 {1}", this.remotePort, TunnelItem.compactLongAddress(this.localAddress));
+
+	private static getLabel(name: string | undefined, localAddress: string | undefined, remotePort: number, isWide: boolean = false): string {
+		if (name) {
+			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", name);
+		} else if (localAddress) {
+			return nls.localize('remote.tunnelsView.forwardedPortLabel1', "{0} \u2192 {1}", remotePort, isWide ? localAddress : TunnelItem.compactLongAddress(localAddress));
 		} else {
-			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}", this.remotePort);
+			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}", remotePort);
 		}
+	}
+
+	get label(): string {
+		return TunnelItem.getLabel(this.name, this.localAddress, this.remotePort);
+	}
+
+	get wideLabel(): string {
+		return TunnelItem.getLabel(this.name, this.localAddress, this.remotePort, true);
 	}
 
 	private static compactLongAddress(address: string): string {
@@ -475,7 +486,7 @@ class TunnelItem implements ITunnelItem {
 		const description: string[] = [];
 
 		if (item.name && item.localAddress) {
-			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", item.remotePort, TunnelItem.compactLongAddress(item.localAddress)));
+			description.push(nls.localize('remote.tunnelsView.forwardedPortDescription0', "{0} \u2192 {1}", item.remotePort, isWide ? item.localAddress : TunnelItem.compactLongAddress(item.localAddress)));
 		}
 
 		if (item.runningProcess) {
@@ -598,10 +609,8 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
 		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
 
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
-		scopedContextKeyService.createKey('view', TunnelPanel.ID);
-
-		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, scopedContextKeyService));
+		const overlayContextKeyService = this._register(this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]));
+		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
@@ -820,7 +829,7 @@ namespace LabelTunnelAction {
 					remoteExplorerService.setEditable(context, {
 						onFinish: async (value, success) => {
 							if (success) {
-								remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
+								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 							}
 							remoteExplorerService.setEditable(context, null);
 							resolve(success ? { port: context.remotePort, label: value } : undefined);

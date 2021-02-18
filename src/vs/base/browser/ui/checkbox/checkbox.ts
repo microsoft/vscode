@@ -19,6 +19,7 @@ export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly icon?: CSSIcon;
 	readonly title: string;
 	readonly isChecked: boolean;
+	readonly notFocusable?: boolean;
 }
 
 export interface ICheckboxStyles {
@@ -51,7 +52,8 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		this.checkbox = new Checkbox({
 			actionClassName: this._action.class,
 			isChecked: this._action.checked,
-			title: this._action.label
+			title: this._action.label,
+			notFocusable: true
 		});
 		this.disposables.add(this.checkbox);
 		this.disposables.add(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked, this));
@@ -113,7 +115,9 @@ export class Checkbox extends Widget {
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
 		this.domNode.classList.add(...classes);
-		this.domNode.tabIndex = 0;
+		if (!this._opts.notFocusable) {
+			this.domNode.tabIndex = 0;
+		}
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.setAttribute('aria-label', this._opts.title);

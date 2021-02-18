@@ -38,19 +38,19 @@ declare module 'vscode' {
 	*/
 	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been added.
 		*/
-		readonly added: ReadonlyArray<string>;
+		readonly added: ReadonlyArray<AuthenticationSession>;
 
 		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been removed.
 		 */
-		readonly removed: ReadonlyArray<string>;
+		readonly removed: ReadonlyArray<AuthenticationSession>;
 
 		/**
-		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been changed.
 		 */
-		readonly changed: ReadonlyArray<string>;
+		readonly changed: ReadonlyArray<AuthenticationSession>;
 	}
 
 	/**
@@ -64,23 +64,28 @@ declare module 'vscode' {
 		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 
 		/**
-		 * Returns an array of current sessions.
+		 * Get a list of sessions.
+		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
+		 * these permissions, otherwise all sessions should be returned.
+		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
+		 * @param scopes A list of scopes, permissions, that the new session should be created with.
+		 * @returns A promise that resolves to an authentication session.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		login(scopes: string[]): Thenable<AuthenticationSession>;
+		createSession(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
-		 * @param sessionId The session id to log out of
+		 * @param sessionId The id of the session to remove.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		logout(sessionId: string): Thenable<void>;
+		removeSession(sessionId: string): Thenable<void>;
 	}
 
 	/**
@@ -991,7 +996,7 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
-	export enum CellKind {
+	export enum NotebookCellKind {
 		Markdown = 1,
 		Code = 2
 	}
@@ -1008,6 +1013,8 @@ declare module 'vscode' {
 		Idle = 2
 	}
 
+	// TODO@API
+	// make this a class, allow modified using with-pattern
 	export interface NotebookCellMetadata {
 		/**
 		 * Controls whether a cell's editor is editable/readonly.
@@ -1015,47 +1022,10 @@ declare module 'vscode' {
 		editable?: boolean;
 
 		/**
-		 * Controls if the cell is executable.
-		 * This metadata is ignored for markdown cell.
-		 */
-		runnable?: boolean;
-
-		/**
 		 * Controls if the cell has a margin to support the breakpoint UI.
 		 * This metadata is ignored for markdown cell.
 		 */
 		breakpointMargin?: boolean;
-
-		/**
-		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
-		 * Defaults to true.
-		 */
-		hasExecutionOrder?: boolean;
-
-		/**
-		 * The order in which this cell was executed.
-		 */
-		executionOrder?: number;
-
-		/**
-		 * A status message to be shown in the cell's status bar
-		 */
-		statusMessage?: string;
-
-		/**
-		 * The cell's current run state
-		 */
-		runState?: NotebookCellRunState;
-
-		/**
-		 * If the cell is running, the time at which the cell started running
-		 */
-		runStartTime?: number;
-
-		/**
-		 * The total duration of the cell's last run
-		 */
-		lastRunDuration?: number;
 
 		/**
 		 * Whether a code cell's editor is collapsed
@@ -1078,15 +1048,18 @@ declare module 'vscode' {
 		readonly index: number;
 		readonly notebook: NotebookDocument;
 		readonly uri: Uri;
-		readonly cellKind: CellKind;
+		readonly cellKind: NotebookCellKind;
 		readonly document: TextDocument;
 		readonly language: string;
+		readonly outputs: readonly NotebookCellOutput[];
+		readonly metadata: NotebookCellMetadata;
 		/** @deprecated use WorkspaceEdit.replaceCellOutput */
-		outputs: CellOutput[];
+		// outputs: CellOutput[];
 		// readonly outputs2: NotebookCellOutput[];
 		/** @deprecated use WorkspaceEdit.replaceCellMetadata */
-		metadata: NotebookCellMetadata;
+		// metadata: NotebookCellMetadata;
 	}
+
 
 	export interface NotebookDocumentMetadata {
 		/**
@@ -1096,29 +1069,10 @@ declare module 'vscode' {
 		editable?: boolean;
 
 		/**
-		 * Controls whether the full notebook can be run at once.
-		 * Defaults to true
-		 */
-		runnable?: boolean;
-
-		/**
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
 		 * Defaults to true.
 		 */
 		cellEditable?: boolean;
-
-		/**
-		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
-		 * Defaults to true.
-		 */
-		cellRunnable?: boolean;
-
-		/**
-		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
-		 * Defaults to true.
-		 */
-		cellHasExecutionOrder?: boolean;
-
 		displayOrder?: GlobPattern[];
 
 		/**
@@ -1127,20 +1081,10 @@ declare module 'vscode' {
 		custom?: { [key: string]: any; };
 
 		/**
-		 * The document's current run state
-		 */
-		runState?: NotebookRunState;
-
-		/**
 		 * Whether the document is trusted, default to true
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
 		trusted?: boolean;
-
-		/**
-		 * Languages the document supports
-		 */
-		languages?: string[];
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1161,15 +1105,17 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly version: number;
 		readonly fileName: string;
+		// todo@API should we really expose this?
 		readonly viewType: string;
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
 		readonly contentOptions: NotebookDocumentContentOptions;
-		languages: string[];
-		metadata: NotebookDocumentMetadata;
+		readonly metadata: NotebookDocumentMetadata;
 	}
 
+	// todo@API maybe have a NotebookCellPosition sibling
+	// todo@API should be a class
 	export interface NotebookCellRange {
 		readonly start: number;
 		/**
@@ -1241,18 +1187,6 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 	}
 
-	// todo@API stale?
-	export interface NotebookOutputSelector {
-		mimeTypes?: string[];
-	}
-
-	// todo@API stale?
-	export interface NotebookRenderRequest {
-		output: CellDisplayOutput;
-		mimeType: string;
-		outputId: string;
-	}
-
 	export interface NotebookDocumentMetadataChangeEvent {
 		readonly document: NotebookDocument;
 	}
@@ -1271,17 +1205,6 @@ declare module 'vscode' {
 		 */
 		readonly document: NotebookDocument;
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
-	}
-
-	// todo@API stale?
-	export interface NotebookCellMoveEvent {
-
-		/**
-		 * The affected document.
-		 */
-		readonly document: NotebookDocument;
-		readonly index: number;
-		readonly newIndex: number;
 	}
 
 	export interface NotebookCellOutputsChangeEvent {
@@ -1322,17 +1245,16 @@ declare module 'vscode' {
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCellData {
-		readonly cellKind: CellKind;
+		readonly cellKind: NotebookCellKind;
 		readonly source: string;
 		readonly language: string;
 		// todo@API maybe use a separate data type?
-		readonly outputs: CellOutput[];
+		readonly outputs: NotebookCellOutput[];
 		readonly metadata: NotebookCellMetadata | undefined;
 	}
 
 	export interface NotebookData {
 		readonly cells: NotebookCellData[];
-		readonly languages: string[];
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
@@ -1384,6 +1306,8 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
+		// todo@API should we really support to pass the viewType? We do NOT support
+		// to open the same file with different viewTypes at the same time
 		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
@@ -1409,6 +1333,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		// TODO@API add overload for just a URI
 		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 
@@ -1416,86 +1341,29 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookCellOutput
 
-	export enum CellOutputKind {
-		Text = 1,
-		Error = 2,
-		Rich = 3
-	}
-
-	export interface CellStreamOutput {
-		outputKind: CellOutputKind.Text;
-		text: string;
-	}
-
-	export interface CellErrorOutput {
-		outputKind: CellOutputKind.Error;
-		/**
-		 * Exception Name
-		 */
-		ename: string;
-		/**
-		 * Exception Value
-		 */
-		evalue: string;
-		/**
-		 * Exception call stack
-		 */
-		traceback: string[];
-	}
-
-	export interface NotebookCellOutputMetadata {
-		/**
-		 * Additional attributes of a cell metadata.
-		 */
-		custom?: { [key: string]: any; };
-	}
-
-	export interface CellDisplayOutput {
-		outputKind: CellOutputKind.Rich;
-		/**
-		 * { mime_type: value }
-		 *
-		 * Example:
-		 * ```json
-		 * {
-		 *   "outputKind": vscode.CellOutputKind.Rich,
-		 *   "data": {
-		 *      "text/html": [
-		 *          "<h1>Hello</h1>"
-		 *       ],
-		 *      "text/plain": [
-		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
-		 *      ]
-		 *   }
-		 * }
-		 */
-		data: { [key: string]: any; };
-
-		readonly metadata?: NotebookCellOutputMetadata;
-	}
-
-	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
-
+	// code specific mime types
+	// application/x.notebook.error-traceback
+	// application/x.notebook.stream
 	export class NotebookCellOutputItem {
+
+		// todo@API
+		// add factory functions for common mime types
+		// static textplain(value:string): NotebookCellOutputItem;
+		// static errortrace(value:any): NotebookCellOutputItem;
 
 		readonly mime: string;
 		readonly value: unknown;
-		readonly metadata?: Record<string, string | number | boolean>;
+		readonly metadata?: Record<string, string | number | boolean | unknown>;
 
-		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
+		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean | unknown>);
 	}
 
 	// @jrieken
 	//TODO@API add execution count to cell output?
 	export class NotebookCellOutput {
-
 		readonly id: string;
 		readonly outputs: NotebookCellOutputItem[];
-
-		constructor(outputs: NotebookCellOutputItem[]);
-
-		//TODO@jrieken HACK to workaround dependency issues...
-		toJSON(): any;
+		constructor(outputs: NotebookCellOutputItem[], id?: string);
 	}
 
 	//#endregion
@@ -1504,22 +1372,24 @@ declare module 'vscode' {
 
 	export interface WorkspaceEdit {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
+
+		// todo@API use NotebookCellRange
 		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 
-		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
-		appendNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutput(uri: Uri, index: number, outputs: NotebookCellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
 
 		// TODO@api
 		// https://jupyter-protocol.readthedocs.io/en/latest/messaging.html#update-display-data
-		// replaceNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
-		// appendNotebookCellOutput(uri: Uri, index: number, outputId:string, outputs: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
+		appendNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
 		replaceMetadata(value: NotebookDocumentMetadata): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
+		replaceCellOutput(index: number, outputs: NotebookCellOutput[]): void;
 		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 	}
 
@@ -1612,6 +1482,98 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
+	export interface NotebookDocumentMetadata {
+
+		/**
+		 * Controls whether the full notebook can be run at once.
+		 * Defaults to true
+		 */
+		// todo@API infer from kernel
+		// todo@API remove
+		runnable?: boolean;
+
+		/**
+		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
+		 * Defaults to true.
+		 */
+		cellRunnable?: boolean;
+
+		/**
+		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
+		 * Defaults to true.
+		 */
+		cellHasExecutionOrder?: boolean;
+
+		/**
+		 * The document's current run state
+		 */
+		runState?: NotebookRunState;
+	}
+
+	// todo@API use the NotebookCellExecution-object as a container to model and enforce
+	// the flow of a cell execution
+
+	// kernel -> execute_info
+	// ext -> createNotebookCellExecution(cell)
+	// kernel -> done
+	// exec.dispose();
+
+	// export interface NotebookCellExecution {
+	// 	dispose(): void;
+	// 	clearOutput(): void;
+	// 	appendOutput(out: NotebookCellOutput): void;
+	// 	replaceOutput(out: NotebookCellOutput): void;
+	//  appendOutputItems(output:string, items: NotebookCellOutputItem[]):void;
+	//  replaceOutputItems(output:string, items: NotebookCellOutputItem[]):void;
+	// }
+
+	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellExecution;
+	// export const onDidStartNotebookCellExecution: Event<any>;
+	// export const onDidStopNotebookCellExecution: Event<any>;
+
+	export interface NotebookCellMetadata {
+
+		/**
+		 * Controls if the cell is executable.
+		 * This metadata is ignored for markdown cell.
+		 */
+		// todo@API infer from kernel
+		runnable?: boolean;
+
+		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder?: boolean;
+
+		/**
+		 * The order in which this cell was executed.
+		 */
+		executionOrder?: number;
+
+		/**
+		 * A status message to be shown in the cell's status bar
+		 */
+		// todo@API duplicates status bar API
+		statusMessage?: string;
+
+		/**
+		 * The cell's current run state
+		 */
+		runState?: NotebookCellRunState;
+
+		/**
+		 * If the cell is running, the time at which the cell started running
+		 */
+		runStartTime?: number;
+
+		/**
+		 * The total duration of the cell's last run
+		 */
+		// todo@API depends on having output
+		lastRunDuration?: number;
+	}
+
 	export interface NotebookKernel {
 		readonly id?: string;
 		label: string;
@@ -1619,6 +1581,15 @@ declare module 'vscode' {
 		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
+
+		// TODO@API control runnable state of cell
+		/**
+		 * languages supported by kernel
+		 * - first is preferred
+		 * - `undefined` means all languages available in the editor
+		 */
+		supportedLanguages?: string[];
+
 		// @roblourens
 		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
 		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741

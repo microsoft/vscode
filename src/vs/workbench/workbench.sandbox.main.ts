@@ -66,7 +66,8 @@ import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timer
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { ISharedProcessService, SharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { SharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
 
 registerSingleton(ITimerService, TimerService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);

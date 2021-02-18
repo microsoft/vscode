@@ -10,8 +10,8 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { URI } from 'vs/base/common/uri';
 
-export function isThenable<T>(obj: any): obj is Promise<T> {
-	return obj && typeof (<Promise<any>>obj).then === 'function';
+export function isThenable<T>(obj: unknown): obj is Promise<T> {
+	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
 }
 
 export interface CancelablePromise<T> extends Promise<T> {
@@ -166,10 +166,10 @@ export class Throttler {
 		this.activePromise = promiseFactory();
 
 		return new Promise((resolve, reject) => {
-			this.activePromise!.then((result: any) => {
+			this.activePromise!.then((result: T) => {
 				this.activePromise = null;
 				resolve(result);
-			}, (err: any) => {
+			}, (err: unknown) => {
 				this.activePromise = null;
 				reject(err);
 			});
@@ -179,7 +179,7 @@ export class Throttler {
 
 export class Sequencer {
 
-	private current: Promise<any> = Promise.resolve(null);
+	private current: Promise<unknown> = Promise.resolve(null);
 
 	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
 		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
@@ -188,7 +188,7 @@ export class Sequencer {
 
 export class SequencerByKey<TKey> {
 
-	private promiseMap = new Map<TKey, Promise<any>>();
+	private promiseMap = new Map<TKey, Promise<unknown>>();
 
 	queue<T>(key: TKey, promiseTask: ITask<Promise<T>>): Promise<T> {
 		const runningPromise = this.promiseMap.get(key) ?? Promise.resolve();
@@ -321,7 +321,7 @@ export class ThrottledDelayer<T> {
 	}
 
 	trigger(promiseFactory: ITask<Promise<T>>, delay?: number): Promise<T> {
-		return this.delayer.trigger(() => this.throttler.queue(promiseFactory), delay) as any as Promise<T>;
+		return this.delayer.trigger(() => this.throttler.queue(promiseFactory), delay) as unknown as Promise<T>;
 	}
 
 	isTriggered(): boolean {
@@ -488,7 +488,7 @@ export function firstParallel<T>(promiseList: Promise<T>[], shouldStop: (t: T) =
 interface ILimitedTaskFactory<T> {
 	factory: ITask<Promise<T>>;
 	c: (value: T | Promise<T>) => void;
-	e: (error?: any) => void;
+	e: (error?: unknown) => void;
 }
 
 /**
@@ -667,7 +667,7 @@ export class IntervalTimer implements IDisposable {
 
 export class RunOnceScheduler {
 
-	protected runner: ((...args: any[]) => void) | null;
+	protected runner: ((...args: unknown[]) => void) | null;
 
 	private timeoutToken: any;
 	private timeout: number;
@@ -827,7 +827,7 @@ export class IdleValue<T> {
 
 	private _didRun: boolean = false;
 	private _value?: T;
-	private _error: any;
+	private _error: unknown;
 
 	constructor(executor: () => T) {
 		this._executor = () => {
@@ -1017,7 +1017,7 @@ export class IntervalCounter {
 
 //#region
 
-export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
+export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
 
 /**
  * Creates a promise whose resolution or rejection can be controlled imperatively.
@@ -1025,7 +1025,7 @@ export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 export class DeferredPromise<T> {
 
 	private completeCallback!: ValueCallback<T>;
-	private errorCallback!: (err: any) => void;
+	private errorCallback!: (err: unknown) => void;
 	private rejected = false;
 	private resolved = false;
 
@@ -1058,7 +1058,7 @@ export class DeferredPromise<T> {
 		});
 	}
 
-	public error(err: any) {
+	public error(err: unknown) {
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
 			this.rejected = true;
@@ -1080,14 +1080,14 @@ export class DeferredPromise<T> {
 //#region
 
 export interface IWaitUntil {
-	waitUntil(thenable: Promise<any>): void;
+	waitUntil(thenable: Promise<unknown>): void;
 }
 
 export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
 
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
+	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
 		if (!this._listeners) {
 			return;
 		}
@@ -1103,11 +1103,11 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
 
 			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<any>[] = [];
+			const thenables: Promise<unknown>[] = [];
 
 			const event = <T>{
 				...data,
-				waitUntil: (p: Promise<any>): void => {
+				waitUntil: (p: Promise<unknown>): void => {
 					if (Object.isFrozen(thenables)) {
 						throw new Error('waitUntil can NOT be called asynchronous');
 					}
@@ -1208,7 +1208,7 @@ export namespace Promises {
 			return undefined; // do not rethrow so that other promises can settle
 		})));
 
-		if (firstError) {
+		if (typeof firstError !== 'undefined') {
 			throw firstError;
 		}
 

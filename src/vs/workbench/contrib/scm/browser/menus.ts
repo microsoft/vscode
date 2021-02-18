@@ -119,15 +119,12 @@ class SCMMenusItem implements IDisposable {
 		let item = this.contextualResourceMenus.get(resource.contextValue);
 
 		if (!item) {
-			const contextKeyService = this.contextKeyService.createScoped();
-			contextKeyService.createKey('scmResourceState', resource.contextValue);
-
+			const contextKeyService = this.contextKeyService.createOverlay([['scmResourceState', resource.contextValue]]);
 			const menu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
 
 			item = {
 				menu, dispose() {
 					menu.dispose();
-					contextKeyService.dispose();
 				}
 			};
 
@@ -148,7 +145,6 @@ class SCMMenusItem implements IDisposable {
 		}
 
 		this.resourceFolderMenu?.dispose();
-		this.contextKeyService.dispose();
 	}
 }
 
@@ -178,10 +174,11 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		this.contextKeyService = contextKeyService.createScoped();
-		this.contextKeyService.createKey<string | undefined>('scmProvider', provider.contextValue);
-		this.contextKeyService.createKey<string | undefined>('scmProviderRootUri', provider.rootUri?.toString());
-		this.contextKeyService.createKey<boolean>('scmProviderHasRootUri', !!provider.rootUri);
+		this.contextKeyService = contextKeyService.createOverlay([
+			['scmProvider', provider.contextValue],
+			['scmProviderRootUri', provider.rootUri?.toString()],
+			['scmProviderHasRootUri', !!provider.rootUri],
+		]);
 
 		const serviceCollection = new ServiceCollection([IContextKeyService, this.contextKeyService]);
 		instantiationService = instantiationService.createChild(serviceCollection);
@@ -207,9 +204,9 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		let result = this.resourceGroupMenusItems.get(group);
 
 		if (!result) {
-			const contextKeyService = this.contextKeyService.createScoped();
-			contextKeyService.createKey('scmProvider', group.provider.contextValue);
-			contextKeyService.createKey('scmResourceGroup', group.id);
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['scmResourceGroup', group.id],
+			]);
 
 			result = new SCMMenusItem(contextKeyService, this.menuService);
 			this.resourceGroupMenusItems.set(group, result);

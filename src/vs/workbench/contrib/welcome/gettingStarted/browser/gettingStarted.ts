@@ -26,8 +26,10 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
+const configurationKey = 'workbench.startupEditor';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -89,6 +91,7 @@ export class GettingStartedPage extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
@@ -239,6 +242,11 @@ export class GettingStartedPage extends EditorPane {
 			mediaElement.setAttribute('src', '');
 			mediaElement.setAttribute('alt', '');
 		}
+		setTimeout(() => {
+			// rescan after animation finishes
+			this.detailsScrollbar?.scanDomNode();
+			this.detailImageScrollbar?.scanDomNode();
+		}, 100);
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
 	}
@@ -270,7 +278,11 @@ export class GettingStartedPage extends EditorPane {
 			);
 
 		const gettingStartedPage =
-			$('.gettingStarted', { role: 'document' },
+			$('.gettingStarted.welcomePageFocusElement', {
+				role: 'document',
+				tabIndex: '0',
+				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+			},
 				$('.gettingStartedSlideCategory.gettingStartedSlide.categories'),
 				tasksSlide
 			);
@@ -295,7 +307,9 @@ export class GettingStartedPage extends EditorPane {
 							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
 							$('.category-progress', { 'x-data-category-id': category.id, },
 								$('.message'),
-								$('.progress-bar-outer', {},
+								$('.progress-bar-outer', {
+									'role': 'progressbar'
+								},
 									$('.progress-bar-inner'))))
 						:
 						$('.category-description-container', {},
@@ -303,18 +317,33 @@ export class GettingStartedPage extends EditorPane {
 							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
 
 				return $('button.getting-started-category',
-					{ 'x-dispatch': 'selectCategory:' + category.id, },
+					{
+						'x-dispatch': 'selectCategory:' + category.id,
+						'role': 'listitem',
+					},
 					$(ThemeIcon.asCSSSelector(category.icon), {}), categoryDescriptionElement);
 			});
 
 		const categoryScrollContainer = $('.getting-started-categories-scrolling-container');
-		const categoriesContainer = $('.getting-started-categories-container');
+		const categoriesContainer = $('.getting-started-categories-container', { 'role': 'list' });
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
 
 		categoryScrollContainer.appendChild(categoriesContainer);
-		categoryScrollContainer.appendChild($('.footer', {}, $('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip"))));
+		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
+		categoryScrollContainer.appendChild(
+			$('.footer', {},
+				// $('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip")),
+				$('p.showOnStartup', {},
+					showOnStartupCheckbox,
+					$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show Getting Started page on startup")))
+			));
+
+		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'gettingStarted';
+		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
+			this.configurationService.updateValue(configurationKey, showOnStartupCheckbox.checked ? 'gettingStarted' : 'welcomePage');
+		}));
 
 		if (this.categoriesScrollbar) { this.categoriesScrollbar.dispose(); }
 		this.categoriesScrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
@@ -344,7 +373,6 @@ export class GettingStartedPage extends EditorPane {
 			this.setSlide('details');
 			this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
 		} else {
-			this.focusFirstUncompletedCategory();
 			this.setSlide('categories');
 		}
 	}
@@ -366,6 +394,10 @@ export class GettingStartedPage extends EditorPane {
 
 			const message = assertIsDefined(element.firstChild);
 			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
+			bar.setAttribute('aria-valuemin', '0');
+			bar.setAttribute('aria-valuenow', '' + numDone);
+			bar.setAttribute('aria-valuemax', '' + numTotal);
+
 			bar.style.width = `${(numDone / numTotal) * 100}%`;
 
 			if (numTotal === numDone) {
@@ -411,6 +443,7 @@ export class GettingStartedPage extends EditorPane {
 					'x-dispatch': 'selectTask:' + task.id,
 					'data-task-id': task.id,
 					'aria-expanded': 'false',
+					'role': 'listitem',
 				},
 				$('.codicon' + (task.done ? '.complete.codicon-pass-filled' : '.codicon-circle-large-outline'), { 'data-done-task-id': task.id }),
 				$('.task-description-container', {},
@@ -433,7 +466,7 @@ export class GettingStartedPage extends EditorPane {
 						))
 				)));
 
-		const detailContainer = $('.getting-started-detail-container');
+		const detailContainer = $('.getting-started-detail-container', { 'role': 'list' });
 		if (this.detailsScrollbar) { this.detailsScrollbar.getDomNode().remove(); this.detailsScrollbar.dispose(); }
 		this.detailsScrollbar = this._register(new DomScrollableElement(detailContainer, { className: 'full-height-scrollable' }));
 		categoryElements.forEach(element => detailContainer.appendChild(element));
@@ -521,6 +554,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.add('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
+			(this.container.querySelector('.welcomePageFocusElement') as HTMLElement)?.focus();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');

@@ -23,13 +23,12 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookSmokeTest', {
 		openNotebook: async (_resource: vscode.Uri) => {
 			const dto: vscode.NotebookData = {
-				languages: ['typescript'],
 				metadata: {},
 				cells: [
 					{
 						source: 'code()',
 						language: 'typescript',
-						cellKind: vscode.CellKind.Code,
+						cellKind: vscode.NotebookCellKind.Code,
 						outputs: [],
 						metadata: {
 							custom: { testCellMetadata: 123 }
@@ -38,7 +37,7 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 					{
 						source: 'Markdown Cell',
 						language: 'markdown',
-						cellKind: vscode.CellKind.Markdown,
+						cellKind: vscode.NotebookCellKind.Markdown,
 						outputs: [],
 						metadata: {
 							custom: { testCellMetadata: 123 }
@@ -70,14 +69,14 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 		label: 'notebookSmokeTest',
 		isPreferred: true,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
+			const edit = new vscode.WorkspaceEdit();
 			for (let i = 0; i < _document.cells.length; i++) {
-				_document.cells[i].outputs = [{
-					outputKind: vscode.CellOutputKind.Rich,
-					data: {
-						'text/html': ['test output']
-					}
-				}];
+				edit.replaceNotebookCellOutput(_document.uri, i, [new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+				])]);
 			}
+
+			await vscode.workspace.applyEdit(edit);
 		},
 		cancelAllCellsExecution: async () => { },
 		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined) => {
@@ -85,12 +84,11 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 				_cell = _document.cells[0];
 			}
 
-			_cell.outputs = [{
-				outputKind: vscode.CellOutputKind.Rich,
-				data: {
-					'text/html': ['test output']
-				}
-			}];
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookCellOutput(_document.uri, _cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+			])]);
+			await vscode.workspace.applyEdit(edit);
 			return;
 		},
 		cancelCellExecution: async () => { }

@@ -32,7 +32,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -525,14 +525,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							language: cell.language,
 							cellKind: cell.cellKind,
 							outputs: cell.outputs.map(output => {
-								if (output.outputKind === CellOutputKind.Rich) {
-									return {
-										...output,
-										outputId: UUID.generateUuid()
-									};
-								}
-
-								return output;
+								return {
+									...output,
+									// paste should generate new outputId
+									outputId: UUID.generateUuid()
+								};
 							}),
 							metadata: {
 								editable: cell.metadata?.editable,
@@ -564,14 +561,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							language: cell.language,
 							cellKind: cell.cellKind,
 							outputs: cell.outputs.map(output => {
-								if (output.outputKind === CellOutputKind.Rich) {
-									return {
-										...output,
-										outputId: UUID.generateUuid()
-									};
-								}
-
-								return output;
+								return {
+									...output,
+									outputId: UUID.generateUuid()
+								};
 							}),
 							metadata: {
 								editable: cell.metadata?.editable,
@@ -687,6 +680,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
+		if (this._notebookProviders.has(viewType)) {
+			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
+		}
 		this._notebookProviders.set(viewType, { extensionData, controller });
 
 		if (controller.viewOptions && !this.notebookProviderInfoStore.get(viewType)) {
@@ -731,39 +727,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		});
 	}
 
-	async getContributedNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> {
+	async getNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernel[]> {
 		const filteredProvider = this.notebookKernelProviderInfoStore.get(viewType, resource);
-		const result = new Array<INotebookKernelInfo2[]>(filteredProvider.length);
-
+		const result = new Array<INotebookKernel[]>(filteredProvider.length);
 		const promises = filteredProvider.map(async (provider, index) => {
 			const data = await provider.provideKernels(resource, token);
-			result[index] = data.map(dto => {
-				return {
-					id: dto.id,
-					extension: dto.extension,
-					extensionLocation: URI.revive(dto.extensionLocation),
-					friendlyId: dto.friendlyId,
-					label: dto.label,
-					description: dto.description,
-					detail: dto.detail,
-					isPreferred: dto.isPreferred,
-					preloads: dto.preloads,
-					providerHandle: dto.providerHandle,
-					resolve: async (uri: URI, editorId: string, token: CancellationToken) => {
-						return provider.resolveKernel(editorId, uri, dto.friendlyId, token);
-					},
-					executeNotebookCell: async (uri: URI, handle: number | undefined) => {
-						return provider.executeNotebook(uri, dto.friendlyId, handle);
-					},
-					cancelNotebookCell: (uri: URI, handle: number | undefined): Promise<void> => {
-						return provider.cancelNotebook(uri, dto.friendlyId, handle);
-					}
-				};
-			});
+			result[index] = data;
 		});
-
 		await Promise.all(promises);
-
 		return flatten(result);
 	}
 
@@ -800,13 +771,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			const dataDto = await provider.controller.resolveNotebookDocument(viewType, uri, backupId);
 			let cells = dataDto.data.cells.length ? dataDto.data.cells : (uri.scheme === Schemas.untitled ? [{
 				cellKind: CellKind.Code,
-				language: dataDto.data.languages.length ? dataDto.data.languages[0] : '',
+				language: 'plaintext', //TODO@jrieken unsure what this is
 				outputs: [],
 				metadata: undefined,
 				source: ''
 			}] : []);
 
-			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri, cells, dataDto.data.languages, dataDto.data.metadata, dataDto.transientOptions);
+			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri, cells, dataDto.data.metadata, dataDto.transientOptions);
 		}
 
 		// new notebook model created
@@ -829,13 +800,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return Iterable.map(this._models.values(), data => data.model);
 	}
 
-	getMimeTypeInfo(textModel: NotebookTextModel, output: ITransformedDisplayOutputDto): readonly IOrderedMimeType[] {
+	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[] {
 		// TODO@rebornix no string[] casting
 		return this._getOrderedMimeTypes(textModel, output, textModel.metadata.displayOrder as string[] ?? []);
 	}
 
-	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IDisplayOutput, documentDisplayOrder: string[]): IOrderedMimeType[] {
-		const mimeTypes = Object.keys(output.data);
+	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IOutputDto, documentDisplayOrder: string[]): IOrderedMimeType[] {
+		const mimeTypeSet = new Set<string>();
+		let mimeTypes: string[] = [];
+		output.outputs.forEach(op => {
+			if (!mimeTypeSet.has(op.mime)) {
+				mimeTypeSet.add(op.mime);
+				mimeTypes.push(op.mime);
+			}
+		});
 		const coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
 

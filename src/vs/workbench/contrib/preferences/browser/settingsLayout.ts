@@ -138,6 +138,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['debug.*', 'launch']
 				},
 				{
+					id: 'features/testing',
+					label: localize('testing', "Testing"),
+					settings: ['testing.*']
+				},
+				{
 					id: 'features/scm',
 					label: localize('scm', "SCM"),
 					settings: ['scm.*']

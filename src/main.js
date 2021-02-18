@@ -9,14 +9,14 @@
 const perf = require('./vs/base/common/performance');
 perf.mark('code/didStartMain');
 
-const lp = require('./vs/base/node/languagePacks');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const paths = require('./paths');
-/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration> & { applicationName: string}} */
+const { getDefaultUserDataPath } = require('./vs/base/node/userDataPath');
+/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
@@ -38,70 +38,8 @@ app.setPath('userData', userDataPath);
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
 
-// If a crash-reporter-directory is specified we store the crash reports
-// in the specified directory and don't upload them to the crash server.
-let crashReporterDirectory = args['crash-reporter-directory'];
-let submitURL = '';
-if (crashReporterDirectory) {
-	crashReporterDirectory = path.normalize(crashReporterDirectory);
-
-	if (!path.isAbsolute(crashReporterDirectory)) {
-		console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
-		app.exit(1);
-	}
-
-	if (!fs.existsSync(crashReporterDirectory)) {
-		try {
-			fs.mkdirSync(crashReporterDirectory);
-		} catch (error) {
-			console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
-			app.exit(1);
-		}
-	}
-
-	// Crashes are stored in the crashDumps directory by default, so we
-	// need to change that directory to the provided one
-	console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
-	app.setPath('crashDumps', crashReporterDirectory);
-} else {
-	const appCenter = product.appCenter;
-	// Disable Appcenter crash reporting if
-	// * --crash-reporter-directory is specified
-	// * enable-crash-reporter runtime argument is set to 'false'
-	// * --disable-crash-reporter command line parameter is set
-	if (appCenter && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']) {
-		const isWindows = (process.platform === 'win32');
-		const isLinux = (process.platform === 'linux');
-		const crashReporterId = argvConfig['crash-reporter-id'];
-		const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-		if (uuidPattern.test(crashReporterId)) {
-			submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
-			submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-			// Send the id for child node process that are explicitly starting crash reporter.
-			// For vscode this is ExtensionHost process currently.
-			const argv = process.argv;
-			const endOfArgsMarkerIndex = argv.indexOf('--');
-			if (endOfArgsMarkerIndex === -1) {
-				argv.push('--crash-reporter-id', crashReporterId);
-			} else {
-				// if the we have an argument "--" (end of argument marker)
-				// we cannot add arguments at the end. rather, we add
-				// arguments before the "--" marker.
-				argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
-			}
-		}
-	}
-}
-
-// Start crash reporter for all processes
-const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
-const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-crashReporter.start({
-	companyName: companyName,
-	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
-	submitURL,
-	uploadToServer: !crashReporterDirectory
-});
+// Configure crash reporter
+configureCrashReporter();
 
 // Set logs path before app 'ready' event if running portable
 // to ensure that no 'logs' folder is created on disk at a
@@ -118,29 +56,14 @@ setCurrentWorkingDirectory();
 protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-webview',
-		privileges: {
-			standard: true,
-			secure: true,
-			supportFetchAPI: true,
-			corsEnabled: true,
-		}
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true }
 	}, {
 		scheme: 'vscode-webview-resource',
-		privileges: {
-			secure: true,
-			standard: true,
-			supportFetchAPI: true,
-			corsEnabled: true,
-		}
+		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
 	},
 	{
 		scheme: 'vscode-file',
-		privileges: {
-			secure: true,
-			standard: true,
-			supportFetchAPI: true,
-			corsEnabled: true
-		}
+		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
 	}
 ]);
 
@@ -161,7 +84,7 @@ let nlsConfigurationPromise = undefined;
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
-	nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
 // Load our code once ready
@@ -381,6 +304,77 @@ function getArgvConfigPath() {
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
+function configureCrashReporter() {
+
+	// If a crash-reporter-directory is specified we store the crash reports
+	// in the specified directory and don't upload them to the crash server.
+	let crashReporterDirectory = args['crash-reporter-directory'];
+	let submitURL = '';
+	if (crashReporterDirectory) {
+		crashReporterDirectory = path.normalize(crashReporterDirectory);
+
+		if (!path.isAbsolute(crashReporterDirectory)) {
+			console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
+			app.exit(1);
+		}
+
+		if (!fs.existsSync(crashReporterDirectory)) {
+			try {
+				fs.mkdirSync(crashReporterDirectory);
+			} catch (error) {
+				console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
+				app.exit(1);
+			}
+		}
+
+		// Crashes are stored in the crashDumps directory by default, so we
+		// need to change that directory to the provided one
+		console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
+		app.setPath('crashDumps', crashReporterDirectory);
+	}
+
+	// Otherwise we configure the crash reporter from product.json
+	else {
+		const appCenter = product.appCenter;
+		// Disable Appcenter crash reporting if
+		// * --crash-reporter-directory is specified
+		// * enable-crash-reporter runtime argument is set to 'false'
+		// * --disable-crash-reporter command line parameter is set
+		if (appCenter && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']) {
+			const isWindows = (process.platform === 'win32');
+			const isLinux = (process.platform === 'linux');
+			const crashReporterId = argvConfig['crash-reporter-id'];
+			const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+			if (uuidPattern.test(crashReporterId)) {
+				submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
+				submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
+				// Send the id for child node process that are explicitly starting crash reporter.
+				// For vscode this is ExtensionHost process currently.
+				const argv = process.argv;
+				const endOfArgsMarkerIndex = argv.indexOf('--');
+				if (endOfArgsMarkerIndex === -1) {
+					argv.push('--crash-reporter-id', crashReporterId);
+				} else {
+					// if the we have an argument "--" (end of argument marker)
+					// we cannot add arguments at the end. rather, we add
+					// arguments before the "--" marker.
+					argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
+				}
+			}
+		}
+	}
+
+	// Start crash reporter for all processes
+	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
+	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
+	crashReporter.start({
+		companyName: companyName,
+		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
+		submitURL,
+		uploadToServer: !crashReporterDirectory
+	});
+}
+
 /**
  * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
  * @returns {string | null}
@@ -411,7 +405,7 @@ function getUserDataPath(cliArgs) {
 		return path.join(portable.portableDataPath, 'user-data');
 	}
 
-	return path.resolve(cliArgs['user-data-dir'] || paths.getDefaultUserDataPath());
+	return path.resolve(cliArgs['user-data-dir'] || getDefaultUserDataPath());
 }
 
 /**
@@ -566,7 +560,7 @@ async function resolveNlsConfiguration() {
 			// See above the comment about the loader and case sensitiviness
 			appLocale = appLocale.toLowerCase();
 
-			nlsConfiguration = await lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
+			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
 			if (!nlsConfiguration) {
 				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
 			}

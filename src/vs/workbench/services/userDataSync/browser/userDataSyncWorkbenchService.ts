@@ -471,7 +471,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 		let sessionId: string, accountName: string, accountId: string;
 		if (isAuthenticationProvider(result)) {
-			const session = await this.authenticationService.login(result.id, result.scopes);
+			const session = await this.authenticationService.createSession(result.id, result.scopes);
 			sessionId = session.id;
 			accountName = session.account.label;
 			accountId = session.account.id;
@@ -581,7 +581,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.currentSessionId && e.removed.includes(this.currentSessionId)) {
+		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
 		this.update();

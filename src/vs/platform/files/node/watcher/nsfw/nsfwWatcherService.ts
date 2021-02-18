@@ -61,7 +61,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		});
 
 		// Logging
-		this.info(`Start watching: [${rootsToStartWatching.map(r => r.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
+		this.debug(`Start watching: [${rootsToStartWatching.map(r => r.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
 
 		// Stop watching some roots
 		rootsToStopWatching.forEach(root => {
@@ -131,7 +131,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 			}
 		}
 
-		this.info(`Start watching with nsfw: ${request.path}`);
+		this.debug(`Start watching with nsfw: ${request.path}`);
 
 		nsfw(request.path, events => {
 			for (const e of events) {
@@ -246,7 +246,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		this._onDidLogMessage.fire({ type: 'error', message: `[File Watcher (nsfw)] ` + message });
 	}
 
-	private info(message: string) {
-		this._onDidLogMessage.fire({ type: 'info', message: `[File Watcher (chokidar)] ` + message });
+	private debug(message: string) {
+		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (chokidar)] ` + message });
 	}
 }

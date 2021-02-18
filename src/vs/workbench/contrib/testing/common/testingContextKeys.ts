@@ -15,4 +15,5 @@ export namespace TestingContextKeys {
 	export const isInPeek = new RawContextKey('testing.isInPeek', true);
 	export const isPeekVisible = new RawContextKey('testing.isPeekVisible', false);
 	export const explorerLocation = new RawContextKey('testing.explorerLocation', ViewContainerLocation.Sidebar);
+	export const autoRun = new RawContextKey('testing.autoRun', false);
 }
