@@ -5,7 +5,7 @@
 
 import 'vs/css!./table';
 import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { ITableColumn, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -162,6 +162,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	get onMouseOut(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseOut; }
 	get onTouchStart(): Event<ITableTouchEvent<TRow>> { return this.list.onTouchStart; }
 	get onTap(): Event<ITableGestureEvent<TRow>> { return this.list.onTap; }
+	get onContextMenu(): Event<ITableContextMenuEvent<TRow>> { return this.list.onContextMenu; }
 
 	get onDidFocus(): Event<void> { return this.list.onDidFocus; }
 	get onDidBlur(): Event<void> { return this.list.onDidBlur; }

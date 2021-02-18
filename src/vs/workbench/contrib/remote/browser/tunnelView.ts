@@ -45,7 +45,7 @@ import { copyAddressIcon, forwardPortIcon, openBrowserIcon, openPreviewIcon, por
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
-import { ITableColumn, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { ITableColumn, ITableContextMenuEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Codicon } from 'vs/base/common/codicons';
 
@@ -777,7 +777,7 @@ export class TunnelPanel extends ViewPane {
 		const actionRunner: ActionRunner = new ActionRunner();
 		actionBarRenderer.actionRunner = actionRunner;
 
-		// this._register(this.table.onContextMenu(e => this.onContextMenu(e, actionRunner)));
+		this._register(this.table.onContextMenu(e => this.onContextMenu(e, actionRunner)));
 		this._register(this.table.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this._register(this.table.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
 		this._register(this.table.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
@@ -820,11 +820,6 @@ export class TunnelPanel extends ViewPane {
 		}));
 	}
 
-	// private get contributedContextMenu(): IMenu {
-	// 	const contributedContextMenu = this._register(this.menuService.createMenu(MenuId.TunnelContext, this.tree.contextKeyService));
-	// 	return contributedContextMenu;
-	// }
-
 	shouldShowWelcome(): boolean {
 		return this.viewModel.isEmpty() && !this.isEditing;
 	}
@@ -851,50 +846,52 @@ export class TunnelPanel extends ViewPane {
 		}
 	}
 
-	private onContextMenu(treeEvent: ITreeContextMenuEvent<ITunnelItem | ITunnelGroup>, actionRunner: ActionRunner): void {
-		// if ((treeEvent.element !== null) && !(treeEvent.element instanceof TunnelItem)) {
-		// 	return;
-		// }
-		// const node: ITunnelItem | null = treeEvent.element;
-		// const event: UIEvent = treeEvent.browserEvent;
+	private onContextMenu(event: ITableContextMenuEvent<ITunnelItem>, actionRunner: ActionRunner): void {
+		if ((event.element !== null) && !(event.element instanceof TunnelItem)) {
+			return;
+		}
 
-		// event.preventDefault();
-		// event.stopPropagation();
+		event.browserEvent.preventDefault();
+		event.browserEvent.stopPropagation();
 
-		// if (node) {
-		// 	this.tree!.setFocus([node]);
-		// 	this.tunnelTypeContext.set(node.tunnelType);
-		// 	this.tunnelCloseableContext.set(!!node.closeable);
-		// 	this.tunnelPrivacyContext.set(node.privacy);
-		// 	this.portChangableContextKey.set(!!node.localPort);
-		// } else {
-		// 	this.tunnelTypeContext.set(TunnelType.Add);
-		// 	this.tunnelCloseableContext.set(false);
-		// 	this.tunnelPrivacyContext.set(undefined);
-		// 	this.portChangableContextKey.set(false);
-		// }
+		const node: ITunnelItem | null = event.element;
 
-		// const actions: IAction[] = [];
-		// this._register(createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true }, actions));
+		if (node) {
+			this.table.setFocus([this.table.indexOf(node)]);
+			this.tunnelTypeContext.set(node.tunnelType);
+			this.tunnelCloseableContext.set(!!node.closeable);
+			this.tunnelPrivacyContext.set(node.privacy);
+			this.portChangableContextKey.set(!!node.localPort);
+		} else {
+			this.tunnelTypeContext.set(TunnelType.Add);
+			this.tunnelCloseableContext.set(false);
+			this.tunnelPrivacyContext.set(undefined);
+			this.portChangableContextKey.set(false);
+		}
 
-		// this.contextMenuService.showContextMenu({
-		// 	getAnchor: () => treeEvent.anchor,
-		// 	getActions: () => actions,
-		// 	getActionViewItem: (action) => {
-		// 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
-		// 		if (keybinding) {
-		// 			return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
-		// 		}
-		// 		return undefined;
-		// 	},
-		// 	onHide: (wasCancelled?: boolean) => {
-		// 		if (wasCancelled) {
-		// 			this.tree!.domFocus();
-		// 		}
-		// 	},
-		// 	getActionsContext: () => node,
-		// 	actionRunner
-		// });
+		const menu = this.menuService.createMenu(MenuId.TunnelContext, this.table.contextKeyService);
+		const actions: IAction[] = [];
+		this._register(createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions));
+		menu.dispose();
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => event.anchor,
+			getActions: () => actions,
+			getActionViewItem: (action) => {
+				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				if (keybinding) {
+					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+				}
+				return undefined;
+			},
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					this.table.domFocus();
+				}
+			},
+			getActionsContext: () => node,
+			actionRunner
+		});
 	}
 
 	private onMouseDblClick(e: ITableMouseEvent<ITunnelItem>): void {
