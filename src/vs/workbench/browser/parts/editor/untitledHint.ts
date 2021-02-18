@@ -38,6 +38,7 @@ export class UntitledHintContribution implements IEditorContribution {
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
+		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(untitledHintSetting)) {
 				this.update();
@@ -50,8 +51,9 @@ export class UntitledHintContribution implements IEditorContribution {
 		this.untitledHintContentWidget?.dispose();
 		this.button?.dispose();
 		const untitledHintMode = this.configurationService.getValue(untitledHintSetting);
+		const model = this.editor.getModel();
 
-		if (this.editor.getModel()?.uri.scheme === Schemas.untitled) {
+		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {
 			if (untitledHintMode === 'text') {
 				this.untitledHintContentWidget = new UntitledHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
 			}
@@ -87,12 +89,11 @@ class UntitledHintContentWidget implements IContentWidget {
 	) {
 		this.toDispose = [];
 		this.toDispose.push(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
-		this.toDispose.push(editor.onDidChangeModelLanguage(() => this.onDidChangeModelContent()));
 		this.onDidChangeModelContent();
 	}
 
 	private onDidChangeModelContent(): void {
-		if (this.editor.getValue() === '' && this.editor.getModel()?.getModeId() === PLAINTEXT_MODE_ID) {
+		if (this.editor.getValue() === '') {
 			this.editor.addContentWidget(this);
 		} else {
 			this.editor.removeContentWidget(this);
