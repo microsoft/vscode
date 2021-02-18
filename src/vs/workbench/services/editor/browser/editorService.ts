@@ -61,7 +61,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		[customEditorsAssociationsSettingId]: {
 			type: 'array',
-			markdownDescription: nls.localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
+			markdownDescription: localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
 			items: {
 				type: 'object',
 				defaultSnippets: [{
@@ -75,14 +75,14 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 						anyOf: [
 							{
 								type: 'string',
-								description: nls.localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
+								description: localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
 							},
 							viewTypeSchemaAddition
 						]
 					},
 					'filenamePattern': {
 						type: 'string',
-						description: nls.localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
+						description: localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
 					}
 				}
 			}
@@ -549,7 +549,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 		const defaultEditorOverrideEntry = Object.freeze({
 			id: DEFAULT_EDITOR_ID,
-			label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+			label: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
 			detail: builtinProviderDisplayName
 		});
 		for (const handler of this.openEditorHandlers) {
@@ -749,11 +749,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				handler: handler,
 				id: entry.id,
 				label: entry.label,
-				description: entry.active ? nls.localize('promptOpenWith.currentlyActive', 'Currently Active') : undefined,
+				description: entry.active ? localize('promptOpenWith.currentlyActive', 'Currently Active') : undefined,
 				detail: entry.detail,
 				buttons: resourceExt ? [{
 					iconClass: Codicon.gear.classNames,
-					tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
+					tooltip: localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
 				}] : undefined
 			};
 		});
@@ -763,7 +763,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (items.length) {
 			picker.selectedItems = [items[0]];
 		}
-		picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(originalResource));
+		picker.placeholder = localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(originalResource));
 		picker.canAcceptInBackground = true;
 
 		let picked: PickedResult | undefined;
