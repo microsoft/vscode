@@ -162,7 +162,8 @@ export class TunnelViewModel implements ITunnelViewModel {
 }
 
 class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('port', "Port");
+	readonly label: string = nls.localize('tunnel.portColumn.label', "Port");
+	readonly tooltip: string = nls.localize('tunnel.portColumn.tooltip', "The label and remote port number of the forwarded port.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
@@ -188,7 +189,8 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('local address', "Local Address");
+	readonly label: string = nls.localize('tunnel.addressColumn.label', "Local Address");
+	readonly tooltip: string = nls.localize('tunnel.addressColumn.tooltip', "The address that the forwarded port is available at locally.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
@@ -210,7 +212,8 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('process', "Running Process");
+	readonly label: string = nls.localize('tunnel.processColumn.label', "Running Process");
+	readonly tooltip: string = nls.localize('tunnel.processColumn.tooltip', "The command line of the process that is using the port.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
@@ -220,7 +223,8 @@ class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('origin', "Origin");
+	readonly label: string = nls.localize('tunnel.originColumn.label', "Origin");
+	readonly tooltip: string = nls.localize('tunnel.originColumn.tooltip', "The source that a forwarded port originates from. Can be an extension, user forwarded, statically forwarded, or automatically forwarded.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
@@ -237,7 +241,8 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('privacy', "Privacy");
+	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Privacy");
+	readonly tooltip: string = nls.localize('tunnel.privacyColumn.tooltip', "The availability of the forwarded port.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
