@@ -214,7 +214,7 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = nls.localize('tunnel.processColumn.label', "Running Process");
 	readonly tooltip: string = nls.localize('tunnel.processColumn.tooltip', "The command line of the process that is using the port.");
-	readonly weight: number = 1;
+	readonly weight: number = 2;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const label = row.processDescription ?? '';
