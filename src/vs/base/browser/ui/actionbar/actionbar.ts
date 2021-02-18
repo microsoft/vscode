@@ -238,18 +238,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 	// When an action bar is focusable again, make sure the first item can be focused
 	setFocusable(focusable: boolean): void {
 		this.focusable = focusable;
-		if (this.focusable) {
-			const first = this.viewItems.find(vi => vi instanceof BaseActionViewItem);
-			if (first instanceof BaseActionViewItem) {
-				first.setFocusable(true);
+		this.viewItems.forEach(vi => {
+			if (vi instanceof BaseActionViewItem) {
+				vi.setFocusable(this.focusable);
 			}
-		} else {
-			this.viewItems.forEach(vi => {
-				if (vi instanceof BaseActionViewItem) {
-					vi.setFocusable(false);
-				}
-			});
-		}
+		});
 	}
 
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {

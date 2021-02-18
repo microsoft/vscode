@@ -28,6 +28,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
+export interface IExtensionsViewState {
+	onFocus: Event<IExtension>;
+	onBlur: Event<IExtension>;
+}
+
 export interface ITemplateData {
 	root: HTMLElement;
 	element: HTMLElement;
@@ -53,6 +58,7 @@ const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
+		private extensionViewState: IExtensionsViewState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -127,6 +133,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionTooltipAction]);
 
 		actionbar.push(actions, actionOptions);
+		actionbar.setFocusable(false);
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
@@ -199,6 +206,17 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
 		}
 
+		this.extensionViewState.onFocus(e => {
+			if (areSameExtensions(extension.identifier, e.identifier)) {
+				data.actionbar.setFocusable(true);
+			}
+		}, this, data.extensionDisposables);
+
+		this.extensionViewState.onBlur(e => {
+			if (areSameExtensions(extension.identifier, e.identifier)) {
+				data.actionbar.setFocusable(false);
+			}
+		}, this, data.extensionDisposables);
 	}
 
 	disposeElement(extension: IExtension, index: number, data: ITemplateData): void {

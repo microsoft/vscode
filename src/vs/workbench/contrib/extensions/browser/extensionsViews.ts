@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage, createErrorWithActions } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $ } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -55,6 +55,23 @@ const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
 type WorkspaceRecommendationsClassification = {
 	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', 'isMeasurement': true };
 };
+
+class ExtensionsViewState extends Disposable implements IExtensionsViewState {
+
+	private readonly _onFocus: Emitter<IExtension> = this._register(new Emitter<IExtension>());
+	readonly onFocus: Event<IExtension> = this._onFocus.event;
+
+	private readonly _onBlur: Emitter<IExtension> = this._register(new Emitter<IExtension>());
+	readonly onBlur: Event<IExtension> = this._onBlur.event;
+
+	private currentlyFocusedItems: IExtension[] = [];
+
+	onFocusChange(extensions: IExtension[]): void {
+		this.currentlyFocusedItems.forEach(extension => this._onBlur.fire(extension));
+		this.currentlyFocusedItems = extensions;
+		this.currentlyFocusedItems.forEach(extension => this._onFocus.fire(extension));
+	}
+}
 
 export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
@@ -137,7 +154,8 @@ export class ExtensionsListView extends ViewPane {
 		const messageSeverityIcon = append(messageContainer, $(''));
 		const messageBox = append(messageContainer, $('.message'));
 		const delegate = new Delegate();
-		const renderer = this.instantiationService.createInstance(Renderer);
+		const extensionsViewState = new ExtensionsViewState();
+		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState);
 		this.list = this.instantiationService.createInstance<typeof WorkbenchPagedList, WorkbenchPagedList<IExtension>>(WorkbenchPagedList, 'Extensions', extensionsList, delegate, [renderer], {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
@@ -155,7 +173,9 @@ export class ExtensionsListView extends ViewPane {
 			}
 		});
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+		this._register(this.list.onDidChangeFocus(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
 		this._register(this.list);
+		this._register(extensionsViewState);
 
 		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { openOnSingleClick: true }));
 		this._register(Event.debounce(Event.filter(resourceNavigator.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
