@@ -2942,14 +2942,14 @@ export class NotebookCellMetadata {
 			change.breakpointMargin ?? this.breakpointMargin,
 			change.runnable ?? this.runnable,
 			change.hasExecutionOrder ?? this.hasExecutionOrder,
-			change.executionOrder ?? this.executionOrder,
+			'executionOrder' in change ? change.executionOrder : this.executionOrder,
 			change.runState ?? this.runState,
-			change.runStartTime ?? this.runStartTime,
+			'runStartTime' in change ? change.runStartTime : this.runStartTime,
 			change.statusMessage ?? this.statusMessage,
-			change.lastRunDuration ?? this.lastRunDuration,
+			'lastRunDuration' in change ? change.lastRunDuration : this.lastRunDuration,
 			change.inputCollapsed ?? this.inputCollapsed,
 			change.outputCollapsed ?? this.outputCollapsed,
-			change.custom ?? this.custom
+			'custom' in change ? change.custom : this.custom
 		);
 	}
 }

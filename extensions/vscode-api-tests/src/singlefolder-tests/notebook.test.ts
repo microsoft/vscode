@@ -1204,7 +1204,6 @@ suite('Notebook API tests', function () {
 		const runState = vscode.NotebookCellRunState.Success;
 		const executionOrder = 1234;
 		const metadata = document.cells[0].metadata.with({
-			...document.cells[0].metadata,
 			runStartTime,
 			runState,
 			lastRunDuration,
@@ -1217,6 +1216,37 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
+	});
+
+	test.only('Reset executionOrder, startTime, lastRunDuration, custom once it has been set', async function () {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+
+		let edit = new vscode.WorkspaceEdit();
+		let executionOrder: number | undefined = 123;
+		let lastRunDuration: number | undefined = 123;
+		let runStartTime: number | undefined = 123;
+		let custom: any = { x: 1234 };
+		let metadata = document.cells[0].metadata.with({ executionOrder, lastRunDuration, runStartTime, custom });
+		edit.replaceNotebookCellMetadata(document.uri, 0, metadata);
+		await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
+		assert.strictEqual(document.cells[0].metadata.custom, custom);
+		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
+		assert.strictEqual(document.cells[0].metadata.runStartTime, runStartTime);
+
+		edit = new vscode.WorkspaceEdit();
+		executionOrder = undefined;
+		lastRunDuration = undefined;
+		runStartTime = undefined;
+		custom = undefined;
+		metadata = document.cells[0].metadata.with({ executionOrder, lastRunDuration, runStartTime, custom });
+		edit.replaceNotebookCellMetadata(document.uri, 0, metadata);
+		await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
+		assert.strictEqual(document.cells[0].metadata.custom, custom);
+		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
+		assert.strictEqual(document.cells[0].metadata.runStartTime, runStartTime);
 	});
 
 	// });
