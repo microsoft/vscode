@@ -14,16 +14,18 @@ import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescript
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
-let persistentTerminalId = 0;
-
+// TODO: On disconnect/restart, this will overwrite the older terminals
+let currentPtyId = 0;
 type WorkspaceId = string;
-
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
+
+	private readonly _onHeartbeat = this._register(new Emitter<void>());
+	readonly onHeartbeat = this._onHeartbeat.event;
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
@@ -75,7 +77,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
-		const id = ++persistentTerminalId;
+		const id = ++currentPtyId;
 		this._logService.info('creating process', id);
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
@@ -100,8 +102,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
-		let terminalProcess = this._throwIfNoPty(id);
-		return terminalProcess.start();
+		return this._throwIfNoPty(id).start();
+	}
+
+	async shutdownAll(): Promise<void> {
+		this.dispose();
 	}
 
 	async shutdown(id: number, immediate: boolean): Promise<void> {
@@ -242,7 +247,7 @@ export class PersistentTerminalProcess extends Disposable {
 		cols: number, rows: number,
 		ipcHandlePath: string,
 		private readonly _logService: ILogService,
-		private readonly _onExit: () => void,
+		private readonly _onExit: () => void
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
@@ -282,19 +287,19 @@ export class PersistentTerminalProcess extends Disposable {
 			// console.trace(`data ${e}`);
 			this._recorder.recordData(e);
 		}));
-		// this._register(this._terminalProcess.onProcessExit(exitCode => {
-		// 	this._bufferer.stopBuffering(this._persistentTerminalId);
+		this._register(this._terminalProcess.onProcessExit(exitCode => {
+			// this._bufferer.stopBuffering(this._persistentTerminalId);
 
-		// 	// const ev: IPtyHostProcessExitEvent = {
-		// 	// 	type: 'exit',
-		// 	// 	exitCode: exitCode
-		// 	// };
-		// 	// this._events.fire(ev);
+			// const ev: IPtyHostProcessExitEvent = {
+			// 	type: 'exit',
+			// 	exitCode: exitCode
+			// };
+			// this._events.fire(ev);
 
-		// 	// Remove process reference
-		// 	// TODO: Use an event
-		// 	this._onExit();
-		// }));
+			// Remove process reference
+			// TODO: Use an event
+			this._onExit();
+		}));
 	}
 	acknowledgeDataEvent(charCount: number): void {
 		throw new Error('Method not implemented.');

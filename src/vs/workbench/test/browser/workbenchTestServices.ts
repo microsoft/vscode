@@ -1413,7 +1413,7 @@ export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 export class TestWorkspacesService implements IWorkspacesService {
 	_serviceBrand: undefined;
 
-	onRecentlyOpenedChange = Event.None;
+	onDidChangeRecentlyOpened = Event.None;
 
 	async createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
 	async deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void> { }

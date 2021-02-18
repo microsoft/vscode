@@ -53,13 +53,12 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, IUserDataSyncStoreManagementService, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { NativeStorageService2 } from 'vs/platform/storage/electron-sandbox/storageService2';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
@@ -84,6 +83,7 @@ import { join } from 'vs/base/common/path';
 import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { LocalPtyService } from 'vs/platform/terminal/electron-browser/localPtyService';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 
 class SharedProcessMain extends Disposable {
 
@@ -174,8 +174,8 @@ class SharedProcessMain extends Disposable {
 
 		await configurationService.initialize();
 
-		// Storage
-		const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
+		// Storage (global access only)
+		const storageService = new NativeStorageService2(undefined, mainProcessService, environmentService);
 		services.set(IStorageService, storageService);
 
 		await storageService.initialize();
@@ -265,7 +265,6 @@ class SharedProcessMain extends Disposable {
 		// Terminal
 		const localPtyService = this._register(new LocalPtyService(logService));
 		services.set(ILocalPtyService, localPtyService);
-		this._register(toDisposable(() => localPtyService.dispose()));
 
 		return new InstantiationService(services);
 	}
@@ -298,7 +297,7 @@ class SharedProcessMain extends Disposable {
 		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
 		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
 
-		const userDataSyncChannel = new UserDataSyncChannel(this.server, accessor.get(IUserDataSyncService), accessor.get(ILogService));
+		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(ILogService));
 		this.server.registerChannel('userDataSync', userDataSyncChannel);
 
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));

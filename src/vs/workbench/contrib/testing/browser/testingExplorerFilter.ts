@@ -9,9 +9,9 @@ import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
+import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -20,12 +20,11 @@ import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/com
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { inputActiveOptionBorder, inputActiveOptionForeground, inputActiveOptionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestExplorerStateFilter, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -35,6 +34,7 @@ export interface ITestExplorerFilterState {
 	readonly text: ObservableValue<string>;
 	/** Reveal request, the extId of the test to reveal */
 	readonly reveal: ObservableValue<string | undefined>;
+	readonly stateFilter: ObservableValue<TestExplorerStateFilter>;
 	readonly currentDocumentOnly: ObservableValue<boolean>;
 
 	readonly onDidRequestInputFocus: Event<void>;
@@ -47,6 +47,11 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
 	private readonly focusEmitter = new Emitter<void>();
 	public readonly text = new ObservableValue('');
+	public readonly stateFilter = ObservableValue.stored(new StoredValue<TestExplorerStateFilter>({
+		key: 'testStateFilter',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.USER
+	}, this.storage), TestExplorerStateFilter.All);
 	public readonly currentDocumentOnly = ObservableValue.stored(new StoredValue<boolean>({
 		key: 'testsByCurrentDocumentOnly',
 		scope: StorageScope.WORKSPACE,
@@ -84,6 +89,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		super(null, action);
 		this.updateFilterActiveState();
 		this._register(state.currentDocumentOnly.onDidChange(this.updateFilterActiveState, this));
+		this._register(state.stateFilter.onDidChange(this.updateFilterActiveState, this));
 	}
 
 	/**
@@ -167,7 +173,8 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	 * Updates the 'checked' state of the filter submenu.
 	 */
 	private updateFilterActiveState() {
-		this.filtersAction.checked = this.state.currentDocumentOnly.value;
+		this.filtersAction.checked = this.state.currentDocumentOnly.value
+			|| this.state.stateFilter.value !== TestExplorerStateFilter.All;
 	}
 }
 
@@ -199,6 +206,21 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 
 	private getActions(): IAction[] {
 		return [
+			...[
+				{ v: TestExplorerStateFilter.OnlyFailed, label: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests") },
+				{ v: TestExplorerStateFilter.OnlyExecuted, label: localize('testing.filters.showOnlyExecuted', "Show Only Executed Tests") },
+				{ v: TestExplorerStateFilter.All, label: localize('testing.filters.showAll', "Show All Tests") },
+			].map(({ v, label }) => ({
+				checked: this.filters.stateFilter.value === v,
+				class: undefined,
+				enabled: true,
+				id: v,
+				label,
+				run: async () => this.filters.stateFilter.value = v,
+				tooltip: '',
+				dispose: () => null
+			})),
+			new Separator(),
 			{
 				checked: this.filters.currentDocumentOnly.value,
 				class: undefined,
@@ -231,19 +253,4 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(): Promise<void> { }
-});
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.testing-filter-button.checked { border-color: ${inputActiveOptionBorderColor}; }`);
-	}
-	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
-	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.testing-filter-button.checked { color: ${inputActiveOptionForegroundColor}; }`);
-	}
-	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.testing-filter-button.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
-	}
 });

@@ -8,13 +8,14 @@ import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, Separator, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, Separator } from 'vs/base/common/actions';
 import * as types from 'vs/base/common/types';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { isFirefox } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
@@ -181,9 +182,9 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 	}
 
-	setFocusable(): void {
+	setFocusable(focusable: boolean): void {
 		if (this.element) {
-			this.element.tabIndex = 0;
+			this.element.tabIndex = focusable ? 0 : -1;
 		}
 	}
 
@@ -288,9 +289,9 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	setFocusable(): void {
+	setFocusable(focusable: boolean): void {
 		if (this.label) {
-			this.label.tabIndex = 0;
+			this.label.tabIndex = focusable ? 0 : -1;
 		}
 	}
 
@@ -356,7 +357,6 @@ export class ActionViewItem extends BaseActionViewItem {
 			if (this.label) {
 				this.label.setAttribute('aria-disabled', 'true');
 				this.label.classList.add('disabled');
-				removeTabIndexAndUpdateFocus(this.label);
 			}
 
 			if (this.element) {

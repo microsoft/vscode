@@ -134,6 +134,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded."),
 				default: true
 			},
+			'remote.autoForwardPortsSource': {
+				type: 'string',
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when `remote.autoForwardPorts` is true. Requires a reload to take effect."),
+				enum: ['process', 'output'],
+				enumDescriptions: [
+					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
+					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
+				],
+				default: 'process'
+			},
 			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
 			// and extensions\configuration-editing\schemas\attachContainer.schema.json
 			// to keep in sync with devcontainer.json schema.

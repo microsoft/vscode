@@ -308,9 +308,9 @@ export class StatefulMarkdownCell extends Disposable {
 			this.templateData.editorContainer.innerText = '';
 
 			// create a special context key service that set the inCompositeEditor-contextkey
-			const editorContextKeyService = this.contextKeyService.createScoped();
-			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
+			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
 
 			this.editor = editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 				...this.editorOptions,

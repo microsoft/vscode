@@ -12,6 +12,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 const setupIcon = registerIcon('getting-started-setup', Codicon.heart, localize('getting-started-setup-icon', "Icon used for the setup category of getting started"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of getting started"));
 const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
+const extensionsIcon = registerIcon('getting-started-extensions', Codicon.extensions, localize('getting-started-extensions-icon', "Icon used for the extensions category of getting started"));
 
 
 type GettingStartedItem = {
@@ -40,6 +41,26 @@ type GettingStartedCategory = {
 type GettingStartedContent = GettingStartedCategory[];
 
 export const content: GettingStartedContent = [
+	// {
+	// 	id: 'topLevelCommandPalette',
+	// 	title: localize('gettingStarted.commandPalette.title', "Command Palette"),
+	// 	description: localize('gettingStarted.commandPalette.description', "The one keybinding to show you everything VS Code can do."),
+	// 	icon: Codicon.symbolColor,
+	// 	content: {
+	// 		type: 'command',
+	// 		command: 'workbench.action.showCommands',
+	// 	}
+	// },
+	// {
+	// 	id: 'topLevelSeeExtensions',
+	// 	title: localize('gettingStarted.languageSupport.title', "Install Language Support"),
+	// 	description: localize('gettingStarted.languageSupport.description', "Want even more features? Install extensions to add support for languages like Python, C, or Java."),
+	// 	icon: Codicon.extensions,
+	// 	content: {
+	// 		type: 'command',
+	// 		command: 'workbench.extensions.action.showPopularExtensions',
+	// 	}
+	// },
 	{
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),
@@ -249,6 +270,16 @@ export const content: GettingStartedContent = [
 				}
 			]
 		}
-	}
+	},
 
+	{
+		id: 'ExtensionContrib',
+		title: localize('gettingStarted.extensionContrib.title', "Discover Your Extensions"),
+		icon: extensionsIcon,
+		description: localize('gettingStarted.extensionContrib.description', "Learn about features contributed by installed extensions."),
+		content: {
+			type: 'items',
+			items: []
+		}
+	}
 ];

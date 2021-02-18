@@ -158,7 +158,19 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	focus(): void {
-		this.filterInputBox.focus();
+		if (this.filterInputBox) {
+			this.filterInputBox.focus();
+		}
+	}
+
+	blur(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.blur();
+		}
+	}
+
+	setFocusable(): void {
+		// noop input elements are focusable by default
 	}
 
 	getHistory(): string[] {

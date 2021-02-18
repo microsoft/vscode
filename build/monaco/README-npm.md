@@ -11,4 +11,4 @@ a good page describing the code editor's features is [here](https://code.visuals
 This npm module contains the core editor functionality, as it comes from the [vscode repository](https://github.com/microsoft/vscode).
 
 ## License
-[MIT](https://github.com/microsoft/vscode/blob/master/LICENSE.txt)
+[MIT](https://github.com/microsoft/vscode/blob/main/LICENSE.txt)

@@ -67,7 +67,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
 	runState: NotebookRunState.Idle,
-	languages: [],
 	trusted: true
 };
 
@@ -80,7 +79,6 @@ export interface NotebookDocumentMetadata {
 	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
-	languages: string[];
 	trusted: boolean;
 }
 
@@ -161,13 +159,8 @@ export interface IOutputItemDto {
 
 export interface IOutputDto {
 	outputs: IOutputItemDto[];
-	/**
-	 * { mime_type: value }
-	 */
-	// data: { [key: string]: unknown; }
-
-	// metadata?: NotebookCellOutputMetadata;
 	outputId: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface ICellOutput {
@@ -197,8 +190,6 @@ export interface INotebookTextModel {
 	readonly uri: URI;
 	readonly versionId: number;
 
-	/** @deprecated */
-	languages: string[];
 	readonly cells: readonly ICell[];
 	onWillDispose(listener: () => void): IDisposable;
 }
@@ -241,9 +232,10 @@ export enum NotebookCellsChangeType {
 	Initialize = 6,
 	ChangeCellMetadata = 7,
 	Output = 8,
-	ChangeCellContent = 9,
-	ChangeDocumentMetadata = 10,
-	Unknown = 11
+	OutputItem = 9,
+	ChangeCellContent = 10,
+	ChangeDocumentMetadata = 11,
+	Unknown = 12
 }
 
 export interface NotebookCellsInitializeEvent<T> {
@@ -274,6 +266,14 @@ export interface NotebookOutputChangedEvent {
 	readonly outputs: IOutputDto[];
 }
 
+export interface NotebookOutputItemChangedEvent {
+	readonly kind: NotebookCellsChangeType.OutputItem;
+	readonly index: number;
+	readonly outputId: string;
+	readonly outputItems: IOutputItemDto[];
+	readonly append: boolean;
+}
+
 export interface NotebookCellsChangeLanguageEvent {
 	readonly kind: NotebookCellsChangeType.ChangeLanguage;
 	readonly index: number;
@@ -295,14 +295,14 @@ export interface NotebookDocumentUnknownChangeEvent {
 	readonly kind: NotebookCellsChangeType.Unknown;
 }
 
-export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent;
+export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent;
 
 export type NotebookCellsChangedEventDto = {
 	readonly rawEvents: NotebookRawContentEventDto[];
 	readonly versionId: number;
 };
 
-export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
 export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
@@ -382,7 +382,6 @@ export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetad
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
-	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
 }
 
@@ -597,22 +596,35 @@ export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' 
 export const NOTEBOOK_EDITOR_CURSOR_BEGIN_END = new RawContextKey<boolean>('notebookEditorCursorAtEditorBeginEnd', false);
 
 
+export interface INotebookLoadOptions {
+	/**
+	 * Go to disk bypassing any cache of the model if any.
+	 */
+	forceReadFromDisk?: boolean;
+}
+
+export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
+	notebook: NotebookTextModel;
+}
+
 export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeDirty: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
-	readonly notebook: NotebookTextModel;
+	readonly notebook: NotebookTextModel | undefined;
 	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
+	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isUntitled(): boolean;
+	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(): Promise<boolean>;
 	saveAs(target: URI): Promise<boolean>;
 	revert(options?: IRevertOptions | undefined): Promise<void>;
 }
 
 export interface INotebookDiffEditorModel extends IEditorModel {
-	original: INotebookEditorModel;
-	modified: INotebookEditorModel;
+	original: IResolvedNotebookEditorModel;
+	modified: IResolvedNotebookEditorModel;
 	resolveOriginalFromDisk(): Promise<void>;
 	resolveModifiedFromDisk(): Promise<void>;
 }
@@ -720,7 +732,7 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	return false;
 }
 
-export interface INotebookKernelInfoDto2 {
+export interface INotebookKernel {
 	id?: string;
 	friendlyId: string;
 	label: string;
@@ -730,11 +742,9 @@ export interface INotebookKernelInfoDto2 {
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloads?: UriComponents[];
+	preloads?: URI[];
 	supportedLanguages?: string[]
-}
 
-export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
 	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
@@ -745,10 +755,7 @@ export interface INotebookKernelProvider {
 	providerDescription?: string;
 	selector: INotebookDocumentFilter;
 	onDidChangeKernels: Event<URI | undefined>;
-	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
-	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
-	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
-	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
+	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
 }
 
 export class CellSequence implements ISequence {

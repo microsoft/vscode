@@ -26,7 +26,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, ILocalizedString, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelPrivacy } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, mapHasAddressLocalhostOrAllInterfaces, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelPrivacy, PORT_AUTO_FORWARD_SETTING } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -48,7 +48,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
-export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
 class TunnelTreeVirtualDelegate implements IListVirtualDelegate<ITunnelItem> {
 	getHeight(element: ITunnelItem): number {
@@ -271,10 +270,11 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		templateData.iconLabel.setLabel(label, description, { title: node instanceof TunnelItem ? node.tooltip : tooltip, extraClasses: ['tunnel-view-label'] });
 
 		templateData.actionBar.context = node;
-		const contextKeyService = this._register(this.contextKeyService.createScoped());
-		contextKeyService.createKey('view', this.viewId);
-		contextKeyService.createKey('tunnelType', node.tunnelType);
-		contextKeyService.createKey('tunnelCloseable', node.closeable);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['view', this.viewId],
+			['tunnelType', node.tunnelType],
+			['tunnelCloseable', node.closeable],
+		]);
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		const menu = disposableStore.add(this.menuService.createMenu(MenuId.TunnelInline, contextKeyService));
@@ -295,7 +295,6 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		}
 
 		menu.dispose();
-		contextKeyService.dispose();
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
@@ -609,10 +608,8 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
 		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
 
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
-		scopedContextKeyService.createKey('view', TunnelPanel.ID);
-
-		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, scopedContextKeyService));
+		const overlayContextKeyService = this._register(this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]));
+		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
@@ -831,7 +828,7 @@ namespace LabelTunnelAction {
 					remoteExplorerService.setEditable(context, {
 						onFinish: async (value, success) => {
 							if (success) {
-								remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
+								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 							}
 							remoteExplorerService.setEditable(context, null);
 							resolve(success ? { port: context.remotePort, label: value } : undefined);

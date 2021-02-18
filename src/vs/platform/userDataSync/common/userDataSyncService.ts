@@ -5,7 +5,7 @@
 
 import {
 	IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode,
-	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, HEADER_EXECUTION_ID, MergeState, Change, IUserDataSyncStoreManagementService, UserDataSyncStoreError
+	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, MergeState, Change, IUserDataSyncStoreManagementService, UserDataSyncStoreError, createSyncHeaders
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,12 +36,6 @@ type SyncErrorClassification = {
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
-
-function createSyncHeaders(executionId: string): IHeaders {
-	const headers: IHeaders = {};
-	headers[HEADER_EXECUTION_ID] = executionId;
-	return headers;
-}
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 

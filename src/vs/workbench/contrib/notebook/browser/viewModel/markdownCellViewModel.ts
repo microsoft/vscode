@@ -69,6 +69,16 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._hoveringOutput = v;
 	}
 
+	private _hoveringCell = false;
+	public get cellIsHovered(): boolean {
+		return this._hoveringCell;
+	}
+
+	public set cellIsHovered(v: boolean) {
+		this._hoveringCell = v;
+		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,

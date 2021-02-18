@@ -15,17 +15,15 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = setupInstantiationService();
 	const textModelService = instantiationService.get(ITextModelService);
 	const blukEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.get(IUndoRedoService);
-	const modeService = instantiationService.get(IModeService);
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', false, URI.parse('test'), [], [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService, modeService);
+		const notebook = new NotebookTextModel('notebook', false, URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
@@ -156,7 +154,7 @@ suite('NotebookViewModel', () => {
 				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
 			],
 			(editor, viewModel) => {
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true, languages: [] };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
 				const defaults = { hasExecutionOrder: true };
 
@@ -190,7 +188,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, cellHasExecutionOrder: true, trusted: true, languages: [] };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
@@ -222,7 +220,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, cellHasExecutionOrder: true, trusted: true, languages: [] };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,

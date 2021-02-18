@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { assertIsDefined, isFunction, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { TextEditorOptions, EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -50,7 +50,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			return this.input.getName();
 		}
 
-		return nls.localize('textEditor', "Text Editor");
+		return localize('textEditor', "Text Editor");
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

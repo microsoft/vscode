@@ -14,7 +14,7 @@ import { INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -213,7 +213,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	showKernelStatus(kernel: INotebookKernelInfo2 | undefined) {
+	showKernelStatus(kernel: INotebookKernel | undefined) {
 		this.kernelInfoElement.value = this._statusbarService.addEntry({
 			text: kernel ? kernel.label : 'Choose Kernel',
 			ariaLabel: kernel ? kernel.label : 'Choose Kernel',

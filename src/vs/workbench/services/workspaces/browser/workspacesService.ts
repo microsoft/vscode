@@ -26,7 +26,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onRecentlyOpenedChange = this._register(new Emitter<void>());
-	readonly onRecentlyOpenedChange = this._onRecentlyOpenedChange.event;
+	readonly onDidChangeRecentlyOpened = this._onRecentlyOpenedChange.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,

@@ -9,14 +9,14 @@
 const perf = require('./vs/base/common/performance');
 perf.mark('code/didStartMain');
 
-const lp = require('./vs/base/node/languagePacks');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const paths = require('./paths');
-/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration> & { applicationName: string}} */
+const { getDefaultUserDataPath } = require('./vs/base/node/userDataPath');
+/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
@@ -84,7 +84,7 @@ let nlsConfigurationPromise = undefined;
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
-	nlsConfigurationPromise = lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
 // Load our code once ready
@@ -371,7 +371,8 @@ function configureCrashReporter() {
 		companyName: companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
-		uploadToServer: !crashReporterDirectory
+		uploadToServer: !crashReporterDirectory,
+		compress: true
 	});
 }
 
@@ -405,7 +406,7 @@ function getUserDataPath(cliArgs) {
 		return path.join(portable.portableDataPath, 'user-data');
 	}
 
-	return path.resolve(cliArgs['user-data-dir'] || paths.getDefaultUserDataPath());
+	return path.resolve(cliArgs['user-data-dir'] || getDefaultUserDataPath());
 }
 
 /**
@@ -560,7 +561,7 @@ async function resolveNlsConfiguration() {
 			// See above the comment about the loader and case sensitiviness
 			appLocale = appLocale.toLowerCase();
 
-			nlsConfiguration = await lp.getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
+			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
 			if (!nlsConfiguration) {
 				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
 			}

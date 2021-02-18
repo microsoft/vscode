@@ -5,7 +5,7 @@
 	"dataFolderName": ".vscode-oss",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/microsoft/vscode/blob/master/LICENSE.txt",
+	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
 	"win32DirName": "Microsoft Code OSS",
 	"win32NameVersion": "Microsoft Code OSS",
 	"win32RegValueName": "CodeOSS",

@@ -21,7 +21,7 @@ import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensi
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription, ExtensionType, ITranslatedScannedExtension, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, ExtensionType, ITranslatedScannedExtension, IExtension, ExtensionKind, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -535,14 +535,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		});
 	}
 
-	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
+	public readExtensionPointContributions<T extends IExtensionContributions[keyof IExtensionContributions]>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
 		return this._installedExtensionsReady.wait().then(() => {
 			const availableExtensions = this._registry.getAllExtensionDescriptions();
 
 			const result: ExtensionPointContribution<T>[] = [];
 			for (const desc of availableExtensions) {
 				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
-					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes]));
+					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes] as T));
 				}
 			}
 
@@ -691,13 +691,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private static _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
+	private static _handleExtensionPoint<T extends IExtensionContributions[keyof IExtensionContributions]>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
 		const users: IExtensionPointUser<T>[] = [];
 		for (const desc of availableExtensions) {
 			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
 				users.push({
 					description: desc,
-					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes],
+					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes] as T,
 					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
 				});
 			}

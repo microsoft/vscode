@@ -95,6 +95,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-release-notes': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
+	'disable-keytar': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
 	'crash-reporter-id': { type: 'string' },

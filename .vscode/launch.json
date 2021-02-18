@@ -110,7 +110,8 @@
 				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
+				"--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"

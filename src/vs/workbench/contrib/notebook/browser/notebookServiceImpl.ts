@@ -10,7 +10,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
@@ -32,7 +31,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -680,6 +679,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
+		if (this._notebookProviders.has(viewType)) {
+			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
+		}
 		this._notebookProviders.set(viewType, { extensionData, controller });
 
 		if (controller.viewOptions && !this.notebookProviderInfoStore.get(viewType)) {
@@ -721,42 +723,18 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return toDisposable(() => {
 			kernelChangeEventListener.dispose();
 			d.dispose();
+			this._onDidChangeKernels.fire(undefined);
 		});
 	}
 
-	async getContributedNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]> {
+	async getNotebookKernels(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernel[]> {
 		const filteredProvider = this.notebookKernelProviderInfoStore.get(viewType, resource);
-		const result = new Array<INotebookKernelInfo2[]>(filteredProvider.length);
-
+		const result = new Array<INotebookKernel[]>(filteredProvider.length);
 		const promises = filteredProvider.map(async (provider, index) => {
 			const data = await provider.provideKernels(resource, token);
-			result[index] = data.map(dto => {
-				return {
-					id: dto.id,
-					extension: dto.extension,
-					extensionLocation: URI.revive(dto.extensionLocation),
-					friendlyId: dto.friendlyId,
-					label: dto.label,
-					description: dto.description,
-					detail: dto.detail,
-					isPreferred: dto.isPreferred,
-					preloads: dto.preloads,
-					providerHandle: dto.providerHandle,
-					resolve: async (uri: URI, editorId: string, token: CancellationToken) => {
-						return provider.resolveKernel(editorId, uri, dto.friendlyId, token);
-					},
-					executeNotebookCell: async (uri: URI, handle: number | undefined) => {
-						return provider.executeNotebook(uri, dto.friendlyId, handle);
-					},
-					cancelNotebookCell: (uri: URI, handle: number | undefined): Promise<void> => {
-						return provider.cancelNotebook(uri, dto.friendlyId, handle);
-					}
-				};
-			});
+			result[index] = data;
 		});
-
 		await Promise.all(promises);
-
 		return flatten(result);
 	}
 
@@ -773,45 +751,22 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return Array.from(this.markdownRenderersInfos);
 	}
 
-	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel> {
-
+	async fetchNotebookRawData(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
 		if (!await this.canResolve(viewType)) {
-			throw new Error(`CANNOT load notebook, no provider for '${viewType}'`);
+			throw new Error(`CANNOT fetch notebook data, there is NO provider for '${viewType}'`);
 		}
-
 		const provider = this._notebookProviders.get(viewType)!;
-		let notebookModel: NotebookTextModel;
+		return await provider.controller.openNotebook(viewType, uri, backupId);
+	}
+
+	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel {
 		if (this._models.has(uri)) {
-			// the model already exists
-			notebookModel = this._models.get(uri)!.model;
-			if (forceReload) {
-				await provider.controller.reloadNotebook(notebookModel);
-			}
-			return notebookModel;
-
-		} else {
-			const dataDto = await provider.controller.resolveNotebookDocument(viewType, uri, backupId);
-			let cells = dataDto.data.cells.length ? dataDto.data.cells : (uri.scheme === Schemas.untitled ? [{
-				cellKind: CellKind.Code,
-				language: dataDto.data.languages.length ? dataDto.data.languages[0] : '',
-				outputs: [],
-				metadata: undefined,
-				source: ''
-			}] : []);
-
-			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri, cells, dataDto.data.languages, dataDto.data.metadata, dataDto.transientOptions);
+			throw new Error(`notebook for ${uri} already exists`);
 		}
-
-		// new notebook model created
-		const modelData = new ModelData(
-			notebookModel,
-			(model) => this._onWillDisposeDocument(model),
-		);
-
-		this._models.set(uri, modelData);
+		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, true, uri, data.cells, data.metadata, transientOptions);
+		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
 		this._onDidAddNotebookDocument.fire(notebookModel);
-
-		return modelData.model;
+		return notebookModel;
 	}
 
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {

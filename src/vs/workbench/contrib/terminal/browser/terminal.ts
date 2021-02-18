@@ -31,6 +31,11 @@ export interface ITerminalInstanceService {
 
 	/** Fired when the ptyHost process goes down, losing all connections to the service's ptys. */
 	onPtyHostExit: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
 
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;

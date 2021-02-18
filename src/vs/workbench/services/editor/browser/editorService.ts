@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane } from 'vs/workbench/common/editor';
@@ -1182,7 +1182,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		infos.forEach(info => {
 			enumValues.push(info.id);
-			enumDescriptions.push(nls.localize('editorAssociations.viewType.sourceDescription', "Source: {0}", info.providerDisplayName));
+			enumDescriptions.push(localize('editorAssociations.viewType.sourceDescription', "Source: {0}", info.providerDisplayName));
 		});
 
 		updateViewTypeSchema(enumValues, enumDescriptions);

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -20,6 +19,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
@@ -35,9 +35,9 @@ export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
 	type: 'dimension';
 	id: string;
-	init: boolean;
-	data: DOM.Dimension;
-	isOutput: boolean;
+	init?: boolean;
+	data: { height: number };
+	isOutput?: boolean;
 }
 
 export interface IMouseEnterMessage {
@@ -76,8 +76,26 @@ export interface IBlurOutputMessage {
 export interface IClickedDataUrlMessage {
 	__vscode_notebook_message: boolean;
 	type: 'clicked-data-url';
-	data: string;
+	data: string | ArrayBuffer | null;
 	downloadName?: string;
+}
+
+export interface IFocusMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'focusMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseEnterMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'mouseEnterMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseLeaveMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'mouseLeaveMarkdownPreview';
+	cellId: string;
 }
 
 export interface IToggleMarkdownPreviewMessage {
@@ -110,6 +128,10 @@ export interface ICellDragEndMessage {
 		readonly clientX: number;
 		readonly clientY: number;
 	};
+}
+export interface IInitializedMarkdownPreviewMessage {
+	readonly __vscode_notebook_message: boolean;
+	readonly type: 'initializedMarkdownPreview';
 }
 
 export interface IClearMessage {
@@ -264,10 +286,14 @@ export type FromWebviewMessage =
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
+	| IFocusMarkdownPreviewMessage
+	| IMouseEnterMarkdownPreviewMessage
+	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
 	| ICellDragEndMessage
+	| IInitializedMarkdownPreviewMessage
 	;
 export type ToWebviewMessage =
 	| IClearMessage
@@ -783,8 +809,23 @@ var requirejs = (function() {
 					this._onDidClickDataLink(data);
 				} else if (data.type === 'customRendererMessage') {
 					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+				} else if (data.type === 'focusMarkdownPreview') {
+					const cell = this.notebookEditor.getCellById(data.cellId);
+					if (cell) {
+						this.notebookEditor.focusNotebookCell(cell, 'container');
+					}
 				} else if (data.type === 'toggleMarkdownPreview') {
 					this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+				} else if (data.type === 'mouseEnterMarkdownPreview') {
+					const cell = this.notebookEditor.getCellById(data.cellId);
+					if (cell instanceof MarkdownCellViewModel) {
+						cell.cellIsHovered = true;
+					}
+				} else if (data.type === 'mouseLeaveMarkdownPreview') {
+					const cell = this.notebookEditor.getCellById(data.cellId);
+					if (cell instanceof MarkdownCellViewModel) {
+						cell.cellIsHovered = false;
+					}
 				} else if (data.type === 'cell-drag-start') {
 					this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
 				} else if (data.type === 'cell-drag') {
@@ -804,6 +845,10 @@ var requirejs = (function() {
 	}
 
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
+		if (typeof event.data !== 'string') {
+			return;
+		}
+
 		const [splitStart, splitData] = event.data.split(';base64,');
 		if (!splitData || !splitStart) {
 			return;

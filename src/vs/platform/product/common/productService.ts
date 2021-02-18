@@ -23,7 +23,6 @@ export interface IBuiltInExtension {
 }
 
 export type ConfigurationSyncStore = {
-	web?: Partial<Omit<ConfigurationSyncStore, 'web'>>,
 	url: string,
 	insidersUrl: string,
 	stableUrl: string,
@@ -45,7 +44,7 @@ export interface IProductConfiguration {
 	readonly applicationName: string;
 
 	readonly urlProtocol: string;
-	readonly dataFolderName: string;
+	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 

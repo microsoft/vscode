@@ -11,8 +11,8 @@ import { attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'v
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -80,16 +80,12 @@ class ViewWelcomeController {
 		return visibleItems.map(v => v.descriptor);
 	}
 
-	private contextKeyService: IContextKeyService;
 	private disposables = new DisposableStore();
 
 	constructor(
 		private id: string,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
-		this.contextKeyService = contextKeyService.createScoped();
-		this.disposables.add(this.contextKeyService);
-
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
 		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
 		this.onDidChangeViewWelcomeContent();

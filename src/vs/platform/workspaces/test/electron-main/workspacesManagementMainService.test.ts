@@ -81,14 +81,14 @@ suite('WorkspacesManagementMainService', () => {
 
 	let testDir: string;
 	let untitledWorkspacesHomePath: string;
-	let environmentService: EnvironmentMainService;
+	let environmentMainService: EnvironmentMainService;
 	let service: WorkspacesManagementMainService;
 
 	setup(async () => {
 		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesmanagementmainservice');
 		untitledWorkspacesHomePath = path.join(testDir, 'Workspaces');
 
-		environmentService = new class TestEnvironmentService extends EnvironmentMainService {
+		environmentMainService = new class TestEnvironmentService extends EnvironmentMainService {
 			constructor() {
 				super(parseArgs(process.argv, OPTIONS));
 			}
@@ -97,7 +97,7 @@ suite('WorkspacesManagementMainService', () => {
 			}
 		};
 
-		service = new WorkspacesManagementMainService(environmentService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService());
+		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService());
 
 		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});

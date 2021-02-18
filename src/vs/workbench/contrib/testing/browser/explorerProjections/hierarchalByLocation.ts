@@ -7,6 +7,7 @@ import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IndexedSet } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
@@ -39,11 +40,13 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	private readonly updateEmitter = new Emitter<void>();
 	private readonly changes = new NodeChangeList<HierarchicalElement | HierarchicalFolder>();
 	private readonly locations = new TestLocationStore<HierarchicalElement>();
+	private readonly itemSource = new IndexedSet<HierarchicalElement>();
+	private readonly itemsByExtId = this.itemSource.index(v => v.test.item.extId);
 
 	/**
 	 * Map of item IDs to test item objects.
 	 */
-	protected readonly items = new Map<string, HierarchicalElement>();
+	protected readonly items = this.itemSource.index(v => v.test.id);
 
 	/**
 	 * Root folders
@@ -81,16 +84,14 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 		// when test states change, reflect in the tree
 		// todo: optimize this to avoid needing to iterate
-		this._register(results.onTestChanged(([, { item, state, retired, computedState }]) => {
-			for (const i of this.items.values()) {
-				if (i.test.item.extId === item.extId) {
-					i.ownState = state.state;
-					i.retired = retired;
-					refreshComputedState(computedStateAccessor, i, this.addUpdated, computedState);
-					this.addUpdated(i);
-					this.updateEmitter.fire();
-					return;
-				}
+		this._register(results.onTestChanged(({ item: result }) => {
+			const item = this.itemsByExtId.get(result.item.extId);
+			if (item) {
+				item.ownState = result.state.state;
+				item.retired = result.retired;
+				refreshComputedState(computedStateAccessor, item, this.addUpdated, result.computedState);
+				this.addUpdated(item);
+				this.updateEmitter.fire();
 			}
 		}));
 
@@ -219,14 +220,14 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 	protected unstoreItem(item: HierarchicalElement) {
 		item.parentItem.children.delete(item);
-		this.items.delete(item.test.id);
+		this.itemSource.delete(item);
 		this.locations.remove(item);
 		return item.children;
 	}
 
 	protected storeItem(item: HierarchicalElement) {
 		item.parentItem.children.add(item);
-		this.items.set(item.test.id, item);
+		this.itemSource.add(item);
 		this.locations.add(item);
 
 		const prevState = this.results.getStateByExtId(item.test.item.extId)?.[1];

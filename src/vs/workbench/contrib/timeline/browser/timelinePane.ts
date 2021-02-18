@@ -6,7 +6,7 @@
 import 'vs/css!./media/timelinePane';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
+import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { debounce } from 'vs/base/common/decorators';
@@ -36,7 +36,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -1240,18 +1240,18 @@ class TimelinePaneCommands extends Disposable {
 	}
 
 	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
-		const scoped = this.contextKeyService.createScoped();
-		scoped.createKey('view', this.pane.id);
-		scoped.createKey(context.key, context.value);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['view', this.pane.id],
+			[context.key, context.value],
+		]);
 
-		const menu = this.menuService.createMenu(menuId, scoped);
+		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		menu.dispose();
-		scoped.dispose();
 
 		return result;
 	}

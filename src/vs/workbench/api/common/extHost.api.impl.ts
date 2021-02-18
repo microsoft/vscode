@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -198,10 +198,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				} else if (typeof selector === 'string') {
 					informOnce(selector);
 				} else {
-					if (typeof selector.scheme === 'undefined') {
+					const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
+					if (typeof filter.scheme === 'undefined') {
 						informOnce(selector);
 					}
-					if (!extension.enableProposedApi && typeof selector.exclusive === 'boolean') {
+					if (!extension.enableProposedApi && typeof filter.exclusive === 'boolean') {
 						throwProposedApiError(extension);
 					}
 				}
@@ -230,7 +231,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				checkProposedApiEnabled(extension);
-				return extHostAuthentication.logout(providerId, sessionId);
+				return extHostAuthentication.removeSession(providerId, sessionId);
 			}
 		};
 
@@ -340,11 +341,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.onLastResultsChanged;
+				return extHostTesting.onResultsChanged;
 			},
 			get testResults() {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.lastResults;
+				return extHostTesting.results;
 			},
 		};
 
@@ -408,6 +409,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerEvaluatableExpressionProvider(selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);
+			},
+			registerInlineValuesProvider(selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerInlineValuesProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
@@ -1129,6 +1134,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
 			CancellationError: errors.CancellationError,
 			CancellationTokenSource: CancellationTokenSource,
+			CandidatePortSource: CandidatePortSource,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
 			CodeActionTrigger: extHostTypes.CodeActionTrigger,
@@ -1165,6 +1171,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EndOfLine: extHostTypes.EndOfLine,
 			EnvironmentVariableMutatorType: extHostTypes.EnvironmentVariableMutatorType,
 			EvaluatableExpression: extHostTypes.EvaluatableExpression,
+			InlineValueText: extHostTypes.InlineValueText,
+			InlineValueVariableLookup: extHostTypes.InlineValueVariableLookup,
+			InlineValueEvaluatableExpression: extHostTypes.InlineValueEvaluatableExpression,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
@@ -1253,13 +1262,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TimelineItem;
 			},
-			get CellKind() {
+			get NotebookCellRange() {
+				return extHostTypes.NotebookCellRange;
+			},
+			get NotebookCellKind() {
 				// checkProposedApiEnabled(extension);
-				return extHostTypes.CellKind;
+				return extHostTypes.NotebookCellKind;
 			},
 			get NotebookCellRunState() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellRunState;
+			},
+			get NotebookDocumentMetadata() {
+				return extHostTypes.NotebookDocumentMetadata;
+			},
+			get NotebookCellMetadata() {
+				return extHostTypes.NotebookCellMetadata;
 			},
 			get NotebookRunState() {
 				// checkProposedApiEnabled(extension);

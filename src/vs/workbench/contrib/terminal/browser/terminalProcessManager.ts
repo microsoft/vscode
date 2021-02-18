@@ -69,6 +69,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
 
+	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
+	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -317,6 +319,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const env = await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
+		this._terminalInstanceService.onPtyHostUnresponsive(() => this._onPtyDisconnect.fire());
 		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
 

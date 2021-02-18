@@ -5,7 +5,7 @@
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
-import { Location as ModeLocation } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
@@ -15,11 +15,12 @@ export interface TestIdWithProvider {
 }
 
 /**
- * Request to them main thread to run a set of tests.
+ * Request to the main thread to run a set of tests.
  */
 export interface RunTestsRequest {
 	tests: TestIdWithProvider[];
 	debug: boolean;
+	isAutoRun?: boolean;
 }
 
 /**
@@ -32,12 +33,20 @@ export interface RunTestForProviderRequest {
 	debug: boolean;
 }
 
+/**
+ * Location with a fully-instantiated Range and URI.
+ */
+export interface IRichLocation {
+	range: Range;
+	uri: URI;
+}
+
 export interface ITestMessage {
 	message: string | IMarkdownString;
 	severity: TestMessageSeverity | undefined;
 	expectedOutput: string | undefined;
 	actualOutput: string | undefined;
-	location: ModeLocation | undefined;
+	location: IRichLocation | undefined;
 }
 
 export interface ITestState {
@@ -54,7 +63,7 @@ export interface ITestItem {
 	extId: string;
 	label: string;
 	children?: never;
-	location: ModeLocation | undefined;
+	location: IRichLocation | undefined;
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;
@@ -70,12 +79,32 @@ export interface InternalTestItem {
 	item: ITestItem;
 }
 
-export interface InternalTestItemWithChildren extends InternalTestItem {
-	children: this[];
+/**
+ * Test result item used in the main thread.
+ */
+export interface TestResultItem extends IncrementalTestCollectionItem {
+	/** Current state of this test */
+	state: ITestState;
+	/** Computed state based on children */
+	computedState: TestRunState;
+	/** True if the test is outdated */
+	retired: boolean;
+	/** True if the test was directly requested by the run (is not a child or parent) */
+	direct?: true;
 }
 
-export interface InternalTestResults {
-	tests: InternalTestItemWithChildren[];
+export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined };
+
+/**
+ * Test results serialized for transport and storage.
+ */
+export interface ISerializedTestResults {
+	/** ID of these test results */
+	id: string;
+	/** Time the results were compelted */
+	completedAt: number;
+	/** Subset of test result items */
+	items: SerializedTestResultItem[];
 }
 
 export const enum TestDiffOpType {

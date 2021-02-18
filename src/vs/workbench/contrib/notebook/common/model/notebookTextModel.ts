@@ -12,7 +12,6 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
@@ -27,7 +26,7 @@ export class NotebookTextModelSnapshot implements ITextSnapshot {
 
 		if (this._index === -1) {
 			this._index++;
-			return `{ "metadata": ${JSON.stringify(this._model.metadata)}, "languages": ${JSON.stringify(this._model.languages)}, "cells": [`;
+			return `{ "metadata": ${JSON.stringify(this._model.metadata)}, "cells": [`;
 		}
 
 		if (this._index < this._model.cells.length) {
@@ -213,20 +212,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[] = [];
-	private _languages: string[] = [];
-	private _allLanguages: boolean = false;
-
-	get languages() {
-		return this._languages;
-	}
-
-	get resolvedLanguages() {
-		if (this._allLanguages) {
-			return this._modeService.getRegisteredModes();
-		}
-
-		return this._languages;
-	}
 
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
 	transientOptions: TransientOptions = { transientMetadata: {}, transientOutputs: false };
@@ -244,20 +229,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	constructor(
 		readonly viewType: string,
-		readonly supportBackup: boolean,
+		readonly supportBackup: boolean, //TODO@jrieken,@rebornix all support backup, right?
 		readonly uri: URI,
 		cells: ICellDto2[],
-		languages: string[],
 		metadata: NotebookDocumentMetadata,
 		options: TransientOptions,
 		@IUndoRedoService private _undoService: IUndoRedoService,
 		@ITextModelService private _modelService: ITextModelService,
-		@IModeService private readonly _modeService: IModeService,
 	) {
 		super();
 		this.transientOptions = options;
 		this.metadata = metadata;
-		this.updateLanguages(metadata.languages && metadata.languages.length ? metadata.languages : languages);
 		this._initialize(cells);
 
 		this._eventEmitter = new DelayedEmitter(
@@ -451,17 +433,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._versionId = this._versionId + 1;
 	}
 
-	updateLanguages(languages: string[]) {
-		const allLanguages = languages.find(lan => lan === '*');
-		this._allLanguages = allLanguages !== undefined;
-		this._languages = languages;
-
-		const resolvedLanguages = this.resolvedLanguages;
-		if (resolvedLanguages.length && this._cells.length) {
-			this._cells[0].language = resolvedLanguages[0];
-		}
-	}
-
 	private _isDocumentMetadataChangeTransient(a: NotebookDocumentMetadata, b: NotebookDocumentMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
 		for (let key of keys) {
@@ -476,10 +447,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean) {
 		const oldMetadata = this.metadata;
 		this.metadata = metadata;
-
-		if (this.metadata.languages && this.metadata.languages.length) {
-			this.updateLanguages(this.metadata.languages);
-		}
 
 		if (computeUndoRedo) {
 			const that = this;
@@ -694,6 +661,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const output = cell.outputs[outputIndex];
 		output.appendData(items);
+		this._eventEmitter.emit({
+			kind: NotebookCellsChangeType.OutputItem,
+			index: this._cells.indexOf(cell),
+			outputId: output.outputId,
+			outputItems: items,
+			append: true,
+			transient: this.transientOptions.transientOutputs
+		}, true);
 	}
 
 	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, items: IOutputItemDto[]) {
@@ -710,6 +685,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const output = cell.outputs[outputIndex];
 		output.replaceData(items);
+		this._eventEmitter.emit({
+			kind: NotebookCellsChangeType.OutputItem,
+			index: this._cells.indexOf(cell),
+			outputId: output.outputId,
+			outputItems: items,
+			append: false,
+			transient: this.transientOptions.transientOutputs
+		}, true);
 	}
 
 	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {

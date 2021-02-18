@@ -16,9 +16,11 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 	get outputs() {
 		return this._rawOutput.outputs || [];
 	}
-	// get metadata(): NotebookCellOutputMetadata | undefined {
-	// 	return this._rawOutput.metadata;
-	// }
+
+	get metadata(): Record<string, any> | undefined {
+		return this._rawOutput.metadata;
+	}
+
 	get outputId(): string {
 		return this._rawOutput.outputId;
 	}
@@ -47,10 +49,10 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		this._onDidChangeData.fire();
 	}
 
-	toJSON() {
+	toJSON(): IOutputDto {
 		return {
 			// data: this._data,
-			// metadata: this._rawOutput.metadata,
+			metadata: this._rawOutput.metadata,
 			outputs: this._rawOutput.outputs,
 			outputId: this._rawOutput.outputId
 		};

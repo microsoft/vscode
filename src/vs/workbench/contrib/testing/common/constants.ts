@@ -25,6 +25,12 @@ export const enum TestExplorerViewSorting {
 	ByName = 'name',
 }
 
+export const enum TestExplorerStateFilter {
+	OnlyFailed = 'failed',
+	OnlyExecuted = 'excuted',
+	All = 'all',
+}
+
 export const testStateNames: { [K in TestRunState]: string } = {
 	[TestRunState.Errored]: localize('testState.errored', 'Errored'),
 	[TestRunState.Failed]: localize('testState.failed', 'Failed'),

@@ -26,9 +26,10 @@ import { IDefaultShellAndArgsRequest, IShellLaunchConfig, ITerminalChildProcess,
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -40,6 +41,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	private readonly _onPtyHostExit = this._register(new Emitter<void>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
+	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
+	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -63,6 +66,16 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		if (this._localPtyService.onPtyHostStart) {
 			this._localPtyService.onPtyHostStart(() => {
 				this._logService.info(`ptyHost restarted`);
+			});
+		}
+		if (this._localPtyService.onPtyHostUnresponsive) {
+			this._localPtyService.onPtyHostUnresponsive(() => {
+				const choices: IPromptChoice[] = [{
+					label: localize('restartPtyHost', "Restart pty host"),
+					run: () => this._localPtyService.restartPtyHost!()
+				}];
+				notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
+				this._onPtyHostUnresponsive.fire();
 			});
 		}
 	}

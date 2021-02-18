@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.54.0",
-  "distro": "667da01a8d816dd448d4cafe83857414de969d80",
+  "distro": "8abc3b69c9a71c8da5a17f3e06068485a0a90c4c",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -70,7 +70,7 @@
     "native-is-elevated": "0.4.1",
     "native-keymap": "2.2.1",
     "native-watchdog": "1.3.0",
-    "node-pty": "0.11.0-beta1",
+    "node-pty": "0.10.0-beta19",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
     "tas-client-umd": "0.1.2",
@@ -189,8 +189,8 @@
     "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
-    "tsec": "0.1.1",
-    "typescript": "4.2.0-dev.20201207",
+    "tsec": "0.1.3",
+    "typescript": "^4.3.0-dev.20210216",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

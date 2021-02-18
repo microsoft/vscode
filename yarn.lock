@@ -6672,10 +6672,10 @@ node-libs-browser@^2.2.1:
     util "^0.11.0"
     vm-browserify "^1.0.1"
 
-node-pty@0.11.0-beta1:
-  version "0.11.0-beta1"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta1.tgz#961cf7ab56e0a689b71a19a46371ea090050f312"
-  integrity sha512-nHMB0K3LZTqjWv3X11XFdy/L4V2eMEk0RbmbVN02GPOkXdMy2NITI0px/x0JtNeIolRPq6r5hf5NUcNc2LJizw==
+node-pty@0.10.0-beta19:
+  version "0.10.0-beta19"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta19.tgz#b7cbfba53f7b2a816efe8c9302dd083cc5874458"
+  integrity sha512-4UIOGMvpofUbe+ZniBUtY8zc/psMURSzbMonQgIhK7JlMQsUwcbkDIrKzStVLJX0FkeZpUNlsVtK7qqzHvrUZA==
   dependencies:
     nan "^2.14.0"
 
@@ -9596,10 +9596,10 @@ ts-morph@^3.1.3:
     multimatch "^4.0.0"
     typescript "^3.0.1"
 
-tsec@0.1.1:
-  version "0.1.1"
-  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.1.1.tgz#aed25d4aeea0d1f641d4c941c3da23db1a7d1ce2"
-  integrity sha512-hAQJlm4SXO5c8//rWNdIwa8CX9wcXeyxo0S+D5pgU+m88LEbXqd+FGyVaysbfnVf6yywpQFte3dpXaudOl+NeQ==
+tsec@0.1.3:
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.1.3.tgz#e3bc072c3307ba532c45efc8050d5eb8d52dadee"
+  integrity sha512-ek9ga1ZHFpLb96ydHQXgsAlgk2uEiVswmwyGNGuMakl2KFnJqLa2zvG7Qqxoo1PhSooyY7WNP1cgSYzgWTHetg==
   dependencies:
     glob "^7.1.1"
 
@@ -9687,11 +9687,6 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@4.2.0-dev.20201207:
-  version "4.2.0-dev.20201207"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.2.0-dev.20201207.tgz#19a34bc7d2d42a7467c512c63f135587ac848807"
-  integrity sha512-fPHBDi/fgdX4WiRC7cFVv/aL069PgUaDWuLYUSHatWZujz/Lkc9bkf/zL3rKdNSCxlNKAMs3fhJv/yompOphZA==
-
 typescript@^2.6.2:
   version "2.6.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
@@ -9701,6 +9696,11 @@ typescript@^3.0.1:
   version "3.9.7"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.7.tgz#98d600a5ebdc38f40cb277522f12dc800e9e25fa"
   integrity sha512-BLbiRkiBzAwsjut4x/dsibSTB6yWpwT5qWmC2OfuCg3GgVQCSgMs4vEctYPhsaGtd0AeuuHMkjZ2h2WG8MSzRw==
+
+typescript@^4.3.0-dev.20210216:
+  version "4.3.0-dev.20210216"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210216.tgz#233327e6094008c02265ba140f8d9ece9133421e"
+  integrity sha512-pJLcC/kqnE+0rftTRc2/gYBkz9nl+kJfaU8sSOLYnzUvD8p+LOZMzXfaLoKPdGFJ6U9+Ox/sYV9HBTJVEjSTYg==
 
 typical@^4.0.0:
   version "4.0.0"

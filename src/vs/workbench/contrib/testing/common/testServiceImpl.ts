@@ -39,12 +39,16 @@ export class TestService extends Disposable implements ITestService {
 	private readonly busyStateChangeEmitter = new Emitter<TestLocationIdent & { busy: boolean }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
 	private readonly providerCount: IContextKey<number>;
+	private readonly hasRunnable: IContextKey<boolean>;
+	private readonly hasDebuggable: IContextKey<boolean>;
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
 	private rootProviderCount = 0;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService, @ITestResultService private readonly testResults: ITestResultService) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		this.hasDebuggable = TestingContextKeys.hasDebuggableTests.bindTo(contextKeyService);
+		this.hasRunnable = TestingContextKeys.hasRunnableTests.bindTo(contextKeyService);
 	}
 
 	/**
@@ -124,7 +128,7 @@ export class TestService extends Disposable implements ITestService {
 		const subscriptions = [...this.testSubscriptions.values()]
 			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
 			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri));
-		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req.tests));
+		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req));
 
 		try {
 			const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
@@ -216,11 +220,14 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff) {
 		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
-		if (sub) {
-			sub.collection.apply(diff);
-			// console.log('accept', sub.collection, diff);
-			sub.onDiff.fire(diff);
+		if (!sub) {
+			return;
 		}
+
+		sub.collection.apply(diff);
+		sub.onDiff.fire(diff);
+		this.hasDebuggable.set(!!this.findTest(t => t.item.debuggable));
+		this.hasRunnable.set(!!this.findTest(t => t.item.runnable));
 	}
 
 	/**
@@ -240,9 +247,21 @@ export class TestService extends Disposable implements ITestService {
 		this.providerCount.set(this.testControllers.size);
 		this.changeProvidersEmitter.fire({ delta: -1 });
 	}
+
+	private findTest(predicate: (t: InternalTestItem) => boolean): InternalTestItem | undefined {
+		for (const { collection } of this.testSubscriptions.values()) {
+			for (const test of collection.all) {
+				if (predicate(test)) {
+					return test;
+				}
+			}
+		}
+
+		return undefined;
+	}
 }
 
-class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
+export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private pendingRootChangeEmitter = new Emitter<number>();
 	private busyProvidersChangeEmitter = new Emitter<number>();
 	private _busyProviders = 0;
