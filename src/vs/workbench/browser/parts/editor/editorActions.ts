@@ -1911,7 +1911,7 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		await this.editorService.openEditor(activeInput, { override: OverrideOptions.PICKER, ...options }, group);
+		await this.editorService.openEditor(activeInput, { ...options, override: OverrideOptions.PICKER }, group);
 	}
 }
 
