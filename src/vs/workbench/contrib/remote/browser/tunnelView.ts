@@ -515,15 +515,15 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	renderTemplate(container: HTMLElement): IActionBarTemplateData {
-		container.classList.add('ports-view-actionbar-cell');
-		const icon = dom.append(container, dom.$('.ports-view-actionbar-cell-icon'));
-		const label = new IconLabel(container, { supportHighlights: true });
-		const actionsContainer = dom.append(container, dom.$('.actions'));
+		const cell = dom.append(container, dom.$('.ports-view-actionbar-cell'));
+		const icon = dom.append(cell, dom.$('.ports-view-actionbar-cell-icon'));
+		const label = new IconLabel(cell, { supportHighlights: true });
+		const actionsContainer = dom.append(cell, dom.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 			respectOrientationForPreviousAndNextKey: true
 		});
-		return { label, icon, actionBar, container, elementDisposable: Disposable.None };
+		return { label, icon, actionBar, container: cell, elementDisposable: Disposable.None };
 	}
 
 	renderElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData): void {
