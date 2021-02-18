@@ -277,7 +277,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const tasksSlide =
 			$('.gettingStartedSlideDetails.gettingStartedSlide.detail', {},
-				$('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), localize('back', "Back")),
+				$('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), localize('more', "More")),
 				tasksContent
 			);
 
