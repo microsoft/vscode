@@ -95,14 +95,12 @@ steps:
     artifact: vscode-darwin-$(VSCODE_ARCH)
     displayName: Download $(VSCODE_ARCH) artifact
 
-# hmmmm
   - script: |
       set -e
       unzip $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       rm $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Unzip
 
-# hmmmm
   - script: |
       set -e
       security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
@@ -114,20 +112,10 @@ steps:
       VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
     displayName: Set Hardened Entitlements
 
-#FIX THIS
   - script: |
       set -e
       pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
-
-  - script: |
-      echo "workspace"
-      ls $(Pipeline.Workspace)
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      echo "AppRoot"
-      ls $APP_ROOT
-      echo "builddirectory"
-      ls $(agent.builddirectory)
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
@@ -152,11 +140,6 @@ steps:
         ]
       SessionTimeout: 60
     displayName: Codesign
-
-# what is this doing
-  # - script: |
-  #     zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip "*.pkg"
-  #   displayName: Clean
 
   - script: |
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)

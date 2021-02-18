@@ -167,20 +167,6 @@ steps:
     displayName: Create Universal App
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
 
-  # - script: |
-  #     set -e
-  #     security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-  #     security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-  #     security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-  #     echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-  #     security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-  #     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-  #     VSCODE_ARCH=x64 DEBUG=electron-osx-sign* node build/darwin/sign.js
-  #     VSCODE_ARCH=arm64 DEBUG=electron-osx-sign* node build/darwin/sign.js
-  #     VSCODE_ARCH=universal DEBUG=electron-osx-sign* node build/darwin/sign.js
-  #   displayName: Set Hardened Entitlements
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
   - script: |
       set -e
       ./scripts/test.sh --build --tfs "Unit Tests"
@@ -288,93 +274,6 @@ steps:
     displayName: Archive build
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  # - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-  #   inputs:
-  #     ConnectedServiceName: "ESRP CodeSign"
-  #     FolderPath: "$(agent.builddirectory)"
-  #     Pattern: "VSCode-darwin-*.zip"
-  #     signConfigType: inlineSignParams
-  #     inlineOperation: |
-  #       [
-  #         {
-  #           "keyCode": "CP-401337-Apple",
-  #           "operationSetCode": "MacAppDeveloperSign",
-  #           "parameters": [
-  #             {
-  #               "parameterName": "Hardening",
-  #               "parameterValue": "--options=runtime"
-  #             }
-  #           ],
-  #           "toolName": "sign",
-  #           "toolVersion": "1.0"
-  #         }
-  #       ]
-  #     SessionTimeout: 60
-  #   displayName: Codesign
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # - script: |
-  #     zip -d $(agent.builddirectory)/VSCode-darwin-x64.zip "*.pkg"
-  #     zip -d $(agent.builddirectory)/VSCode-darwin-arm64.zip "*.pkg"
-  #     zip -d $(agent.builddirectory)/VSCode-darwin-universal.zip "*.pkg"
-  #   displayName: Clean
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # - script: |
-  #     APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-  #     APP_NAME="`ls $APP_ROOT | head -n 1`"
-  #     BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")
-  #     echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
-  #   displayName: Export bundle identifier
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
-  #   inputs:
-  #     ConnectedServiceName: "ESRP CodeSign"
-  #     FolderPath: "$(agent.builddirectory)"
-  #     Pattern: "VSCode-darwin-*.zip"
-  #     signConfigType: inlineSignParams
-  #     inlineOperation: |
-  #       [
-  #         {
-  #           "keyCode": "CP-401337-Apple",
-  #           "operationSetCode": "MacAppNotarize",
-  #           "parameters": [
-  #             {
-  #               "parameterName": "BundleId",
-  #               "parameterValue": "$(BundleIdentifier)"
-  #             }
-  #           ],
-  #           "toolName": "sign",
-  #           "toolVersion": "1.0"
-  #         }
-  #       ]
-  #     SessionTimeout: 60
-  #   displayName: Notarization
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # - script: |
-  #     set -e
-  #     APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-  #     APP_NAME="`ls $APP_ROOT | head -n 1`"
-  #     "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
-  #   displayName: Verify start after signing (export configuration)
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # - script: |
-  #     set -e
-  #     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-  #     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-  #     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-  #     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-  #     node build/azure-pipelines/common/createAsset.js \
-  #       "darwin-universal" \
-  #       archive \
-  #       "VSCode-darwin-universal.zip" \
-  #       ../VSCode-darwin-universal.zip
-  #   displayName: Publish Clients
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
@@ -399,15 +298,3 @@ steps:
     artifact: vscode-server-darwin-$(VSCODE_ARCH)-web
     displayName: Publish web server archive
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # - script: |
-  #     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-  #     VSCODE_ARCH="$(VSCODE_ARCH)" \
-  #     yarn gulp upload-vscode-configuration
-  #   displayName: Upload configuration (for Bing settings search)
-  #   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'), ne(variables['VSCODE_PUBLISH'], 'false'))
-  #   continueOnError: true
-
-  # - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-  #   displayName: "Component Detection"
-  #   continueOnError: true
