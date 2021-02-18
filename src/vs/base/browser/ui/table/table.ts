@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListContextMenuEvent, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent } from 'vs/base/browser/ui/list/list';
+import { Event } from 'vs/base/common/event';
 
 export interface ITableColumn<TRow, TCell> {
 	readonly label: string;
 	readonly tooltip: string;
 	readonly weight: number;
 	readonly templateId: string;
+
+	readonly minimumWidth?: number;
+	readonly maximumWidth?: number;
+	readonly onDidChangeWidthConstraints?: Event<void>;
+
 	project(row: TRow): TCell;
 }
 

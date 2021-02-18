@@ -119,9 +119,10 @@ function asListVirtualDelegate<TRow>(delegate: ITableVirtualDelegate<TRow>): ILi
 class ColumnHeader<TRow, TCell> implements IView {
 
 	readonly element: HTMLElement;
-	readonly minimumSize = 120;
-	readonly maximumSize = Number.POSITIVE_INFINITY;
-	readonly onDidChange = Event.None;
+
+	get minimumSize() { return this.column.minimumWidth ?? 120; }
+	get maximumSize() { return this.column.maximumWidth ?? Number.POSITIVE_INFINITY; }
+	get onDidChange() { return this.column.onDidChangeWidthConstraints ?? Event.None; }
 
 	private _onDidLayout = new Emitter<[number, number]>();
 	readonly onDidLayout = this._onDidLayout.event;
