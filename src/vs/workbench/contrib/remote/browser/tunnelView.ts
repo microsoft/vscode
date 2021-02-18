@@ -791,7 +791,7 @@ export class TunnelPanel extends ViewPane {
 			rerender();
 		}));
 
-		// TODO@joao why the debounce?
+		// TODO@alexr00 Joao asks: why the debounce?
 		this._register(Event.debounce(this.table.onDidOpen, (last, event) => event, 75, true)(e => {
 			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
 				this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
