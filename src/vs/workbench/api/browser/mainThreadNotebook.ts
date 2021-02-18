@@ -7,23 +7,24 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { diffMaps, diffSets } from 'vs/base/common/collections';
 import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { IExtUri, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -137,12 +138,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 		this._modelReferenceCollection = new BoundModelReferenceCollection(this._uriIdentityService.extUri);
-		this._register(this._modelReferenceCollection);
 		this.registerListeners();
 	}
 
 	dispose(): void {
 		super.dispose();
+
+		this._modelReferenceCollection.dispose();
 
 		// remove all notebook providers
 		for (let item of this._notebookProviders.values()) {
@@ -713,47 +715,5 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		} else {
 			throw new Error(`Notebook Editor creation failure for documenet ${resource}`);
 		}
-	}
-}
-
-
-export class BoundModelReferenceCollection {
-
-	private _data = new Array<{ uri: URI, dispose(): void }>();
-
-	constructor(
-		private readonly _extUri: IExtUri,
-		private readonly _maxAge: number = 1000 * 60 * 3,
-	) {
-		//
-	}
-
-	dispose(): void {
-		this._data = dispose(this._data);
-	}
-
-	remove(uri: URI): void {
-		for (const entry of [...this._data] /* copy array because dispose will modify it */) {
-			if (this._extUri.isEqualOrParent(entry.uri, uri)) {
-				entry.dispose();
-			}
-		}
-	}
-
-	add(uri: URI, ref: IReference<INotebookEditorModel>): void {
-		let handle: any;
-		let entry: { uri: URI, dispose(): void };
-		const dispose = () => {
-			const idx = this._data.indexOf(entry);
-			if (idx >= 0) {
-				ref.dispose();
-				clearTimeout(handle);
-				this._data.splice(idx, 1);
-			}
-		};
-		handle = setTimeout(dispose, this._maxAge);
-		entry = { uri, dispose };
-
-		this._data.push(entry);
 	}
 }
