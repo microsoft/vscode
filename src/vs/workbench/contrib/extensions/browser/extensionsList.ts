@@ -14,7 +14,7 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction, WebInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -27,11 +27,6 @@ import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
-
-export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
-}
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -58,7 +53,6 @@ const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
-		private extensionViewState: IExtensionsViewState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -97,7 +91,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				if (action instanceof ExtensionDropDownAction) {
 					return action.createActionViewItem();
 				}
-				return new ExtensionActionViewItem(null, action, actionOptions);
+				return undefined;
 			}
 		});
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
@@ -205,25 +199,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.description.textContent = extension.gallery.properties.localizedLanguages.map(name => name[0].toLocaleUpperCase() + name.slice(1)).join(', ');
 		}
 
-		this.extensionViewState.onFocus(e => {
-			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => {
-					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
-						item.setFocus(true);
-					}
-				});
-			}
-		}, this, data.extensionDisposables);
-
-		this.extensionViewState.onBlur(e => {
-			if (areSameExtensions(extension.identifier, e.identifier)) {
-				data.actionbar.viewItems.forEach(item => {
-					if (item instanceof ExtensionActionViewItem || item instanceof ExtensionActionWithDropdownActionViewItem) {
-						item.setFocus(false);
-					}
-				});
-			}
-		}, this, data.extensionDisposables);
 	}
 
 	disposeElement(extension: IExtension, index: number, data: ITemplateData): void {
