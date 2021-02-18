@@ -196,7 +196,6 @@ steps:
       "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify start after signing (export configuration)
 
-# hmm
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
