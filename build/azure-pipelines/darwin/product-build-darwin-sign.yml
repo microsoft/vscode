@@ -198,9 +198,5 @@ steps:
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       yarn gulp upload-vscode-configuration
     displayName: Upload configuration (for Bing settings search)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
-    continueOnError: true
-
-  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-    displayName: "Component Detection"
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
     continueOnError: true
