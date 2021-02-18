@@ -145,9 +145,9 @@ steps:
     displayName: Codesign
 
 # what is this doing
-  - script: |
-      zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip "*.pkg"
-    displayName: Clean
+  # - script: |
+  #     zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip "*.pkg"
+  #   displayName: Clean
 
   - script: |
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
