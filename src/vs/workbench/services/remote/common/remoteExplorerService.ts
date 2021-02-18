@@ -48,10 +48,8 @@ export interface ITunnelItem {
 	source: string;
 	privacy?: TunnelPrivacy;
 	processDescription?: string;
-	wideDescription?: string;
 	readonly icon?: ThemeIcon;
 	readonly label: string;
-	readonly wideLabel: string;
 }
 
 export interface Tunnel {
@@ -65,7 +63,7 @@ export interface Tunnel {
 	runningProcess: string | undefined;
 	pid: number | undefined;
 	source?: string;
-	restore: boolean;
+	userForwarded: boolean;
 }
 
 export function makeAddress(host: string, port: number): string {
@@ -279,7 +277,7 @@ export class TunnelModel extends Disposable {
 						runningProcess: matchingCandidate?.detail,
 						pid: matchingCandidate?.pid,
 						privacy: this.makeTunnelPrivacy(tunnel.public),
-						restore: true
+						userForwarded: true
 					});
 					this.remoteTunnels.set(key, tunnel);
 				}
@@ -300,7 +298,7 @@ export class TunnelModel extends Disposable {
 					runningProcess: matchingCandidate?.detail,
 					pid: matchingCandidate?.pid,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
-					restore: true
+					userForwarded: true
 				});
 			}
 			await this.storeForwarded();
@@ -366,7 +364,7 @@ export class TunnelModel extends Disposable {
 
 	private async storeForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			this.storageService.store(await this.getStorageKey(), JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.restore)), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(await this.getStorageKey(), JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.userForwarded)), StorageScope.GLOBAL, StorageTarget.USER);
 		}
 	}
 
@@ -394,7 +392,7 @@ export class TunnelModel extends Disposable {
 					pid: matchingCandidate?.pid,
 					source,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
-					restore
+					userForwarded: restore
 				};
 				const key = makeAddress(remote.host, remote.port);
 				this.forwarded.set(key, newForward);
@@ -451,7 +449,7 @@ export class TunnelModel extends Disposable {
 					runningProcess: matchingCandidate?.detail,
 					pid: matchingCandidate?.pid,
 					privacy: TunnelPrivacy.ConstantPrivate,
-					restore: false
+					userForwarded: false
 				});
 			});
 		}

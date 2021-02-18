@@ -257,9 +257,8 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	}
 
 	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
-		const isWide = templateData.container.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.parentElement?.classList.contains('wide');
-		const description = isWide ? node.wideDescription : node.processDescription;
-		const label = isWide ? node.wideLabel : node.label;
+		const description = node.processDescription;
+		const label = node.label;
 		const tooltip = label + (description ? (' - ' + description) : '');
 		templateData.iconLabel.setLabel(label, description, { title: node instanceof TunnelItem ? node.tooltip : tooltip, extraClasses: ['tunnel-view-label'] });
 
@@ -571,7 +570,7 @@ class TunnelItem implements ITunnelItem {
 		return new TunnelItem(type,
 			tunnel.remoteHost,
 			tunnel.remotePort,
-			tunnel.source ?? (tunnel.restore ? nls.localize('tunnel.user', "User Forwarded") : nls.localize('tunnel.automatic', "Auto Forwarded")),
+			tunnel.source ?? (tunnel.userForwarded ? nls.localize('tunnel.user', "User Forwarded") : nls.localize('tunnel.automatic', "Auto Forwarded")),
 			tunnel.localAddress,
 			tunnel.localPort,
 			closeable === undefined ? tunnel.closeable : closeable,
@@ -613,61 +612,25 @@ class TunnelItem implements ITunnelItem {
 		return TunnelItem.getLabel(this.name, this.remotePort);
 	}
 
-	private static compactLongAddress(address: string): string {
-		if (address.length < 16) {
-			return address;
-		}
-		let displayAddress: string = address;
-		try {
-			if (!address.startsWith('http')) {
-				address = `http://${address}`;
-			}
-			const url = new URL(address);
-			if (url && url.host) {
-				const lastDotIndex = url.host.lastIndexOf('.');
-				const secondLastDotIndex = lastDotIndex !== -1 ? url.host.substring(0, lastDotIndex).lastIndexOf('.') : -1;
-				if (secondLastDotIndex !== -1) {
-					displayAddress = `${url.protocol}//...${url.host.substring(secondLastDotIndex + 1)}`;
-				}
-			}
-		} catch (e) {
-			// Address isn't a valid url and can't be compacted.
-		}
-		return displayAddress;
-	}
-
 	set processDescription(description: string | undefined) {
 		this.runningProcess = description;
 	}
 
-	private static getProcessDescription(item: TunnelItem, isWide: boolean) {
+	get processDescription(): string | undefined {
 		let description: string = '';
-		if (item.runningProcess) {
-			if (item.pid && item.remoteExplorerService?.namedProcesses.has(item.pid)) {
+		if (this.runningProcess) {
+			if (this.pid && this.remoteExplorerService?.namedProcesses.has(this.pid)) {
 				// This is a known process. Give it a friendly name.
-				description = item.remoteExplorerService.namedProcesses.get(item.pid)!;
-			} else if (isWide) {
-				description = item.runningProcess.replace(/\0/g, ' ').trim();
+				description = this.remoteExplorerService.namedProcesses.get(this.pid)!;
 			} else {
-				const nullIndex = item.runningProcess.indexOf('\0');
-				description = item.runningProcess.substr(0, nullIndex > 0 ? nullIndex : item.runningProcess.length).trim();
-				const spaceIndex = description.indexOf(' ', 110);
-				description = description.substr(0, spaceIndex > 0 ? spaceIndex : description.length);
+				description = this.runningProcess.replace(/\0/g, ' ').trim();
 			}
-			if (item.pid) {
-				description += ` (${item.pid})`;
+			if (this.pid) {
+				description += ` (${this.pid})`;
 			}
 		}
 
 		return description;
-	}
-
-	get processDescription(): string | undefined {
-		return TunnelItem.getProcessDescription(this, false);
-	}
-
-	get wideDescription(): string | undefined {
-		return TunnelItem.getProcessDescription(this, true);
 	}
 
 	get icon(): ThemeIcon | undefined {
@@ -738,7 +701,6 @@ export class TunnelPanel extends ViewPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ITelemetryService telemetryService: ITelemetryService,
