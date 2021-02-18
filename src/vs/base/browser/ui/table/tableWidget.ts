@@ -126,7 +126,7 @@ class ColumnHeader<TRow, TCell> implements IView {
 	private _onDidLayout = new Emitter<[number, number]>();
 	readonly onDidLayout = this._onDidLayout.event;
 
-	constructor(column: ITableColumn<TRow, TCell>, private index: number) {
+	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {
 		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
 	}
 
@@ -187,8 +187,8 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 		const headers = columns.map((c, i) => new ColumnHeader(c, i));
 		const descriptor: ISplitViewDescriptor = {
-			size: columns.length,
-			views: headers.map(view => ({ size: 1, view }))
+			size: headers.reduce((a, b) => a + b.column.weight, 0),
+			views: headers.map(view => ({ size: view.column.weight, view }))
 		};
 
 		this.splitview = new SplitView(this.domNode, {
