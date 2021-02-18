@@ -784,6 +784,7 @@ export interface CellViewModelStateChangeEvent {
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
 	outputIsHoveredChanged?: boolean;
+	cellIsHoveredChanged?: boolean;
 }
 
 export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {

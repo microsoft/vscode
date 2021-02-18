@@ -534,6 +534,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			this.updateForLayout(element, templateData);
 		}));
 
+		this.updateForHover(element, templateData);
+		elementDisposables.add(element.onDidChangeState(e => {
+			if (e.cellIsHoveredChanged) {
+				this.updateForHover(element, templateData);
+			}
+		}));
+
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
@@ -562,6 +569,10 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const focusSideHeight = element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP;
 		templateData.focusIndicatorLeft.style.height = `${focusSideHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${focusSideHeight}px`;
+	}
+
+	private updateForHover(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
+		templateData.container.classList.toggle('markdown-cell-hover', element.cellIsHovered);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {

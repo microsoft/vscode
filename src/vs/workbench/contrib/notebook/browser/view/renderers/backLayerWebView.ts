@@ -20,6 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
@@ -83,6 +84,18 @@ export interface IClickedDataUrlMessage {
 export interface IFocusMarkdownPreviewMessage {
 	__vscode_notebook_message: boolean;
 	type: 'focusMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseEnterMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'mouseEnterMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseLeaveMarkdownPreviewMessage {
+	__vscode_notebook_message: boolean;
+	type: 'mouseLeaveMarkdownPreview';
 	cellId: string;
 }
 
@@ -271,6 +284,8 @@ export type FromWebviewMessage =
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
 	| IFocusMarkdownPreviewMessage
+	| IMouseEnterMarkdownPreviewMessage
+	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
@@ -797,6 +812,16 @@ var requirejs = (function() {
 					}
 				} else if (data.type === 'toggleMarkdownPreview') {
 					this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+				} else if (data.type === 'mouseEnterMarkdownPreview') {
+					const cell = this.notebookEditor.getCellById(data.cellId);
+					if (cell instanceof MarkdownCellViewModel) {
+						cell.cellIsHovered = true;
+					}
+				} else if (data.type === 'mouseLeaveMarkdownPreview') {
+					const cell = this.notebookEditor.getCellById(data.cellId);
+					if (cell instanceof MarkdownCellViewModel) {
+						cell.cellIsHovered = false;
+					}
 				} else if (data.type === 'cell-drag-start') {
 					this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
 				} else if (data.type === 'cell-drag') {

@@ -717,6 +717,21 @@ function webviewPreloads() {
 				});
 			});
 
+			previewContainerNode.addEventListener('mouseenter', () => {
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'mouseEnterMarkdownPreview',
+					cellId,
+				});
+			});
+			previewContainerNode.addEventListener('mouseleave', () => {
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'mouseLeaveMarkdownPreview',
+					cellId,
+				});
+			});
+
 			previewContainerNode.setAttribute('draggable', 'true');
 
 			previewContainerNode.addEventListener('dragstart', e => {
