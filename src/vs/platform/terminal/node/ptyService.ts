@@ -10,7 +10,7 @@ import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, IOrphanQuestionReplyArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
@@ -49,10 +49,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	onPtyHostExit?: Event<number> | undefined;
 	onPtyHostStart?: Event<void> | undefined;
-
-	orphanQuestionReply(args: IOrphanQuestionReplyArgs): Promise<void> {
-		return this._throwIfNoPty(args.id).orphanQuestionReply();
-	}
 
 	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._throwIfNoPty(id).acknowledgeCharCount(charCount);
@@ -221,8 +217,6 @@ export class PersistentTerminalProcess extends Disposable {
 	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	public readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	public readonly onProcessData: Event<IProcessDataEvent> = this._onProcessData.event;
-	public readonly _onOrphanQuestionReply = this._register(new Emitter<IOrphanQuestionReplyArgs>());
-	public readonly onOrphanQuestionReply: Event<IOrphanQuestionReplyArgs> = this._onOrphanQuestionReply.event;
 
 	private _inReplay = false;
 
@@ -273,10 +267,6 @@ export class PersistentTerminalProcess extends Disposable {
 		// });
 
 		this._register(this._terminalProcess.onProcessReady(e => this.triggerReplay()));
-
-		this._register(this.onOrphanQuestionReply((event: IOrphanQuestionReplyArgs) => {
-			this.orphanQuestionReply();
-		}));
 
 		this._register(this._terminalProcess.onProcessReady(e => this._onProcessReady.fire(e)));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));

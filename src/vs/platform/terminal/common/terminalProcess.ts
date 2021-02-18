@@ -49,62 +49,6 @@ export interface IWorkspaceFolderData {
 	index: number;
 }
 
-export interface ICreateTerminalProcessArguments {
-	configuration: ICompleteTerminalConfiguration;
-	resolvedVariables: { [name: string]: string; };
-	envVariableCollections: ITerminalEnvironmentVariableCollections;
-	shellLaunchConfig: IShellLaunchConfigDto;
-	workspaceId: string;
-	workspaceName: string;
-	workspaceFolders: IWorkspaceFolderData[];
-	activeWorkspaceFolder: IWorkspaceFolderData | null;
-	activeFileResource: UriComponents | undefined;
-	shouldPersistTerminal: boolean;
-	cols: number;
-	rows: number;
-	isWorkspaceShellAllowed: boolean;
-	resolverEnv: { [key: string]: string | null; } | undefined
-}
-
-export interface ISendInputToTerminalProcessArguments {
-	id: number;
-	data: string;
-}
-
-export interface IShutdownTerminalProcessArguments {
-	id: number;
-	immediate: boolean;
-}
-
-export interface IResizeTerminalProcessArguments {
-	id: number;
-	cols: number;
-	rows: number;
-}
-
-export interface IGetTerminalInitialCwdArguments {
-	id: number;
-}
-
-export interface IGetTerminalCwdArguments {
-	id: number;
-}
-
-export interface ISendCommandResultToTerminalProcessArguments {
-	id: number;
-	reqId: number;
-	isError: boolean;
-	payload: any;
-}
-
-export interface IOrphanQuestionReplyArgs {
-	id: number;
-}
-
-export interface IListTerminalsArgs {
-	isInitialization: boolean;
-}
-
 export interface ISetTerminalLayoutInfoArgs {
 	workspaceId: string;
 	tabs: ITerminalTabLayoutInfoById[];
@@ -126,55 +70,7 @@ export interface IPtyHostDescriptionDto {
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IPtyHostDescriptionDto>;
 
-export interface ITriggerTerminalDataReplayArguments {
-	id: number;
-}
-
-export interface ISendCharCountToTerminalProcessArguments {
-	id: number;
-	charCount: number;
-}
-
-export interface IPtyHostProcessReadyEvent {
-	type: 'ready';
-	pid: number;
-	cwd: string;
-}
-export interface IPtyHostProcessTitleChangedEvent {
-	type: 'titleChanged';
-	title: string;
-}
-export interface IPtyHostProcessDataEvent {
-	type: 'data';
-	data: string;
-}
 export interface ReplayEntry { cols: number; rows: number; data: string; }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];
-}
-export interface IPtyHostProcessExitEvent {
-	type: 'exit';
-	exitCode: number | undefined;
-}
-export interface IPtyHostProcessExecCommandEvent {
-	type: 'execCommand';
-	reqId: number;
-	commandId: string;
-	commandArgs?: any[];
-}
-export interface IPtyHostProcessOrphanQuestionEvent {
-	type: 'orphan?';
-}
-export type IPtyHostProcessEvent = (
-	IPtyHostProcessReadyEvent
-	| IPtyHostProcessTitleChangedEvent
-	| IPtyHostProcessDataEvent
-	| IPtyHostProcessReplayEvent
-	| IPtyHostProcessExitEvent
-	| IPtyHostProcessExecCommandEvent
-	| IPtyHostProcessOrphanQuestionEvent
-);
-
-export interface IOnTerminalProcessEventArguments {
-	id: number;
 }
