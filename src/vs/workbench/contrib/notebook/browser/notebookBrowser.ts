@@ -776,15 +776,15 @@ export enum CursorAtBoundary {
 }
 
 export interface CellViewModelStateChangeEvent {
-	metadataChanged?: boolean;
-	selectionChanged?: boolean;
-	focusModeChanged?: boolean;
-	editStateChanged?: boolean;
-	languageChanged?: boolean;
-	foldingStateChanged?: boolean;
-	contentChanged?: boolean;
-	outputIsHoveredChanged?: boolean;
-	cellIsHoveredChanged?: boolean;
+	readonly metadataChanged?: boolean;
+	readonly selectionChanged?: boolean;
+	readonly focusModeChanged?: boolean;
+	readonly editStateChanged?: boolean;
+	readonly languageChanged?: boolean;
+	readonly foldingStateChanged?: boolean;
+	readonly contentChanged?: boolean;
+	readonly outputIsHoveredChanged?: boolean;
+	readonly cellIsHoveredChanged?: boolean;
 }
 
 export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {
