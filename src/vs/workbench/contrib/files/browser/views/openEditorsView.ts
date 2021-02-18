@@ -21,7 +21,7 @@ import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platfo
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -229,7 +229,7 @@ export class OpenEditorsView extends ViewPane {
 			this.listLabels.clear();
 		}
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.list = <WorkbenchList<OpenEditor | IEditorGroup>>this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
@@ -239,7 +239,7 @@ export class OpenEditorsView extends ViewPane {
 				listBackground: this.getBackgroundColor()
 			},
 			accessibilityProvider: new OpenEditorsAccessibilityProvider()
-		});
+		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
 		this._register(this.listLabels);
 
@@ -281,8 +281,7 @@ export class OpenEditorsView extends ViewPane {
 				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
 			}
 		}));
-		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
-		this._register(resourceNavigator.onDidOpen(e => {
+		this._register(this.list.onDidOpen(e => {
 			if (!e.element) {
 				return;
 			} else if (e.element instanceof OpenEditor) {

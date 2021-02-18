@@ -19,7 +19,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -111,7 +111,7 @@ export class BreakpointsView extends ViewPane {
 		container.classList.add('debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this);
 
-		this.list = <WorkbenchList<BreakpointItem>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer, this.menu, this.breakpointSupportsCondition),
 			new ExceptionBreakpointsRenderer(this.menu, this.breakpointSupportsCondition, this.debugService),
 			new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.themeService),
@@ -126,7 +126,7 @@ export class BreakpointsView extends ViewPane {
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}
-		});
+		}) as WorkbenchList<BreakpointItem>;
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
@@ -142,8 +142,7 @@ export class BreakpointsView extends ViewPane {
 			}
 		});
 
-		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
-		this._register(resourceNavigator.onDidOpen(async e => {
+		this._register(this.list.onDidOpen(async e => {
 			if (!e.element) {
 				return;
 			}
@@ -856,11 +855,11 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 		startColumn: breakpoint.column || 1,
 		endColumn: breakpoint.endColumn || Constants.MAX_SAFE_SMALL_INTEGER
 	} : {
-			startLineNumber: breakpoint.lineNumber,
-			startColumn: breakpoint.column || 1,
-			endLineNumber: breakpoint.lineNumber,
-			endColumn: breakpoint.column || Constants.MAX_SAFE_SMALL_INTEGER
-		};
+		startLineNumber: breakpoint.lineNumber,
+		startColumn: breakpoint.column || 1,
+		endLineNumber: breakpoint.lineNumber,
+		endColumn: breakpoint.column || Constants.MAX_SAFE_SMALL_INTEGER
+	};
 
 	return editorService.openEditor({
 		resource: breakpoint.uri,

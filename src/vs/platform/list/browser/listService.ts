@@ -191,20 +191,20 @@ export interface IWorkbenchListOptionsUpdate extends IListOptionsUpdate {
 	readonly overrideStyles?: IColorMapping;
 }
 
-export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IListOptions<T> { }
+export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IListOptions<T> { }
 
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
 	private readonly themeService: IThemeService;
-
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 	private horizontalScrolling: boolean | undefined;
-
 	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
+	private navigator: ListResourceNavigator<T>;
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
 
 	constructor(
 		user: string,
@@ -287,6 +287,9 @@ export class WorkbenchList<T> extends List<T> {
 				this.updateOptions(options);
 			}
 		}));
+
+		this.navigator = new ListResourceNavigator(this, { configurationService, ...options });
+		this.disposables.add(this.navigator);
 	}
 
 	updateOptions(options: IWorkbenchListOptionsUpdate): void {
@@ -297,36 +300,33 @@ export class WorkbenchList<T> extends List<T> {
 		}
 	}
 
-	dispose(): void {
-		super.dispose();
-		if (this._styler) {
-			this._styler.dispose();
-		}
-	}
-
 	private updateStyles(styles: IColorMapping): void {
-		if (this._styler) {
-			this._styler.dispose();
-		}
-
+		this._styler?.dispose();
 		this._styler = attachListStyler(this, this.themeService, styles);
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
 	}
+
+	dispose(): void {
+		this._styler?.dispose();
+		super.dispose();
+	}
 }
 
-export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IPagedListOptions<T> { }
+export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IPagedListOptions<T> { }
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	readonly contextKeyService: IContextKeyService;
-
+	private readonly themeService: IThemeService;
 	private readonly disposables: DisposableStore;
-
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private horizontalScrolling: boolean | undefined;
+	private _styler: IDisposable | undefined;
+	private navigator: ListResourceNavigator<T>;
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
 
 	constructor(
 		user: string,
@@ -355,6 +355,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+		this.themeService = themeService;
+
 		this.horizontalScrolling = options.horizontalScrolling;
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
@@ -364,6 +366,10 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.disposables.add(this.contextKeyService);
 		this.disposables.add((listService as ListService).register(this));
+
+		if (options.overrideStyles) {
+			this.updateStyles(options.overrideStyles);
+		}
 
 		if (options.overrideStyles) {
 			this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
@@ -388,6 +394,22 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 				this.updateOptions(options);
 			}
 		}));
+
+		this.navigator = new ListResourceNavigator(this, { configurationService, ...options });
+		this.disposables.add(this.navigator);
+	}
+
+	updateOptions(options: IWorkbenchListOptionsUpdate): void {
+		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.updateStyles(options.overrideStyles);
+		}
+	}
+
+	private updateStyles(styles: IColorMapping): void {
+		this._styler?.dispose();
+		this._styler = attachListStyler(this, this.themeService, styles);
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
@@ -395,9 +417,9 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	}
 
 	dispose(): void {
-		super.dispose();
-
+		this._styler?.dispose();
 		this.disposables.dispose();
+		super.dispose();
 	}
 }
 
@@ -411,16 +433,15 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 
 	readonly contextKeyService: IContextKeyService;
 	private readonly themeService: IThemeService;
-
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 	private horizontalScrolling: boolean | undefined;
-
 	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
-
 	private readonly disposables: DisposableStore;
+	private navigator: TableResourceNavigator<TRow>;
+	get onDidOpen(): Event<IOpenEvent<TRow | undefined>> { return this.navigator.onDidOpen; }
 
 	constructor(
 		user: string,
@@ -505,6 +526,9 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 				this.updateOptions(options);
 			}
 		}));
+
+		this.navigator = new TableResourceNavigator(this, { configurationService, ...options });
+		this.disposables.add(this.navigator);
 	}
 
 	updateOptions(options: IWorkbenchTableOptionsUpdate): void {
@@ -515,23 +539,19 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		}
 	}
 
-	dispose(): void {
-		super.dispose();
-		if (this._styler) {
-			this._styler.dispose();
-		}
-	}
-
 	private updateStyles(styles: IColorMapping): void {
-		if (this._styler) {
-			this._styler.dispose();
-		}
-
+		this._styler?.dispose();
 		this._styler = attachListStyler(this, this.themeService, styles);
 	}
 
 	get useAltAsMultipleSelectionModifier(): boolean {
 		return this._useAltAsMultipleSelectionModifier;
+	}
+
+	dispose(): void {
+		this._styler?.dispose();
+		this.disposables.dispose();
+		super.dispose();
 	}
 }
 
@@ -684,16 +704,30 @@ abstract class ResourceNavigator<T> extends Disposable {
 	abstract getSelectedElement(): T | undefined;
 }
 
-export class ListResourceNavigator<T> extends ResourceNavigator<T> {
+class ListResourceNavigator<T> extends ResourceNavigator<T> {
 
 	constructor(
 		protected readonly widget: List<T> | PagedList<T>,
-		options?: IResourceNavigatorOptions
+		options: IResourceNavigatorOptions
 	) {
 		super(widget, options);
 	}
 
 	getSelectedElement(): T | undefined {
+		return this.widget.getSelectedElements()[0];
+	}
+}
+
+class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
+
+	constructor(
+		protected readonly widget: Table<TRow>,
+		options: IResourceNavigatorOptions
+	) {
+		super(widget, options);
+	}
+
+	getSelectedElement(): TRow | undefined {
 		return this.widget.getSelectedElements()[0];
 	}
 }

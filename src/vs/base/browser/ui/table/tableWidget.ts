@@ -244,6 +244,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.domFocus();
 	}
 
+	getSelectedElements(): TRow[] {
+		return this.list.getSelectedElements();
+	}
+
 	setSelection(indexes: number[], browserEvent?: UIEvent): void {
 		this.list.setSelection(indexes, browserEvent);
 	}
