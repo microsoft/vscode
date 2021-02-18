@@ -14,6 +14,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { OverrideOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -50,7 +51,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			input.setForceOpenAsText();
 
 			// If more editors are installed that can handle this input, show a picker
-			await this.editorService.openEditor(input, { override: null, ...options }, this.group);
+			await this.editorService.openEditor(input, { override: OverrideOptions.PICKER, ...options }, this.group);
 		}
 	}
 

@@ -15,7 +15,7 @@ import { IExtUri, isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, ITextEditorOptions, OverrideOptions } from 'vs/platform/editor/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { viewColumnToEditorGroup } from 'vs/workbench/common/editor';
@@ -691,7 +691,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: false,
+			override: OverrideOptions.DISABLED,
 		};
 
 		const columnArg = viewColumnToEditorGroup(this._editorGroupsService, options.position);
