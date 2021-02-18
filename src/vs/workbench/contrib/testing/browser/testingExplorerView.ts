@@ -899,7 +899,7 @@ class TestRunProgress {
 	}
 
 	private updateProgress() {
-		const running = this.resultService.results.filter(r => !r.isComplete);
+		const running = this.resultService.results.filter(r => r.completedAt === undefined);
 		if (!running.length) {
 			this.setIdleText(this.resultService.results[0]?.counts);
 			this.current?.deferred.complete();
@@ -948,7 +948,7 @@ class TestRunProgress {
 			return;
 		}
 
-		if (!result.isComplete) {
+		if (result.completedAt === undefined) {
 			const badge = new ProgressBadge(() => localize('testBadgeRunning', 'Test run in progress'));
 			this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge, clazz: 'progress-badge' });
 			return;

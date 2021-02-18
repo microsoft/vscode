@@ -2203,22 +2203,15 @@ declare module 'vscode' {
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
 
 		/**
-		 * The last or selected test run. Cleared when a new test run starts.
-		 */
-		export const testResults: TestResults | undefined;
+		* List of test results stored by VS Code, sorted in descnding
+		* order by their `completedAt` time.
+		*/
+		export const testResults: ReadonlyArray<TestResults>;
 
 		/**
-		 * Event that fires when the testResults are updated.
-		 */
+		* Event that fires when the {@link testResults} array is updated.
+		*/
 		export const onDidChangeTestResults: Event<void>;
-	}
-
-	export interface TestResults {
-		/**
-		 * The results from the latest test run. The array contains a snapshot of
-		 * all tests involved in the run at the moment when it completed.
-		 */
-		readonly tests: ReadonlyArray<RequiredTestItem> | undefined;
 	}
 
 	export interface TestObserver {
@@ -2525,6 +2518,45 @@ declare module 'vscode' {
 		 * Associated file location.
 		 */
 		location?: Location;
+	}
+
+	/**
+	 * TestResults can be provided to VS Code, or read from it.
+	 *
+	 * The results contain a 'snapshot' of the tests at the point when the test
+	 * run is complete. Therefore, information such as {@link Location} instances
+	 * may be out of date. If the test still exists in the workspace, consumers
+	 * can use its `id` to correlate the result instance with the living test.
+	 *
+	 * @todo coverage and other info may eventually live here
+	 */
+	export interface TestResults {
+		/**
+		 * Unix milliseconds timestamp at which the tests were completed.
+		 */
+		completedAt: number;
+
+		/**
+		 * List of test results. The items in this array are the items that
+		 * were passed in the {@link test.runTests} method.
+		 */
+		results: ReadonlyArray<Readonly<TestItemWithResults>>;
+	}
+
+	/**
+	 * A {@link TestItem} with an associated result, which appear or can be
+	 * provided in {@link TestResult} interfaces.
+	 */
+	export interface TestItemWithResults extends TestItem {
+		/**
+		 * Current result of the test.
+		 */
+		result: TestState;
+
+		/**
+		 * Optional list of nested tests for this item.
+		 */
+		children?: Readonly<TestItemWithResults>[];
 	}
 
 	//#endregion
