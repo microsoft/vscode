@@ -748,7 +748,6 @@ export class TunnelPanel extends ViewPane {
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService, this.menuService);
 
-		const renderer = new TunnelTreeRenderer(TunnelPanel.ID, this.menuService, this.contextKeyService, this.instantiationService, this.contextViewService, this.themeService, this.remoteExplorerService);
 		this.table = this.instantiationService.createInstance(WorkbenchTable,
 			'RemoteTunnels',
 			widgetContainer,
@@ -756,22 +755,22 @@ export class TunnelPanel extends ViewPane {
 			[new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()],
 			[new StringRenderer(), actionBarRenderer],
 			{
-				// 		keyboardNavigationLabelProvider: {
-				// 			getKeyboardNavigationLabel: (item: ITunnelItem | ITunnelGroup) => {
-				// 				return item.label;
-				// 			}
-				// 		},
-				// 		multipleSelectionSupport: false,
-				// 		accessibilityProvider: {
-				// 			getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
-				// 				if (item instanceof TunnelItem) {
-				// 					return item.tooltip;
-				// 				} else {
-				// 					return item.label;
-				// 				}
-				// 			},
-				// 			getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
-				// 		}
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (item: ITunnelItem | ITunnelGroup) => {
+						return item.label;
+					}
+				},
+				multipleSelectionSupport: false,
+				accessibilityProvider: {
+					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
+						if (item instanceof TunnelItem) {
+							return item.tooltip;
+						} else {
+							return item.label;
+						}
+					},
+					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
+				}
 			}
 		) as WorkbenchTable<ITunnelItem>;
 
