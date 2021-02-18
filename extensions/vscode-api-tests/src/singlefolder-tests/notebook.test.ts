@@ -1231,7 +1231,7 @@ suite('Notebook API tests', function () {
 		edit.replaceNotebookCellMetadata(document.uri, 0, metadata);
 		await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
-		assert.strictEqual(document.cells[0].metadata.custom, custom);
+		assert.deepStrictEqual(document.cells[0].metadata.custom, custom);
 		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
 		assert.strictEqual(document.cells[0].metadata.runStartTime, runStartTime);
 
