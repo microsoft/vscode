@@ -273,23 +273,31 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 	}
 
 	getCellContextFromArgs(accessor: ServicesAccessor, context?: ICellRange, ...additionalArgs: any[]): INotebookCellActionContext | undefined {
-		if (!context || typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
+		if (!context) {
 			return;
+		}
+
+		if (typeof context.start !== 'number' || typeof context.end !== 'number' || context.start >= context.end) {
+			throw new Error(`The first argument '${context}' is not a valid CellRange`);
 		}
 
 		if (additionalArgs.length && additionalArgs[0]) {
 			const uri = URI.revive(additionalArgs[0]);
 
-			if (uri) {
-				const widget = getWidgetFromUri(accessor, uri);
-				if (widget) {
-					const cells = widget.viewModel.viewCells;
+			if (!uri) {
+				throw new Error(`The second argument '${uri}' is not a valid Uri`);
+			}
 
-					return {
-						notebookEditor: widget,
-						cell: cells[context.start]
-					};
-				}
+			const widget = getWidgetFromUri(accessor, uri);
+			if (widget) {
+				const cells = widget.viewModel.viewCells;
+
+				return {
+					notebookEditor: widget,
+					cell: cells[context.start]
+				};
+			} else {
+				throw new Error(`There is no editor opened for resource ${uri}`);
 			}
 		}
 
