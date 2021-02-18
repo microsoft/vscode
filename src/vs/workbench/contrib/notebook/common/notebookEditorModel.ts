@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel, NotebookCellsChangeType, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -19,15 +19,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TaskSequentializer } from 'vs/base/common/async';
-
-
-export interface INotebookLoadOptions {
-	/**
-	 * Go to disk bypassing any cache of the model if any.
-	 */
-	forceReadFromDisk?: boolean;
-}
-
+import { assertType } from 'vs/base/common/types';
 
 export class NotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
@@ -37,14 +29,14 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private _notebook!: NotebookTextModel;
+	private _notebook?: NotebookTextModel;
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
 	private readonly _name: string;
 	private readonly _workingCopyResource: URI;
-	private readonly saveSequentializer = new TaskSequentializer();
+	private readonly _saveSequentializer = new TaskSequentializer();
 
-	private _dirty = false;
+	private _dirty: boolean = false;
 
 	constructor(
 		readonly resource: URI,
@@ -78,11 +70,23 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
 
-	get lastResolvedFileStat() {
+	isResolved(): this is IResolvedNotebookEditorModel {
+		return this.notebook !== undefined;
+	}
+
+	isDirty(): boolean {
+		return this._dirty;
+	}
+
+	isUntitled(): boolean {
+		return this.resource.scheme === Schemas.untitled;
+	}
+
+	get lastResolvedFileStat(): IFileStatWithMetadata | undefined {
 		return this._lastResolvedFileStat;
 	}
 
-	get notebook() {
+	get notebook(): NotebookTextModel | undefined {
 		return this._notebook;
 	}
 
@@ -94,7 +98,12 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
-		if (this._notebook.supportBackup) {
+
+		if (!this.isResolved()) {
+			throw new Error('CANNOT call backup before notebook is resolved');
+		}
+
+		if (this.notebook.supportBackup) {
 			const tokenSource = new CancellationTokenSource(token);
 			const backupId = await this._notebookService.backup(this.viewType, this.resource, tokenSource.token);
 			if (token.isCancellationRequested) {
@@ -106,7 +115,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 				meta: {
 					mtime: stats?.mtime || new Date().getTime(),
 					name: this._name,
-					viewType: this._notebook.viewType,
+					viewType: this.notebook.viewType,
 					backupId: backupId
 				}
 			};
@@ -115,9 +124,9 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 				meta: {
 					mtime: new Date().getTime(),
 					name: this._name,
-					viewType: this._notebook.viewType
+					viewType: this.notebook.viewType
 				},
-				content: this._notebook.createSnapshot(true)
+				content: this.notebook.createSnapshot(true)
 			};
 		}
 	}
@@ -137,7 +146,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		this._onDidChangeDirty.fire();
 	}
 
-	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel> {
+	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
 			return this._loadFromProvider(true, undefined);
 		}
@@ -155,11 +164,10 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		return this._loadFromProvider(false, backup?.meta?.backupId);
 	}
 
-	private async _loadFromProvider(forceReloadFromDisk: boolean, backupId: string | undefined) {
-		this._notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, backupId);
+	private async _loadFromProvider(forceReloadFromDisk: boolean, backupId: string | undefined): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
 
-		const newStats = await this._resolveStats(this.resource);
-		this._lastResolvedFileStat = newStats;
+		this._notebook = await this._notebookService.resolveNotebook(this.viewType, this.resource, forceReloadFromDisk, backupId);
+		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
 		this._register(this._notebook);
 
@@ -185,20 +193,8 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			await this._backupFileService.discardBackup(this._workingCopyResource);
 			this.setDirty(true);
 		}
-
+		assertType(this.isResolved());
 		return this;
-	}
-
-	isResolved(): boolean {
-		return !!this._notebook;
-	}
-
-	isDirty() {
-		return this._dirty;
-	}
-
-	isUntitled() {
-		return this.resource.scheme === Schemas.untitled;
 	}
 
 	private async _assertStat() {
@@ -241,35 +237,41 @@ Current stat: ${JSON.stringify(stats)}
 	}
 
 	async save(): Promise<boolean> {
-		let versionId = this._notebook.versionId;
+
+		if (!this.isResolved()) {
+			return false;
+		}
+
+		const versionId = this.notebook.versionId;
 		this._logService.debug(`[notebook editor model] save(${versionId}) - enter with versionId ${versionId}`, this.resource.toString(true));
 
-		if (this.saveSequentializer.hasPending(versionId)) {
+		if (this._saveSequentializer.hasPending(versionId)) {
 			this._logService.debug(`[notebook editor model] save(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource.toString(true));
-			return this.saveSequentializer.pending.then(() => {
+			return this._saveSequentializer.pending.then(() => {
 				return true;
 			});
 		}
 
-		if (this.saveSequentializer.hasPending()) {
-			return this.saveSequentializer.setNext(async () => {
+		if (this._saveSequentializer.hasPending()) {
+			return this._saveSequentializer.setNext(async () => {
 				await this.save();
 			}).then(() => {
 				return true;
 			});
 		}
 
-		return this.saveSequentializer.setPending(versionId, (async () => {
+		return this._saveSequentializer.setPending(versionId, (async () => {
 			const result = await this._assertStat();
 			if (result === 'none') {
 				return;
 			}
-
 			if (result === 'revert') {
 				await this.revert();
 				return;
 			}
-
+			if (!this.isResolved()) {
+				return;
+			}
 			const tokenSource = new CancellationTokenSource();
 			await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
 			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true));
@@ -282,6 +284,11 @@ Current stat: ${JSON.stringify(stats)}
 	}
 
 	async saveAs(targetResource: URI): Promise<boolean> {
+
+		if (!this.isResolved()) {
+			return false;
+		}
+
 		this._logService.debug(`[notebook editor model] saveAs - enter`, this.resource.toString(true));
 		const result = await this._assertStat();
 
