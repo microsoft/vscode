@@ -92,7 +92,7 @@ export enum HeartbeatConstants {
 	 * process. This short circuits the standard wait timeouts to tell the user sooner and only
 	 * create process is handled to avoid additional perf overhead.
 	 */
-	CreateProcessTimeout = 3000
+	CreateProcessTimeout = 2000
 }
 
 export interface IHeartbeatService {

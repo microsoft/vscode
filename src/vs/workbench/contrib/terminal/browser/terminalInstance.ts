@@ -952,7 +952,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
-			this.setTitle(nls.localize('ptyDisconnected', "{0} (disconnected)", this._title), TitleEventSource.Process);
+			// Use api source so it cannot be overridden
+			this.setTitle(nls.localize('ptyDisconnected', "{0} (disconnected)", this._title), TitleEventSource.Api);
 		});
 
 		if (this._shellLaunchConfig.name) {
