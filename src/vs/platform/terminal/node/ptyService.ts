@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -78,7 +78,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		const id = ++currentPtyId;
-		this._logService.info('creating process', id);
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
@@ -93,7 +92,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, ipcHandlePath, this._logService, () => {
 			persistentTerminalProcess.dispose();
 			this._ptys.delete(id);
-		});
+		}, shellLaunchConfig.attachPersistentTerminal);
 		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentTerminalProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentTerminalProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
@@ -247,7 +246,8 @@ export class PersistentTerminalProcess extends Disposable {
 		cols: number, rows: number,
 		ipcHandlePath: string,
 		private readonly _logService: ILogService,
-		private readonly _onExit: () => void
+		private readonly _onExit: () => void,
+		private readonly _attachPersistentTerminal?: any
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
@@ -284,7 +284,6 @@ export class PersistentTerminalProcess extends Disposable {
 		// Buffer data events to reduce the amount of messages going to the renderer
 		// this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessData(e => {
-			// console.trace(`data ${e}`);
 			this._recorder.recordData(e);
 		}));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
@@ -313,9 +312,11 @@ export class PersistentTerminalProcess extends Disposable {
 			await this._terminalProcess.start();
 			this._isStarted = true;
 		} else {
-			// TODO: Fix me
-			// this._onProcessReady.fire({ pid: (this._terminalProcess as any)._ptyProcess.pid, cwd: '' });
-			this._onProcessReady.fire({ pid: -1, cwd: '' });
+			if (!this._attachPersistentTerminal) {
+				this._onProcessReady.fire({ pid: -1, cwd: await this._terminalProcess.getCwd() });
+			} else {
+				this._onProcessReady.fire({ pid: this._attachPersistentTerminal.pid, cwd: await this._terminalProcess.getCwd() });
+			}
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 		}
 		// TODO: Pass back launch error
@@ -419,4 +420,27 @@ export class PersistentTerminalProcess extends Disposable {
 		await this._orphanQuestionBarrier.wait();
 		return (Date.now() - this._orphanQuestionReplyTime > 500);
 	}
+}
+
+function printTime(ms: number): string {
+	let h = 0;
+	let m = 0;
+	let s = 0;
+	if (ms >= 1000) {
+		s = Math.floor(ms / 1000);
+		ms -= s * 1000;
+	}
+	if (s >= 60) {
+		m = Math.floor(s / 60);
+		s -= m * 60;
+	}
+	if (m >= 60) {
+		h = Math.floor(m / 60);
+		m -= h * 60;
+	}
+	const _h = h ? `${h}h` : ``;
+	const _m = m ? `${m}m` : ``;
+	const _s = s ? `${s}s` : ``;
+	const _ms = ms ? `${ms}ms` : ``;
+	return `${_h}${_m}${_s}${_ms}`;
 }

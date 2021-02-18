@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IGetTerminalLayoutInfoArgs, IOrphanQuestionReplyArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -41,88 +40,6 @@ export interface IPtyHostAttachTarget {
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
 export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
-
-export interface IBeforeProcessDataEvent {
-	/**
-	 * The data of the event, this can be modified by the event listener to change what gets sent
-	 * to the terminal.
-	 */
-	data: string;
-}
-
-export interface ITerminalProcessExtHostProxy extends IDisposable {
-	readonly terminalId: number;
-
-	emitData(data: string): void;
-	emitTitle(title: string): void;
-	emitReady(pid: number, cwd: string): void;
-	emitExit(exitCode: number | undefined): void;
-	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
-	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
-	emitInitialCwd(initialCwd: string): void;
-	emitCwd(cwd: string): void;
-	emitLatency(latency: number): void;
-
-	onInput: Event<string>;
-	onResize: Event<{ cols: number, rows: number }>;
-	onAcknowledgeDataEvent: Event<number>;
-	onShutdown: Event<boolean>;
-	onRequestInitialCwd: Event<void>;
-	onRequestCwd: Event<void>;
-	onRequestLatency: Event<void>;
-}
-
-export interface ISpawnExtHostProcessRequest {
-	proxy: ITerminalProcessExtHostProxy;
-	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI | undefined;
-	cols: number;
-	rows: number;
-	isWorkspaceShellAllowed: boolean;
-	callback: (error: ITerminalLaunchError | undefined) => void;
-}
-
-export interface IStartExtensionTerminalRequest {
-	proxy: ITerminalProcessExtHostProxy;
-	cols: number;
-	rows: number;
-	callback: (error: ITerminalLaunchError | undefined) => void;
-}
-
-export interface IShellDefinition {
-	label: string;
-	path: string;
-}
-
-export interface IAvailableShellsRequest {
-	callback: (shells: IShellDefinition[]) => void;
-}
-
-export interface IDefaultShellAndArgsRequest {
-	useAutomationShell: boolean;
-	callback: (shell: string, args: string[] | string | undefined) => void;
-}
-
-export enum LinuxDistro {
-	Fedora,
-	Ubuntu,
-	Unknown
-}
-
-export enum TitleEventSource {
-	/** From the API or the rename command that overrides any other type */
-	Api,
-	/** From the process name property*/
-	Process,
-	/** From the VT sequence */
-	Sequence
-}
-
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChange: Event<string>;
-
-	getShellName(): Promise<string>;
-}
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -200,8 +117,6 @@ export interface IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
 
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
-
-	orphanQuestionReply(args: IOrphanQuestionReplyArgs): void;
 }
 
 export enum HeartbeatConstants {
@@ -432,27 +347,4 @@ export interface ITerminalDimensionsOverride extends ITerminalDimensions {
 	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
 	 */
 	forceExactSize?: boolean;
-}
-
-export function printTime(ms: number): string {
-	let h = 0;
-	let m = 0;
-	let s = 0;
-	if (ms >= 1000) {
-		s = Math.floor(ms / 1000);
-		ms -= s * 1000;
-	}
-	if (s >= 60) {
-		m = Math.floor(s / 60);
-		s -= m * 60;
-	}
-	if (m >= 60) {
-		h = Math.floor(m / 60);
-		m -= h * 60;
-	}
-	const _h = h ? `${h}h` : ``;
-	const _m = m ? `${m}m` : ``;
-	const _s = s ? `${s}s` : ``;
-	const _ms = ms ? `${ms}ms` : ``;
-	return `${_h}${_m}${_s}${_ms}`;
 }

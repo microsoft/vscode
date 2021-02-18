@@ -10,7 +10,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { IShellDefinition, LinuxDistro } from 'vs/platform/terminal/common/terminal';
+import { IShellDefinition, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 
 let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {

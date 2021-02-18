@@ -74,14 +74,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	}
 
 	start(): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
-
-		// this._persistentTerminalId = shellLaunchConfig.attachPersistentTerminal.id;
-		// this._onProcessReady.fire();
-
-		// setTimeout(() => {
-		// 	this._onProcessTitleChanged.fire(this._shellLaunchConfig.attachPersistentTerminal!.title);
-		// }, 0);
-		// TODO: Set this._persistentTerminalId
 		return this._localPtyService.start(this._localPtyId);
 	}
 

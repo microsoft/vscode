@@ -125,10 +125,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public dispose(immediate: boolean = false): void {
-		this._logService.info(`process is undefined ${this.processState}`);
-
 		if (this._process) {
-			this._logService.info(`exiting ${this.processState}`);
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
 			// killed by the user.
@@ -211,7 +208,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		});
 
-		this._process.onProcessReady(async (e: { pid: number, cwd: string }) => {
+		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
 			this.shellProcessId = e.pid;
 			this._initialCwd = e.cwd;
 			this._onProcessReady.fire();
@@ -388,7 +385,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (this.processState === ProcessState.LAUNCHING) {
 			this.processState = ProcessState.KILLED_DURING_LAUNCH;
 		}
-		this._logService.info(`exiting ${exitCode}`);
 
 		// If TerminalInstance did not know about the process exit then it was
 		// triggered by the process, not on VS Code's side.

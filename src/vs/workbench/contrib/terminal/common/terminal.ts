@@ -9,9 +9,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellDefinition, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -236,6 +236,27 @@ export interface IBeforeProcessDataEvent {
 	 * to the terminal.
 	 */
 	data: string;
+}
+
+export interface IShellDefinition {
+	label: string;
+	path: string;
+}
+
+export interface IAvailableShellsRequest {
+	callback: (shells: IShellDefinition[]) => void;
+}
+
+
+export interface IDefaultShellAndArgsRequest {
+	useAutomationShell: boolean;
+	callback: (shell: string, args: string[] | string | undefined) => void;
+}
+
+export interface IWindowsShellHelper extends IDisposable {
+	readonly onShellNameChange: Event<string>;
+
+	getShellName(): Promise<string>;
 }
 
 export interface ITerminalProcessManager extends IDisposable {
