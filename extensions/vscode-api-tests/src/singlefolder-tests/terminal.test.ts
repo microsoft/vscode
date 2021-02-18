@@ -56,55 +56,38 @@ import { assertNoRpc } from '../utils';
 		});
 
 		test('echo works in the default shell', async () => {
-			console.log('  test 1');
 			const terminal = await new Promise<Terminal>(r => {
-				console.log('  test 2');
 				disposables.push(window.onDidOpenTerminal(t => {
-					console.log('  test 3');
 					strictEqual(terminal, t);
 					r(terminal);
 				}));
-				console.log('  test 4');
 				// Use a single character to avoid winpty/conpty issues with injected sequences
 				const terminal = window.createTerminal({
 					env: { TEST: '`' }
 				});
-				console.log('  test 5');
 				terminal.show();
 			});
 
-			console.log('  test 6');
 			let data = '';
 			await new Promise<void>(r => {
-				console.log('  test 7');
 				disposables.push(window.onDidWriteTerminalData(e => {
-					console.log('  test 8.1');
 					strictEqual(terminal, e.terminal);
-					console.log('  test 8.2');
 					data += e.data;
-					console.log('  test 8.3, data=' + data);
 					if (data.indexOf('`') !== 0) {
-						console.log('  test 9');
 						r();
 					}
 				}));
 				// Print an environment variable value so the echo statement doesn't get matched
 				if (process.platform === 'win32') {
-					console.log('  test 10');
 					terminal.sendText(`$env:TEST`);
 				} else {
-					console.log('  test 11');
 					terminal.sendText(`echo $TEST`);
 				}
 			});
 
-			console.log('  test 12');
 			await new Promise<void>(r => {
-				console.log('  test 1');
 				terminal.dispose();
-				console.log('  test 14');
 				disposables.push(window.onDidCloseTerminal(t => {
-					console.log('  test 15');
 					strictEqual(terminal, t);
 					r();
 				}));
