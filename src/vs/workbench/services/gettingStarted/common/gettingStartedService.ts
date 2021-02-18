@@ -19,6 +19,8 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
+import { localize } from 'vs/nls';
+import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -141,6 +143,21 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					return;
 				}
 
+				const categoryID = `EXTContrib-${extension.identifier.value}`;
+
+				this.registry.registerCategory({
+					content: { type: 'items' },
+					description: localize('extContrib', "Learn more about {0}!", extension.displayName ?? extension.name),
+					title: extension.displayName || extension.name,
+					id: categoryID,
+					icon: {
+						type: 'image',
+						path: extension.icon
+							? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
+							: DefaultIconPath
+					},
+					when: ContextKeyExpr.true(),
+				});
 				extension.contributes?.gettingStarted.forEach((content, index) => {
 					this.registry.registerTask({
 						button: content.button,
@@ -150,7 +167,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						id: content.id,
 						title: content.title,
 						when: ContextKeyExpr.deserialize(content.when) ?? ContextKeyExpr.true(),
-						category: 'ExtensionContrib',
+						category: categoryID,
 						order: index,
 					});
 				});

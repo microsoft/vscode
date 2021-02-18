@@ -27,6 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IGettingStartedCategoryDescriptor } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -323,7 +324,8 @@ export class GettingStartedPage extends EditorPane {
 						'x-dispatch': 'selectCategory:' + category.id,
 						'role': 'listitem',
 					},
-					$(ThemeIcon.asCSSSelector(category.icon), {}), categoryDescriptionElement);
+					this.iconWidgetFor(category),
+					categoryDescriptionElement);
 			});
 
 		const categoryScrollContainer = $('.getting-started-categories-scrolling-container');
@@ -427,6 +429,10 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
+	private iconWidgetFor(category: IGettingStartedCategoryDescriptor) {
+		return category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
+	}
+
 	private buildCategorySlide(categoryID: string, selectedItem?: string) {
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 		if (!category) { throw Error('could not find category with ID ' + categoryID); }
@@ -440,7 +446,7 @@ export class GettingStartedPage extends EditorPane {
 		detailTitle.appendChild(
 			$('.getting-started-category',
 				{},
-				$(ThemeIcon.asCSSSelector(category.icon), {}),
+				this.iconWidgetFor(category),
 				$('.category-description-container', {},
 					$('h2.category-title', {}, category.title),
 					$('.category-description.description', {}, category.description))));

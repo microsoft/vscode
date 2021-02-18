@@ -112,6 +112,12 @@
 	font-size: 32px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category img.category-icon {
+	margin-right: 10px;
+	max-width: 32px;
+	max-height: 32px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail {
 	display: flex;
 	flex-direction: column;

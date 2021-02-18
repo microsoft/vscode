@@ -270,16 +270,5 @@ export const content: GettingStartedContent = [
 				}
 			]
 		}
-	},
-
-	{
-		id: 'ExtensionContrib',
-		title: localize('gettingStarted.extensionContrib.title', "Discover Your Extensions"),
-		icon: extensionsIcon,
-		description: localize('gettingStarted.extensionContrib.description', "Learn about features contributed by installed extensions."),
-		content: {
-			type: 'items',
-			items: []
-		}
 	}
 ];
