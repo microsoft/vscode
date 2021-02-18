@@ -1569,7 +1569,6 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
-		await saveAllFilesAndCloseAll(resource);
 	});
 
 	// });
