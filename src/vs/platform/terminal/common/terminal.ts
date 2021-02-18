@@ -19,7 +19,11 @@ export enum TerminalIpcChannels {
 	/**
 	 * Deals with logging from the pty host process.
 	 */
-	Log = 'log'
+	Log = 'log',
+	/**
+	 * Enables the detection of unresponsive pty hosts.
+	 */
+	Heartbeat = 'heartbeat'
 }
 
 export interface IPtyService {
@@ -27,6 +31,7 @@ export interface IPtyService {
 
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
+	readonly onPtyHostUnresponsive?: Event<void>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
@@ -62,6 +67,36 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 
 	getLatency(id: number): Promise<number>;
+
+	restartPtyHost?(): Promise<void>;
+}
+
+export enum HeartbeatConstants {
+	/**
+	 * The duration between heartbeats
+	 */
+	BeatInterval = 10000,
+	/**
+	 * Defines a multiplier for BeatInterval for how long to wait before starting the second wait
+	 * timer.
+	 */
+	FirstWaitMultiplier = 1.2,
+	/**
+	 * Defines a multiplier for BeatInterval for how long to wait before telling the user about
+	 * non-responsiveness. The second timer is to avoid informing the user incorrectly when waking
+	 * the computer up from sleep
+	 */
+	SecondWaitMultiplier = 1,
+	/**
+	 * How long to wait before telling the user about non-responsiveness when they try to create a
+	 * process. This short circuits the standard wait timeouts to tell the user sooner and only
+	 * create process is handled to avoid additional perf overhead.
+	 */
+	CreateProcessTimeout = 3000
+}
+
+export interface IHeartbeatService {
+	readonly onBeat: Event<void>;
 }
 
 export interface IShellLaunchConfig {

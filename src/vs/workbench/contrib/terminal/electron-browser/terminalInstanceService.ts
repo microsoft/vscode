@@ -26,7 +26,8 @@ import { IShellLaunchConfig, ITerminalChildProcess } from 'vs/platform/terminal/
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { localize } from 'vs/nls';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -60,6 +61,15 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		if (this._localPtyService.onPtyHostStart) {
 			this._localPtyService.onPtyHostStart(() => {
 				this._logService.info(`ptyHost restarted`);
+			});
+		}
+		if (this._localPtyService.onPtyHostUnresponsive) {
+			this._localPtyService.onPtyHostUnresponsive(() => {
+				const choices: IPromptChoice[] = [{
+					label: localize('restartPtyHost', "Restart pty host"),
+					run: () => this._localPtyService.restartPtyHost!()
+				}];
+				notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
 			});
 		}
 	}
