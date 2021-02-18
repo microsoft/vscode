@@ -347,7 +347,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				else {
 					this.notificationService.notify({
 						severity: Severity.Info,
-						message: localize('service changed and turned off', "Settings sync was turned off because VSCode now uses a separate service. Please turn on sync again."),
+						message: localize('service changed and turned off', "Settings sync was turned off because {0} now uses a separate service. Please turn on sync again.", this.productService.nameLong),
 						actions: {
 							primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
 						}
