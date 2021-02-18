@@ -22,6 +22,7 @@ import { IConfigurationModel } from 'vs/platform/configuration/common/configurat
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class UserConfiguration extends Disposable {
 
@@ -38,6 +39,7 @@ export class UserConfiguration extends Disposable {
 		private readonly scopes: ConfigurationScope[] | undefined,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 	) {
 		super();
 		this.userConfiguration.value = new UserSettings(this.userSettingsResource, this.scopes, uriIdentityService.extUri, this.fileService);
@@ -56,7 +58,7 @@ export class UserConfiguration extends Disposable {
 
 		const folder = this.uriIdentityService.extUri.dirname(this.userSettingsResource);
 		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, this.uriIdentityService.extUri.joinPath(folder, `${name}.json`)]));
-		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService, this.uriIdentityService);
+		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), [this.userSettingsResource], standAloneConfigurationResources, this.scopes, this.fileService, this.uriIdentityService, this.logService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
 		this.userConfiguration.value = fileServiceBasedConfiguration;
 
@@ -89,8 +91,9 @@ class FileServiceBasedConfiguration extends Disposable {
 		private readonly settingsResources: URI[],
 		private readonly standAloneConfigurationResources: [string, URI][],
 		private readonly scopes: ConfigurationScope[] | undefined,
-		private fileService: IFileService,
-		private uriIdentityService: IUriIdentityService
+		private readonly fileService: IFileService,
+		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 	) {
 		super();
 		this.allResources = [...this.settingsResources, ...this.standAloneConfigurationResources.map(([, resource]) => resource)];
@@ -107,9 +110,13 @@ class FileServiceBasedConfiguration extends Disposable {
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
 				try {
-					const content = await this.fileService.readFile(resource);
-					return content.value.toString();
+					const content = (await this.fileService.readFile(resource)).value.toString();
+					if (!content) {
+						this.logService.debug(`Configuration file '${resource.toString()}' is empty`);
+					}
+					return content;
 				} catch (error) {
+					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
 					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
 						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
 						errors.onUnexpectedError(error);
@@ -694,6 +701,7 @@ export class FolderConfiguration extends Disposable {
 		private readonly workbenchState: WorkbenchState,
 		fileService: IFileService,
 		uriIdentityService: IUriIdentityService,
+		logService: ILogService,
 		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
@@ -704,12 +712,12 @@ export class FolderConfiguration extends Disposable {
 			this.folderConfiguration = this.cachedFolderConfiguration;
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {
-					this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService));
+					this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService, logService));
 					this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 					this.onDidFolderConfigurationChange();
 				});
 		} else {
-			this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService));
+			this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService, logService));
 			this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 		}
 	}
@@ -727,10 +735,10 @@ export class FolderConfiguration extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	private createFileServiceBasedConfiguration(fileService: IFileService, uriIdentityService: IUriIdentityService) {
+	private createFileServiceBasedConfiguration(fileService: IFileService, uriIdentityService: IUriIdentityService, logService: ILogService) {
 		const settingsResources = [uriIdentityService.extUri.joinPath(this.configurationFolder, `${FOLDER_SETTINGS_NAME}.json`)];
 		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY].map(name => ([name, uriIdentityService.extUri.joinPath(this.configurationFolder, `${name}.json`)]));
-		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResources, standAloneConfigurationResources, WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES, fileService, uriIdentityService);
+		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResources, standAloneConfigurationResources, WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES, fileService, uriIdentityService, logService);
 	}
 
 	private updateCache(): Promise<void> {

@@ -15,8 +15,9 @@ import { Composite } from 'vs/workbench/browser/composite';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ViewPaneContainer, ViewsSubMenu } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IAction, IActionViewItem, Separator } from 'vs/base/common/actions';
+import { IAction, Separator } from 'vs/base/common/actions';
 import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 

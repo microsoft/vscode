@@ -2080,6 +2080,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.viewCells.find(vc => vc.handle === cellHandle) as CodeCellViewModel;
 	}
 
+	getCellById(cellId: string): ICellViewModel | undefined {
+		return this.viewModel?.viewCells.find(vc => vc.id === cellId);
+	}
+
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
@@ -2090,24 +2094,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
+		const cell = this.getCellById(cellId);
 		if (cell && cell instanceof MarkdownCellViewModel) {
 			cell.renderedMarkdownHeight = height;
 		}
 	}
 
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
+		const cell = this.getCellById(cellId);
 		if (cell && cell instanceof MarkdownCellViewModel) {
 			cell.editState = editState;
 		}
 	}
 
 	markdownCellDragStart(cellId: string, ctx: { clientY: number }): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
+		const cell = this.getCellById(cellId);
 		if (cell && cell instanceof MarkdownCellViewModel) {
 			this._dndController?.startExplicitDrag(cell, ctx);
 		}
@@ -2380,8 +2381,6 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-top:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
 			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
 				border-color: ${focusedCellBorderColor} !important;
@@ -2390,9 +2389,7 @@ registerThemingParticipant((theme, collector) => {
 	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
 	collector.addRule(`
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):before,
-			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused .cell-inner-container:not(.cell-editor-focus):after {
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
 				border-color: ${inactiveFocusedBorderColor} !important;
 			}`);
 
@@ -2611,15 +2608,12 @@ class DecorationCSSRules {
 			const borderColor = this._resolveValue(this._providerArgs.options.borderColor);
 
 			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-top:before,
-					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before,
-					.monaco-workbench .notebookOverlay .monaco-list .${this.className}.markdown-cell-row.focused:before,
-					.monaco-workbench .notebookOverlay .monaco-list .${this.className}.markdown-cell-row.focused:after {
+					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before {
 						border-color: ${borderColor} !important;
 					}`);
 
 			this._styleSheet.insertRule(`
-					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before,
-					.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.${this.className}:after {
+					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before {
 						content: "";
 						position: absolute;
 						width: 100%;
@@ -2629,8 +2623,7 @@ class DecorationCSSRules {
 					`);
 
 			this._styleSheet.insertRule(`
-					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-top:before,
-					.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.${this.className}:before {
+					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-top:before {
 						content: "";
 						position: absolute;
 						width: 100%;
@@ -2640,9 +2633,7 @@ class DecorationCSSRules {
 
 			// more specific rule for `.focused` can override existing rules
 			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-top:before,
-				.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-bottom:before,
-				.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused.${this.className}:before,
-				.monaco-workbench .notebookOverlay .monaco-list:focus-within .markdown-cell-row.focused.${this.className}:after {
+				.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-bottom:before {
 					border-color: ${borderColor} !important;
 				}`);
 		}

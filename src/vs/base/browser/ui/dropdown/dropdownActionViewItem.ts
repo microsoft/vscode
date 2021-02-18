@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./dropdown';
-import { Action, IAction, IActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
+import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -14,6 +14,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseAction
 import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { Codicon } from 'vs/base/common/codicons';
+import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;

@@ -4,14 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./actionbar';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator, IActionViewItem, IActionViewItemProvider } from 'vs/base/common/actions';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IAction, IActionRunner, ActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Emitter } from 'vs/base/common/event';
 import { IActionViewItemOptions, ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+
+export interface IActionViewItem extends IDisposable {
+	actionRunner: IActionRunner;
+	setActionContext(context: any): void;
+	render(element: HTMLElement): void;
+	isEnabled(): boolean;
+	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
+	blur(): void;
+}
+
+export interface IActionViewItemProvider {
+	(action: IAction): IActionViewItem | undefined;
+}
 
 export const enum ActionsOrientation {
 	HORIZONTAL,

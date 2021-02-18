@@ -1194,6 +1194,31 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(resource);
 	});
 
+	test('Numeric metadata should get updated correctly', async function () {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+
+		const edit = new vscode.WorkspaceEdit();
+		const runStartTime = Date.now();
+		const lastRunDuration = Date.now() + 1000;
+		const runState = vscode.NotebookCellRunState.Success;
+		const executionOrder = 1234;
+		const metadata = document.cells[0].metadata.with({
+			...document.cells[0].metadata,
+			runStartTime,
+			runState,
+			lastRunDuration,
+			executionOrder
+		});
+		edit.replaceNotebookCellMetadata(document.uri, 0, metadata);
+		await vscode.workspace.applyEdit(edit);
+
+		assert.strictEqual(document.cells[0].metadata.runStartTime, runStartTime);
+		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
+		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
+		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
+	});
+
 	// });
 
 	// suite('webview', () => {

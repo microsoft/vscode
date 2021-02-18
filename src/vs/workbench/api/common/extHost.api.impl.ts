@@ -341,11 +341,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.onLastResultsChanged;
+				return extHostTesting.onResultsChanged;
 			},
 			get testResults() {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.lastResults;
+				return extHostTesting.results;
 			},
 		};
 

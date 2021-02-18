@@ -1419,7 +1419,7 @@ export namespace NotebookCellRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.runnable, data.hasExecutionOrder, data.executionOrder, data.runStartTime, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.runnable, data.hasExecutionOrder, data.executionOrder, data.runState, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
 

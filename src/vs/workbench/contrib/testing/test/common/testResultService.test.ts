@@ -161,7 +161,7 @@ suite('Workbench - Test Results Service', () => {
 
 			assert.deepStrictEqual(actual, { ...expected, retired: true });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
-			assert.strictEqual(rehydrated.isComplete, true);
+			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});
 
 		test('clears results but keeps ongoing tests', () => {

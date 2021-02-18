@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -137,7 +137,7 @@ abstract class BaseNavigationAction extends Action {
 class NavigateLeftAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateLeft';
-	static readonly LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
+	static readonly LABEL = localize('navigateLeft', "Navigate to the View on the Left");
 
 	constructor(
 		id: string,
@@ -154,7 +154,7 @@ class NavigateLeftAction extends BaseNavigationAction {
 class NavigateRightAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateRight';
-	static readonly LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
+	static readonly LABEL = localize('navigateRight', "Navigate to the View on the Right");
 
 	constructor(
 		id: string,
@@ -171,7 +171,7 @@ class NavigateRightAction extends BaseNavigationAction {
 class NavigateUpAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateUp';
-	static readonly LABEL = nls.localize('navigateUp', "Navigate to the View Above");
+	static readonly LABEL = localize('navigateUp', "Navigate to the View Above");
 
 	constructor(
 		id: string,
@@ -188,7 +188,7 @@ class NavigateUpAction extends BaseNavigationAction {
 class NavigateDownAction extends BaseNavigationAction {
 
 	static readonly ID = 'workbench.action.navigateDown';
-	static readonly LABEL = nls.localize('navigateDown', "Navigate to the View Below");
+	static readonly LABEL = localize('navigateDown', "Navigate to the View Below");
 
 	constructor(
 		id: string,
@@ -229,7 +229,7 @@ function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorS
 
 export class FocusNextPart extends Action {
 	static readonly ID = 'workbench.action.focusNextPart';
-	static readonly LABEL = nls.localize('focusNextPart', "Focus Next Part");
+	static readonly LABEL = localize('focusNextPart', "Focus Next Part");
 
 	constructor(
 		id: string,
@@ -247,7 +247,7 @@ export class FocusNextPart extends Action {
 
 export class FocusPreviousPart extends Action {
 	static readonly ID = 'workbench.action.focusPreviousPart';
-	static readonly LABEL = nls.localize('focusPreviousPart', "Focus Previous Part");
+	static readonly LABEL = localize('focusPreviousPart', "Focus Previous Part");
 
 	constructor(
 		id: string,

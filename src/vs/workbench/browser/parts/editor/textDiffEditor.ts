@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as objects from 'vs/base/common/objects';
+import { localize } from 'vs/nls';
+import { deepClone } from 'vs/base/common/objects';
 import { isFunction, isObject, isArray, assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -99,7 +99,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			return this.input.getName();
 		}
 
-		return nls.localize('textDiffEditor', "Text Diff Editor");
+		return localize('textDiffEditor', "Text Diff Editor");
 	}
 
 	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
@@ -236,7 +236,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		// Handle diff editor specially by merging in diffEditor configuration
 		if (isObject(configuration.diffEditor)) {
-			const diffEditorConfiguration = <IDiffEditorOptions>objects.deepClone(configuration.diffEditor);
+			const diffEditorConfiguration: IDiffEditorOptions = deepClone(configuration.diffEditor);
 
 			// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
 			diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;

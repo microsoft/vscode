@@ -400,6 +400,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
 		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
 
+		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const focusIndicatorRight = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right'));
 
@@ -533,6 +534,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			this.updateForLayout(element, templateData);
 		}));
 
+		this.updateForHover(element, templateData);
+		elementDisposables.add(element.onDidChangeState(e => {
+			if (e.cellIsHoveredChanged) {
+				this.updateForHover(element, templateData);
+			}
+		}));
+
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
@@ -557,6 +565,14 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		// templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP - CELL_BOTTOM_MARGIN}px`;
+
+		const focusSideHeight = element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP;
+		templateData.focusIndicatorLeft.style.height = `${focusSideHeight}px`;
+		templateData.focusIndicatorRight.style.height = `${focusSideHeight}px`;
+	}
+
+	private updateForHover(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
+		templateData.container.classList.toggle('markdown-cell-hover', element.cellIsHovered);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {

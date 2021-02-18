@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -40,11 +41,20 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this._register(this.testService.onShouldSubscribe(args => this.proxy.$subscribeToTests(args.resource, args.uri)));
 		this._register(this.testService.onShouldUnsubscribe(args => this.proxy.$unsubscribeFromTests(args.resource, args.uri)));
 
-		// const testCompleteListener = this._register(new MutableDisposable());
-		// todo(@connor4312): reimplement, maybe
-		// this._register(resultService.onResultsChanged(results => {
-		// testCompleteListener.value = results.onComplete(() => this.proxy.$publishTestResults({ tests: [] }));
-		// }));
+
+		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
+		if (prevResults.length) {
+			this.proxy.$publishTestResults(prevResults);
+		}
+
+		this._register(resultService.onResultsChanged(evt => {
+			if ('completed' in evt) {
+				const serialized = evt.completed.toJSON();
+				if (serialized) {
+					this.proxy.$publishTestResults([serialized]);
+				}
+			}
+		}));
 
 		testService.updateRootProviderCount(1);
 

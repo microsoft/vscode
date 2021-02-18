@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as objects from 'vs/base/common/objects';
+import { deepClone, equals } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { basename, dirname, extname, relativePath } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -159,11 +159,11 @@ export class ResourceGlobMatcher extends Disposable {
 		// Add excludes per workspaces that got added
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const rootExcludes = this.globFn(folder.uri);
-			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
+			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
 				changed = true;
 
 				this.mapRootToParsedExpression.set(folder.uri.toString(), parse(rootExcludes));
-				this.mapRootToExpressionConfig.set(folder.uri.toString(), objects.deepClone(rootExcludes));
+				this.mapRootToExpressionConfig.set(folder.uri.toString(), deepClone(rootExcludes));
 			}
 		});
 
@@ -183,11 +183,11 @@ export class ResourceGlobMatcher extends Disposable {
 
 		// Always set for resources outside root as well
 		const globalExcludes = this.globFn();
-		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !objects.equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT), globalExcludes)) {
+		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT), globalExcludes)) {
 			changed = true;
 
 			this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalExcludes));
-			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, objects.deepClone(globalExcludes));
+			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, deepClone(globalExcludes));
 		}
 
 		if (fromEvent && changed) {
