@@ -204,15 +204,8 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 
 	let inPreviewMode = false;
 	async function makeChanges(inputAbbreviation: string | undefined, previewChanges: boolean): Promise<boolean> {
-		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) {
-			if (inPreviewMode) {
-				inPreviewMode = false;
-				await revertPreview();
-			}
-			return false;
-		}
-
-		const extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
+		const isAbbreviationValid = !!inputAbbreviation && !!inputAbbreviation.trim() && helper.isAbbreviationValid(syntax, inputAbbreviation);
+		const extractedResults = isAbbreviationValid ? helper.extractAbbreviationFromText(inputAbbreviation!) : undefined;
 		if (!extractedResults) {
 			if (inPreviewMode) {
 				inPreviewMode = false;
@@ -645,9 +638,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	// all cursors are maintained after snippet insertion
 	const anyExpandAbbrInput = expandAbbrList[0];
 	const expandedText = expandAbbr(anyExpandAbbrInput);
-	const allRanges = expandAbbrList.map(value => {
-		return new vscode.Range(value.rangeToReplace.start.line, value.rangeToReplace.start.character, value.rangeToReplace.end.line, value.rangeToReplace.end.character);
-	});
+	const allRanges = expandAbbrList.map(value => value.rangeToReplace);
 	if (expandedText) {
 		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
 	}
