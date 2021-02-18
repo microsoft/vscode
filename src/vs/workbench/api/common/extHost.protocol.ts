@@ -1764,7 +1764,6 @@ export interface INotebookModelAddedData {
 	cells: IMainCellDto[],
 	viewType: string;
 	metadata?: NotebookDocumentMetadata;
-	attachedEditor?: { id: string; selections: number[]; visibleRanges: ICellRange[] }
 	contentOptions: { transientOutputs: boolean; transientMetadata: TransientMetadata; }
 }
 
