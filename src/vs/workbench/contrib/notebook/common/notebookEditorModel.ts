@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -29,7 +29,6 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private _notebook?: NotebookTextModel;
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
 	private readonly _name: string;
@@ -87,7 +86,8 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	}
 
 	get notebook(): NotebookTextModel | undefined {
-		return this._notebook;
+		const candidate = this._notebookService.getNotebookTextModel(this.resource);
+		return candidate && candidate.viewType === this.viewType ? candidate : undefined;
 	}
 
 	setDirty(newState: boolean) {
@@ -148,7 +148,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
-			return this._loadFromProvider(true, undefined);
+			return this._loadFromProvider(undefined);
 		}
 
 		if (this.isResolved()) {
@@ -161,37 +161,73 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
-		return this._loadFromProvider(false, backup?.meta?.backupId);
+		return this._loadFromProvider(backup?.meta?.backupId);
 	}
 
-	private async _loadFromProvider(forceReloadFromDisk: boolean, backupId: string | undefined): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
+	private async _loadFromProvider(backupId: string | undefined): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
 
-		this._notebook = await this._notebookService.resolveNotebook(this.viewType, this.resource, forceReloadFromDisk, backupId);
+		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId);
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
-		this._register(this._notebook);
+		if (this.isDisposed()) {
+			// todo@jrieken ugly... we have been disposed which means we cannot return anything...
+			return this as any;
+		}
 
-		this._register(this._notebook.onDidChangeContent(e => {
-			let triggerDirty = false;
-			for (let i = 0; i < e.rawEvents.length; i++) {
-				if (e.rawEvents[i].kind !== NotebookCellsChangeType.Initialize) {
-					this._onDidChangeContent.fire();
-					triggerDirty = triggerDirty || !e.rawEvents[i].transient;
+		if (!this.notebook) {
+			// FRESH there is no notebook yet and we are now creating it
+
+			// UGLY
+			// There might be another notebook for the URI which was created from a different
+			// source (different viewType). In that case we simply dispose the
+			// existing/conflicting model and proceed with a new notebook
+			const conflictingNotebook = this._notebookService.getNotebookTextModel(this.resource);
+			if (conflictingNotebook) {
+				this._logService.warn('DISPOSING conflicting notebook with same URI but different view type', this.resource.toString(), this.viewType);
+				conflictingNotebook.dispose();
+			}
+
+			// todo@jrieken@rebornix what about reload?
+			if (this.resource.scheme === Schemas.untitled && data.data.cells.length === 0) {
+				data.data.cells.push({
+					cellKind: CellKind.Code,
+					language: 'plaintext', //TODO@jrieken unsure what this is
+					outputs: [],
+					metadata: undefined,
+					source: ''
+				});
+			}
+
+			// this creates and caches a new notebook model so that notebookService.getNotebookTextModel(...)
+			// will return this one model
+			const notebook = this._notebookService.createNotebookTextModel(this.viewType, this.resource, data.data, data.transientOptions);
+			this._register(notebook);
+			this._register(notebook.onDidChangeContent(e => {
+				let triggerDirty = false;
+				for (let i = 0; i < e.rawEvents.length; i++) {
+					if (e.rawEvents[i].kind !== NotebookCellsChangeType.Initialize) {
+						this._onDidChangeContent.fire();
+						triggerDirty = triggerDirty || !e.rawEvents[i].transient;
+					}
 				}
-			}
+				if (triggerDirty) {
+					this.setDirty(true);
+				}
+			}));
 
-			if (triggerDirty) {
-				this.setDirty(true);
-			}
-		}));
-
-		if (forceReloadFromDisk) {
-			this.setDirty(false);
+		} else {
+			// UPDATE exitsing notebook with data that we have just fetched
+			this.notebook.metadata = data.data.metadata;
+			this.notebook.transientOptions = data.transientOptions;
+			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: data.data.cells.length, cells: data.data.cells }];
+			this.notebook.applyEdits(this.notebook.versionId, edits, true, undefined, () => undefined, undefined);
 		}
 
 		if (backupId) {
 			await this._backupFileService.discardBackup(this._workingCopyResource);
 			this.setDirty(true);
+		} else {
+			this.setDirty(false);
 		}
 		assertType(this.isResolved());
 		return this;
