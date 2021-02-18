@@ -1553,7 +1553,7 @@ suite('Notebook API tests', function () {
 		const edit = new vscode.WorkspaceEdit();
 		const runStartTime = Date.now();
 		const lastRunDuration = Date.now() + 1000;
-		const runState = vscode.NotebookCellRunState.Running;
+		const runState = vscode.NotebookCellRunState.Success;
 		const executionOrder = 1234;
 		const metadata = document.cells[0].metadata.with({
 			...document.cells[0].metadata,
@@ -1568,7 +1568,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.runStartTime, runStartTime);
 		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
-		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Running);
+		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
 		await saveAllFilesAndCloseAll(resource);
 	});
 
