@@ -146,6 +146,12 @@ steps:
 
   - script: |
       set -e
+      mkdir extensionsCG2
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Create container folder
+
+  - script: |
+      set -e
       git clone https://github.com/microsoft/vscode-references-view.git
     workingDirectory: $(Build.SourcesDirectory)/extensionsCG2
     displayName: Clone built-in extensions
