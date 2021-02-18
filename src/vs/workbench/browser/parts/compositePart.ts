@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/compositepart';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import * as errors from 'vs/base/common/errors';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -258,7 +258,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.telemetryActionsListener.value = toolBar.actionRunner.onDidRun(e => {
 
 			// Check for Error
-			if (e.error && !errors.isPromiseCanceledError(e.error)) {
+			if (e.error && !isPromiseCanceledError(e.error)) {
 				this.notificationService.error(e.error);
 			}
 
@@ -318,7 +318,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.updateTitle(compositeId, compositeTitle, withNullAsUndefined(keybinding?.getLabel()));
 
 		const toolBar = assertIsDefined(this.toolBar);
-		toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
+		toolBar.setAriaLabel(localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
 	private collectCompositeActions(composite?: Composite): () => void {
@@ -394,7 +394,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: nls.localize('viewsAndMoreActions', "Views and More Actions...")
+			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions...")
 		}));
 
 		this.collectCompositeActions()();
@@ -413,7 +413,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				// The title label is shared for all composites in the base CompositePart
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
 					titleLabel.innerText = title;
-					titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+					titleLabel.title = keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
 				}
 			},
 

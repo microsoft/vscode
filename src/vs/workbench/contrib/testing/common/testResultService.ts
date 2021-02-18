@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { Lazy } from 'vs/base/common/lazy';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Range } from 'vs/editor/common/core/range';
@@ -13,7 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IncrementalTestCollectionItem, ITestState, RunTestsRequest } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, ISerializedTestResults, ITestState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
@@ -47,14 +49,20 @@ export interface ITestResult {
 	readonly id: string;
 
 	/**
-	 * Gets whether the test run has finished.
+	 * If the test is completed, the unix milliseconds time at which it was
+	 * completed. If undefined, the test is still running.
 	 */
-	readonly isComplete: boolean;
+	readonly completedAt: number | undefined;
 
 	/**
 	 * Whether this test result is triggered from an auto run.
 	 */
 	readonly isAutoRun?: boolean;
+
+	/**
+	 * Gets all tests involved in the run.
+	 */
+	tests: IterableIterator<TestResultItem>;
 
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
@@ -65,7 +73,7 @@ export interface ITestResult {
 	 * Serializes the test result. Used to save and restore results
 	 * in the workspace.
 	 */
-	toJSON(): ISerializedResults;
+	toJSON(): ISerializedTestResults | undefined;
 }
 
 export const makeEmptyCounts = () => {
@@ -147,6 +155,7 @@ const makeNodeAndChildren = (
 	test: IncrementalTestCollectionItem,
 	byExtId: Map<string, TestResultItem>,
 	byInternalId: Map<string, TestResultItem>,
+	isExecutedDirectly = true,
 ): TestResultItem => {
 	const existing = byInternalId.get(test.id);
 	if (existing) {
@@ -154,26 +163,19 @@ const makeNodeAndChildren = (
 	}
 
 	const mapped = itemToNode(test, byExtId, byInternalId);
+	if (isExecutedDirectly) {
+		mapped.direct = true;
+	}
+
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
 		if (child) {
-			makeNodeAndChildren(collection, child, byExtId, byInternalId);
+			makeNodeAndChildren(collection, child, byExtId, byInternalId, false);
 		}
 	}
 
 	return mapped;
 };
-
-interface ISerializedResults {
-	id: string;
-	items: (Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined })[];
-}
-
-export interface TestResultItem extends IncrementalTestCollectionItem {
-	state: ITestState;
-	computedState: TestRunState;
-	retired: boolean;
-}
 
 /**
  * Results of a test. These are created when the test initially started running
@@ -207,7 +209,7 @@ export class LiveTestResult implements ITestResult {
 
 	private readonly completeEmitter = new Emitter<void>();
 	private readonly changeEmitter = new Emitter<TestResultItemChange>();
-	private _complete = false;
+	private _completedAt?: number;
 
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
@@ -220,8 +222,8 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public get isComplete() {
-		return this._complete;
+	public get completedAt() {
+		return this._completedAt;
 	}
 
 	/**
@@ -230,7 +232,7 @@ export class LiveTestResult implements ITestResult {
 	public readonly counts: { [K in TestRunState]: number } = makeEmptyCounts();
 
 	/**
-	 * Gets all tests involved in the run by ID.
+	 * @inheritdoc
 	 */
 	public get tests() {
 		return this.testByInternalId.values();
@@ -376,29 +378,32 @@ export class LiveTestResult implements ITestResult {
 	 * Notifies the service that all tests are complete.
 	 */
 	public markComplete() {
-		if (this._complete) {
+		if (this._completedAt !== undefined) {
 			throw new Error('cannot complete a test result multiple times');
 		}
 
 		// un-queue any tests that weren't explicitly updated
 		this.setAllToState(unsetState, t => t.state.state === TestRunState.Queued);
-		this._complete = true;
+		this._completedAt = Date.now();
 		this.completeEmitter.fire();
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public toJSON(): ISerializedResults {
-		return {
-			id: this.id,
-			items: [...this.testByExtId.values()].map(entry => ({
-				...entry,
-				retired: undefined,
-				children: [...entry.children],
-			})),
-		};
+	public toJSON(): ISerializedTestResults | undefined {
+		return this.completedAt ? this.doSerialize.getValue() : undefined;
 	}
+
+	private readonly doSerialize = new Lazy((): ISerializedTestResults => ({
+		id: this.id,
+		completedAt: this.completedAt!,
+		items: [...this.testByExtId.values()].map(entry => ({
+			...entry,
+			retired: undefined,
+			children: [...entry.children],
+		})),
+	}));
 }
 
 /**
@@ -418,12 +423,20 @@ class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly isComplete = true;
+	public readonly completedAt: number;
+
+	/**
+	 * @inheritdoc
+	 */
+	public get tests() {
+		return this.byExtId.values();
+	}
 
 	private readonly byExtId = new Map<string, TestResultItem>();
 
-	constructor(private readonly serialized: ISerializedResults) {
+	constructor(private readonly serialized: ISerializedTestResults) {
 		this.id = serialized.id;
+		this.completedAt = serialized.completedAt;
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true, children: new Set(item.children) };
@@ -454,7 +467,7 @@ class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public toJSON(): ISerializedResults {
+	public toJSON(): ISerializedTestResults {
 		return this.serialized;
 	}
 }
@@ -527,7 +540,7 @@ export class TestResultService implements ITestResultService {
 	public readonly onTestChanged = this.testChangeEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
-	private readonly serializedResults: StoredValue<ISerializedResults[]>;
+	private readonly serializedResults: StoredValue<ISerializedTestResults[]>;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService, @IStorageService storage: IStorageService) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
@@ -539,7 +552,10 @@ export class TestResultService implements ITestResultService {
 
 		try {
 			for (const value of this.serializedResults.get([])) {
-				this.results.push(new HydratedTestResult(value));
+				// todo@connor4312: temp to migrate old insiders
+				if (value.completedAt) {
+					this.results.push(new HydratedTestResult(value));
+				}
 			}
 		} catch (e) {
 			// outdated structure
@@ -591,7 +607,7 @@ export class TestResultService implements ITestResultService {
 		const keep: ITestResult[] = [];
 		const removed: ITestResult[] = [];
 		for (const result of this.results) {
-			if (result.isComplete) {
+			if (result.completedAt !== undefined) {
 				removed.push(result);
 			} else {
 				keep.push(result);
@@ -599,20 +615,19 @@ export class TestResultService implements ITestResultService {
 		}
 
 		this.results = keep;
-		this.serializedResults.store(this.results.map(r => r.toJSON()));
+		this.serializedResults.store(this.results.map(r => r.toJSON()).filter(isDefined));
 		this.changeResultEmitter.fire({ removed });
 	}
 
 	private onComplete(result: LiveTestResult) {
 		// move the complete test run down behind any still-running ones
-		for (let i = 0; i < this.results.length - 1; i++) {
-			if (this.results[i].isComplete && !this.results[i + 1].isComplete) {
-				[this.results[i], this.results[i + 1]] = [this.results[i + 1], this.results[i]];
-			}
-		}
-
-		this.isRunning.set(!this.results[0]?.isComplete);
-		this.serializedResults.store(this.results.map(r => r.toJSON()));
+		this.resort();
+		this.isRunning.set(this.results.length > 0 && this.results[0].completedAt === undefined);
+		this.serializedResults.store(this.results.map(r => r.toJSON()).filter(isDefined));
 		this.changeResultEmitter.fire({ completed: result });
+	}
+
+	private resort() {
+		this.results.sort((a, b) => (b.completedAt ?? Number.MAX_SAFE_INTEGER) - (a.completedAt ?? Number.MAX_SAFE_INTEGER));
 	}
 }

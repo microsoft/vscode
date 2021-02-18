@@ -703,8 +703,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	private _editNotebookCellOutput(uri: URI, index: number, append: boolean, outputs: vscode.NotebookCellOutput[], metadata: vscode.WorkspaceEditEntryMetadata | undefined): void {
-		let newOutputs: NotebookCellOutput[] = outputs;
-		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs, newMetadata: undefined });
+		this._edits.push({ _type: FileEditType.CellOutput, metadata, uri, index, append, newOutputs: outputs, newMetadata: undefined });
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -2993,15 +2992,30 @@ export class NotebookCellOutputItem {
 	constructor(
 		readonly mime: string,
 		readonly value: unknown, // JSON'able
-		readonly metadata?: any
+		readonly metadata?: Record<string, any>
 	) { }
 }
 
 export class NotebookCellOutput {
+
+	readonly outputs: NotebookCellOutputItem[];
+	readonly id: string;
+	readonly metadata?: Record<string, any>;
+
 	constructor(
-		readonly outputs: NotebookCellOutputItem[],
-		readonly id: string = generateUuid()
-	) { }
+		outputs: NotebookCellOutputItem[],
+		idOrMetadata?: string | Record<string, any>,
+		metadata?: Record<string, any>
+	) {
+		this.outputs = outputs;
+		if (typeof idOrMetadata === 'string') {
+			this.id = idOrMetadata;
+			this.metadata = metadata;
+		} else {
+			this.id = generateUuid();
+			this.metadata = idOrMetadata ?? metadata;
+		}
+	}
 }
 
 export enum NotebookCellKind {

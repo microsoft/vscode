@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { deepFreeze } from 'vs/base/common/objects';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -20,7 +21,7 @@ import { TestItem, TestState } from 'vs/workbench/api/common/extHostTypeConverte
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, InternalTestItemWithChildren, InternalTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, SerializedTestResultItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -39,8 +40,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	private workspaceObservers: WorkspaceFolderTestObserverFactory;
 	private textDocumentObservers: TextDocumentTestObserverFactory;
 
-	public onLastResultsChanged = this.resultsChangedEmitter.event;
-	public lastResults?: vscode.TestResults;
+	public onResultsChanged = this.resultsChangedEmitter.event;
+	public results: ReadonlyArray<vscode.TestResults> = [];
 
 	constructor(@IExtHostRpcService rpc: IExtHostRpcService, @IExtHostDocumentsAndEditors private readonly documents: IExtHostDocumentsAndEditors, @IExtHostWorkspace private readonly workspace: IExtHostWorkspace) {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
@@ -105,11 +106,15 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Updates test results shown to extensions.
 	 * @override
 	 */
-	public $publishTestResults(results: InternalTestResults): void {
-		const convert = (item: InternalTestItemWithChildren): vscode.RequiredTestItem =>
-			({ ...TestItem.toShallow(item.item), children: item.children.map(convert) });
+	public $publishTestResults(results: ISerializedTestResults[]): void {
+		this.results = Object.freeze(
+			results
+				.map(r => deepFreeze(convertTestResults(r)))
+				.concat(this.results)
+				.sort((a, b) => b.completedAt - a.completedAt)
+				.slice(0, 32),
+		);
 
-		this.lastResults = { tests: results.tests.map(convert) };
 		this.resultsChangedEmitter.fire();
 	}
 
@@ -349,6 +354,29 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		};
 	}
 }
+
+const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestItemWithResults => ({
+	...TestItem.toShallow(item.item),
+	result: TestState.to(item.state),
+	children: item.children
+		.map(c => byInternalId.get(c))
+		.filter(isDefined)
+		.map(c => convertTestResultItem(c, byInternalId)),
+});
+
+const convertTestResults = (r: ISerializedTestResults): vscode.TestResults => {
+	const roots: SerializedTestResultItem[] = [];
+	const byInternalId = new Map<string, SerializedTestResultItem>();
+	for (const item of r.items) {
+		byInternalId.set(item.id, item);
+		if (item.direct) {
+			roots.push(item);
+		}
+	}
+
+	return { completedAt: r.completedAt, results: roots.map(r => convertTestResultItem(r, byInternalId)) };
+};
+
 
 /*
  * A class which wraps a vscode.TestItem that provides the ability to filter a TestItem's children

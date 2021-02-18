@@ -596,7 +596,7 @@ export namespace WorkspaceEdit {
 							editType: notebooks.CellEditType.OutputItems,
 							index: entry.index,
 							outputId: entry.outputId,
-							items: entry.newOutputItems?.map(item => ({ mime: item.mime, value: item.value, metadata: item.metadata })) || [],
+							items: entry.newOutputItems?.map(NotebookCellOutputItem.from) || [],
 							append: entry.append
 						}
 					});
@@ -1394,11 +1394,12 @@ export namespace LanguageSelector {
 		} else if (typeof selector === 'string') {
 			return selector;
 		} else {
+			const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
 			return <languageSelector.LanguageFilter>{
-				language: selector.language,
-				scheme: selector.scheme,
-				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
-				exclusive: selector.exclusive
+				language: filter.language,
+				scheme: filter.scheme,
+				pattern: typeof filter.pattern === 'undefined' ? undefined : GlobPattern.from(filter.pattern),
+				exclusive: filter.exclusive
 			};
 		}
 	}
@@ -1417,8 +1418,8 @@ export namespace NotebookCellRange {
 
 export namespace NotebookCellMetadata {
 
-	export function to(data: vscode.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.runnable, data.hasExecutionOrder, data.executionOrder, data.runStartTime, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
+	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
+		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.runnable, data.hasExecutionOrder, data.executionOrder, data.runState, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
 
@@ -1428,7 +1429,7 @@ export namespace NotebookDocumentMetadata {
 		return data;
 	}
 
-	export function to(data: vscode.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
+	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
 		return new types.NotebookDocumentMetadata(data.editable, data.runnable, data.cellEditable, data.cellRunnable, data.cellHasExecutionOrder, data.displayOrder, data.custom, data.runState, data.trusted);
 	}
 
@@ -1475,31 +1476,32 @@ export namespace NotebookCellData {
 	}
 }
 
+export namespace NotebookCellOutputItem {
+	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
+		return {
+			mime: item.mime,
+			value: item.value,
+			metadata: item.metadata
+		};
+	}
+
+	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
+		return new types.NotebookCellOutputItem(item.mime, item.value, item.metadata);
+	}
+}
+
 export namespace NotebookCellOutput {
 	export function from(output: types.NotebookCellOutput): notebooks.IOutputDto {
-
-		const data = Object.create(null);
-		const custom = Object.create(null);
-
-		for (let item of output.outputs) {
-			data[item.mime] = item.value;
-			custom[item.mime] = item.metadata;
-		}
-
 		return {
 			outputId: output.id,
-			outputs: (output.outputs || []).map(op => ({
-				mime: op.mime,
-				value: op.value,
-				metadata: op.metadata
-			})) || [],
-			// metadata: isEmptyObject(custom) ? undefined : { custom }
+			outputs: output.outputs.map(NotebookCellOutputItem.from),
+			metadata: output.metadata
 		};
 	}
 
 	export function to(output: notebooks.IOutputDto): vscode.NotebookCellOutput {
-		const items: types.NotebookCellOutputItem[] = output.outputs.map(op => new types.NotebookCellOutputItem(op.mime, op.value, op.metadata));
-		return new types.NotebookCellOutput(items, output.outputId);
+		const items = output.outputs.map(NotebookCellOutputItem.to);
+		return new types.NotebookCellOutput(items, output.outputId, output.metadata);
 	}
 }
 

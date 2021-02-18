@@ -83,6 +83,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
 		throw new Error('Method not implemented.');
 	}
+	getCellById(cellId: string): ICellViewModel {
+		throw new Error('Method not implemented.');
+	}
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void {
 		throw new Error('Method not implemented.');
 	}

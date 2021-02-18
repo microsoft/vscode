@@ -371,7 +371,8 @@ function configureCrashReporter() {
 		companyName: companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
-		uploadToServer: !crashReporterDirectory
+		uploadToServer: !crashReporterDirectory,
+		compress: true
 	});
 }
 

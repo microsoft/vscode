@@ -856,11 +856,11 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 		startColumn: breakpoint.column || 1,
 		endColumn: breakpoint.endColumn || Constants.MAX_SAFE_SMALL_INTEGER
 	} : {
-			startLineNumber: breakpoint.lineNumber,
-			startColumn: breakpoint.column || 1,
-			endLineNumber: breakpoint.lineNumber,
-			endColumn: breakpoint.column || Constants.MAX_SAFE_SMALL_INTEGER
-		};
+		startLineNumber: breakpoint.lineNumber,
+		startColumn: breakpoint.column || 1,
+		endLineNumber: breakpoint.lineNumber,
+		endColumn: breakpoint.column || Constants.MAX_SAFE_SMALL_INTEGER
+	};
 
 	return editorService.openEditor({
 		resource: breakpoint.uri,

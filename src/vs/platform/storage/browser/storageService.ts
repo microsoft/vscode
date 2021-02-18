@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { StorageScope, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -12,10 +12,12 @@ import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { runWhenIdle, RunOnceScheduler, Promises } from 'vs/base/common/async';
+import { Promises } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 export class BrowserStorageService extends AbstractStorageService {
+
+	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
 
 	private globalStorage: IStorage | undefined;
 	private workspaceStorage: IStorage | undefined;
@@ -26,38 +28,26 @@ export class BrowserStorageService extends AbstractStorageService {
 	private globalStorageFile: URI | undefined;
 	private workspaceStorageFile: URI | undefined;
 
-	private initializePromise: Promise<void> | undefined;
-
-	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 5000 /* every 5s */));
-	private runWhenIdleDisposable: IDisposable | undefined = undefined;
-
 	get hasPendingUpdate(): boolean {
 		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
 	}
 
 	constructor(
+		private readonly payload: IWorkspaceInitializationPayload,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super();
+		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 	}
 
-	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = this.doInitialize(payload);
-		}
-
-		return this.initializePromise;
-	}
-
-	private async doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+	protected async doInitialize(): Promise<void> {
 
 		// Ensure state folder exists
 		const stateRoot = joinPath(this.environmentService.userRoamingDataHome, 'state');
 		await this.fileService.createFolder(stateRoot);
 
 		// Workspace Storage
-		this.workspaceStorageFile = joinPath(stateRoot, `${payload.id}.json`);
+		this.workspaceStorageFile = joinPath(stateRoot, `${this.payload.id}.json`);
 
 		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
@@ -90,13 +80,6 @@ export class BrowserStorageService extends AbstractStorageService {
 		} else if (firstWorkspaceOpen) {
 			this.workspaceStorage.set(IS_NEW_KEY, false);
 		}
-
-		// In the browser we do not have support for long running unload sequences. As such,
-		// we cannot ask for saving state in that moment, because that would result in a
-		// long running operation.
-		// Instead, periodically ask customers to save save. The library will be clever enough
-		// to only save state that has actually changed.
-		this.periodicFlushScheduler.schedule();
 	}
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
@@ -111,30 +94,17 @@ export class BrowserStorageService extends AbstractStorageService {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
-	private doFlushWhenIdle(): void {
-
-		// Dispose any previous idle runner
-		dispose(this.runWhenIdleDisposable);
-
-		// Run when idle
-		this.runWhenIdleDisposable = runWhenIdle(() => {
-
-			// this event will potentially cause new state to be stored
-			// since new state will only be created while the document
-			// has focus, one optimization is to not run this when the
-			// document has no focus, assuming that state has not changed
-			//
-			// another optimization is to not collect more state if we
-			// have a pending update already running which indicates
-			// that the connection is either slow or disconnected and
-			// thus unhealthy.
-			if (document.hasFocus() && !this.hasPendingUpdate) {
-				this.flush();
-			}
-
-			// repeat
-			this.periodicFlushScheduler.schedule();
-		});
+	protected shouldFlushWhenIdle(): boolean {
+		// this flush() will potentially cause new state to be stored
+		// since new state will only be created while the document
+		// has focus, one optimization is to not run this when the
+		// document has no focus, assuming that state has not changed
+		//
+		// another optimization is to not collect more state if we
+		// have a pending update already running which indicates
+		// that the connection is either slow or disconnected and
+		// thus unhealthy.
+		return document.hasFocus() && !this.hasPendingUpdate;
 	}
 
 	close(): void {
@@ -147,13 +117,6 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Instead we trigger dispose() to ensure that no timeouts or callbacks
 		// get triggered in this phase.
 		this.dispose();
-	}
-
-	dispose(): void {
-		dispose(this.runWhenIdleDisposable);
-		this.runWhenIdleDisposable = undefined;
-
-		super.dispose();
 	}
 }
 

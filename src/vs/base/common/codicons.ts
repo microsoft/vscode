@@ -543,6 +543,9 @@ export namespace Codicon {
 	export const typeHierarchySub = new Codicon('type-hierarchy-sub', { character: '\\ebba' });
 	export const typeHierarchySuper = new Codicon('type-hierarchy-super', { character: '\\ebbb' });
 	export const gitPullRequestCreate = new Codicon('git-pull-request-create', { character: '\\ebbc' });
+	export const runAbove = new Codicon('run-above', { character: '\\ebbd' });
+	export const runBelow = new Codicon('run-below', { character: '\\ebbe' });
+	export const notebookTemplate = new Codicon('notebook-template', { character: '\\ebbf' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

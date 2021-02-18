@@ -79,12 +79,32 @@ export interface InternalTestItem {
 	item: ITestItem;
 }
 
-export interface InternalTestItemWithChildren extends InternalTestItem {
-	children: this[];
+/**
+ * Test result item used in the main thread.
+ */
+export interface TestResultItem extends IncrementalTestCollectionItem {
+	/** Current state of this test */
+	state: ITestState;
+	/** Computed state based on children */
+	computedState: TestRunState;
+	/** True if the test is outdated */
+	retired: boolean;
+	/** True if the test was directly requested by the run (is not a child or parent) */
+	direct?: true;
 }
 
-export interface InternalTestResults {
-	tests: InternalTestItemWithChildren[];
+export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined };
+
+/**
+ * Test results serialized for transport and storage.
+ */
+export interface ISerializedTestResults {
+	/** ID of these test results */
+	id: string;
+	/** Time the results were compelted */
+	completedAt: number;
+	/** Subset of test result items */
+	items: SerializedTestResultItem[];
 }
 
 export const enum TestDiffOpType {

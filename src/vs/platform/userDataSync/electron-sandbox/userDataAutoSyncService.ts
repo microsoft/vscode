@@ -11,10 +11,12 @@ import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/use
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 
 	constructor(
+		@IProductService productService: IProductService,
 		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
@@ -27,7 +29,7 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IStorageService storageService: IStorageService,
 		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 	) {
-		super(userDataSyncStoreManagementService, userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService, userDataAutoSyncEnablementService);
+		super(productService, userDataSyncStoreManagementService, userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService, userDataAutoSyncEnablementService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(nativeHostService.onDidFocusWindow, () => 'windowFocus'),

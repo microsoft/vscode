@@ -658,7 +658,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
 
 	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
-		const keytar = await import('keytar');
+		const keytar = await this.withKeytar();
 
 		const password = await keytar.getPassword(service, account);
 		if (password) {
@@ -686,7 +686,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
-		const keytar = await import('keytar');
+		const keytar = await this.withKeytar();
 
 		if (isWindows && password.length > NativeHostMainService.MAX_PASSWORD_LENGTH) {
 			let index = 0;
@@ -714,7 +714,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
-		const keytar = await import('keytar');
+		const keytar = await this.withKeytar();
 
 		const didDelete = await keytar.deletePassword(service, account);
 		if (didDelete) {
@@ -725,15 +725,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
-		const keytar = await import('keytar');
+		const keytar = await this.withKeytar();
 
 		return keytar.findPassword(service);
 	}
 
 	async findCredentials(windowId: number | undefined, service: string): Promise<Array<{ account: string, password: string }>> {
-		const keytar = await import('keytar');
+		const keytar = await this.withKeytar();
 
 		return keytar.findCredentials(service);
+	}
+
+	private async withKeytar(): Promise<typeof import('keytar')> {
+		if (this.environmentMainService.disableKeytar) {
+			throw new Error('keytar has been disabled via --disable-keytar option');
+		}
+
+		return await import('keytar');
 	}
 
 	//#endregion

@@ -104,7 +104,11 @@ export class GettingStartedPage extends EditorPane {
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
-		this._register(this.gettingStartedService.onDidAddTask(task => console.log('added new task', task, 'that isnt being rendered yet')));
+		this._register(this.gettingStartedService.onDidAddTask(task => {
+			this.gettingStartedCategories = this.gettingStartedService.getCategories();
+			this.buildCategoriesSlide();
+		}));
+
 		this._register(this.gettingStartedService.onDidAddCategory(category => console.log('added new category', category, 'that isnt being rendered yet')));
 		this._register(this.gettingStartedService.onDidProgressTask(task => {
 			const category = this.gettingStartedCategories.find(category => category.id === task.category);
@@ -307,9 +311,7 @@ export class GettingStartedPage extends EditorPane {
 							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
 							$('.category-progress', { 'x-data-category-id': category.id, },
 								$('.message'),
-								$('.progress-bar-outer', {
-									'role': 'progressbar'
-								},
+								$('.progress-bar-outer', { 'role': 'progressbar' },
 									$('.progress-bar-inner'))))
 						:
 						$('.category-description-container', {},

@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,7 +19,7 @@ import product from 'vs/platform/product/common/product';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -46,11 +46,6 @@ export interface IWindowCreationOptions {
 
 interface ITouchBarSegment extends SegmentedControlSegment {
 	id: string;
-}
-
-const enum WindowError {
-	UNRESPONSIVE = 1,
-	CRASHED = 2
 }
 
 const enum ReadyState {
@@ -269,7 +264,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Request handling
 		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentMainService, this.fileService, {
 			get: key => storageMainService.globalStorage.get(key),
-			store: (key, value) => storageMainService.globalStorage.store(key, value)
+			store: (key, value) => storageMainService.globalStorage.set(key, value)
 		});
 
 		// Eventing
@@ -403,9 +398,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Crashes & Unrsponsive & Failed to load
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('Main: failed to load workbench window, ', errorDescription));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details.reason));
+		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.onWindowError(WindowError.LOAD, errorDescription));
 
 		// Window close
 		this._win.on('closed', () => {
@@ -550,9 +545,21 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): Promise<void>;
-	private async onWindowError(error: WindowError, details?: RenderProcessGoneDetails): Promise<void> {
-		this.logService.error(error === WindowError.CRASHED ? `Main: renderer process crashed (detail: ${details?.reason})` : 'Main: detected unresponsive');
+	private async onWindowError(error: WindowError.CRASHED, details: string): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: string): Promise<void>;
+	private async onWindowError(type: WindowError, details?: string): Promise<void> {
+
+		switch (type) {
+			case WindowError.CRASHED:
+				this.logService.error(`CodeWindow: renderer process crashed (detail: ${details})`);
+				break;
+			case WindowError.UNRESPONSIVE:
+				this.logService.error('CodeWindow: detected unresponsive');
+				break;
+			case WindowError.LOAD:
+				this.logService.error(`CodeWindow: failed to load workbench window: ${details}`);
+				break;
+		}
 
 		// If we run extension tests from CLI, showing a dialog is not
 		// very helpful in this case. Rather, we bring down the test run
@@ -569,10 +576,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		type WindowErrorEvent = {
 			type: WindowError;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type: error });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type });
 
 		// Unresponsive
-		if (error === WindowError.UNRESPONSIVE) {
+		if (type === WindowError.UNRESPONSIVE) {
 			if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
 				// TODO@bpasero Workaround for https://github.com/microsoft/vscode/issues/56994
 				// In certain cases the window can report unresponsiveness because a breakpoint was hit
@@ -606,12 +613,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Crashed
-		else {
+		else if (type === WindowError.CRASHED) {
 			let message: string;
-			if (details && details.reason !== 'crashed') {
-				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details?.reason);
+			if (details && details !== 'crashed') {
+				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details);
 			} else {
-				message = localize('appCrashed', "The window has crashed", details?.reason);
+				message = localize('appCrashed', "The window has crashed", details);
 			}
 
 			const result = await this.dialogMainService.showMessageBox({

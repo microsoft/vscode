@@ -159,13 +159,8 @@ export interface IOutputItemDto {
 
 export interface IOutputDto {
 	outputs: IOutputItemDto[];
-	/**
-	 * { mime_type: value }
-	 */
-	// data: { [key: string]: unknown; }
-
-	// metadata?: NotebookCellOutputMetadata;
 	outputId: string;
+	metadata?: Record<string, unknown>;
 }
 
 export interface ICellOutput {
@@ -237,9 +232,10 @@ export enum NotebookCellsChangeType {
 	Initialize = 6,
 	ChangeCellMetadata = 7,
 	Output = 8,
-	ChangeCellContent = 9,
-	ChangeDocumentMetadata = 10,
-	Unknown = 11
+	OutputItem = 9,
+	ChangeCellContent = 10,
+	ChangeDocumentMetadata = 11,
+	Unknown = 12
 }
 
 export interface NotebookCellsInitializeEvent<T> {
@@ -270,6 +266,14 @@ export interface NotebookOutputChangedEvent {
 	readonly outputs: IOutputDto[];
 }
 
+export interface NotebookOutputItemChangedEvent {
+	readonly kind: NotebookCellsChangeType.OutputItem;
+	readonly index: number;
+	readonly outputId: string;
+	readonly outputItems: IOutputItemDto[];
+	readonly append: boolean;
+}
+
 export interface NotebookCellsChangeLanguageEvent {
 	readonly kind: NotebookCellsChangeType.ChangeLanguage;
 	readonly index: number;
@@ -291,14 +295,14 @@ export interface NotebookDocumentUnknownChangeEvent {
 	readonly kind: NotebookCellsChangeType.Unknown;
 }
 
-export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent;
+export type NotebookRawContentEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent;
 
 export type NotebookCellsChangedEventDto = {
 	readonly rawEvents: NotebookRawContentEventDto[];
 	readonly versionId: number;
 };
 
-export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
 export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
