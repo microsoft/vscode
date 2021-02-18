@@ -353,13 +353,13 @@ CommandsRegistry.registerCommand({
 	id: OPEN_WITH_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
 			const input = editorService.createEditorInput({ resource: uri });
-			editorService.openEditor(input, { override: null }, editorGroupsService.activeGroup);
+			return editorService.openEditor(input, { override: null });
 		}
+		return;
 	}
 });
 

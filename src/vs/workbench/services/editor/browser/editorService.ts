@@ -626,7 +626,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// If the override option is provided we want to open that specific editor or show a picker
 			if (resolvedOptions && (resolvedOptions.override === null || typeof resolvedOptions.override === 'string')) {
-				return await this.openEditorWith(resolvedEditor, withNullAsUndefined(resolvedOptions.override), resolvedOptions, resolvedGroup);
+				return this.openEditorWith(resolvedEditor, withNullAsUndefined(resolvedOptions.override), resolvedOptions, resolvedGroup);
 			}
 
 			return withNullAsUndefined(await resolvedGroup.openEditor(resolvedEditor, resolvedOptions));
