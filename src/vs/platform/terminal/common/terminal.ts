@@ -75,7 +75,7 @@ export enum HeartbeatConstants {
 	/**
 	 * The duration between heartbeats
 	 */
-	BeatInterval = 10000,
+	BeatInterval = 5000,
 	/**
 	 * Defines a multiplier for BeatInterval for how long to wait before starting the second wait
 	 * timer.

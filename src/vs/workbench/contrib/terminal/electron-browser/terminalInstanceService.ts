@@ -39,6 +39,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	private readonly _onPtyHostExit = this._register(new Emitter<void>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
+	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
+	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -70,6 +72,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 					run: () => this._localPtyService.restartPtyHost!()
 				}];
 				notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
+				this._onPtyHostUnresponsive.fire();
 			});
 		}
 	}

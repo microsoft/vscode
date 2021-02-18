@@ -149,7 +149,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 
 	async restartPtyHost(): Promise<void> {
-		// TODO: Mark connection lost for all existing terminals on restart
 		this._disposePtyHost();
 		[this._client, this._proxy] = this._startPtyHost();
 	}
