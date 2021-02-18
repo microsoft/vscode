@@ -421,8 +421,8 @@ class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	}
 }
 
-class SourceColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('source', "Source");
+class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
+	readonly label: string = nls.localize('origin', "Origin");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
@@ -433,7 +433,7 @@ class SourceColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		const label = row.source;
-		return { label, context, tunnel: row, editId: TunnelEditId.None };
+		return { label, context, menuId: MenuId.TunnelOriginInline, tunnel: row, editId: TunnelEditId.None };
 	}
 }
 
@@ -816,7 +816,7 @@ export class TunnelPanel extends ViewPane {
 		if (this.tunnelService.canMakePublic) {
 			columns.push(new PrivacyColumn());
 		}
-		columns.push(new SourceColumn());
+		columns.push(new OriginColumn());
 
 		this.table = this.instantiationService.createInstance(WorkbenchTable,
 			'RemoteTunnels',
