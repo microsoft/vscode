@@ -16,7 +16,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Event } from 'vs/base/common/event';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -80,7 +79,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 		remotePort: 0,
 		processDescription: '',
 		icon: undefined,
-		tooltip: '',
+		tooltipPostfix: '',
 		source: ''
 	};
 
@@ -162,223 +161,6 @@ export class TunnelViewModel implements ITunnelViewModel {
 	}
 }
 
-interface ITunnelTemplateData {
-	elementDisposable: IDisposable;
-	container: HTMLElement;
-	iconLabel: IconLabel;
-	icon: HTMLElement;
-	actionBar: ActionBar;
-}
-
-class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGroup | ITunnelItem, ITunnelItem, ITunnelTemplateData> {
-	static readonly ITEM_HEIGHT = 22;
-	static readonly TREE_TEMPLATE_ID = 'tunnelItemTemplate';
-
-	private inputDone?: (success: boolean, finishEditing: boolean) => void;
-	private _actionRunner: ActionRunner | undefined;
-
-	constructor(
-		private readonly viewId: string,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
-	) {
-		super();
-	}
-
-	set actionRunner(actionRunner: ActionRunner) {
-		this._actionRunner = actionRunner;
-	}
-
-	get templateId(): string {
-		return TunnelTreeRenderer.TREE_TEMPLATE_ID;
-	}
-
-	renderTemplate(container: HTMLElement): ITunnelTemplateData {
-		container.classList.add('custom-view-tree-node-item');
-		const icon = dom.append(container, dom.$('.custom-view-tree-node-item-icon'));
-		const iconLabel = new IconLabel(container, { supportHighlights: true });
-		// dom.addClass(iconLabel.element, 'tunnel-view-label');
-		const actionsContainer = dom.append(iconLabel.element, dom.$('.actions'));
-		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
-			respectOrientationForPreviousAndNextKey: true
-		});
-
-		return { icon, iconLabel, actionBar, container, elementDisposable: Disposable.None };
-	}
-
-	private isTunnelItem(item: ITunnelGroup | ITunnelItem): item is ITunnelItem {
-		return !!((<ITunnelItem>item).remotePort);
-	}
-
-	renderElement(element: ITreeNode<ITunnelGroup | ITunnelItem, ITunnelGroup | ITunnelItem>, index: number, templateData: ITunnelTemplateData): void {
-		templateData.elementDisposable.dispose();
-		const node = element.element;
-
-		// reset
-		templateData.actionBar.clear();
-		templateData.icon.className = 'custom-view-tree-node-item-icon';
-		templateData.icon.hidden = true;
-
-		let editableData: IEditableData | undefined;
-		if (this.isTunnelItem(node)) {
-			editableData = this.remoteExplorerService.getEditableData(node);
-			if (editableData) {
-				templateData.iconLabel.element.style.display = 'none';
-				this.renderInputBox(templateData.container, editableData);
-			} else {
-				templateData.iconLabel.element.style.display = 'flex';
-				this.renderTunnel(node, templateData);
-			}
-		} else if ((node.tunnelType === TunnelType.Add) && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
-			templateData.iconLabel.element.style.display = 'none';
-			this.renderInputBox(templateData.container, editableData);
-		} else {
-			templateData.iconLabel.element.style.display = 'flex';
-			templateData.iconLabel.setLabel(node.label);
-		}
-	}
-
-	private renderTunnel(node: ITunnelItem, templateData: ITunnelTemplateData) {
-		const description = node.processDescription;
-		const label = node.label;
-		const tooltip = label + (description ? (' - ' + description) : '');
-		templateData.iconLabel.setLabel(label, description, { title: node instanceof TunnelItem ? node.tooltip : tooltip, extraClasses: ['tunnel-view-label'] });
-
-		templateData.actionBar.context = node;
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['view', this.viewId],
-			['tunnelType', node.tunnelType],
-			['tunnelCloseable', node.closeable],
-		]);
-		const disposableStore = new DisposableStore();
-		templateData.elementDisposable = disposableStore;
-		const menu = disposableStore.add(this.menuService.createMenu(MenuId.TunnelPortInline, contextKeyService));
-		const actions: IAction[] = [];
-		disposableStore.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
-		if (actions) {
-			templateData.actionBar.push(actions, { icon: true, label: false });
-			if (this._actionRunner) {
-				templateData.actionBar.actionRunner = this._actionRunner;
-			}
-		}
-		if (node.icon) {
-			templateData.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(node.icon)}`;
-			templateData.icon.hidden = false;
-		} else {
-			templateData.icon.className = 'custom-view-tree-node-item-icon';
-			templateData.icon.hidden = true;
-		}
-
-		menu.dispose();
-	}
-
-	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
-		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
-		if (this.inputDone) {
-			this.inputDone(false, false);
-			this.inputDone = undefined;
-		}
-		const value = editableData.startingValue || '';
-		const inputBox = new InputBox(container, this.contextViewService, {
-			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
-			validationOptions: {
-				validation: (value) => {
-					const message = editableData.validationMessage(value);
-					if (!message) {
-						return null;
-					}
-
-					return {
-						content: message.content,
-						formatContent: true,
-						type: message.severity === Severity.Error ? MessageType.ERROR : MessageType.INFO
-					};
-				}
-			},
-			placeholder: editableData.placeholder || ''
-		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
-
-		inputBox.value = value;
-		inputBox.focus();
-		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
-
-		const done = once((success: boolean, finishEditing: boolean) => {
-			if (this.inputDone) {
-				this.inputDone = undefined;
-			}
-			inputBox.element.style.display = 'none';
-			const inputValue = inputBox.value;
-			dispose(toDispose);
-			if (finishEditing) {
-				editableData.onFinish(inputValue, success);
-			}
-		});
-		this.inputDone = done;
-
-		const toDispose = [
-			inputBox,
-			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.Enter)) {
-					if (inputBox.validate() !== MessageType.ERROR) {
-						done(true, true);
-					} else {
-						done(false, true);
-					}
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
-				}
-			}),
-			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
-				done(inputBox.validate() !== MessageType.ERROR, true);
-			}),
-			styler
-		];
-
-		return toDisposable(() => {
-			done(false, false);
-		});
-	}
-
-	disposeElement(resource: ITreeNode<ITunnelGroup | ITunnelItem, ITunnelGroup | ITunnelItem>, index: number, templateData: ITunnelTemplateData): void {
-		templateData.elementDisposable.dispose();
-	}
-
-	disposeTemplate(templateData: ITunnelTemplateData): void {
-		templateData.actionBar.dispose();
-		templateData.elementDisposable.dispose();
-	}
-}
-
-class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem | ITunnelGroup> {
-	hasChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
-		if (element instanceof TunnelViewModel) {
-			return true;
-		} else if (element instanceof TunnelItem) {
-			return false;
-		} else if ((<ITunnelGroup>element).items) {
-			return true;
-		}
-		return false;
-	}
-
-	async getChildren(element: ITunnelViewModel | ITunnelItem | ITunnelGroup) {
-		if (element instanceof TunnelViewModel) {
-			return element.all;
-		} else if (element instanceof TunnelItem) {
-			return [];
-		} else if ((<ITunnelGroup>element).items) {
-			return (<ITunnelGroup>element).items!;
-		}
-		return [];
-	}
-}
-
 class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = nls.localize('port', "Port");
 	readonly weight: number = 1;
@@ -392,7 +174,16 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelType', row.tunnelType],
 				['tunnelCloseable', row.closeable]
 			];
-		return { label, icon, tunnel: row, context, menuId: MenuId.TunnelPortInline, editId: row.tunnelType === TunnelType.Add ? TunnelEditId.New : TunnelEditId.Label };
+		let tooltip: string;
+		if (row instanceof TunnelItem) {
+			tooltip = `${row.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", row.name) : ''} ${row.tooltipPostfix}`;
+		} else {
+			tooltip = label;
+		}
+		return {
+			label, icon, tunnel: row, context, menuId: MenuId.TunnelPortInline,
+			editId: row.tunnelType === TunnelType.Add ? TunnelEditId.New : TunnelEditId.Label, tooltip
+		};
 	}
 }
 
@@ -408,7 +199,13 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		const label = row.localAddress ?? '';
-		return { label, menuId: MenuId.TunnelLocalAddressInline, context, tunnel: row, editId: TunnelEditId.LocalPort };
+		let tooltip: string;
+		if (row instanceof TunnelItem) {
+			tooltip = row.tooltipPostfix;
+		} else {
+			tooltip = label;
+		}
+		return { label, menuId: MenuId.TunnelLocalAddressInline, context, tunnel: row, editId: TunnelEditId.LocalPort, tooltip };
 	}
 }
 
@@ -417,7 +214,8 @@ class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
-		return { label: row.processDescription ?? '', tunnel: row, context: [], editId: TunnelEditId.None };
+		const label = row.processDescription ?? '';
+		return { label, tunnel: row, context: [], editId: TunnelEditId.None, tooltip: label };
 	}
 }
 
@@ -433,7 +231,8 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		const label = row.source;
-		return { label, context, menuId: MenuId.TunnelOriginInline, tunnel: row, editId: TunnelEditId.None };
+		const tooltip = `${label}. ${row instanceof TunnelItem ? row.tooltipPostfix : ''}`;
+		return { label, context, menuId: MenuId.TunnelOriginInline, tunnel: row, editId: TunnelEditId.None, tooltip };
 	}
 }
 
@@ -449,7 +248,14 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		const label = row.privacy === TunnelPrivacy.Public ? nls.localize('tunnel.privacyPublic', "Public") : nls.localize('tunnel.privacyPrivate', "Private");
-		return { label, context, tunnel: row, icon: row.icon, editId: TunnelEditId.None };
+		let tooltip: string;
+		if (row instanceof TunnelItem) {
+			tooltip = `${row.privacy === TunnelPrivacy.Public ? nls.localize('remote.tunnel.tooltipPublic', "Accessible publicly. ") :
+				nls.localize('remote.tunnel.tooltipPrivate', "Only accessible from this machine. ")} ${row.tooltipPostfix}`;
+		} else {
+			tooltip = label;
+		}
+		return { label, context, tunnel: row, icon: row.icon, editId: TunnelEditId.None, tooltip };
 	}
 }
 
@@ -481,6 +287,7 @@ interface IActionBarTemplateData {
 interface ActionBarCell {
 	label: string;
 	icon?: ThemeIcon;
+	tooltip: string;
 	menuId?: MenuId;
 	context: [string, any][];
 	tunnel: ITunnelItem;
@@ -541,7 +348,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	renderActionBarItem(element: ActionBarCell, templateData: IActionBarTemplateData): void {
-		templateData.label.setLabel(element.label);
+		templateData.label.setLabel(element.label, undefined, { title: element.tooltip });
 		templateData.actionBar.context = element.tunnel;
 		const contextKeyService = this.contextKeyService.createOverlay(element.context);
 		const disposableStore = new DisposableStore();
@@ -712,22 +519,12 @@ class TunnelItem implements ITunnelItem {
 		}
 	}
 
-	get tooltip(): string {
-		let information: string = this.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", this.name) : '';
+	get tooltipPostfix(): string {
+		let information: string;
 		if (this.localAddress) {
-			information += nls.localize('remote.tunnel.tooltipForwarded', "Remote port {0}:{1} forwarded to local address {2}. ", this.remoteHost, this.remotePort, this.localAddress);
+			information = nls.localize('remote.tunnel.tooltipForwarded', "Remote port {0}:{1} forwarded to local address {2}. ", this.remoteHost, this.remotePort, this.localAddress);
 		} else {
-			information += nls.localize('remote.tunnel.tooltipCandidate', "Remote port {0}:{1} not forwarded. ", this.remoteHost, this.remotePort);
-		}
-
-		if (this.privacy === TunnelPrivacy.Public) {
-			information += nls.localize('remote.tunnel.tooltipPublic', "Accessible publicly. ");
-		} else {
-			information += nls.localize('remote.tunnel.tooltipPrivate', "Only accessible from this machine. ");
-		}
-
-		if (this.runningProcess) {
-			information += nls.localize('remote.tunnel.tooltipProcess', "Process: {0} ({1})", this.runningProcess.replace(/\0/g, ' ').trim(), this.pid);
+			information = nls.localize('remote.tunnel.tooltipCandidate', "Remote port {0}:{1} not forwarded. ", this.remoteHost, this.remotePort);
 		}
 
 		return information;
@@ -834,7 +631,7 @@ export class TunnelPanel extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
 						if (item instanceof TunnelItem) {
-							return item.tooltip;
+							return item.tooltipPostfix;
 						} else {
 							return item.label;
 						}
