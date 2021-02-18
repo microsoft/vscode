@@ -8,10 +8,9 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, printTime, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { IPtyHostProcessEvent, IPtyHostProcessDataEvent, IPtyHostProcessReadyEvent, IPtyHostProcessTitleChangedEvent, IPtyHostProcessExitEvent, IPtyHostProcessOrphanQuestionEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, IOrphanQuestionReplyArgs, IOnTerminalProcessEventArguments } from 'vs/platform/terminal/common/terminalProcess';
+import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, IOrphanQuestionReplyArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
@@ -81,7 +80,6 @@ export class PtyService extends Disposable implements IPtyService {
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
-		process.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
 		if (process.onProcessOverrideDimensions) {
 			process.onProcessOverrideDimensions(event => this._onProcessOverrideDimensions.fire({ id, event }));
 		}
@@ -96,6 +94,7 @@ export class PtyService extends Disposable implements IPtyService {
 		});
 		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentTerminalProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
+		persistentTerminalProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
 		this._ptys.set(id, persistentTerminalProcess);
 		return id;
 	}
@@ -192,27 +191,15 @@ export class PtyService extends Disposable implements IPtyService {
 	// 	const persistentTerminalProcess = this._throwIfNoPty(args.id);
 	// 	persistentTerminalProcess.orphanQuestionReply();
 	// }
-
-	onTerminalProcessEvent(args: IOnTerminalProcessEventArguments): Event<IPtyHostProcessEvent> {
-		const persistentTerminalProcess = this._throwIfNoPty(args.id);
-		if (!persistentTerminalProcess) {
-			throw new Error('Missing terminal');
-		}
-		return persistentTerminalProcess.events;
-	}
 }
 
 export class PersistentTerminalProcess extends Disposable {
 
-	private readonly _events: Emitter<IPtyHostProcessEvent>;
-	public readonly events: Event<IPtyHostProcessEvent>;
-
-	private readonly _bufferer: TerminalDataBufferer;
+	// private readonly _bufferer: TerminalDataBufferer;
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
 
 	private readonly _recorder: TerminalRecorder;
-	private _seenFirstListener: boolean;
 	private _isStarted: boolean = false;
 
 	private _orphanQuestionBarrier: AutoOpenBarrier | null;
@@ -224,6 +211,8 @@ export class PersistentTerminalProcess extends Disposable {
 	public get onProcessReplay(): Event<IPtyHostProcessReplayEvent> { return this._onProcessReplay.event; }
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
+	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	public readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
@@ -257,7 +246,6 @@ export class PersistentTerminalProcess extends Disposable {
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
-		this._seenFirstListener = false;
 
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
@@ -269,80 +257,40 @@ export class PersistentTerminalProcess extends Disposable {
 			this._logService.info(`The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
-		this._events = this._register(new Emitter<IPtyHostProcessEvent>({
-			onListenerDidAdd: () => {
-				this._logService.info('listener', this._seenFirstListener);
-				this._disconnectRunner1.cancel();
-				this._disconnectRunner2.cancel();
-				if (this._seenFirstListener) {
-					// only replay events to subsequent (reconnected) listeners
-					// this.triggerReplay();
-				}
-				this._seenFirstListener = true;
-			},
-			onLastListenerRemove: () => {
-				if (this.shouldPersistTerminal) {
-					this._disconnectRunner1.schedule();
-				} else {
-					this.shutdown(true);
-				}
-			}
-		}));
-		this.events = this._events.event;
 
-		this._bufferer = new TerminalDataBufferer((id, data) => {
-			const ev: IPtyHostProcessDataEvent = {
-				type: 'data',
-				data: data
-			};
-			this._events.fire(ev);
-		});
+		// TODO: Bring back bufferer
+		// this._bufferer = new TerminalDataBufferer((id, data) => {
+		// 	const ev: IPtyHostProcessDataEvent = {
+		// 		type: 'data',
+		// 		data: data
+		// 	};
+		// 	this._events.fire(ev);
+		// });
 
-		this._register(this._terminalProcess.onProcessReady((e: { pid: number, cwd: string; }) => {
-			this._pid = e.pid;
-			const ev: IPtyHostProcessReadyEvent = {
-				type: 'ready',
-				pid: e.pid,
-				cwd: e.cwd
-			};
-			this._events.fire(ev);
-			this.triggerReplay();
-		}));
+		this._register(this._terminalProcess.onProcessReady(e => this.triggerReplay()));
 
 		this._register(this.onOrphanQuestionReply((event: IOrphanQuestionReplyArgs) => {
 			this.orphanQuestionReply();
 		}));
 
-		this._register(this.onProcessReplay((event: IPtyHostProcessReplayEvent) => {
-			this._events.fire(event);
-		}));
-
-		this._register(this._terminalProcess.onProcessTitleChanged((title) => {
-			this._title = title;
-			const ev: IPtyHostProcessTitleChangedEvent = {
-				type: 'titleChanged',
-				title: title
-			};
-			this._events.fire(ev);
-		}));
-
 		this._register(this._terminalProcess.onProcessReady(e => this._onProcessReady.fire(e)));
+		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
-		this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
+		// this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessData(e => {
 			// console.trace(`data ${e}`);
 			this._recorder.recordData(e);
 		}));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
 			this._logService.info(`exiting ${exitCode}`);
-			this._bufferer.stopBuffering(this._persistentTerminalId);
+			// this._bufferer.stopBuffering(this._persistentTerminalId);
 
-			const ev: IPtyHostProcessExitEvent = {
-				type: 'exit',
-				exitCode: exitCode
-			};
-			this._events.fire(ev);
+			// const ev: IPtyHostProcessExitEvent = {
+			// 	type: 'exit',
+			// 	exitCode: exitCode
+			// };
+			// this._events.fire(ev);
 
 			// Remove process reference
 			this._onExit();
@@ -361,7 +309,9 @@ export class PersistentTerminalProcess extends Disposable {
 			this._isStarted = true;
 		} else {
 			// TODO: Fix me
+			// this._onProcessReady.fire({ pid: (this._terminalProcess as any)._ptyProcess.pid, cwd: '' });
 			this._onProcessReady.fire({ pid: -1, cwd: '' });
+			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 		}
 		// TODO: Pass back launch error
 		return { persistentTerminalId: this._persistentTerminalId };
@@ -454,10 +404,11 @@ export class PersistentTerminalProcess extends Disposable {
 			// the barrier opens after 4 seconds with or without a reply
 			this._orphanQuestionBarrier = new AutoOpenBarrier(4000);
 			this._orphanQuestionReplyTime = 0;
-			const ev: IPtyHostProcessOrphanQuestionEvent = {
-				type: 'orphan?'
-			};
-			this._events.fire(ev);
+			// TODO: Fire?
+			// const ev: IPtyHostProcessOrphanQuestionEvent = {
+			// 	type: 'orphan?'
+			// };
+			// this._events.fire(ev);
 		}
 
 		await this._orphanQuestionBarrier.wait();

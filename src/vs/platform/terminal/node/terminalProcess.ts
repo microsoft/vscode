@@ -43,6 +43,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _unacknowledgedCharCount: number = 0;
 
 	public get exitMessage(): string | undefined { return this._exitMessage; }
+	public get currentTitle(): string { return this._currentTitle; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
