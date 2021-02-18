@@ -144,6 +144,12 @@ steps:
         yarn download-builtin-extensions-cg
     displayName: Built-in extensions component details
 
+  - script: |
+      set -e
+      git clone https://github.com/microsoft/vscode-references-view.git
+    workingDirectory: $(Build.SourcesDirectory)/extensionsCG2
+    displayName: Clone built-in extensions
+
   - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
     displayName: "Component Detection"
     inputs:
