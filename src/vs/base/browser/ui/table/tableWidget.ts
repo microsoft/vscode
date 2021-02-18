@@ -127,7 +127,7 @@ class ColumnHeader<TRow, TCell> implements IView {
 	readonly onDidLayout = this._onDidLayout.event;
 
 	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {
-		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
+		this.element = $('.monaco-table-th', { 'data-col-index': index, title: column.tooltip }, column.label);
 	}
 
 	layout(size: number): void {

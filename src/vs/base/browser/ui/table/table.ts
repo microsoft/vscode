@@ -7,6 +7,7 @@ import { IListContextMenuEvent, IListEvent, IListGestureEvent, IListMouseEvent, 
 
 export interface ITableColumn<TRow, TCell> {
 	readonly label: string;
+	readonly tooltip: string;
 	readonly weight: number;
 	readonly templateId: string;
 	project(row: TRow): TCell;
