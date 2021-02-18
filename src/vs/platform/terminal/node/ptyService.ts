@@ -282,19 +282,19 @@ export class PersistentTerminalProcess extends Disposable {
 			// console.trace(`data ${e}`);
 			this._recorder.recordData(e);
 		}));
-		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			this._logService.info(`exiting ${exitCode}`);
-			// this._bufferer.stopBuffering(this._persistentTerminalId);
+		// this._register(this._terminalProcess.onProcessExit(exitCode => {
+		// 	this._bufferer.stopBuffering(this._persistentTerminalId);
 
-			// const ev: IPtyHostProcessExitEvent = {
-			// 	type: 'exit',
-			// 	exitCode: exitCode
-			// };
-			// this._events.fire(ev);
+		// 	// const ev: IPtyHostProcessExitEvent = {
+		// 	// 	type: 'exit',
+		// 	// 	exitCode: exitCode
+		// 	// };
+		// 	// this._events.fire(ev);
 
-			// Remove process reference
-			this._onExit();
-		}));
+		// 	// Remove process reference
+		// 	// TODO: Use an event
+		// 	this._onExit();
+		// }));
 	}
 	acknowledgeDataEvent(charCount: number): void {
 		throw new Error('Method not implemented.');
