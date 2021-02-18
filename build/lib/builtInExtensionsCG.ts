@@ -11,7 +11,7 @@ import ansiColors = require('ansi-colors');
 import { IExtensionDefinition } from './builtInExtensions';
 
 const root = path.dirname(path.dirname(__dirname));
-const rootCG = path.join(root, '.build', 'builtInExtensionsCG');
+const rootCG = path.join(root, 'extensionsCG');
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions;
 const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions;
