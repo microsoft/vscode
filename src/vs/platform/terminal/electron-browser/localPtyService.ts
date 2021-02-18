@@ -159,10 +159,10 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
 	}
-	public setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
-	public async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 
