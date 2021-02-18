@@ -271,7 +271,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		]);
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
-		const menu = disposableStore.add(this.menuService.createMenu(MenuId.TunnelInline, contextKeyService));
+		const menu = disposableStore.add(this.menuService.createMenu(MenuId.TunnelPortInline, contextKeyService));
 		const actions: IAction[] = [];
 		disposableStore.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
 		if (actions) {
@@ -393,8 +393,8 @@ class TunnelDataSource implements IAsyncDataSource<ITunnelViewModel, ITunnelItem
 	}
 }
 
-class LabelColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('label', "Label");
+class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
+	readonly label: string = nls.localize('port', "Port");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
@@ -406,7 +406,7 @@ class LabelColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelType', row.tunnelType],
 				['tunnelCloseable', row.closeable]
 			];
-		return { label, icon, tunnel: row, context };
+		return { label, icon, tunnel: row, context, menuId: MenuId.TunnelPortInline };
 	}
 }
 
@@ -753,7 +753,7 @@ export class TunnelPanel extends ViewPane {
 			'RemoteTunnels',
 			widgetContainer,
 			new TunnelTreeVirtualDelegate(),
-			[new LabelColumn(), new LocalAddressColumn(), new RunningProcessColumn()],
+			[new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()],
 			[new StringRenderer(), actionBarRenderer],
 			{
 				// 		keyboardNavigationLabelProvider: {
@@ -1480,25 +1480,8 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	when: TunnelCloseableContextKey
 }));
 
-MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
-	order: 0,
-	command: {
-		id: OpenPortInBrowserAction.ID,
-		title: OpenPortInBrowserAction.LABEL,
-		icon: openBrowserIcon
-	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
-	order: 1,
-	command: {
-		id: OpenPortInPreviewAction.ID,
-		title: OpenPortInPreviewAction.LABEL,
-		icon: openPreviewIcon
-	},
-	when: ContextKeyExpr.and(WebContextKey.negate(), ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected)))
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
+
+MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 	order: 0,
 	command: {
 		id: ForwardPortAction.INLINE_ID,
@@ -1507,7 +1490,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 	},
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
 }));
-MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
+MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 	order: 2,
 	command: {
 		id: ClosePortAction.INLINE_ID,
@@ -1518,7 +1501,6 @@ MenuRegistry.appendMenuItem(MenuId.TunnelInline, ({
 }));
 
 MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
-	group: '0_manage',
 	order: 0,
 	command: {
 		id: CopyAddressAction.INLINE_ID,
@@ -1526,4 +1508,22 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		icon: copyAddressIcon
 	},
 	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
+	order: 1,
+	command: {
+		id: OpenPortInBrowserAction.ID,
+		title: OpenPortInBrowserAction.LABEL,
+		icon: openBrowserIcon
+	},
+	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
+	order: 2,
+	command: {
+		id: OpenPortInPreviewAction.ID,
+		title: OpenPortInPreviewAction.LABEL,
+		icon: openPreviewIcon
+	},
+	when: ContextKeyExpr.and(WebContextKey.negate(), ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected)))
 }));
