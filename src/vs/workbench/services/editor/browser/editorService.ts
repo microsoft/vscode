@@ -1519,7 +1519,7 @@ export class DelegatingEditorService implements IEditorService {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
 			// If the override option is provided we want to open that specific editor or show a picker
-			if (resolvedOptions && (resolvedOptions.override === null || typeof resolvedOptions.override === 'string')) {
+			if (resolvedOptions && (resolvedOptions.override === OverrideOptions.PICKER || typeof resolvedOptions.override === 'string')) {
 				return await this.editorService.openEditor(resolvedEditor, { ...resolvedOptions, override: withNullAsUndefined(resolvedOptions.override) }, resolvedGroup);
 			}
 			// Pass on to editor open handler
