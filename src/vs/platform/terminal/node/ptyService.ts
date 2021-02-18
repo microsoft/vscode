@@ -308,8 +308,13 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
+		let result;
 		if (!this._isStarted) {
-			await this._terminalProcess.start();
+			result = await this._terminalProcess.start();
+			if (result) {
+				// it's a terminal launch error
+				return result;
+			}
 			this._isStarted = true;
 		} else {
 			if (!this._attachPersistentTerminal) {
@@ -319,7 +324,6 @@ export class PersistentTerminalProcess extends Disposable {
 			}
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 		}
-		// TODO: Pass back launch error
 		return { persistentTerminalId: this._persistentTerminalId };
 	}
 
