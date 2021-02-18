@@ -35,16 +35,15 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { LoggerService } from 'vs/workbench/services/log/electron-sandbox/loggerService';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleSignService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { SimpleConfigurationService, simpleFileSystemProvider, SimpleSignService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService, SimpleLogService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 class DesktopMain extends Disposable {
 
@@ -153,11 +152,11 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IProductService, this.productService);
 
 		// Logger
-		const loggerService = new LoggerService(mainProcessService);
+		const loggerService = new LoggerChannelClient(mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
-		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, loggerService, mainProcessService, this.environmentService));
+		const logService = new SimpleLogService();
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
