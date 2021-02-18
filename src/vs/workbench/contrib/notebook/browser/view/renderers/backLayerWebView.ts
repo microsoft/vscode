@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -36,9 +35,9 @@ export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
 	type: 'dimension';
 	id: string;
-	init: boolean;
-	data: DOM.Dimension;
-	isOutput: boolean;
+	init?: boolean;
+	data: { height: number };
+	isOutput?: boolean;
 }
 
 export interface IMouseEnterMessage {
@@ -77,7 +76,7 @@ export interface IBlurOutputMessage {
 export interface IClickedDataUrlMessage {
 	__vscode_notebook_message: boolean;
 	type: 'clicked-data-url';
-	data: string;
+	data: string | ArrayBuffer | null;
 	downloadName?: string;
 }
 
@@ -129,6 +128,10 @@ export interface ICellDragEndMessage {
 		readonly clientX: number;
 		readonly clientY: number;
 	};
+}
+export interface IInitializedMarkdownPreviewMessage {
+	readonly __vscode_notebook_message: boolean;
+	readonly type: 'initializedMarkdownPreview';
 }
 
 export interface IClearMessage {
@@ -290,6 +293,7 @@ export type FromWebviewMessage =
 	| ICellDragStartMessage
 	| ICellDragMessage
 	| ICellDragEndMessage
+	| IInitializedMarkdownPreviewMessage
 	;
 export type ToWebviewMessage =
 	| IClearMessage
@@ -841,6 +845,10 @@ var requirejs = (function() {
 	}
 
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
+		if (typeof event.data !== 'string') {
+			return;
+		}
+
 		const [splitStart, splitData] = event.data.split(';base64,');
 		if (!splitData || !splitStart) {
 			return;
