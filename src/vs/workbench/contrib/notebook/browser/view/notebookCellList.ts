@@ -534,7 +534,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 
 	private _getViewIndexUpperBound(cell: ICellViewModel): number {
-		const modelIndex = this._viewModel!.getCellIndex(cell);
+		if (!this._viewModel) {
+			return -1;
+		}
+
+		const modelIndex = this._viewModel.getCellIndex(cell);
 		if (!this.hiddenRangesPrefixSum) {
 			return modelIndex;
 		}
