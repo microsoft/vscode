@@ -742,6 +742,7 @@ export class TunnelPanel extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ITunnelService private readonly tunnelService: ITunnelService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
@@ -776,12 +777,17 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService, this.menuService);
+		const columns = [new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
+		if (this.tunnelService.canMakePublic) {
+			columns.push(new PrivacyColumn());
+		}
+		columns.push(new SourceColumn());
 
 		this.table = this.instantiationService.createInstance(WorkbenchTable,
 			'RemoteTunnels',
 			widgetContainer,
 			new TunnelTreeVirtualDelegate(),
-			[new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn(), new PrivacyColumn(), new SourceColumn()],
+			columns,
 			[new StringRenderer(), actionBarRenderer],
 			{
 				keyboardNavigationLabelProvider: {
