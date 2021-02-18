@@ -4,44 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ChangeModeAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { Schemas } from 'vs/base/common/network';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 const $ = dom.$;
 
-const UNTITLED_HINT_VISIBILITY_STORAGE_KEY = 'untitledHint.visible';
-export class UntitledHintContribution implements IWorkbenchContribution {
+const untitledHintSetting = 'workbench.editor.untitled.hint';
+export class UntitledHintContribution implements IEditorContribution {
+
+	public static readonly ID = 'editor.contrib.untitledHint';
 
 	private toDispose: IDisposable[];
 	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
+	private button: FloatingClickWidget | undefined;
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
+		private editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
-		this.toDispose.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
-		this.onActiveEditorChange();
+		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(untitledHintSetting)) {
+				this.update();
+			}
+		}));
+		this.update();
 	}
 
-	private onActiveEditorChange(): void {
-		const activeEditor = this.editorService.activeEditor;
+	private update(): void {
 		this.untitledHintContentWidget?.dispose();
+		this.button?.dispose();
+		const untitledHintMode = this.configurationService.getValue(untitledHintSetting);
 
-		const activeCodeEditor = this.editorService.activeTextEditorControl;
-		const untitledHintVisible = this.storageService.getBoolean(UNTITLED_HINT_VISIBILITY_STORAGE_KEY, StorageScope.GLOBAL, true);
-		if (untitledHintVisible && activeEditor && activeEditor.isUntitled() && isCodeEditor(activeCodeEditor)) {
-			this.untitledHintContentWidget = new UntitledHintContentWidget(activeCodeEditor, this.commandService, this.storageService);
+		if (this.editor.getModel()?.uri.scheme === Schemas.untitled) {
+			if (untitledHintMode === 'text') {
+				this.untitledHintContentWidget = new UntitledHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
+			}
+			if (untitledHintMode === 'button') {
+				this.button = new FloatingClickWidget(this.editor, localize('selectALanguage', "Select a Language"), ChangeModeAction.ID, this.keybindingService, this.themeService);
+				this.toDispose.push(this.button.onClick(async () => {
+					await this.commandService.executeCommand(ChangeModeAction.ID);
+					this.editor.focus();
+				}));
+				this.button.render();
+			}
 		}
 	}
 
@@ -61,7 +82,8 @@ class UntitledHintContentWidget implements IContentWidget {
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly commandService: ICommandService,
-		private readonly storageService: IStorageService,
+		private readonly configurationService: IConfigurationService,
+		private readonly keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 		this.toDispose.push(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
@@ -81,7 +103,6 @@ class UntitledHintContentWidget implements IContentWidget {
 		return UntitledHintContentWidget.ID;
 	}
 
-
 	// Select a language to get started. Start typing to dismiss, or don't show this again.
 	getDomNode(): HTMLElement {
 		if (!this.domNode) {
@@ -91,10 +112,13 @@ class UntitledHintContentWidget implements IContentWidget {
 			select.innerText = localize('select', "Select a  ");
 			this.domNode.appendChild(select);
 			const language = $('span.language-mode.detected-link-active');
-			language.innerText = localize('language', "language");
+			const keybinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
+			const keybindingLabel = keybinding?.getLabel();
+			const keybindingWithBrackets = keybindingLabel ? `(${keybindingLabel})` : '';
+			language.innerText = localize('language', "language {0}", keybindingWithBrackets);
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
-			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ");
+			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
 			this.domNode.appendChild(toGetStarted);
 
 			const dontShow = $('span.detected-link-active');
@@ -112,7 +136,7 @@ class UntitledHintContentWidget implements IContentWidget {
 			}));
 
 			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', () => {
-				this.storageService.store(UNTITLED_HINT_VISIBILITY_STORAGE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
+				this.configurationService.updateValue(untitledHintSetting, 'hidden');
 				this.dispose();
 				this.editor.focus();
 			}));
