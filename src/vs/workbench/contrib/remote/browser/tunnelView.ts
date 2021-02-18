@@ -358,6 +358,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		}
 		if (element.icon) {
 			templateData.icon.className = `ports-view-actionbar-cell-icon ${ThemeIcon.asClassName(element.icon)}`;
+			templateData.icon.title = element.tooltip;
 			templateData.icon.hidden = false;
 		}
 	}
