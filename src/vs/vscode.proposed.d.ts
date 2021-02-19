@@ -1118,14 +1118,13 @@ declare module 'vscode' {
 		readonly statusMessage?: string;
 
 		// run related API, will be removed
-		readonly runnable?: boolean;
 		readonly hasExecutionOrder?: boolean;
 		readonly executionOrder?: number;
 		readonly runState?: NotebookCellRunState;
 		readonly runStartTime?: number;
 		readonly lastRunDuration?: number;
 
-		constructor(editable?: boolean, breakpointMargin?: boolean, runnable?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runState?: NotebookCellRunState, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
+		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runState?: NotebookCellRunState, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
 		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, runnable?: boolean | null, hasExecutionOrder?: boolean | null, executionOrder?: number | null, runState?: NotebookCellRunState | null, runStartTime?: number | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
 	}
@@ -1174,10 +1173,9 @@ declare module 'vscode' {
 		// todo@API infer from kernel
 		// todo@API remove
 		readonly runnable: boolean;
-		readonly cellRunnable: boolean;
 		readonly runState: NotebookRunState;
 
-		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, displayOrder?: GlobPattern[], custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
+		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, displayOrder?: GlobPattern[], custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
 
 		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, displayOrder?: GlobPattern[] | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}

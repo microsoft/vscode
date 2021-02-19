@@ -148,83 +148,72 @@ suite('NotebookViewModel', () => {
 			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true, runnable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false, runnable: true }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
 			],
 			(editor, viewModel) => {
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
 				const defaults = { hasExecutionOrder: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: true,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: true,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: false,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: true,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: false,
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: false,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: true,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					runnable: false,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: true,
 					...defaults
 				});
 
 				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: false,
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					runnable: false,
 					...defaults
 				});
 			}
@@ -269,10 +258,10 @@ suite('NotebookViewModel Decorations', () => {
 			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true, runnable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false, runnable: true }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
 			],
 			(editor, viewModel) => {
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
@@ -327,12 +316,12 @@ suite('NotebookViewModel Decorations', () => {
 			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
-				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true, runnable: false }],
-				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false, runnable: true }],
-				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
-				['var e = 6;', 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
-				['var e = 7;', 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
+				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var c = 3;', 'javascript', CellKind.Code, [], { editable: true }],
+				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var e = 6;', 'javascript', CellKind.Code, [], { editable: false }],
+				['var e = 7;', 'javascript', CellKind.Code, [], { editable: false }],
 			],
 			(editor, viewModel) => {
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 3 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
