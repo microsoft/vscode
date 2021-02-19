@@ -53,7 +53,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 
 		quickPick.items = items;
-		quickPick.selectedItems = items;
+		quickPick.selectedItems = items.filter(item => item.extension.allowed === undefined || item.extension.allowed);
 		quickPick.title = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
 		quickPick.placeholder = nls.localize('manageExensions', "Choose which extensions can access this account");
 
@@ -172,12 +172,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		if (!allowList.find(allowed => allowed.id === extensionId)) {
-			allowList.push({ id: extensionId, name: extensionName });
-			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-		}
-
+		this.authenticationService.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 	}
@@ -225,8 +220,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 						if (!didAcceptPrompt) {
 							throw new Error('User did not consent to login.');
 						}
-					} else {
+					} else if (allowed !== false) {
 						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, [session]);
+						return undefined;
+					} else {
 						return undefined;
 					}
 				}
