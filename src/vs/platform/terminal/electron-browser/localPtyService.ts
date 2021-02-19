@@ -123,7 +123,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 
-	fetchPersistentTerminalProcess(id: number): Promise<number> {
+	fetchPersistentTerminalProcess(id: number): Promise<void> {
 		return this._proxy.fetchPersistentTerminalProcess(id);
 	}
 

@@ -120,8 +120,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	}
 
 	public async fetchPersistentTerminalProcess(id: number): Promise<ITerminalChildProcess> {
-		const persistentId = await this._localPtyService.fetchPersistentTerminalProcess(id);
-		return this._instantiationService.createInstance(LocalPty, persistentId);
+		await this._localPtyService.fetchPersistentTerminalProcess(id);
+		return this._instantiationService.createInstance(LocalPty, id);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

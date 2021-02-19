@@ -84,10 +84,9 @@ export class PtyService extends Disposable implements IPtyService {
 		return id;
 	}
 
-	async fetchPersistentTerminalProcess(id: number): Promise<number> {
-		await this._throwIfNoPty(id);
-		this._logService.info('fetched process to reconnect', id);
-		return id;
+	async fetchPersistentTerminalProcess(id: number): Promise<void> {
+		this._throwIfNoPty(id);
+		this._logService.trace('Fetched process to reconnect', id);
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
