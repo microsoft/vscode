@@ -196,8 +196,8 @@ suite('Workbench - Test Results Service', () => {
 			id: 'some-id',
 			items: [{
 				...getInitializedMainTestCollection().getNodeById('2')!,
-				state: { state: TestRunState.Passed, duration: 0, messages: [] },
-				computedState: TestRunState.Passed,
+				state: { state, duration: 0, messages: [] },
+				computedState: state,
 				retired: undefined,
 				children: [],
 			}]
@@ -234,7 +234,7 @@ suite('Workbench - Test Results Service', () => {
 			results.push(hydrated1);
 			const hydrated2 = makeHydrated(undefined, TestRunState.Failed);
 			results.push(hydrated2);
-			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
+			assert.deepStrictEqual(results.results, [r, hydrated2, hydrated1]);
 		});
 	});
 });
