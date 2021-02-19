@@ -1466,7 +1466,9 @@ export namespace NotebookCellData {
 			source: data.source,
 			metadata: data.metadata,
 			outputs: data.outputs.map(output => ({
-				outputId: output.id, outputs: (output.outputs || []).map(op => ({
+				outputId: output.id,
+				metadata: output.metadata,
+				outputs: (output.outputs || []).map(op => ({
 					mime: op.mime,
 					value: op.value,
 					metadata: op.metadata
