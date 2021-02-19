@@ -1415,7 +1415,14 @@ export class TabsTitleControl extends TitleControl {
 					return true; // no tab always fits
 				}
 
-				return lastTab.offsetWidth <= (dimensions.available.width - editorToolbarContainer.offsetWidth);
+				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarContainer.offsetWidth - dimensions.available.width;
+				if (lastTabOverlapWithToolbarWidth > 1) {
+					// Allow for slight rounding errors related to zooming here
+					// https://github.com/microsoft/vscode/issues/116385
+					return false;
+				}
+
+				return true;
 			};
 
 			// If tabs wrap or should start to wrap (when width exceeds visible width)
