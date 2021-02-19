@@ -140,7 +140,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				const stateLookup = this.results.getStateByExtId(test.item.extId);
 				if (hasValidLocation(uri, test.item)) {
 					newDecorations.push(this.instantiationService.createInstance(
-						RunTestDecoration, test, ref.object, test.item.location, this.editor, stateLookup?.[1]));
+						RunTestDecoration, test, test.item.location, this.editor, stateLookup?.[1]));
 				}
 
 				if (!stateLookup) {
@@ -226,7 +226,6 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 
 	constructor(
 		private readonly test: IncrementalTestCollectionItem,
-		private readonly collection: IMainThreadTestCollection,
 		private readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		stateItem: TestResultItem | undefined,
