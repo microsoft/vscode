@@ -101,6 +101,13 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				formattedLink += linkTail.charAt(0) + '...' + linkTail.substring(linkTail.length - linkTailLengthToKeep + 1);
 			}
 
+			const displayLink = typeof originalResource === 'string' ? originalResource : formattedLink;
+			let formattedDisplayLink = '';
+			const linkCharsToShowPerLine = 80;
+			for (let counter = 0; counter < displayLink.length; counter += linkCharsToShowPerLine) {
+				formattedDisplayLink += displayLink.substring(counter, counter + linkCharsToShowPerLine) + '\n';
+			}
+
 			const { choice } = await this._dialogService.show(
 				Severity.Info,
 				localize(
@@ -115,7 +122,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					localize('configureTrustedDomains', 'Configure Trusted Domains')
 				],
 				{
-					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
+					detail: formattedDisplayLink,
 					cancelId: 2
 				}
 			);
