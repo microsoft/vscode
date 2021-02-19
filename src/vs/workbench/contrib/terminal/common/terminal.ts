@@ -179,27 +179,6 @@ export interface IRemoteTerminalAttachTarget {
 	isOrphan: boolean;
 }
 
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
-}
-
-export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
-export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IRemoteTerminalAttachTarget>;
-
-export interface IRawTerminalTabLayoutInfo<T> {
-	isActive: boolean;
-	activeTerminalProcessId: number | undefined;
-	terminals: IRawTerminalInstanceLayoutInfo<T>[];
-}
-
-export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
-export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
-
-export interface IRawTerminalsLayoutInfo<T> {
-	tabs: IRawTerminalTabLayoutInfo<T>[];
-}
-
 /**
  * Provides access to native Windows calls that can be injected into non-native layers.
  */
