@@ -439,6 +439,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected layoutBody(height: number, width: number): void {
 		this.viewWelcomeContainer.style.height = `${height}px`;
 		this.viewWelcomeContainer.style.width = `${width}px`;
+		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
 		this.scrollableElement.scanDomNode();
 	}
 
@@ -546,7 +547,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
-					const button = new Button(this.viewWelcomeContainer, { title: node.title, supportIcons: true });
+					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
@@ -567,6 +569,66 @@ export abstract class ViewPane extends Pane implements IView {
 				} else {
 					const p = append(this.viewWelcomeContainer, $('p'));
 
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.instantiationService.createInstance(Link, node);
+							append(p, link.el);
+							disposables.add(link);
+							disposables.add(attachLinkStyler(link, this.themeService));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.style({ disabled: !this.contextKeyService.contextMatchesRules(precondition) });
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
+						}
+					}
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.instantiationService.createInstance(Link, node);
+							append(p, link.el);
+							disposables.add(link);
+							disposables.add(attachLinkStyler(link, this.themeService));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.style({ disabled: !this.contextKeyService.contextMatchesRules(precondition) });
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
+						}
+					}
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.instantiationService.createInstance(Link, node);
+							append(p, link.el);
+							disposables.add(link);
+							disposables.add(attachLinkStyler(link, this.themeService));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.style({ disabled: !this.contextKeyService.contextMatchesRules(precondition) });
+								updateEnablement();
+
+								const keys = new Set();
+								precondition.keys().forEach(key => keys.add(key));
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, disposables);
+							}
+						}
+					}
 					for (const node of linkedText.nodes) {
 						if (typeof node === 'string') {
 							append(p, document.createTextNode(node));
