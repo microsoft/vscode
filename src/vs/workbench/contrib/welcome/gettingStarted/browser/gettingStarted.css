@@ -178,7 +178,9 @@
 	display: none;
 }
 
-
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description-container {
+	width: 100%;
+}
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description {
 	padding-top: 8px;

@@ -435,6 +435,13 @@ export class GettingStartedPage extends EditorPane {
 
 	private buildCategorySlide(categoryID: string, selectedItem?: string) {
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+		let foundNext = false;
+		const nextCategory = this.gettingStartedCategories.find(category => {
+			if (foundNext && category.content.type === 'items') { return true; }
+			if (category.id === categoryID) { foundNext = true; }
+			return false;
+		});
+
 		if (!category) { throw Error('could not find category with ID ' + categoryID); }
 		if (category.content.type !== 'items') { throw Error('category with ID ' + categoryID + ' is not of items type'); }
 
@@ -473,10 +480,10 @@ export class GettingStartedPage extends EditorPane {
 								: []),
 						...(
 							arr[i + 1]
-								? [
-									$('button.task-next',
-										{ 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),
-								] : []
+								? [$('button.task-next', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
+								: nextCategory
+									? [$('button.task-next', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
+									: []
 						))
 				)));
 
