@@ -27,7 +27,7 @@ export interface IMainNotebookController {
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
+	backup(uri: URI, token: CancellationToken): Promise<string>;
 }
 
 

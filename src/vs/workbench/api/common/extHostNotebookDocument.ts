@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -124,10 +122,6 @@ export interface INotebookEventEmitter {
 	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
 }
 
-function hashPath(resource: URI): string {
-	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	return hash(str) + '';
-}
 
 export class ExtHostNotebookDocument extends Disposable {
 
@@ -139,11 +133,10 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _cellDisposableMapping = new Map<number, DisposableStore>();
 
 	private _notebook: vscode.NotebookDocument | undefined;
-	private _versionId = 0;
-	private _isDirty = false;
-	private _backupCounter = 1;
+	private _versionId: number = 0;
+	private _isDirty: boolean = false;
 	private _backup?: vscode.NotebookDocumentBackup;
-	private _disposed = false;
+	private _disposed: boolean = false;
 
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
@@ -152,8 +145,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _viewType: string,
 		private readonly _contentOptions: vscode.NotebookDocumentContentOptions,
 		private _metadata: extHostTypes.NotebookDocumentMetadata,
-		public readonly uri: URI,
-		private readonly _storagePath: URI | undefined
+		readonly uri: URI,
 	) {
 		super();
 	}
@@ -183,14 +175,6 @@ export class ExtHostNotebookDocument extends Disposable {
 			});
 		}
 		return this._notebook;
-	}
-
-	getNewBackupUri(): URI {
-		if (!this._storagePath) {
-			throw new Error('Backup requires a valid storage path');
-		}
-		const fileName = hashPath(this.uri) + (this._backupCounter++);
-		return joinPath(this._storagePath, fileName);
 	}
 
 	updateBackup(backup: vscode.NotebookDocumentBackup): void {

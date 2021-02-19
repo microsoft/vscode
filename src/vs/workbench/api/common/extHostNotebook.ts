@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -25,6 +25,7 @@ import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { assertIsDefined } from 'vs/base/common/types';
+import { hash } from 'vs/base/common/hash';
 
 class ExtHostWebviewCommWrapper extends Disposable {
 	private readonly _onDidReceiveDocumentMessage = new Emitter<any>();
@@ -320,14 +321,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
-		const listeners: vscode.Disposable[] = [];
 
-		listeners.push(provider.onDidChangeNotebookContentOptions
-			? provider.onDidChangeNotebookContentOptions(() => {
+
+		let listener: IDisposable | undefined;
+		if (provider.onDidChangeNotebookContentOptions) {
+			listener = provider.onDidChangeNotebookContentOptions(() => {
 				this._proxy.$updateNotebookProviderOptions(viewType, provider.options);
-			})
-			: Disposable.None);
-
+			});
+		}
 
 		const viewOptionsFilenamePattern = options?.viewOptions?.filenamePattern
 			.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.from(pattern))
@@ -344,7 +345,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 
 		return new extHostTypes.Disposable(() => {
-			listeners.forEach(d => d.dispose());
+			listener?.dispose();
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
 		});
@@ -523,17 +524,25 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return false;
 	}
 
-	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined> {
+	private _backupIdPool: number = 0;
+
+	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string> {
 		const document = this._documents.get(URI.revive(uri));
 		const provider = this._notebookContentProviders.get(viewType);
 
-		if (document && provider && provider.provider.backupNotebook) {
-			const backup = await provider.provider.backupNotebook(document.notebookDocument, { destination: document.getNewBackupUri() }, cancellation);
-			document.updateBackup(backup);
-			return backup.id;
+		if (!document) {
+			throw new Error(`CANNOT find notebook document for ${uri}`);
 		}
+		if (!provider) {
+			throw new Error(`CANNOT find provider for ${viewType}`);
+		}
+		const storagePath = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
+		const fileName = String(hash([document.uri.toString(), this._backupIdPool++]));
+		const backupUri = URI.joinPath(storagePath, fileName);
 
-		return;
+		const backup = await provider.provider.backupNotebook(document.notebookDocument, { destination: backupUri }, cancellation);
+		document.updateBackup(backup);
+		return backup.id;
 	}
 
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
@@ -705,8 +714,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			for (const modelData of delta.addedDocuments) {
 				const uri = URI.revive(modelData.uri);
 				const viewType = modelData.viewType;
-				const entry = this._notebookContentProviders.get(viewType);
-				const storageRoot = entry && (this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension));
 
 				if (this._documents.has(uri)) {
 					throw new Error(`adding EXISTING notebook ${uri}`);
@@ -737,7 +744,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					modelData.contentOptions,
 					modelData.metadata ? typeConverters.NotebookDocumentMetadata.to(modelData.metadata) : new extHostTypes.NotebookDocumentMetadata(),
 					uri,
-					storageRoot
 				);
 
 				document.acceptModelChanged({
