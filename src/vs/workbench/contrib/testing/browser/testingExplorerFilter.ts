@@ -4,32 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
+import { TestExplorerStateFilter, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
-	readonly onDidChange: Event<string>;
-	readonly onDidRequestReveal: Event<string[]>;
-	value: string;
-	reveal: string[] | undefined;
+	readonly text: ObservableValue<string>;
+	/** Reveal request, the extId of the test to reveal */
+	readonly reveal: ObservableValue<string | undefined>;
+	readonly stateFilter: ObservableValue<TestExplorerStateFilter>;
+	readonly currentDocumentOnly: ObservableValue<boolean>;
 
 	readonly onDidRequestInputFocus: Event<void>;
 	focusInput(): void;
@@ -39,37 +45,24 @@ export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState
 
 export class TestExplorerFilterState implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
-	private readonly revealRequest = new Emitter<string[]>();
-	private readonly changeEmitter = new Emitter<string>();
 	private readonly focusEmitter = new Emitter<void>();
-	private _value = '';
-	private _reveal?: string[];
+	public readonly text = new ObservableValue('');
+	public readonly stateFilter = ObservableValue.stored(new StoredValue<TestExplorerStateFilter>({
+		key: 'testStateFilter',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.USER
+	}, this.storage), TestExplorerStateFilter.All);
+	public readonly currentDocumentOnly = ObservableValue.stored(new StoredValue<boolean>({
+		key: 'testsByCurrentDocumentOnly',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.USER
+	}, this.storage), false);
+
+	public readonly reveal = new ObservableValue<string | undefined>(undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
-	public readonly onDidRequestReveal = this.revealRequest.event;
-	public readonly onDidChange = this.changeEmitter.event;
 
-	public get reveal() {
-		return this._reveal;
-	}
-
-	public set reveal(v: string[] | undefined) {
-		this._reveal = v;
-		if (v !== undefined) {
-			this.revealRequest.fire(v);
-		}
-	}
-
-	public get value() {
-		return this._value;
-	}
-
-	public set value(v: string) {
-		if (v !== this._value) {
-			this._value = v;
-			this.changeEmitter.fire(v);
-		}
-	}
+	constructor(@IStorageService private readonly storage: IStorageService) { }
 
 	public focusInput() {
 		this.focusEmitter.fire();
@@ -84,6 +77,8 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		target: StorageTarget.USER
 	});
 
+	private readonly filtersAction = new Action('markersFiltersAction', localize('testing.filters.menu', "More Filters..."), 'testing-filter-button ' + ThemeIcon.asClassName(testingFilterIcon));
+
 	constructor(
 		action: IAction,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
@@ -92,6 +87,9 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(null, action);
+		this.updateFilterActiveState();
+		this._register(state.currentDocumentOnly.onDidChange(this.updateFilterActiveState, this));
+		this._register(state.stateFilter.onDidChange(this.updateFilterActiveState, this));
 	}
 
 	/**
@@ -108,10 +106,10 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 			placeholder: localize('testExplorerFilter', "Filter (e.g. text, !exclude)"),
 			history: this.history.get([]),
 		}));
-		input.value = this.state.value;
+		input.value = this.state.text.value;
 		this._register(attachInputBoxStyler(input, this.themeService));
 
-		this._register(this.state.onDidChange(newValue => {
+		this._register(this.state.text.onDidChange(newValue => {
 			input.value = newValue;
 		}));
 
@@ -121,7 +119,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 
 		this._register(input.onDidChange(() => updateDelayer.trigger(() => {
 			input.addToHistory();
-			this.state.value = input.value;
+			this.state.text.value = input.value;
 		})));
 
 		this._register(dom.addStandardDisposableListener(input.inputElement, dom.EventType.KEY_DOWN, e => {
@@ -131,6 +129,16 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				e.preventDefault();
 			}
 		}));
+
+		const actionbar = this._register(new ActionBar(container, {
+			actionViewItemProvider: action => {
+				if (action.id === this.filtersAction.id) {
+					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.state, this.actionRunner);
+				}
+				return undefined;
+			}
+		}));
+		actionbar.push(this.filtersAction, { icon: true, label: false });
 	}
 
 
@@ -159,6 +167,75 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	public dispose() {
 		this.saveState();
 		super.dispose();
+	}
+
+	/**
+	 * Updates the 'checked' state of the filter submenu.
+	 */
+	private updateFilterActiveState() {
+		this.filtersAction.checked = this.state.currentDocumentOnly.value
+			|| this.state.stateFilter.value !== TestExplorerStateFilter.All;
+	}
+}
+
+
+class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
+
+	constructor(
+		action: IAction,
+		private readonly filters: ITestExplorerFilterState,
+		actionRunner: IActionRunner,
+		@IContextMenuService contextMenuService: IContextMenuService
+	) {
+		super(action,
+			{ getActions: () => this.getActions() },
+			contextMenuService,
+			{
+				actionRunner,
+				classNames: action.class,
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+				menuAsChild: true
+			}
+		);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		this.updateChecked();
+	}
+
+	private getActions(): IAction[] {
+		return [
+			...[
+				{ v: TestExplorerStateFilter.OnlyFailed, label: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests") },
+				{ v: TestExplorerStateFilter.OnlyExecuted, label: localize('testing.filters.showOnlyExecuted', "Show Only Executed Tests") },
+				{ v: TestExplorerStateFilter.All, label: localize('testing.filters.showAll', "Show All Tests") },
+			].map(({ v, label }) => ({
+				checked: this.filters.stateFilter.value === v,
+				class: undefined,
+				enabled: true,
+				id: v,
+				label,
+				run: async () => this.filters.stateFilter.value = v,
+				tooltip: '',
+				dispose: () => null
+			})),
+			new Separator(),
+			{
+				checked: this.filters.currentDocumentOnly.value,
+				class: undefined,
+				enabled: true,
+				id: 'currentDocument',
+				label: localize('testing.filters.currentFile', "Show in Active File Only"),
+				run: async () => this.filters.currentDocumentOnly.value = !this.filters.currentDocumentOnly.value,
+				tooltip: '',
+				dispose: () => null
+			},
+		];
+	}
+
+	updateChecked(): void {
+		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }
 

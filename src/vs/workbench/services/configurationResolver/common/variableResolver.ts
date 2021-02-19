@@ -326,7 +326,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 					default:
 						try {
-							return this.resolveFromMap(match, variable, commandValueMapping, undefined);
+							const key = argument ? `${variable}:${argument}` : variable;
+							return this.resolveFromMap(match, key, commandValueMapping, undefined);
 						} catch (error) {
 							return match;
 						}

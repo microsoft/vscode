@@ -33,6 +33,8 @@ export interface ISplitViewOptions<TLayoutContext = undefined> {
 	readonly inverseAltBehavior?: boolean;
 	readonly proportionalLayout?: boolean; // default true,
 	readonly descriptor?: ISplitViewDescriptor<TLayoutContext>;
+	readonly scrollbarVisibility?: ScrollbarVisibility;
+	readonly getSashOrthogonalSize?: () => number;
 }
 
 /**
@@ -200,7 +202,7 @@ export namespace Sizing {
 	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
-export interface ISplitViewDescriptor<TLayoutContext> {
+export interface ISplitViewDescriptor<TLayoutContext = undefined> {
 	size: number;
 	views: {
 		visible?: boolean;
@@ -227,6 +229,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
 	private proportionalLayout: boolean;
+	private readonly getSashOrthogonalSize: { (): number } | undefined;
 
 	private _onDidSashChange = this._register(new Emitter<number>());
 	readonly onDidSashChange = this._onDidSashChange.event;
@@ -298,6 +301,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 		this.inverseAltBehavior = !!options.inverseAltBehavior;
 		this.proportionalLayout = types.isUndefined(options.proportionalLayout) ? true : !!options.proportionalLayout;
+		this.getSashOrthogonalSize = options.getSashOrthogonalSize;
 
 		this.el = document.createElement('div');
 		this.el.classList.add('monaco-split-view2');
@@ -309,8 +313,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		this.scrollable = new Scrollable(125, scheduleAtNextAnimationFrame);
 		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
-			vertical: this.orientation === Orientation.VERTICAL ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden,
-			horizontal: this.orientation === Orientation.HORIZONTAL ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden
+			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,
+			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
 		}, this.scrollable));
 
 		this._register(this.scrollableElement.onScroll(e => {
@@ -706,17 +710,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
+			let opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
+
 			const sash = this.orientation === Orientation.VERTICAL
-				? new Sash(this.sashContainer, { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) }, {
-					orientation: Orientation.HORIZONTAL,
-					orthogonalStartSash: this.orthogonalStartSash,
-					orthogonalEndSash: this.orthogonalEndSash
-				})
-				: new Sash(this.sashContainer, { getVerticalSashLeft: (sash: Sash) => this.getSashPosition(sash) }, {
-					orientation: Orientation.VERTICAL,
-					orthogonalStartSash: this.orthogonalStartSash,
-					orthogonalEndSash: this.orthogonalEndSash
-				});
+				? new Sash(this.sashContainer, { getHorizontalSashTop: s => this.getSashPosition(s), getHorizontalSashWidth: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.HORIZONTAL })
+				: new Sash(this.sashContainer, { getVerticalSashLeft: s => this.getSashPosition(s), getVerticalSashHeight: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.VERTICAL });
 
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
 				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey })

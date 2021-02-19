@@ -713,10 +713,10 @@ suite('ExtHostSearch', () => {
 						match: null // Don't care about this right now
 					}
 				} : {
-						uri: r.uri.toString(),
-						text: r.text,
-						lineNumber: r.lineNumber
-					});
+					uri: r.uri.toString(),
+					text: r.text,
+					lineNumber: r.lineNumber
+				});
 
 			return assert.deepEqual(
 				makeComparable(actualTextSearchResults),

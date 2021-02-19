@@ -11,9 +11,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Promises, Barrier, timeout } from 'vs/base/common/async';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -22,6 +24,11 @@ export const enum UnloadReason {
 	QUIT = 2,
 	RELOAD = 3,
 	LOAD = 4
+}
+
+export interface IWindowLoadEvent {
+	window: ICodeWindow;
+	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
 }
 
 export interface IWindowUnloadEvent {
@@ -72,16 +79,27 @@ export interface ILifecycleMainService {
 	readonly onWillShutdown: Event<ShutdownEvent>;
 
 	/**
-	 * An event that fires before a window closes. This event is fired after any veto has been dealt
-	 * with so that listeners know for sure that the window will close without veto.
+	 * An event that fires when a window is loading. This can either be a window opening for the
+	 * first time or a window reloading or changing to another URL.
 	 */
-	readonly onBeforeWindowClose: Event<ICodeWindow>;
+	readonly onWillLoadWindow: Event<IWindowLoadEvent>;
 
 	/**
 	 * An event that fires before a window is about to unload. Listeners can veto this event to prevent
 	 * the window from unloading.
 	 */
-	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent>;
+	readonly onBeforeUnloadWindow: Event<IWindowUnloadEvent>;
+
+	/**
+	 * An event that fires before a window closes. This event is fired after any veto has been dealt
+	 * with so that listeners know for sure that the window will close without veto.
+	 */
+	readonly onBeforeCloseWindow: Event<ICodeWindow>;
+
+	/**
+	 * Make a `ICodeWindow` known to the lifecycle main service.
+	 */
+	registerWindow(window: ICodeWindow): void;
 
 	/**
 	 * Reload a window. All lifecycle event handlers are triggered.
@@ -147,11 +165,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
-	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
-	readonly onBeforeWindowClose = this._onBeforeWindowClose.event;
+	private readonly _onWillLoadWindow = this._register(new Emitter<IWindowLoadEvent>());
+	readonly onWillLoadWindow = this._onWillLoadWindow.event;
 
-	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
-	readonly onBeforeWindowUnload = this._onBeforeWindowUnload.event;
+	private readonly _onBeforeCloseWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
+
+	private readonly _onBeforeUnloadWindow = this._register(new Emitter<IWindowUnloadEvent>());
+	readonly onBeforeUnloadWindow = this._onBeforeUnloadWindow.event;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
@@ -314,12 +335,17 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	registerWindow(window: ICodeWindow): void {
+		const windowListeners = new DisposableStore();
 
 		// track window count
 		this.windowCounter++;
 
+		// Window Will Load
+		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace })));
+
 		// Window Before Closing: Main -> Renderer
-		window.win.on('close', e => {
+		const win = assertIsDefined(window.win);
+		win.on('close', e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -341,9 +367,9 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 				this.windowToCloseRequest.add(windowId);
 
-				// Fire onBeforeWindowClose before actually closing
-				this.logService.trace(`Lifecycle#onBeforeWindowClose.fire() - window ID ${windowId}`);
-				this._onBeforeWindowClose.fire(window);
+				// Fire onBeforeCloseWindow before actually closing
+				this.logService.trace(`Lifecycle#onBeforeCloseWindow.fire() - window ID ${windowId}`);
+				this._onBeforeCloseWindow.fire(window);
 
 				// No veto, close window now
 				window.close();
@@ -351,11 +377,14 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 
 		// Window After Closing
-		window.win.on('closed', () => {
+		win.on('closed', () => {
 			this.logService.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count
 			this.windowCounter--;
+
+			// clear window listeners
+			windowListeners.dispose();
 
 			// if there are no more code windows opened, fire the onWillShutdown event, unless
 			// we are on macOS where it is perfectly fine to close the last window and
@@ -452,7 +481,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
 		const vetos: (boolean | Promise<boolean>)[] = [];
 
-		this._onBeforeWindowUnload.fire({
+		this._onBeforeUnloadWindow.fire({
 			reason,
 			window,
 			veto(value) {

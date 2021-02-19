@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nativeKeymap from 'native-keymap';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardLayoutData, IKeyboardLayoutMainService as ICommonKeyboardLayoutMainService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as nativeKeymap from 'native-keymap';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
 export const IKeyboardLayoutMainService = createDecorator<IKeyboardLayoutMainService>('keyboardLayoutMainService');
 
@@ -23,10 +24,17 @@ export class KeyboardLayoutMainService extends Disposable implements ICommonKeyb
 	private _initPromise: Promise<void> | null;
 	private _keyboardLayoutData: IKeyboardLayoutData | null;
 
-	constructor() {
+	constructor(
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
+	) {
 		super();
 		this._initPromise = null;
 		this._keyboardLayoutData = null;
+
+		// perf: automatically trigger initialize after windows
+		// have opened so that we can do this work in parallel
+		// to the window load.
+		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this._initialize());
 	}
 
 	private _initialize(): Promise<void> {

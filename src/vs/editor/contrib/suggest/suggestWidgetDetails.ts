@@ -131,7 +131,7 @@ export class SuggestDetailsWidget {
 			md += `score: ${item.score[0]}${item.word ? `, compared '${item.completion.filterText && (item.completion.filterText + ' (filterText)') || typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name}' with '${item.word}'` : ' (no prefix)'}\n`;
 			md += `distance: ${item.distance}, see localityBonus-setting\n`;
 			md += `index: ${item.idx}, based on ${item.completion.sortText && `sortText: "${item.completion.sortText}"` || 'label'}\n`;
-			md += `commit characters: ${item.completion.commitCharacters}\n`;
+			md += `commit characters: ${item.completion.commitCharacters?.join('')}\n`;
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 			detail = `Provider: ${item.provider._debugDisplayName}`;
 		}

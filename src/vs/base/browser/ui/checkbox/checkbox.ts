@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./checkbox';
-import * as DOM from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
@@ -19,6 +18,7 @@ export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly icon?: CSSIcon;
 	readonly title: string;
 	readonly isChecked: boolean;
+	readonly notFocusable?: boolean;
 }
 
 export interface ICheckboxStyles {
@@ -51,7 +51,8 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 		this.checkbox = new Checkbox({
 			actionClassName: this._action.class,
 			isChecked: this._action.checked,
-			title: this._action.label
+			title: this._action.label,
+			notFocusable: true
 		});
 		this.disposables.add(this.checkbox);
 		this.disposables.add(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked, this));
@@ -71,6 +72,26 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 	updateChecked(): void {
 		if (this.checkbox) {
 			this.checkbox.checked = this._action.checked;
+		}
+	}
+
+	focus(): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = 0;
+			this.checkbox.focus();
+		}
+	}
+
+	blur(): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = -1;
+			this.checkbox.domNode.blur();
+		}
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this.checkbox) {
+			this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
 		}
 	}
 
@@ -113,7 +134,9 @@ export class Checkbox extends Widget {
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
 		this.domNode.classList.add(...classes);
-		this.domNode.tabIndex = 0;
+		if (!this._opts.notFocusable) {
+			this.domNode.tabIndex = 0;
+		}
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.setAttribute('aria-label', this._opts.title);
@@ -187,12 +210,10 @@ export class Checkbox extends Widget {
 	}
 
 	enable(): void {
-		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
 	disable(): void {
-		DOM.removeTabIndexAndUpdateFocus(this.domNode);
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 }

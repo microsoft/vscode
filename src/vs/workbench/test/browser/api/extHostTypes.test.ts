@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
+import { notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -648,4 +649,39 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
 	});
 
+	test('NotebookMetadata - defaults', function () {
+		const obj = new types.NotebookDocumentMetadata();
+		assert.strictEqual(obj.cellEditable, notebookDocumentMetadataDefaults.cellEditable);
+		assert.strictEqual(obj.cellHasExecutionOrder, notebookDocumentMetadataDefaults.cellHasExecutionOrder);
+		assert.strictEqual(obj.cellRunnable, notebookDocumentMetadataDefaults.cellRunnable);
+		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
+		assert.deepStrictEqual(obj.displayOrder, notebookDocumentMetadataDefaults.displayOrder);
+		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
+		assert.strictEqual(obj.runState, notebookDocumentMetadataDefaults.runState);
+		assert.strictEqual(obj.runnable, notebookDocumentMetadataDefaults.runnable);
+		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
+	});
+
+	test('NotebookMetadata - with', function () {
+		const obj = new types.NotebookDocumentMetadata();
+		const newObj = obj.with({ trusted: false });
+		assert.ok(obj !== newObj);
+		assert.strictEqual(obj.trusted, true);
+		assert.strictEqual(newObj.trusted, false);
+	});
+
+	test('NotebookCellMetadata - with', function () {
+		const obj = new types.NotebookCellMetadata(true, false, true);
+
+		const newObj = obj.with({ statusMessage: 'hello' });
+		assert.ok(obj !== newObj);
+		assert.strictEqual(obj.statusMessage, undefined);
+		assert.strictEqual(obj.editable, true);
+		assert.strictEqual(obj.custom, undefined);
+
+		assert.strictEqual(newObj.statusMessage, 'hello');
+		assert.strictEqual(newObj.editable, true);
+		assert.strictEqual(newObj.custom, undefined);
+
+	});
 });

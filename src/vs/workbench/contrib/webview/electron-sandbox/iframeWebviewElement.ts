@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -128,8 +128,16 @@ export class ElectronIframeWebview extends IFrameWebview {
 			return;
 		}
 
+		// Clear the existing focus first if not already on the webview.
+		// This is required because the next part where we set the focus is async.
+		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
+			// Don't blur if on the webview because this will also happen async and may unset the focus
+			// after the focus trigger fires below.
+			document.activeElement.blur();
+		}
+
 		// Workaround for https://github.com/microsoft/vscode/issues/75209
-		// .focus is async for imframes so for a sequence of actions such as:
+		// Electron's webview.focus is async so for a sequence of actions such as:
 		//
 		// 1. Open webview
 		// 1. Show quick pick from command palette
@@ -143,8 +151,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 			if (!this.isFocused || !this.element) {
 				return;
 			}
-
-			if (document.activeElement?.tagName === 'INPUT') {
+			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 			try {

@@ -83,9 +83,9 @@ export class WindowsStateHandler extends Disposable {
 		});
 
 		// Handle various lifecycle events around windows
-		this.lifecycleMainService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
+		this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window));
 		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
-		this.windowsMainService.onWindowsCountChanged(e => {
+		this.windowsMainService.onDidChangeWindowsCount(e => {
 			if (e.newCount - e.oldCount > 0) {
 				// clear last closed window state when a new window opens. this helps on macOS where
 				// otherwise closing the last window, opening a new window and then quitting would
@@ -95,16 +95,16 @@ export class WindowsStateHandler extends Disposable {
 		});
 
 		// try to save state before destroy because close will not fire
-		this.windowsMainService.onWindowDestroyed(window => this.onBeforeWindowClose(window));
+		this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window));
 	}
 
-	// Note that onBeforeShutdown() and onBeforeWindowClose() are fired in different order depending on the OS:
+	// Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:
 	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeShutdown() event followed by N onBeforeWindowClose() events for each window
+	//          the onBeforeShutdown() event followed by N onBeforeCloseWindow() events for each window
 	// - other: on other OS, closing the last window will quit the app so the order depends on the
-	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
+	//          user interaction: closing the last window will first trigger onBeforeCloseWindow()
 	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
-	//          and then onBeforeWindowClose().
+	//          and then onBeforeCloseWindow().
 	//
 	// Here is the behavior on different OS depending on action taken (Electron 1.7.x):
 	//
@@ -113,27 +113,27 @@ export class WindowsStateHandler extends Disposable {
 	// - close(1): close one window via the window close button
 	// - closeAll: close all windows via the taskbar command
 	// - onBeforeShutdown(N): number of windows reported in this event handler
-	// - onBeforeWindowClose(N, M): number of windows reported and quitRequested boolean in this event handler
+	// - onBeforeCloseWindow(N, M): number of windows reported and quitRequested boolean in this event handler
 	//
 	// macOS
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
 	// 	-     quit(0): onBeforeShutdown(0)
-	// 	-    close(1): onBeforeWindowClose(1, false)
+	// 	-    close(1): onBeforeCloseWindow(1, false)
 	//
 	// Windows
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
+	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
+	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
+	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
 	//
 	// Linux
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
+	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
+	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
+	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
 	//
 	private onBeforeShutdown(): void {
 		this.shuttingDown = true;
@@ -185,7 +185,7 @@ export class WindowsStateHandler extends Disposable {
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
-	private onBeforeWindowClose(window: ICodeWindow): void {
+	private onBeforeCloseWindow(window: ICodeWindow): void {
 		if (this.lifecycleMainService.quitRequested) {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
 		}

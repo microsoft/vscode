@@ -5,7 +5,7 @@
 
 import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -55,6 +55,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release() },
+	enableExperimentalMainProcessWorkspaceStorage: false,
 	...parseArgs(process.argv, OPTIONS)
 };
 

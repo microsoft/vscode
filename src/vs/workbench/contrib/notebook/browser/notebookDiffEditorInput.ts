@@ -12,8 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
-import { INotebookEditorModel, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -21,8 +20,8 @@ interface NotebookEditorInputOptions {
 
 class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
 	constructor(
-		readonly original: NotebookEditorModel,
-		readonly modified: NotebookEditorModel,
+		readonly original: IResolvedNotebookEditorModel,
+		readonly modified: IResolvedNotebookEditorModel,
 	) {
 		super();
 	}
@@ -54,8 +53,8 @@ export class NotebookDiffEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.diffNotebookInput';
 
-	private _textModel: IReference<INotebookEditorModel> | null = null;
-	private _originalTextModel: IReference<INotebookEditorModel> | null = null;
+	private _textModel: IReference<IResolvedNotebookEditorModel> | null = null;
+	private _originalTextModel: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(
@@ -186,10 +185,12 @@ ${patterns}
 
 		if (!this._textModel) {
 			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+		}
+		if (!this._originalTextModel) {
 			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!);
 		}
 
-		return new NotebookDiffEditorModel(this._originalTextModel!.object as NotebookEditorModel, this._textModel.object as NotebookEditorModel);
+		return new NotebookDiffEditorModel(this._originalTextModel.object, this._textModel.object);
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -204,10 +205,10 @@ ${patterns}
 	}
 
 	dispose() {
-		if (this._textModel) {
-			this._textModel.dispose();
-			this._textModel = null;
-		}
+		this._textModel?.dispose();
+		this._textModel = null;
+		this._originalTextModel?.dispose();
+		this._originalTextModel = null;
 		super.dispose();
 	}
 }

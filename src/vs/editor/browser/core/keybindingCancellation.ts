@@ -12,6 +12,7 @@ import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cance
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { localize } from 'vs/nls';
 
 
 const IEditorCancellationTokens = createDecorator<IEditorCancellationTokens>('IEditorCancelService');
@@ -22,7 +23,7 @@ interface IEditorCancellationTokens {
 	cancel(editor: ICodeEditor): void;
 }
 
-const ctxCancellableOperation = new RawContextKey('cancellableOperation', false);
+const ctxCancellableOperation = new RawContextKey('cancellableOperation', false, localize('cancellableOperation', 'Whether the editor runs a cancellable operation, e.g. like \'Peek References\''));
 
 registerSingleton(IEditorCancellationTokens, class implements IEditorCancellationTokens {
 

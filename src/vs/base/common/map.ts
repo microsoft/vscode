@@ -1048,3 +1048,85 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		}
 	}
 }
+
+type IndexRecord<V, R> = [fn: (value: V) => R, map: Map<R, V>];
+
+/**
+ * Map that supports multiple indicies whose keys are derived from the value.
+ */
+export class IndexedSet<V> implements Set<V> {
+	public get size() {
+		return this.source.size;
+	}
+
+	private source = new Set<V>();
+	private readonly indexes: IndexRecord<V, unknown>[] = [];
+
+	/**
+	 * Creates a map that maintains a copy of the items in the set, indexed
+	 * by the given 'indexer' function.
+	 */
+	index<R>(indexer: (value: V) => R) {
+		const map = new Map<R, V>();
+		for (const value of this.source) {
+			map.set(indexer(value), value);
+		}
+
+		this.indexes.push([indexer, map]);
+		return map as ReadonlyMap<R, V>;
+	}
+
+	add(value: V): this {
+		this.source.add(value);
+		for (const [index, map] of this.indexes) {
+			map.set(index(value), value);
+		}
+
+		return this;
+	}
+
+	clear(): void {
+		this.source.clear();
+		for (const [, map] of this.indexes) {
+			map.clear();
+		}
+	}
+
+	delete(value: V): boolean {
+		if (!this.source.delete(value)) {
+			return false;
+		}
+
+		for (const [index, map] of this.indexes) {
+			map.delete(index(value));
+		}
+
+		return true;
+	}
+
+	forEach(callbackfn: (value: V, value2: V, set: Set<V>) => void, thisArg?: any): void {
+		this.source.forEach(callbackfn, thisArg);
+	}
+
+	has(value: V): boolean {
+		return this.source.has(value);
+	}
+
+	[Symbol.toStringTag]: string;
+
+	values(): IterableIterator<V> {
+		return this.source.values();
+	}
+
+	entries(): IterableIterator<[V, V]> {
+		return this.source.entries();
+	}
+
+	keys(): IterableIterator<V> {
+		return this.source.keys();
+	}
+
+	[Symbol.iterator](): IterableIterator<V> {
+		return this.source.values();
+	}
+}

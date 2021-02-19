@@ -46,7 +46,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { getGettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 
 const configurationKey = 'workbench.startupEditor';
@@ -123,7 +123,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 						}
 
 						if (startupEditorTypeID === gettingStartedInputTypeId) {
-							editorService.openEditor(instantiationService.invokeFunction(getGettingStartedInput, {}), options);
+							const launchEditor = instantiationService.createInstance(GettingStartedInput, {});
+							return editorService.openEditor(launchEditor, options);
 						} else {
 							const launchEditor = instantiationService.createInstance(WelcomePage);
 							return launchEditor.openEditor(options);
@@ -335,7 +336,7 @@ class WelcomePage extends Disposable {
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: Promise<IRecentlyOpened>, installedExtensions: Promise<IExtensionStatus[]>): void {
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
+		const enabled = this.configurationService.getValue(configurationKey) === 'welcomePage';
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
 			showOnStartup.setAttribute('checked', 'checked');

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, ipcMain, Event, MessagePortMain } from 'electron';
+import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -15,18 +15,23 @@ import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedP
 import { Disposable } from 'vs/base/common/lifecycle';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { assertIsDefined } from 'vs/base/common/types';
+import { Emitter, Event } from 'vs/base/common/event';
+import { WindowError } from 'vs/platform/windows/electron-main/windows';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
 	private readonly whenSpawnedBarrier = new Barrier();
 
 	private window: BrowserWindow | undefined = undefined;
-	private windowCloseListener: ((event: Event) => void) | undefined = undefined;
+	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
+
+	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, message: string }>());
+	readonly onDidError = Event.buffer(this._onDidError.event); // buffer until we have a listener!
 
 	constructor(
 		private readonly machineId: string,
 		private userEnv: NodeJS.ProcessEnv,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService
@@ -164,11 +169,11 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		const config: ISharedProcessConfiguration = {
 			machineId: this.machineId,
 			windowId: this.window.id,
-			appRoot: this.environmentService.appRoot,
-			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-			backupWorkspacesPath: this.environmentService.backupWorkspacesPath,
+			appRoot: this.environmentMainService.appRoot,
+			nodeCachedDataDir: this.environmentMainService.nodeCachedDataDir,
+			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
 			userEnv: this.userEnv,
-			args: this.environmentService.args,
+			args: this.environmentMainService.args,
 			logLevel: this.logService.getLevel()
 		};
 
@@ -186,7 +191,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Prevent the window from closing
-		this.windowCloseListener = (e: Event) => {
+		this.windowCloseListener = (e: ElectronEvent) => {
 			this.logService.trace('SharedProcess#close prevented');
 
 			// We never allow to close the shared process unless we get explicitly disposed()
@@ -201,9 +206,11 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this.window.on('close', this.windowCloseListener);
 
 		// Crashes & Unrsponsive & Failed to load
-		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`SharedProcess: crashed (detail: ${details?.reason})`));
-		this.window.on('unresponsive', () => this.logService.error('SharedProcess: detected unresponsive window'));
-		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('SharedProcess: failed to load window, ', errorDescription));
+		// We use `onUnexpectedError` explicitly because the error handler
+		// will send the error to the active window to log in devtools too
+		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, message: `SharedProcess: crashed (detail: ${details?.reason})` }));
+		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE, message: 'SharedProcess: detected unresponsive window' }));
+		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this._onDidError.fire({ type: WindowError.LOAD, message: `SharedProcess: failed to load window: ${errorDescription}` }));
 	}
 
 	spawn(userEnv: NodeJS.ProcessEnv): void {

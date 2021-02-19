@@ -92,6 +92,7 @@ export class WalkThroughPart extends EditorPane {
 
 	createEditor(container: HTMLElement): void {
 		this.content = document.createElement('div');
+		this.content.classList.add('welcomePageFocusElement');
 		this.content.tabIndex = 0;
 		this.content.style.outlineStyle = 'none';
 

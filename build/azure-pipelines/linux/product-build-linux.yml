@@ -67,6 +67,7 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
+      set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
@@ -286,7 +287,3 @@ steps:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-    displayName: "Component Detection"
-    continueOnError: true
