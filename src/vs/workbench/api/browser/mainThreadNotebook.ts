@@ -462,7 +462,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		// }
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: {
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: {
 		transientOutputs: boolean;
 		transientMetadata: TransientMetadata;
 		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
@@ -470,7 +470,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		let contentOptions = { transientOutputs: options.transientOutputs, transientMetadata: options.transientMetadata };
 
 		const controller: IMainNotebookController = {
-			supportBackup,
 			get options() {
 				return contentOptions;
 			},

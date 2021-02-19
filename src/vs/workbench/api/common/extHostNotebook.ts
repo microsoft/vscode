@@ -328,7 +328,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			})
 			: Disposable.None);
 
-		const supportBackup = !!provider.backupNotebook;
 
 		const viewOptionsFilenamePattern = options?.viewOptions?.filenamePattern
 			.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.from(pattern))
@@ -338,7 +337,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			console.warn(`Notebook content provider view options file name pattern is invalid ${options?.viewOptions?.filenamePattern}`);
 		}
 
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, {
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, {
 			transientOutputs: options?.transientOutputs || false,
 			transientMetadata: options?.transientMetadata || {},
 			viewOptions: options?.viewOptions && viewOptionsFilenamePattern ? { displayName: options.viewOptions.displayName, filenamePattern: viewOptionsFilenamePattern, exclusive: options.viewOptions.exclusive || false } : undefined
