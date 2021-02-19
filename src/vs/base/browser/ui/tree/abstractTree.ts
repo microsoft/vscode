@@ -683,6 +683,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		if (typeof options.filterOnType !== 'undefined') {
 			this._filterOnType = !!options.filterOnType;
 			this.filterOnTypeDomNode.checked = this._filterOnType;
+			this.updateFilterOnTypeTitleAndIcon();
 		}
 
 		if (typeof options.automaticKeyboardNavigation !== 'undefined') {
