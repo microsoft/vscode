@@ -1061,7 +1061,7 @@ configurationRegistry.registerConfiguration({
 		[treeExpandMode]: {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
-			default: 'doubleClick',
+			default: 'singleClick',
 			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
 		}
 	}
