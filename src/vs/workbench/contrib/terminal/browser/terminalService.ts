@@ -199,7 +199,7 @@ export class TerminalService implements ITerminalService {
 		let reconnectCounter = 0;
 		let activeTab: ITerminalTab | undefined;
 		if (layoutInfo) {
-			layoutInfo.tabs.forEach((tabLayout: { terminals: any[]; isActive: any; activeTerminalProcessId: number | undefined; }) => {
+			layoutInfo.tabs.forEach(tabLayout => {
 				const terminalLayouts = tabLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
 				if (terminalLayouts.length) {
 					reconnectCounter += terminalLayouts.length;
@@ -219,8 +219,7 @@ export class TerminalService implements ITerminalService {
 						}
 					});
 					const activeInstance = this.terminalInstances.find(t => {
-						// TODO: Rename activeTerminalProcessId to avoid mentioning "process id"
-						return t.shellLaunchConfig.attachPersistentTerminal?.id === tabLayout.activeTerminalProcessId;
+						return t.shellLaunchConfig.attachPersistentTerminal?.id === tabLayout.activePersistentTerminalId;
 					});
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);

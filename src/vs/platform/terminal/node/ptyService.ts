@@ -145,7 +145,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto>[];
 		return {
 			isActive: tab.isActive,
-			activeTerminalProcessId: tab.activeTerminalProcessId,
+			activePersistentTerminalId: tab.activePersistentTerminalId,
 			terminals: filtered
 		};
 	}

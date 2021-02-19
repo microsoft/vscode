@@ -17,8 +17,7 @@ export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IPtyHos
 
 export interface IRawTerminalTabLayoutInfo<T> {
 	isActive: boolean;
-	// TODO: Rename activeTerminalProcessId to avoid mentioning "process id"
-	activeTerminalProcessId: number | undefined;
+	activePersistentTerminalId: number | undefined;
 	terminals: IRawTerminalInstanceLayoutInfo<T>[];
 }
 

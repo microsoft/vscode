@@ -303,7 +303,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {
 			isActive: isActive,
-			activeTerminalProcessId: this.activeInstance ? this.activeInstance.persistentTerminalId : undefined,
+			activePersistentTerminalId: this.activeInstance ? this.activeInstance.persistentTerminalId : undefined,
 			terminals: instances.map(t => {
 				return {
 					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,
