@@ -27,6 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IGettingStartedCategoryDescriptor } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -218,12 +219,14 @@ export class GettingStartedPage extends EditorPane {
 		const mediaElement = assertIsDefined(this.container.querySelector('.getting-started-media') as HTMLImageElement);
 		this.taskDisposables.clear();
 		if (id) {
-			const taskElement = assertIsDefined(this.container.querySelector(`[data-task-id="${id}"]`));
-			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => {
+			const taskElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-task-id="${id}"]`));
+			taskElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
 				node.classList.remove('expanded');
+				node.style.height = ``;
 				node.setAttribute('aria-expanded', 'false');
 			});
-			setTimeout(() => (taskElement as HTMLDivElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
+			taskElement.style.height = `${taskElement.scrollHeight}px`;
+			setTimeout(() => (taskElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
 			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
 				this.editorInput.selectedTask = undefined;
 				return;
@@ -277,7 +280,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const tasksSlide =
 			$('.gettingStartedSlideDetails.gettingStartedSlide.detail', {},
-				$('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), localize('back', "Back")),
+				$('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), localize('more', "More")),
 				tasksContent
 			);
 
@@ -323,7 +326,8 @@ export class GettingStartedPage extends EditorPane {
 						'x-dispatch': 'selectCategory:' + category.id,
 						'role': 'listitem',
 					},
-					$(ThemeIcon.asCSSSelector(category.icon), {}), categoryDescriptionElement);
+					this.iconWidgetFor(category),
+					categoryDescriptionElement);
 			});
 
 		const categoryScrollContainer = $('.getting-started-categories-scrolling-container');
@@ -366,14 +370,20 @@ export class GettingStartedPage extends EditorPane {
 		assertIsDefined(this.container.querySelector('.product-name')).textContent = this.productService.nameLong;
 		this.registerDispatchListeners();
 
+		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
 
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			if (!this.currentCategory) {
 				throw Error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
 			}
-			this.setSlide('details');
 			this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
+			this.setSlide('details');
+		} else if (!someItemsComplete) {
+			this.currentCategory = assertIsDefined(this.gettingStartedCategories.find(category => category.content.type === 'items'));
+			this.editorInput.selectedCategory = this.currentCategory?.id;
+			this.buildCategorySlide(this.editorInput.selectedCategory);
+			this.setSlide('details');
 		} else {
 			this.setSlide('categories');
 		}
@@ -383,6 +393,16 @@ export class GettingStartedPage extends EditorPane {
 		this.categoriesScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
+
+		// Don't let our spacer elements move around based on internal content changes, only when the external size changes
+		this.container.querySelectorAll<HTMLDivElement>('.gap').forEach(element => {
+			element.style.width = '';
+			element.style.height = '';
+			setTimeout(() => {
+				element.style.width = `${element.clientWidth}px`;
+				element.style.height = `${element.clientHeight}px`;
+			}, 0);
+		});
 	}
 
 	private updateCategoryProgress() {
@@ -421,8 +441,19 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
+	private iconWidgetFor(category: IGettingStartedCategoryDescriptor) {
+		return category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
+	}
+
 	private buildCategorySlide(categoryID: string, selectedItem?: string) {
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
+		let foundNext = false;
+		const nextCategory = this.gettingStartedCategories.find(category => {
+			if (foundNext && category.content.type === 'items') { return true; }
+			if (category.id === categoryID) { foundNext = true; }
+			return false;
+		});
+
 		if (!category) { throw Error('could not find category with ID ' + categoryID); }
 		if (category.content.type !== 'items') { throw Error('category with ID ' + categoryID + ' is not of items type'); }
 
@@ -434,7 +465,7 @@ export class GettingStartedPage extends EditorPane {
 		detailTitle.appendChild(
 			$('.getting-started-category',
 				{},
-				$(ThemeIcon.asCSSSelector(category.icon), {}),
+				this.iconWidgetFor(category),
 				$('.category-description-container', {},
 					$('h2.category-title', {}, category.title),
 					$('.category-description.description', {}, category.description))));
@@ -461,10 +492,10 @@ export class GettingStartedPage extends EditorPane {
 								: []),
 						...(
 							arr[i + 1]
-								? [
-									$('button.task-next',
-										{ 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),
-								] : []
+								? [$('button.task-next', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
+								: nextCategory
+									? [$('button.task-next', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
+									: []
 						))
 				)));
 

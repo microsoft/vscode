@@ -315,9 +315,8 @@ export class CellOutputContainer extends Disposable {
 
 	render(editorHeight: number) {
 		if (this.viewCell.outputsViewModels.length > 0) {
-			let layoutCache = false;
 			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
-				layoutCache = true;
+				this.viewCell.outputMinHeight = this.viewCell.layoutInfo.outputTotalHeight;
 				this._relayoutCell();
 			}
 
@@ -336,11 +335,8 @@ export class CellOutputContainer extends Disposable {
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
 			}
 
-			if (layoutCache) {
-				this._relayoutCellDebounced();
-			} else {
-				this._relayoutCell();
-			}
+			this._relayoutCell();
+			this._validateFinalOutputHeight(false);
 		} else {
 			// noop
 			this.viewCell.editorHeight = editorHeight;
@@ -418,12 +414,33 @@ export class CellOutputContainer extends Disposable {
 		return outputs;
 	}
 
+	private _outputHeightTimer: any = null;
+
+	private _validateFinalOutputHeight(synchronous: boolean) {
+		if (this._outputHeightTimer !== null) {
+			clearTimeout(this._outputHeightTimer);
+		}
+
+		if (synchronous) {
+			this.viewCell.outputMinHeight = 0;
+			this.viewCell.layoutChange({ outputHeight: true });
+		} else {
+			this._outputHeightTimer = setTimeout(() => {
+				this.viewCell.outputMinHeight = 0;
+				this.viewCell.layoutChange({ outputHeight: true });
+			}, 1000);
+		}
+	}
+
 	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
 		if (!splices.length) {
 			return;
 		}
 
 		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
+
+		// for cell output update, we make sure the cell does not shrink before the new outputs are rendered.
+		this.viewCell.outputMinHeight = previousOutputHeight;
 
 		if (this.viewCell.outputsViewModels.length) {
 			this.templateData.outputContainer.style.display = 'block';
@@ -480,12 +497,9 @@ export class CellOutputContainer extends Disposable {
 		const editorHeight = this.templateData.editor.getContentHeight();
 		this.viewCell.editorHeight = editorHeight;
 
-		if (previousOutputHeight === 0 || this.viewCell.outputsViewModels.length === 0) {
-			// first execution or removing all outputs
-			this._relayoutCell();
-		} else {
-			this._relayoutCellDebounced();
-		}
+		this._relayoutCell();
+		// if it's clearing all outputs, shrink immediately as the final output height will be zero.
+		this._validateFinalOutputHeight(this.viewCell.outputsViewModels.length === 0);
 	}
 
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
@@ -534,27 +548,16 @@ export class CellOutputContainer extends Disposable {
 	}
 
 	private _relayoutCell() {
-		if (this._timer !== null) {
-			clearTimeout(this._timer);
-		}
-
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	private _timer: number | null = null;
+	dispose() {
+		this.viewCell.outputMinHeight = 0;
 
-	private _relayoutCellDebounced() {
-		if (this._timer !== null) {
-			clearTimeout(this._timer);
+		if (this._outputHeightTimer) {
+			clearTimeout(this._outputHeightTimer);
 		}
 
-		this._timer = setTimeout(() => {
-			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
-			this._timer = null;
-		}, 200) as unknown as number | null;
-	}
-
-	dispose() {
 		this.outputEntries.forEach((value) => {
 			value.dispose();
 		});

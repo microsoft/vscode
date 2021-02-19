@@ -90,7 +90,7 @@ export interface TestResultItem extends IncrementalTestCollectionItem {
 	/** True if the test is outdated */
 	retired: boolean;
 	/** True if the test was directly requested by the run (is not a child or parent) */
-	direct?: true;
+	direct?: boolean;
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined };

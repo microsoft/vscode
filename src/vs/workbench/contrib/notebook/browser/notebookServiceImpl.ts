@@ -506,41 +506,37 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 				const viewModel = editor.viewModel;
 
-				if (!viewModel) {
+				if (!viewModel || !viewModel.metadata.editable) {
 					return false;
 				}
 
-				if (!viewModel.metadata.editable) {
-					return false;
-				}
+				const cloneMetadata = (cell: NotebookCellTextModel) => {
+					return {
+						editable: cell.metadata?.editable,
+						runnable: cell.metadata?.runnable,
+						breakpointMargin: cell.metadata?.breakpointMargin,
+						hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+						inputCollapsed: cell.metadata?.inputCollapsed,
+						outputCollapsed: cell.metadata?.outputCollapsed,
+						custom: cell.metadata?.custom
+					};
+				};
+
+				const cloneCell = (cell: NotebookCellTextModel) => {
+					return {
+						source: cell.getValue(),
+						language: cell.language,
+						cellKind: cell.cellKind,
+						outputs: cell.outputs.map(output => ({ ...output, /* paste should generate new outputId */ outputId: UUID.generateUuid() })),
+						metadata: cloneMetadata(cell)
+					};
+				};
 
 				if (activeCell) {
 					const currCellIndex = viewModel.getCellIndex(activeCell);
 
 					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => {
-						return {
-							source: cell.getValue(),
-							language: cell.language,
-							cellKind: cell.cellKind,
-							outputs: cell.outputs.map(output => {
-								return {
-									...output,
-									// paste should generate new outputId
-									outputId: UUID.generateUuid()
-								};
-							}),
-							metadata: {
-								editable: cell.metadata?.editable,
-								runnable: cell.metadata?.runnable,
-								breakpointMargin: cell.metadata?.breakpointMargin,
-								hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-								inputCollapsed: cell.metadata?.inputCollapsed,
-								outputCollapsed: cell.metadata?.outputCollapsed,
-								custom: cell.metadata?.custom
-							}
-						};
-					}).forEach(pasteCell => {
+					pasteCells.items.reverse().map(cell => cloneCell(cell)).forEach(pasteCell => {
 						const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
 						topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
@@ -554,28 +550,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					}
 
 					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => {
-						return {
-							source: cell.getValue(),
-							language: cell.language,
-							cellKind: cell.cellKind,
-							outputs: cell.outputs.map(output => {
-								return {
-									...output,
-									outputId: UUID.generateUuid()
-								};
-							}),
-							metadata: {
-								editable: cell.metadata?.editable,
-								runnable: cell.metadata?.runnable,
-								breakpointMargin: cell.metadata?.breakpointMargin,
-								hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-								inputCollapsed: cell.metadata?.inputCollapsed,
-								outputCollapsed: cell.metadata?.outputCollapsed,
-								custom: cell.metadata?.custom
-							}
-						};
-					}).forEach(pasteCell => {
+					pasteCells.items.reverse().map(cell => cloneCell(cell)).forEach(pasteCell => {
 						topPastedCell = viewModel.createCell(0, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
@@ -603,11 +578,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 				const viewModel = editor.viewModel;
 
-				if (!viewModel) {
-					return false;
-				}
-
-				if (!viewModel.metadata.editable) {
+				if (!viewModel || !viewModel.metadata.editable) {
 					return false;
 				}
 
@@ -620,12 +591,17 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				}
 
 				clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
+				const selectionIndexes = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]);
+				const edits: ICellEditOperation[] = selectionIndexes.map(value => ({ editType: CellEditType.Replace, index: value[1], count: 1, cells: [] }));
 
-				const edits: ICellEditOperation[] = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]).map(value => {
-					return { editType: CellEditType.Replace, index: value[1], count: 1, cells: [] };
-				});
-
-				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, editor.getSelectionHandles(), () => { return undefined; }, undefined, true);
+				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, editor.getSelectionHandles(), () => {
+					const firstSelectIndex = selectionIndexes[0][1];
+					if (firstSelectIndex < viewModel.notebookDocument.cells.length) {
+						return [viewModel.notebookDocument.cells[firstSelectIndex].handle];
+					} else {
+						return [viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle];
+					}
+				}, undefined, true);
 				notebookService.setToCopy(selectedCells.map(cell => cell.model), false);
 
 				return true;
@@ -763,7 +739,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		if (this._models.has(uri)) {
 			throw new Error(`notebook for ${uri} already exists`);
 		}
-		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, true, uri, data.cells, data.metadata, transientOptions);
+		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
 		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		return notebookModel;

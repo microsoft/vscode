@@ -86,6 +86,12 @@ import { isStandalone } from 'vs/base/browser/browser';
 					key: 'untitledLabelFormat'
 				}, "Controls the format of the label for an untitled editor."),
 			},
+			'workbench.editor.untitled.hint': {
+				'type': 'string',
+				'enum': ['text', 'button', 'hidden'],
+				'default': 'button',
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
+			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],

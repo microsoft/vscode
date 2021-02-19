@@ -14,6 +14,7 @@ import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
@@ -185,6 +186,16 @@ export class DebugSelectedAction extends RunOrDebugSelectedAction {
 	}
 }
 
+const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): Promise<R> => {
+	return progress.withProgress(
+		{
+			location: ProgressLocation.Window,
+			title: localize('discoveringTests', 'Discovering Tests'),
+		},
+		() => task,
+	);
+};
+
 abstract class RunOrDebugAllAllAction extends Action2 {
 	constructor(id: string, title: string, icon: ThemeIcon, private readonly debug: boolean, private noTestsFoundError: string) {
 		super({
@@ -212,13 +223,13 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 		const testService = accessor.get(ITestService);
 		const workspace = accessor.get(IWorkspaceContextService);
 		const notifications = accessor.get(INotificationService);
+		const progress = accessor.get(IProgressService);
 
 		const tests: TestIdWithProvider[] = [];
-		await Promise.all(workspace.getWorkspace().folders.map(async (folder) => {
+		const todo = workspace.getWorkspace().folders.map(async (folder) => {
 			const ref = testService.subscribeToDiffs(ExtHostTestingResource.Workspace, folder.uri);
 			try {
 				await waitForAllRoots(ref.object);
-
 				for (const root of ref.object.rootIds) {
 					const node = ref.object.getNodeById(root);
 					if (node && (this.debug ? node.item.debuggable : node.item.runnable)) {
@@ -228,7 +239,9 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 			} finally {
 				ref.dispose();
 			}
-		}));
+		});
+
+		await showDiscoveringWhile(progress, Promise.all(todo));
 
 		if (tests.length === 0) {
 			notifications.info(this.noTestsFoundError);
@@ -530,7 +543,8 @@ abstract class RunOrDebugAtCursor extends Action2 {
 		let bestNode: InternalTestItem | undefined;
 
 		try {
-			await waitForAllTests(collection.object);
+			await showDiscoveringWhile(accessor.get(IProgressService), waitForAllTests(collection.object));
+
 			const queue: [depth: number, nodes: Iterable<string>][] = [[0, collection.object.rootIds]];
 			while (queue.length > 0) {
 				const [depth, candidates] = queue.pop()!;
@@ -614,7 +628,7 @@ abstract class RunOrDebugCurrentFile extends Action2 {
 		const collection = testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, model.uri);
 
 		try {
-			await waitForAllTests(collection.object);
+			await showDiscoveringWhile(accessor.get(IProgressService), waitForAllTests(collection.object));
 
 			const roots = [...collection.object.rootIds]
 				.map(r => collection.object.getNodeById(r))
@@ -686,7 +700,8 @@ abstract class RunOrDebugTestResults extends Action2 {
 		const workspaceTests = accessor.get(IWorkspaceTestCollectionService).subscribeToWorkspaceTests();
 
 		try {
-			await Promise.all(workspaceTests.workspaceFolderCollections.map(([, c]) => waitForAllTests(c)));
+			const todo = Promise.all(workspaceTests.workspaceFolderCollections.map(([, c]) => waitForAllTests(c)));
+			await showDiscoveringWhile(accessor.get(IProgressService), todo);
 
 			const toRun: InternalTestItem[] = [];
 			for (const [, collection] of workspaceTests.workspaceFolderCollections) {

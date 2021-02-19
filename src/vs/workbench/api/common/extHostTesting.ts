@@ -17,11 +17,11 @@ import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTes
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { TestItem, TestState } from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestItem, TestResults, TestState } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, SerializedTestResultItem, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -101,6 +101,12 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		}, token);
 	}
 
+	/**
+	 * Implements vscode.test.publishTestResults
+	 */
+	public publishExtensionProvidedResults(results: vscode.TestResults, persist: boolean): void {
+		this.proxy.$publishExtensionProvidedResults(TestResults.from(generateUuid(), results), persist);
+	}
 
 	/**
 	 * Updates test results shown to extensions.
@@ -109,7 +115,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public $publishTestResults(results: ISerializedTestResults[]): void {
 		this.results = Object.freeze(
 			results
-				.map(r => deepFreeze(convertTestResults(r)))
+				.map(r => deepFreeze(TestResults.to(r)))
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
@@ -354,29 +360,6 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		};
 	}
 }
-
-const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestItemWithResults => ({
-	...TestItem.toShallow(item.item),
-	result: TestState.to(item.state),
-	children: item.children
-		.map(c => byInternalId.get(c))
-		.filter(isDefined)
-		.map(c => convertTestResultItem(c, byInternalId)),
-});
-
-const convertTestResults = (r: ISerializedTestResults): vscode.TestResults => {
-	const roots: SerializedTestResultItem[] = [];
-	const byInternalId = new Map<string, SerializedTestResultItem>();
-	for (const item of r.items) {
-		byInternalId.set(item.id, item);
-		if (item.direct) {
-			roots.push(item);
-		}
-	}
-
-	return { completedAt: r.completedAt, results: roots.map(r => convertTestResultItem(r, byInternalId)) };
-};
-
 
 /*
  * A class which wraps a vscode.TestItem that provides the ability to filter a TestItem's children

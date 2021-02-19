@@ -773,7 +773,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An open ended information bag passed to the inline value provider.
+	 * A value-object that contains additional information when requesting inline values from a InlineValuesProvider.
 	 * A minimal context containes just the document location where the debugger has stopped.
 	 * Additional optional information might be scope information or variables and their values.
 	 */
@@ -801,74 +801,81 @@ declare module 'vscode' {
 	 */
 	export class InlineValueText {
 		/**
+		 * The document range for which the inline value applies.
+		 */
+		readonly range: Range;
+		/**
 		 * The text of the inline value.
 		 */
 		readonly text: string;
 		/**
-		 * The range of the inline value.
-		 */
-		readonly range: Range;
-		/**
 		 * Creates a new InlineValueText object.
 		 *
-		 * @param text The value to be shown for the line.
 		 * @param range The document line where to show the inline value.
+		 * @param text The value to be shown for the line.
 		 */
-		constructor(text: string, range: Range);
+		constructor(range: Range, text: string);
 	}
 
 	/**
 	 * Provide inline value through a variable lookup.
+	 * If only a range is specified, the variable name will be extracted from the underlying document.
+	 * An optional variable name can be used to override the extracted name.
 	 */
 	export class InlineValueVariableLookup {
 		/**
-		 * The name of the variable to look up.
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the variable name from the underlying document.
 		 */
-		readonly variableName: string;
+		readonly range: Range;
+		/**
+		 * If specified the name of the variable to look up.
+		 */
+		readonly variableName?: string;
 		/**
 		 * How to perform the lookup.
 		 */
 		readonly caseSensitiveLookup: boolean;
 		/**
-		 * The range of the inline value.
-		 */
-		readonly range: Range;
-		/**
 		 * Creates a new InlineValueVariableLookup object.
 		 *
-		 * @param variableName The name of the variable to look up.
 		 * @param range The document line where to show the inline value.
+		 * @param variableName The name of the variable to look up.
 		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
 		 */
-		constructor(variableName: string, range: Range, caseSensitiveLookup?: boolean);
+		constructor(range: Range, variableName?: string, caseSensitiveLookup?: boolean);
 	}
 
 	/**
-	 * Provide inline value through an expression evaluation.
+	 * Provide an inline value through an expression evaluation.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
 	 */
 	export class InlineValueEvaluatableExpression {
 		/**
-		 * The expression to evaluate.
-		 */
-		readonly expression: string;
-		/**
-		 * The range of the inline value.
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the evaluatable expression from the underlying document.
 		 */
 		readonly range: Range;
 		/**
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+		/**
 		 * Creates a new InlineValueEvaluatableExpression object.
 		 *
-		 * @param expression The expression to evaluate.
-		 * @param range The document line where to show the inline value.
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
 		 */
-		constructor(expression: string, range: Range);
+		constructor(range: Range, expression?: string);
 	}
 
 	export namespace languages {
 
 		/**
-		 * Register a provider that returns inline values for text documents.
-		 * If debugging has stopped VS Code shows inline values in the editor at the end of lines.
+		 * Register a provider that returns data for the debugger's 'inline value' feature.
+		 * Whenever the generic VS Code debugger has stopped in a source file, providers registered for the language of the file
+		 * are called to return textual data that will be shown in the editor at the end of lines.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are asked in
 		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
@@ -1281,6 +1288,15 @@ declare module 'vscode' {
 		readonly cells: ReadonlyArray<NotebookCell>;
 		readonly contentOptions: NotebookDocumentContentOptions;
 		readonly metadata: NotebookDocumentMetadata;
+
+		/**
+		 * Save the document. The saving will be handled by the corresponding content provider
+		 *
+		 * @return A promise that will resolve to true when the document
+		 * has been saved. If the file was not dirty or the save failed,
+		 * will return false.
+		 */
+		save(): Thenable<boolean>;
 	}
 
 	// todo@API maybe have a NotebookCellPosition sibling
@@ -2212,6 +2228,22 @@ declare module 'vscode' {
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
 
 		/**
+		 * Inserts custom test results into the VS Code UI. The results are
+		 * inserted and sorted based off the `completedAt` timestamp. If the
+		 * results are being read from a file, for example, the `completedAt`
+		 * time should generally be the modified time of the file if not more
+		 * specific time is available.
+		 *
+		 * This will no-op if the inserted results are deeply equal to an
+		 * existing result.
+		 *
+		 * @param results test results
+		 * @param persist whether the test results should be saved by VS Code
+		 * and persisted across reloads. Defaults to true.
+		 */
+		export function publishTestResult(results: TestResults, persist?: boolean): void;
+
+		/**
 		* List of test results stored by VS Code, sorted in descnding
 		* order by their `completedAt` time.
 		*/
@@ -2537,7 +2569,7 @@ declare module 'vscode' {
 	 * may be out of date. If the test still exists in the workspace, consumers
 	 * can use its `id` to correlate the result instance with the living test.
 	 *
-	 * @todo coverage and other info may eventually live here
+	 * @todo coverage and other info may eventually be provided here
 	 */
 	export interface TestResults {
 		/**
@@ -2557,6 +2589,12 @@ declare module 'vscode' {
 	 * provided in {@link TestResult} interfaces.
 	 */
 	export interface TestItemWithResults extends TestItem {
+		/**
+		 * ID of the test result, this is required in order to correlate the result
+		 * with the live test item.
+		 */
+		readonly id: string;
+
 		/**
 		 * Current result of the test.
 		 */

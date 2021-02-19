@@ -156,8 +156,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent) {
-		this._onDidChangeSessions.fire({ provider: { id, label }, ...event });
+	$onDidChangeAuthenticationSessions(id: string, label: string) {
+		this._onDidChangeSessions.fire({ provider: { id, label } });
 		return Promise.resolve();
 	}
 

@@ -37,7 +37,9 @@ export interface IGettingStartedCategoryDescriptor {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	icon: ThemeIcon
+	icon:
+	| { type: 'icon', icon: ThemeIcon }
+	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
 	| { type: 'items' }
@@ -48,7 +50,9 @@ export interface IGettingStartedCategory {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	icon: ThemeIcon
+	icon:
+	| { type: 'icon', icon: ThemeIcon }
+	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
 	| { type: 'items', items: IGettingStartedTask[] }
@@ -129,6 +133,7 @@ content.forEach(category => {
 
 	registryImpl.registerCategory({
 		...category,
+		icon: { type: 'icon', icon: category.icon },
 		when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
 	});
 

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { HydratedTestResult, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ReExportedTestRunState as TestRunState } from 'vs/workbench/contrib/testing/common/testStubs';
 import { getInitializedMainTestCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -189,6 +189,52 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(results.results, [r, r2]);
 			r.markComplete();
 			assert.deepStrictEqual(results.results, [r, r2]);
+		});
+
+		const makeHydrated = (completedAt = 42, state = TestRunState.Passed) => new HydratedTestResult({
+			completedAt,
+			id: 'some-id',
+			items: [{
+				...getInitializedMainTestCollection().getNodeById('2')!,
+				state: { state, duration: 0, messages: [] },
+				computedState: state,
+				retired: undefined,
+				children: [],
+			}]
+		});
+
+		test('pushes hydrated results', () => {
+			results.push(r);
+			const hydrated = makeHydrated();
+			results.push(hydrated);
+			assert.deepStrictEqual(results.results, [r, hydrated]);
+		});
+
+		test('deduplicates identical results', () => {
+			results.push(r);
+			const hydrated1 = makeHydrated();
+			results.push(hydrated1);
+			const hydrated2 = makeHydrated();
+			results.push(hydrated2);
+			assert.deepStrictEqual(results.results, [r, hydrated1]);
+		});
+
+		test('does not deduplicate if different completedAt', () => {
+			results.push(r);
+			const hydrated1 = makeHydrated();
+			results.push(hydrated1);
+			const hydrated2 = makeHydrated(30);
+			results.push(hydrated2);
+			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
+		});
+
+		test('does not deduplicate if different tests', () => {
+			results.push(r);
+			const hydrated1 = makeHydrated();
+			results.push(hydrated1);
+			const hydrated2 = makeHydrated(undefined, TestRunState.Failed);
+			results.push(hydrated2);
+			assert.deepStrictEqual(results.results, [r, hydrated2, hydrated1]);
 		});
 	});
 });
