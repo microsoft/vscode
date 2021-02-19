@@ -209,12 +209,11 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private _inReplay = false;
 
-	private _title = '';
 	private _pid = -1;
 	private _cwd = '';
 
 	get pid(): number { return this._pid; }
-	get title(): string { return this._title; }
+	get title(): string { return this._terminalProcess.currentTitle; }
 
 	constructor(
 		private _persistentTerminalId: number,
@@ -260,9 +259,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 		// Buffer data events to reduce the amount of messages going to the renderer
 		// this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
-		this._register(this._terminalProcess.onProcessData(e => {
-			this._recorder.recordData(e);
-		}));
+		this._register(this._terminalProcess.onProcessData(e => this._recorder.recordData(e)));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
 			// this._bufferer.stopBuffering(this._persistentTerminalId);
 		}));
