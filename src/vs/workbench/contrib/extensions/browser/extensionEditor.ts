@@ -77,18 +77,8 @@ function removeEmbeddedSVGs(documentContent: string): string {
 		],
 		allowedAttributes: {
 			'*': [
-				'accesskey', 'action', 'align', 'alt', 'aria-describedby', 'aria-hidden', 'aria-label', 'aria-labelledby',
-				'axis', 'border', 'cellpadding', 'cellspacing', 'char', 'charoff', 'charset', 'checked', 'clear', 'cols',
-				'colspan', 'color', 'compact', 'coords', 'datetime', 'dir', 'disabled', 'enctype', 'for', 'frame', 'headers',
-				'height', 'hreflang', 'hspace', 'ismap', 'label', 'lang', 'maxlength', 'media', 'method', 'multiple', 'name',
-				'nohref', 'noshade', 'nowrap', 'open', 'progress', 'prompt', 'readonly', 'rel', 'rev', 'role', 'rows', 'rowspan',
-				'rules', 'scope', 'selected', 'shape', 'size', 'span', 'start', 'summary', 'tabindex', 'target', 'title', 'type',
-				'usemap', 'valign', 'value', 'vspace', 'width', 'itemprop'
-			],
-			'a': ['href'],
-			'img': ['src'],
-			'div': ['class', 'data-code'],
-			'span': ['class', 'style'],
+				'align',
+			]
 		},
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';
