@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWindowsShellHelper, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/electron-browser/windowsShellHelper';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
@@ -24,7 +24,7 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -79,8 +79,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			});
 		}
 	}
-
-	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest> | undefined;
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
