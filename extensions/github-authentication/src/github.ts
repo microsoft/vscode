@@ -75,6 +75,9 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		if (this.type === AuthProviderType.github) {
 			this._githubServer.checkIsEdu(token);
 		}
+		if (this.type === AuthProviderType['github-enterprise']) {
+			this._githubServer.checkEnterpriseVersion(token);
+		}
 	}
 
 	private async verifySessions(): Promise<void> {

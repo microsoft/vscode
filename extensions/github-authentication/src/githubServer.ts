@@ -285,6 +285,34 @@ export class GitHubServer {
 		} catch (e) {
 			// No-op
 		}
+	}
 
+	public async checkEnterpriseVersion(token: string): Promise<void> {
+		try {
+
+			const result = await fetch(this.getServerUri('/meta').toString(), {
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (!result.ok) {
+				return;
+			}
+
+			const json: { verifiable_password_authentication: boolean, installed_version: string } = await result.json();
+
+			/* __GDPR__
+				"ghe-session" : {
+					"version": { }
+				}
+			*/
+			this.telemetryReporter.sendTelemetryEvent('ghe-session', {
+				version: json.installed_version
+			});
+		} catch {
+			// No-op
+		}
 	}
 }
