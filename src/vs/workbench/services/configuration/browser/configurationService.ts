@@ -367,6 +367,19 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		await this.initRemoteUserConfigurationBarrier.wait();
 	}
 
+	/**
+	 * At present, all workspaces (empty, single-folder, multi-root) in local and remote
+	 * can be initialized without requiring extension host except following case:
+	 *
+	 * A multi root workspace with .code-workspace file that has to be resolved by an extension.
+	 * Because of readonly `rootPath` property in extension API we have to resolve multi root workspace
+	 * before extension host starts so that `rootPath` can be set to first folder.
+	 *
+	 * This restriction is lifted partially for web in `MainThreadWorkspace`.
+	 * In web, we start extension host with empty `rootPath` in this case.
+	 *
+	 * Related root path issue discussion is being tracked here - https://github.com/microsoft/vscode/issues/69335
+	 */
 	async initialize(arg: IWorkspaceInitializationPayload): Promise<void> {
 		mark('code/willInitWorkspaceService');
 
