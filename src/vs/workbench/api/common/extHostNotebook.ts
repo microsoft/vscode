@@ -240,9 +240,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
 
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
-
-	get activeNotebookEditor() {
-		return this._activeNotebookEditor;
+	get activeNotebookEditor(): vscode.NotebookEditor | undefined {
+		return this._activeNotebookEditor?.editor;
+	}
+	private _visibleNotebookEditors: ExtHostNotebookEditor[] = [];
+	get visibleNotebookEditors(): vscode.NotebookEditor[] {
+		return this._visibleNotebookEditors.map(editor => editor.editor);
 	}
 
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
@@ -251,7 +254,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 	private _onDidSaveNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidSaveNotebookDocument: Event<vscode.NotebookDocument> = this._onDidSaveNotebookDocument.event;
-	visibleNotebookEditors: ExtHostNotebookEditor[] = [];
 	private _onDidChangeActiveNotebookKernel = new Emitter<{ document: vscode.NotebookDocument, kernel: vscode.NotebookKernel | undefined; }>();
 	onDidChangeActiveNotebookKernel = this._onDidChangeActiveNotebookKernel.event;
 	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
@@ -425,7 +427,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const editor = editorId && this._editors.get(editorId)?.editor;
 
 		if (editor) {
-			return editor;
+			return editor.editor;
 		}
 
 		if (editorId) {
@@ -581,8 +583,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (data.visibleRanges) {
 			editor.editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookCellRange.to));
 			this._onDidChangeNotebookEditorVisibleRanges.fire({
-				notebookEditor: editor.editor,
-				visibleRanges: editor.editor.visibleRanges
+				notebookEditor: editor.editor.editor,
+				visibleRanges: editor.editor.editor.visibleRanges
 			});
 		}
 
@@ -595,7 +597,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			}
 
 			this._onDidChangeNotebookEditorSelection.fire({
-				notebookEditor: editor.editor,
+				notebookEditor: editor.editor.editor,
 				selection: editor.editor.selection
 			});
 		}
@@ -620,7 +622,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			editorId,
 			document.notebookDocument.viewType,
 			this._proxy,
-			webComm.contentProviderComm,
 			document
 		);
 
@@ -653,7 +654,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				}
 
 				for (const e of this._editors.values()) {
-					if (e.editor.document.uri.toString() === revivedUri.toString()) {
+					if (e.editor.notebookData.uri.toString() === revivedUri.toString()) {
 						e.editor.dispose();
 						this._editors.delete(e.editor.id);
 						editorChanged = true;
@@ -752,7 +753,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					editorChanged = true;
 					this._editors.delete(editorid);
 
-					if (this.activeNotebookEditor?.id === editor.editor.id) {
+					if (this._activeNotebookEditor?.id === editor.editor.id) {
 						this._activeNotebookEditor = undefined;
 					}
 
@@ -768,16 +769,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (delta.visibleEditors) {
-			this.visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)!.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
+			this._visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)!.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
 			const visibleEditorsSet = new Set<string>();
-			this.visibleNotebookEditors.forEach(editor => visibleEditorsSet.add(editor.id));
+			this._visibleNotebookEditors.forEach(editor => visibleEditorsSet.add(editor.id));
 
 			for (const e of this._editors.values()) {
 				const newValue = visibleEditorsSet.has(e.editor.id);
 				e.editor._acceptVisibility(newValue);
 			}
 
-			this.visibleNotebookEditors = [...this._editors.values()].map(e => e.editor).filter(e => e.visible);
+			this._visibleNotebookEditors = [...this._editors.values()].map(e => e.editor).filter(e => e.visible);
 			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
 		}
 
@@ -786,7 +787,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
 				this._activeNotebookEditor?._acceptActive(true);
 				for (const e of this._editors.values()) {
-					if (e.editor !== this.activeNotebookEditor) {
+					if (e.editor !== this._activeNotebookEditor) {
 						e.editor._acceptActive(false);
 					}
 				}
@@ -798,7 +799,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				}
 			}
 
-			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor);
+			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
 		}
 	}
 
