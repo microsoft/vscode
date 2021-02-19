@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors } from '../utils';
+import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors, assertNoRpc } from '../utils';
 
 // Since `workbench.action.splitEditor` command does await properly
 // Notebook editor/document events are not guaranteed to be sent to the ext host when promise resolves
@@ -70,6 +70,9 @@ suite('Notebook API tests', function () {
 	const disposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
+
+		assertNoRpc();
+
 		await revertAllDirty();
 		await closeAllEditors();
 
