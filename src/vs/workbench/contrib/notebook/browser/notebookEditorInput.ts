@@ -19,7 +19,8 @@ interface NotebookEditorInputOptions {
 }
 
 export class NotebookEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
+
+	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string, options: NotebookEditorInputOptions = {}) {
 		return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType, options);
 	}
 
@@ -31,7 +32,7 @@ export class NotebookEditorInput extends EditorInput {
 	constructor(
 		public readonly resource: URI,
 		public readonly name: string,
-		public readonly viewType: string | undefined,
+		public readonly viewType: string,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
@@ -81,11 +82,11 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._textModel || !this.viewType) {
+		if (!this._textModel) {
 			return undefined;
 		}
 
-		const provider = this._notebookService.getContributedNotebookProvider(this.viewType!);
+		const provider = this._notebookService.getContributedNotebookProvider(this.viewType);
 
 		if (!provider) {
 			return undefined;
@@ -154,12 +155,12 @@ ${patterns}
 	}
 
 	async resolve(): Promise<IResolvedNotebookEditorModel | null> {
-		if (!await this._notebookService.canResolve(this.viewType!)) {
+		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
 			if (this.isDisposed()) {
 				this._textModel.dispose();
 				this._textModel = null;
@@ -179,8 +180,7 @@ ${patterns}
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
-			return this.viewType === otherInput.viewType
-				&& isEqual(this.resource, otherInput.resource);
+			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
 		}
 		return false;
 	}
