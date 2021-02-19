@@ -40,7 +40,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-// import * as iconv from 'iconv-lite-umd';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -611,8 +610,6 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		else if (this.textResourceConfigurationService.getValue(resource, 'files.encoding') === UTF8_with_bom) {
 			preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 		}
-		//let candidate = this.checkCandidate(resource, buffer);
-		//	preferredEncoding = candidate;//? candidate : preferredEncoding;
 
 		return this.getEncodingForResource(resource, preferredEncoding);
 	}
@@ -623,38 +620,20 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 	}
 	private checkCandidate(resource: URI): string | undefined {
 		let buffer = this._buf;
-		let candidate: string[] = this.textResourceConfigurationService.getValue(resource, 'files.encoding_candidate');
-		for (const cand of candidate) {
+		let candidates: string[] = this.textResourceConfigurationService.getValue(resource, 'files.encoding_candidate');
+		for (const cand of candidates) {
 			try {
-				// const iconv = await import('iconv-lite-umd');
-				// let textdecoder = getDecoder(cand);
-				// let textdecoder = new TextDecoder(cand);
 				let textdecoder = new TextDecoder(cand, { fatal: true });
-				// let decoder = {
-				// 	write(buffer: Uint8Array): string {
-				// 		return textdecoder.decode(buffer, {
-				// 			// Signal to TextDecoder that potentially more data is coming
-				// 			// and that we are calling `decode` in the end to consume any
-				// 			// remainders
-				// 			stream: true
-				// 		});
-				// 	},
-
-				// 	end(): string | undefined {
-				// 		return textdecoder.decode();
-				// 	}
-				// };
-
 				if (buffer) {
 					textdecoder.decode(buffer);
 				}
-				// decode successfully
+				// decode successfully : match the code page of this file
 				return cand;
 			} catch (error) {
-
+				// decode unsuccessfully: skip this candidate
 			}
 		}
-		return undefined;
+		return undefined; // no candidate matches the file
 	}
 
 
@@ -668,8 +647,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		} else if (preferredEncoding) {
 			fileEncoding = preferredEncoding; // preferred encoding comes second
 		} else if (candidate) {
-			fileEncoding = candidate;
-
+			fileEncoding = candidate; // encoding candidate is the third
 		} else {
 			fileEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding'); // and last we check for settings
 		}
@@ -680,11 +658,9 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 			}
 		}
 
-		// NOTE: Set UTF-8
 		return fileEncoding;
 	}
 
-	// NOTE: enocding override
 	private getEncodingOverride(resource: URI): string | undefined {
 		if (this.encodingOverrides && this.encodingOverrides.length) {
 			for (const override of this.encodingOverrides) {
