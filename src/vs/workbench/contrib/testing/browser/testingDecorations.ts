@@ -31,6 +31,18 @@ import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/t
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
+function isInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
+	const diffEditors = codeEditorService.listDiffEditors();
+
+	for (const diffEditor of diffEditors) {
+		if (diffEditor.getModifiedEditor() === codeEditor || diffEditor.getOriginalEditor() === codeEditor) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
 	private currentUri?: URI;
@@ -48,6 +60,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -99,6 +112,10 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private attachModel(uri?: URI) {
+		if (isInDiffEditor(this.codeEditorService, this.editor)) {
+			uri = undefined;
+		}
+
 		this.currentUri = uri;
 
 		if (!uri) {
@@ -107,7 +124,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
-		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri));
+		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri!));
 		this.setDecorations(uri);
 	}
 
@@ -346,6 +363,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.className = `testing-inline-message-margin testing-inline-message-severity-${severity}`;
 		options.isWholeLine = true;
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+		options.collapseOnReplaceEdit = true;
 
 		const rulerColor = severity === TestMessageSeverity.Error
 			? overviewRulerError
