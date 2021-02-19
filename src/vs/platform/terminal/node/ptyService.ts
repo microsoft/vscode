@@ -90,7 +90,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async attachToProcess(id: number): Promise<void> {
 		this._throwIfNoPty(id);
-		this._logService.trace('Attaching to process', id);
+		this._logService.trace(`Persistent terminal "${id}": Attach`);
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
@@ -231,11 +231,11 @@ export class PersistentTerminalProcess extends Disposable {
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
+			this._logService.info(`Persistent terminal "${this._persistentTerminalId}": The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, so the process (pid=${this._pid}) will be shutdown.`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionGraceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the terminal process with pid ${this._pid} will be shutdown.`);
+			this._logService.info(`Persistent terminal "${this._persistentTerminalId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the process (pid=${this._pid}) will be shutdown.`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
@@ -318,7 +318,7 @@ export class PersistentTerminalProcess extends Disposable {
 			dataLength += e.data.length;
 		}
 
-		this._logService.info(`Replaying ${dataLength} chars and ${ev.events.length} size events.`);
+		this._logService.info(`Persistent terminal "${this._persistentTerminalId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
 	}
