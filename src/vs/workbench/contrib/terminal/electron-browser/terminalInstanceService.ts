@@ -119,8 +119,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return this._instantiationService.createInstance(LocalPty, id);
 	}
 
-	public async fetchPersistentTerminalProcess(id: number): Promise<ITerminalChildProcess> {
-		await this._localPtyService.fetchPersistentTerminalProcess(id);
+	public async attachToProcess(id: number): Promise<ITerminalChildProcess> {
+		await this._localPtyService.attachToProcess(id);
 		return this._instantiationService.createInstance(LocalPty, id);
 	}
 

@@ -96,7 +96,7 @@ export interface IPtyService {
 		workspaceName: string
 	): Promise<number>;
 
-	fetchPersistentTerminalProcess(id: number): Promise<void>;
+	attachToProcess(id: number): Promise<void>;
 
 	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined>;
 

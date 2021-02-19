@@ -90,7 +90,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	getTerminalLayouts(): Map<string, ITerminalsLayoutInfo> {
 		return new Map<string, ITerminalsLayoutInfo>();
 	}
-	fetchPersistentTerminalProcess(id: number): Promise<ITerminalChildProcess> {
+	attachToProcess(id: number): Promise<ITerminalChildProcess> {
 		throw new Error('Method not implemented.');
 	}
 }

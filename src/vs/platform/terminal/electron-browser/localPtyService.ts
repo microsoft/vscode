@@ -123,8 +123,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 
-	fetchPersistentTerminalProcess(id: number): Promise<void> {
-		return this._proxy.fetchPersistentTerminalProcess(id);
+	attachToProcess(id: number): Promise<void> {
+		return this._proxy.attachToProcess(id);
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
