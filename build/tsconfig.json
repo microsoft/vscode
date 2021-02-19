@@ -4,7 +4,7 @@
 		"module": "commonjs",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"sourceMap": true,
+		"sourceMap": false,
 		"resolveJsonModule": true,
 		"experimentalDecorators": true,
 		// enable JavaScript type checking for the language service
