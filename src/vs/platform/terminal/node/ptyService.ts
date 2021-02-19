@@ -248,8 +248,6 @@ export class PersistentTerminalProcess extends Disposable {
 		// 	this._events.fire(ev);
 		// });
 
-		this._register(this._terminalProcess.onProcessReady(e => this.triggerReplay()));
-
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;
@@ -277,6 +275,7 @@ export class PersistentTerminalProcess extends Disposable {
 		} else {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd });
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
+			this.triggerReplay();
 		}
 		return { persistentTerminalId: this._persistentTerminalId };
 	}
