@@ -258,9 +258,13 @@ export interface IRemoveMarkdownMessage {
 	id: string;
 }
 
-
 export interface IHideMarkdownMessage {
-	type: 'hideMarkdownPreview',
+	type: 'hideMarkdownPreview';
+	id: string;
+}
+
+export interface IUnhideMarkdownMessage {
+	type: 'unhideMarkdownPreview';
 	id: string;
 }
 
@@ -311,6 +315,7 @@ export type ToWebviewMessage =
 	| IRemoveMarkdownMessage
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
+	| IUnhideMarkdownMessage
 	| IInitializeMarkdownMessage
 	| IViewScrollMarkdownRequestMessage;
 
@@ -1016,6 +1021,17 @@ var requirejs = (function() {
 
 		this._sendMessageToWebview({
 			type: 'hideMarkdownPreview',
+			id: cellId
+		});
+	}
+
+	async unhideMarkdownPreview(cellId: string,) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'unhideMarkdownPreview',
 			id: cellId
 		});
 	}

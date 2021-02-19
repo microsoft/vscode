@@ -1990,6 +1990,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
+	async unhideMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this._webview) {
+			return;
+		}
+
+		await this._resolveWebview();
+
+		await this._webview?.unhideMarkdownPreview(cell.id);
+	}
+
 	async hideMarkdownPreview(cell: MarkdownCellViewModel) {
 		if (!this._webview) {
 			return;

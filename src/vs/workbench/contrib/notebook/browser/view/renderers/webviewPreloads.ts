@@ -421,9 +421,18 @@ function webviewPreloads() {
 			case 'hideMarkdownPreview':
 				{
 					const data = event.data;
-					let cellContainer = document.getElementById(data.id);
+					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
 						cellContainer.style.display = 'none';
+					}
+				}
+				break;
+			case 'unhideMarkdownPreview':
+				{
+					const data = event.data;
+					const cellContainer = document.getElementById(data.id);
+					if (cellContainer) {
+						cellContainer.style.display = '';
 					}
 				}
 				break;
