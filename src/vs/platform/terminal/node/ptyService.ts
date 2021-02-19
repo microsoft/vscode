@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
@@ -191,16 +191,17 @@ export class PersistentTerminalProcess extends Disposable {
 	private _orphanRequestQueue = new Queue<boolean>();
 	private _disconnectRunner1: RunOnceScheduler;
 	private _disconnectRunner2: RunOnceScheduler;
+
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
-	public get onProcessReplay(): Event<IPtyHostProcessReplayEvent> { return this._onProcessReplay.event; }
+	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
-	public readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
-	public readonly onProcessData: Event<IProcessDataEvent> = this._onProcessData.event;
+	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
+	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
+	readonly onProcessData = this._onProcessData.event;
 
 	private _inReplay = false;
 
