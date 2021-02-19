@@ -186,11 +186,6 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		return pty;
 	}
-
-	// private _orphanQuestionReply(args: IOrphanQuestionReplyArgs): void {
-	// 	const persistentTerminalProcess = this._throwIfNoPty(args.id);
-	// 	persistentTerminalProcess.orphanQuestionReply();
-	// }
 }
 
 export class PersistentTerminalProcess extends Disposable {
@@ -232,7 +227,7 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	constructor(
-		private readonly _persistentTerminalId: number,
+		private _persistentTerminalId: number,
 		private readonly _terminalProcess: TerminalProcess,
 		public readonly workspaceId: string,
 		public readonly workspaceName: string,
@@ -310,7 +305,8 @@ export class PersistentTerminalProcess extends Disposable {
 			if (!this._attachPersistentTerminal) {
 				this._onProcessReady.fire({ pid: -1, cwd: await this._terminalProcess.getCwd() });
 			} else {
-				this._onProcessReady.fire({ pid: this._attachPersistentTerminal.pid, cwd: await this._terminalProcess.getCwd() });
+				this._persistentTerminalId = this._attachPersistentTerminal.id;
+				this._onProcessReady.fire({ pid: this._persistentTerminalId, cwd: await this._terminalProcess.getCwd() });
 			}
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 		}

@@ -1210,13 +1210,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			shell.initialText = ' ';
 		}
 
-		// Set the new shell launch config
+		// Set the new shell launch configinalService
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		if (!this._shellLaunchConfig.attachPersistentTerminal) {
-			// Kill and clear up the process, making the process manager ready for a new process
-			this._processManager.dispose();
-		}
+		// Kill and clear up the process, making the process manager ready for a new process
+		this._processManager.dispose();
 
 		// Launch the process unless this is only a renderer.
 		// In the renderer only cases, we still need to set the title correctly.

@@ -218,7 +218,7 @@ export class TerminalService implements ITerminalService {
 							this.splitInstance(terminalInstance, { attachPersistentTerminal: terminalLayout.terminal! });
 						}
 					});
-					const activeInstance = this.terminalInstances.find(t => t.shellLaunchConfig.attachPersistentTerminal?.pid === tabLayout.activeTerminalProcessId);
+					const activeInstance = this.terminalInstances.find(t => t.persistentTerminalId === tabLayout.activeTerminalProcessId);
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
 					}
@@ -340,7 +340,7 @@ export class TerminalService implements ITerminalService {
 	private _updateRemoteState(): void {
 		if (!!this._environmentService.remoteAuthority) {
 			const state: ITerminalsLayoutInfoById = {
-				tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab(), true))
+				tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
 			};
 			this._remoteTerminalService.setTerminalLayoutInfo(state);
 		}
@@ -349,7 +349,7 @@ export class TerminalService implements ITerminalService {
 	@debounce(500)
 	private _updateLocalState(): void {
 		const state: ITerminalsLayoutInfoById = {
-			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab(), false))
+			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
 		};
 		this._terminalInstanceService.setTerminalLayoutInfo(state);
 	}

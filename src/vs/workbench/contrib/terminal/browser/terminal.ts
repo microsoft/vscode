@@ -81,7 +81,7 @@ export interface ITerminalTab {
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
-	getLayoutInfo(isActive: boolean, isRemote: boolean): ITerminalTabLayoutInfoById;
+	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById;
 }
 
 export const enum TerminalConnectionState {
