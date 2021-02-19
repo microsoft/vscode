@@ -36,6 +36,16 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	private currentUri?: URI;
 	private lastDecorations: ITestDecoration[] = [];
 
+	/**
+	 * List of messages that should be hidden because an editor changed their
+	 * underlying ranges. I think this is good enough, because:
+	 *  - Message decorations are never shown across reloads; this does not
+	 *    need to persist
+	 *  - Message instances are stable for any completed test results for
+	 *    the duration of the session.
+	 */
+	private invalidatedMessages = new WeakSet<ITestMessage>();
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITestService private readonly testService: ITestService,
@@ -51,6 +61,28 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 					e.event.stopPropagation();
 					return;
 				}
+			}
+		}));
+		this._register(this.editor.onDidChangeModelContent(e => {
+			if (!this.currentUri) {
+				return;
+			}
+
+			let update = false;
+			for (const change of e.changes) {
+				for (const deco of this.lastDecorations) {
+					if (deco instanceof TestMessageDecoration
+						&& deco.location.range.startLineNumber >= change.range.startLineNumber
+						&& deco.location.range.endLineNumber <= change.range.endLineNumber
+					) {
+						this.invalidatedMessages.add(deco.testMessage);
+						update = true;
+					}
+				}
+			}
+
+			if (update) {
+				this.setDecorations(this.currentUri);
 			}
 		}));
 
@@ -99,9 +131,13 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 
 				const [result, stateItem] = stateLookup;
+				if (stateItem.retired) {
+					continue; // do not show decorations for outdated tests
+				}
+
 				for (let i = 0; i < stateItem.state.messages.length; i++) {
 					const m = stateItem.state.messages[i];
-					if (hasValidLocation(uri, m)) {
+					if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
 						const uri = buildTestUri({
 							type: TestUriType.ResultActualOutput,
 							messageIndex: i,
@@ -284,15 +320,14 @@ class TestMessageDecoration implements ITestDecoration {
 	private readonly decorationId = `testmessage-${generateUuid()}`;
 
 	constructor(
-		{ message, severity }: ITestMessage,
+		public readonly testMessage: ITestMessage,
 		private readonly messageUri: URI,
-		location: IRichLocation,
+		public readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
 	) {
-		severity = severity || TestMessageSeverity.Error;
-
+		const { severity = TestMessageSeverity.Error, message } = testMessage;
 		const colorTheme = themeService.getColorTheme();
 		editorService.registerDecorationType(this.decorationId, {
 			after: {
@@ -310,6 +345,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.zIndex = 10; // todo: in spite of the z-index, this appears behind gitlens
 		options.className = `testing-inline-message-margin testing-inline-message-severity-${severity}`;
 		options.isWholeLine = true;
+		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 		const rulerColor = severity === TestMessageSeverity.Error
 			? overviewRulerError
@@ -332,7 +368,7 @@ class TestMessageDecoration implements ITestDecoration {
 		}
 
 		if (e.target.element?.className.includes(this.decorationId)) {
-			TestingOutputPeekController.get(this.editor).show(this.messageUri);
+			TestingOutputPeekController.get(this.editor).toggle(this.messageUri);
 		}
 
 		return false;
