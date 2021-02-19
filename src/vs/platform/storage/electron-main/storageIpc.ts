@@ -91,14 +91,27 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 
 			case 'updateItems': {
 				const items: ISerializableUpdateRequest = arg;
+
 				if (items.insert) {
 					for (const [key, value] of items.insert) {
-						storage.store(key, value);
+						storage.set(key, value);
 					}
 				}
 
 				if (items.delete) {
-					items.delete.forEach(key => storage.remove(key));
+					items.delete.forEach(key => storage.delete(key));
+				}
+
+				break;
+			}
+
+			case 'close': {
+
+				// We only allow to close workspace scoped storage because
+				// global storage is shared across all windows and closes
+				// only on shutdown.
+				if (workspace) {
+					return storage.close();
 				}
 
 				break;
@@ -113,7 +126,7 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 		const storage = workspace ? this.storageMainService.workspaceStorage(workspace) : this.storageMainService.globalStorage;
 
 		try {
-			await storage.initialize();
+			await storage.init();
 		} catch (error) {
 			this.logService.error(`StorageIPC#init: Unable to init ${workspace ? 'workspace' : 'global'} storage due to ${error}`);
 		}

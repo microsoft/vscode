@@ -199,8 +199,7 @@ abstract class AbstractCellRenderer {
 				}
 
 				return undefined;
-			},
-			respectOrientationForPreviousAndNextKey: true
+			}
 		});
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
@@ -234,8 +233,7 @@ abstract class AbstractCellRenderer {
 				}
 				return createActionViewItem(this.instantiationService, action);
 			},
-			renderDropdownAsChildElement: true,
-			respectOrientationForPreviousAndNextKey: true
+			renderDropdownAsChildElement: true
 		});
 
 		if (elementClass) {
@@ -268,8 +266,8 @@ abstract class AbstractCellRenderer {
 			if (actions.primary.length || actions.secondary.length) {
 				templateData.container.classList.add('cell-has-toolbar-actions');
 				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicatorLeft.style.top = `${EDITOR_TOOLBAR_HEIGHT}px`;
-					templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT}px`;
+					templateData.focusIndicatorLeft.style.top = `${EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN}px`;
+					templateData.focusIndicatorRight.style.top = `${EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN}px`;
 				}
 			} else {
 				templateData.container.classList.remove('cell-has-toolbar-actions');
@@ -402,6 +400,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
 		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
 
+		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const focusIndicatorRight = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right'));
 
@@ -535,6 +534,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			this.updateForLayout(element, templateData);
 		}));
 
+		this.updateForHover(element, templateData);
+		elementDisposables.add(element.onDidChangeState(e => {
+			if (e.cellIsHoveredChanged) {
+				this.updateForHover(element, templateData);
+			}
+		}));
+
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
@@ -559,6 +565,14 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		// templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP - CELL_BOTTOM_MARGIN}px`;
+
+		const focusSideHeight = element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP;
+		templateData.focusIndicatorLeft.style.height = `${focusSideHeight}px`;
+		templateData.focusIndicatorRight.style.height = `${focusSideHeight}px`;
+	}
+
+	private updateForHover(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
+		templateData.container.classList.toggle('markdown-cell-hover', element.cellIsHovered);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -1110,8 +1124,7 @@ export class ListTopCellToolbar extends Disposable {
 				}
 
 				return undefined;
-			},
-			respectOrientationForPreviousAndNextKey: true
+			}
 		});
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);

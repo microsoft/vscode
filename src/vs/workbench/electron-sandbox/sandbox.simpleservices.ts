@@ -51,6 +51,7 @@ import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/b
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 
 
 //#region Environment
@@ -194,6 +195,16 @@ export class SimpleSignService implements ISignService {
 }
 
 //#endregion
+
+//#region Logger
+
+export class SimpleLogService extends LogService {
+
+	constructor() {
+		super(new ConsoleLogger());
+	}
+
+}
 
 
 //#region Files

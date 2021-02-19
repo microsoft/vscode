@@ -46,8 +46,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'editor/title/run',
 		id: MenuId.EditorTitleRun,
-		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu"),
-		proposed: true
+		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
 	},
 	{
 		key: 'editor/context',
@@ -165,6 +164,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
 		description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
+		proposed: true
+	},
+	{
+		key: 'testing/item/context',
+		id: MenuId.TestItem,
+		description: localize('testing.item.title', "The contributed test item menu"),
 		proposed: true
 	},
 	{

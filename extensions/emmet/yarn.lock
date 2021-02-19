@@ -54,9 +54,9 @@
   integrity sha1-Rs/+oRmgoAMxKiHC2bVijLX81EI=
 
 "@types/node@^12.19.9":
-  version "12.20.0"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.20.0.tgz#692dfdecd6c97f5380c42dd50f19261f9f604deb"
-  integrity sha512-0/41wHcurotvSOTHQUFkgL702c3pyWR1mToSrrX3pGPvGfpHTv3Ksx0M4UVuU5VJfjVb62Eyr1eKO1tWNUCg2Q==
+  version "12.20.1"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-12.20.1.tgz#63d36c10e162666f0107f247cdca76542c3c7472"
+  integrity sha512-tCkE96/ZTO+cWbln2xfyvd6ngHLanvVlJ3e5BeirJ3BYI5GbAyubIrmV4JjjugDly5D9fHjOL5MNsqsCnqwW6g==
 
 emmet@^2.3.0:
   version "2.3.1"
@@ -77,9 +77,9 @@ jsonc-parser@^2.3.0:
   integrity sha512-H8jvkz1O50L3dMZCsLqiuB2tA7muqbSg1AtGEkN0leAqGjsUzDJir3Zwr02BhqdcITPg3ei3mZ+HjMocAknhhg==
 
 vscode-emmet-helper@^2.3.0:
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.3.0.tgz#a98357ad5ac9c71d7c00396f22b7963b1a74cc5c"
-  integrity sha512-QhU8+HlynMuUkqBYgA3wIDTSsUNkw8GWxLR214Hjvwr0lkFZa0CRqW/PzAI1CFREjSrTxJYQvkVnbfatZzKAuA==
+  version "2.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-emmet-helper/-/vscode-emmet-helper-2.3.1.tgz#f4f1d3b656441d96ded901536c014dcbf2419d9c"
+  integrity sha512-05zamij6z60pF6z4Dg6csbypc/Uxi9mBPzaPkfjOwdkn6+lYSrsiOME74MZLE4rhyWd46bvEtuGxAuR6gRKDpw==
   dependencies:
     emmet "^2.3.0"
     jsonc-parser "^2.3.0"

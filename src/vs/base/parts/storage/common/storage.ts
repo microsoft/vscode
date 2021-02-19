@@ -84,7 +84,7 @@ export class Storage extends Disposable implements IStorage {
 
 	private cache = new Map<string, string>();
 
-	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY));
+	private readonly flushDelayer = new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY);
 
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
@@ -318,6 +318,13 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
+	}
+
+	dispose(): void {
+		this.flushDelayer.cancel(); // workaround https://github.com/microsoft/vscode/issues/116777
+		this.flushDelayer.dispose();
+
+		super.dispose();
 	}
 }
 

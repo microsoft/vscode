@@ -5,14 +5,13 @@
 
 import { LogService, ConsoleLogger, MultiplexLogService, ILogger } from 'vs/platform/log/common/log';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { LogLevelChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannelClient, FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LoggerService } from 'vs/workbench/services/log/electron-sandbox/loggerService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export class NativeLogService extends LogService {
 
-	constructor(name: string, loggerService: LoggerService, mainProcessService: IMainProcessService, environmentService: INativeWorkbenchEnvironmentService) {
+	constructor(name: string, loggerService: LoggerChannelClient, mainProcessService: IMainProcessService, environmentService: INativeWorkbenchEnvironmentService) {
 
 		const disposables = new DisposableStore();
 		const loggerClient = new LogLevelChannelClient(mainProcessService.getChannel('logLevel'));
@@ -37,5 +36,4 @@ export class NativeLogService extends LogService {
 
 		this._register(disposables);
 	}
-
 }

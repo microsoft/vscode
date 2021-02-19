@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
-import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -25,7 +25,7 @@ export class NotebookEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.notebook';
 
-	private _textModel: IReference<INotebookEditorModel> | null = null;
+	private _textModel: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(
@@ -153,7 +153,7 @@ ${patterns}
 		return;
 	}
 
-	async resolve(): Promise<INotebookEditorModel | null> {
+	async resolve(): Promise<IResolvedNotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}

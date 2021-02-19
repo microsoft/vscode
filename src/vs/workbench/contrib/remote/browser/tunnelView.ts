@@ -47,7 +47,6 @@ import { ITableColumn, ITableContextMenuEvent, ITableMouseEvent, ITableRenderer,
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
-export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 
 class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
@@ -336,8 +335,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		const label = new IconLabel(cell, { supportHighlights: true });
 		const actionsContainer = dom.append(cell, dom.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
-			respectOrientationForPreviousAndNextKey: true
+			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
 		});
 		return { label, icon, actionBar, container: cell, elementDisposable: Disposable.None };
 	}

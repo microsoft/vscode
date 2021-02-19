@@ -21,7 +21,7 @@ class JsDocCompletionItem extends vscode.CompletionItem {
 		public readonly document: vscode.TextDocument,
 		public readonly position: vscode.Position
 	) {
-		super('/** */', vscode.CompletionItemKind.Snippet);
+		super('/** */', vscode.CompletionItemKind.Text);
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
 		this.sortText = '\0';
 

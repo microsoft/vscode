@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { diffMaps, diffSets } from 'vs/base/common/collections';
 import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { IExtUri, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookEditorModel, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -32,31 +32,20 @@ import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWi
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
 	static compute(before: DocumentAndEditorState | undefined, after: DocumentAndEditorState): INotebookDocumentsAndEditorsDelta {
 		if (!before) {
-			const apiEditors = [];
-			for (let id in after.textEditors) {
-				const editor = after.textEditors.get(id)!;
-				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.getSelectionHandles(), visibleRanges: editor.visibleRanges });
-			}
-
 			return {
-				addedDocuments: [],
-				addedEditors: apiEditors,
+				addedDocuments: [...after.documents].map(DocumentAndEditorState._asModelAddData),
+				addedEditors: [...after.textEditors.values()].map(DocumentAndEditorState._asEditorAddData),
 				visibleEditors: [...after.visibleEditors].map(editor => editor[0])
 			};
 		}
 		const documentDelta = diffSets(before.documents, after.documents);
 		const editorDelta = diffMaps(before.textEditors, after.textEditors);
-		const addedAPIEditors = editorDelta.added.map(add => ({
-			id: add.getId(),
-			documentUri: add.uri!,
-			selections: add.getSelectionHandles(),
-			visibleRanges: add.visibleRanges
-		}));
+		const addedAPIEditors = editorDelta.added.map(DocumentAndEditorState._asEditorAddData);
 
 		const removedAPIEditors = editorDelta.removed.map(removed => removed.getId());
 
@@ -66,29 +55,7 @@ class DocumentAndEditorState {
 		const visibleEditorDelta = diffMaps(before.visibleEditors, after.visibleEditors);
 
 		return {
-			addedDocuments: documentDelta.added.map((e: NotebookTextModel): INotebookModelAddedData => {
-				return {
-					viewType: e.viewType,
-					uri: e.uri,
-					metadata: e.metadata,
-					versionId: e.versionId,
-					cells: e.cells.map(cell => ({
-						handle: cell.handle,
-						uri: cell.uri,
-						source: cell.textBuffer.getLinesContent(),
-						eol: cell.textBuffer.getEOL(),
-						language: cell.language,
-						cellKind: cell.cellKind,
-						outputs: cell.outputs,
-						metadata: cell.metadata
-					})),
-					contentOptions: e.transientOptions,
-					// attachedEditor: editorId ? {
-					// 	id: editorId,
-					// 	selections: document.textModel.selections
-					// } : undefined
-				};
-			}),
+			addedDocuments: documentDelta.added.map(DocumentAndEditorState._asModelAddData),
 			removedDocuments: documentDelta.removed.map(e => e.uri),
 			addedEditors: addedAPIEditors,
 			removedEditors: removedAPIEditors,
@@ -107,19 +74,50 @@ class DocumentAndEditorState {
 	) {
 		//
 	}
+
+	private static _asModelAddData(e: NotebookTextModel): INotebookModelAddedData {
+		return {
+			viewType: e.viewType,
+			uri: e.uri,
+			metadata: e.metadata,
+			versionId: e.versionId,
+			cells: e.cells.map(cell => ({
+				handle: cell.handle,
+				uri: cell.uri,
+				source: cell.textBuffer.getLinesContent(),
+				eol: cell.textBuffer.getEOL(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: cell.metadata
+			})),
+			contentOptions: e.transientOptions,
+		};
+	}
+
+	private static _asEditorAddData(add: IEditor): INotebookEditorAddData {
+		return {
+			id: add.getId(),
+			documentUri: add.uri!,
+			selections: add.getSelectionHandles(),
+			visibleRanges: add.visibleRanges
+		};
+	}
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
+
+	private readonly _proxy: ExtHostNotebookShape;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
-	private readonly _proxy: ExtHostNotebookShape;
 	private readonly _toDisposeOnEditorRemove = new Map<string, IDisposable>();
-	private _currentState?: DocumentAndEditorState;
 	private readonly _editorEventListenersMapping: Map<string, DisposableStore> = new Map();
 	private readonly _documentEventListenersMapping: ResourceMap<DisposableStore> = new ResourceMap();
 	private readonly _cellStatusBarEntries: Map<number, IDisposable> = new Map();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
+
+	private _currentState?: DocumentAndEditorState;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -138,12 +136,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 		this._modelReferenceCollection = new BoundModelReferenceCollection(this._uriIdentityService.extUri);
-		this._register(this._modelReferenceCollection);
 		this.registerListeners();
 	}
 
 	dispose(): void {
 		super.dispose();
+
+		this._modelReferenceCollection.dispose();
 
 		// remove all notebook providers
 		for (let item of this._notebookProviders.values()) {
@@ -155,9 +154,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			item.emitter.dispose();
 			item.provider.dispose();
 		}
-
 		dispose(this._editorEventListenersMapping.values());
 		dispose(this._documentEventListenersMapping.values());
+		dispose(this._toDisposeOnEditorRemove.values());
+		dispose(this._cellStatusBarEntries.values());
 	}
 
 	async $tryApplyEdits(_viewType: string, resource: UriComponents, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean> {
@@ -458,7 +458,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		// if (!isEmptyChange) {
 		this._currentState = newState;
-		await this._emitDelta(delta);
+		this._emitDelta(delta);
 		// }
 	}
 
@@ -479,23 +479,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
-			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
-				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
-				mainthreadTextModel.metadata = data.metadata;
-				mainthreadTextModel.transientOptions = contentOptions;
-
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Replace, index: 0, count: mainthreadTextModel.cells.length, cells: data.cells }
-				];
-				await new Promise(resolve => {
-					DOM.scheduleAtNextAnimationFrame(() => {
-						const ret = mainthreadTextModel!.applyEdits(mainthreadTextModel!.versionId, edits, true, undefined, () => undefined, undefined);
-						resolve(ret);
-					});
-				});
-			},
-			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string) => {
-				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
+			openNotebook: async (viewType: string, uri: URI, backupId?: string) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId);
 				return {
 					data,
 					transientOptions: contentOptions
@@ -556,7 +541,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				const result: INotebookKernel[] = [];
 				const kernelsDto = await that._proxy.$provideNotebookKernels(handle, uri, token);
 				for (const dto of kernelsDto) {
-
 					result.push({
 						id: dto.id,
 						friendlyId: dto.friendlyId,
@@ -672,9 +656,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 
 		if (statusBarEntry.visible) {
-			this._cellStatusBarEntries.set(
-				id,
-				this._cellStatusBarService.addEntry(statusBarEntry));
+			this._cellStatusBarEntries.set(id, this._cellStatusBarService.addEntry(statusBarEntry));
 		}
 	}
 
@@ -685,6 +667,15 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._modelReferenceCollection.add(uri, ref);
 
 		return uri;
+	}
+
+	async $trySaveDocument(uriComponents: UriComponents) {
+		const uri = URI.revive(uriComponents);
+
+		const ref = await this._notebookModelResolverService.resolve(uri);
+		const saveResult = await ref.object.save();
+		ref.dispose();
+		return saveResult;
 	}
 
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
@@ -730,47 +721,5 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		} else {
 			throw new Error(`Notebook Editor creation failure for documenet ${resource}`);
 		}
-	}
-}
-
-
-export class BoundModelReferenceCollection {
-
-	private _data = new Array<{ uri: URI, dispose(): void }>();
-
-	constructor(
-		private readonly _extUri: IExtUri,
-		private readonly _maxAge: number = 1000 * 60 * 3,
-	) {
-		//
-	}
-
-	dispose(): void {
-		this._data = dispose(this._data);
-	}
-
-	remove(uri: URI): void {
-		for (const entry of [...this._data] /* copy array because dispose will modify it */) {
-			if (this._extUri.isEqualOrParent(entry.uri, uri)) {
-				entry.dispose();
-			}
-		}
-	}
-
-	add(uri: URI, ref: IReference<INotebookEditorModel>): void {
-		let handle: any;
-		let entry: { uri: URI, dispose(): void };
-		const dispose = () => {
-			const idx = this._data.indexOf(entry);
-			if (idx >= 0) {
-				ref.dispose();
-				clearTimeout(handle);
-				this._data.splice(idx, 1);
-			}
-		};
-		handle = setTimeout(dispose, this._maxAge);
-		entry = { uri, dispose };
-
-		this._data.push(entry);
 	}
 }

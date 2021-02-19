@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { smokeTestActivate } from './notebookSmokeTestMain';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IPtyService } from 'vs/platform/terminal/common/terminal';
 
-export function activate(context: vscode.ExtensionContext): any {
-	smokeTestActivate(context);
+export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
 
-
-
-}
+export interface ILocalPtyService extends IPtyService { }

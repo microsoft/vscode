@@ -125,6 +125,24 @@ export interface ICodeWindow extends IDisposable {
 	serializeWindowState(): IWindowState;
 }
 
+export const enum WindowError {
+
+	/**
+	 * Maps to the `unresponsive` event on a `BrowserWindow`.
+	 */
+	UNRESPONSIVE = 1,
+
+	/**
+	 * Maps to the `render-proces-gone` event on a `WebContents`.
+	 */
+	CRASHED = 2,
+
+	/**
+	 * Maps to the `did-fail-load` event on a `WebContents`.
+	 */
+	LOAD = 3
+}
+
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
 export interface IWindowsCountChangedEvent {

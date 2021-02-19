@@ -196,6 +196,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
 		if (provider) {
+			if (provider.candidatePortSource !== undefined) {
+				await this._proxy.$setCandidatePortSource(provider.candidatePortSource);
+			}
 			if (provider.showCandidatePort) {
 				this._showCandidatePort = provider.showCandidatePort;
 				await this._proxy.$setCandidateFilter();

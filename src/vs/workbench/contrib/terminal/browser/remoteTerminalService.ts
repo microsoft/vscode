@@ -10,13 +10,13 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteTerminalProcessExecCommandEvent, IShellLaunchConfigDto, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { IProcessDataEvent, IRemoteTerminalAttachTarget, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
 	public _serviceBrand: undefined;
@@ -306,5 +306,3 @@ function reviveIShellLaunchConfig(dto: IShellLaunchConfigDto): IShellLaunchConfi
 		hideFromUser: dto.hideFromUser
 	};
 }
-
-registerSingleton(IRemoteTerminalService, RemoteTerminalService);

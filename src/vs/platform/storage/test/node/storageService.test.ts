@@ -42,8 +42,8 @@ flakySuite('StorageService (native)', function () {
 
 			await promises.mkdir(testDir, { recursive: true });
 
-			const storageService = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
-			await storageService.initialize({ id: String(Date.now()) });
+			const storageService = new NativeStorageService(new InMemoryStorageDatabase(), { id: String(Date.now()) }, new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
+			await storageService.initialize();
 
 			return storageService;
 		},
@@ -55,8 +55,8 @@ flakySuite('StorageService (native)', function () {
 	});
 
 	test('Migrate Data', async function () {
-		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
-		await storage.initialize({ id: String(Date.now()) });
+		const storage = new NativeStorageService(new InMemoryStorageDatabase(), { id: String(Date.now()) }, new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
+		await storage.initialize();
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storage.store('barNumber', 55, StorageScope.WORKSPACE, StorageTarget.MACHINE);

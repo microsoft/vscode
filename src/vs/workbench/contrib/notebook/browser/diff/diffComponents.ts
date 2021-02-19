@@ -150,8 +150,7 @@ class PropertyHeader extends Disposable {
 				}
 
 				return undefined;
-			},
-			respectOrientationForPreviousAndNextKey: true
+			}
 		});
 		this._register(this._toolbar);
 		this._toolbar.context = {

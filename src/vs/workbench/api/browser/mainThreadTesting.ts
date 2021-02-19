@@ -5,11 +5,12 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { getTestSubscriptionKey, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { getTestSubscriptionKey, ISerializedTestResults, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { HydratedTestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
@@ -40,17 +41,32 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this._register(this.testService.onShouldSubscribe(args => this.proxy.$subscribeToTests(args.resource, args.uri)));
 		this._register(this.testService.onShouldUnsubscribe(args => this.proxy.$unsubscribeFromTests(args.resource, args.uri)));
 
-		// const testCompleteListener = this._register(new MutableDisposable());
-		// todo(@connor4312): reimplement, maybe
-		// this._register(resultService.onResultsChanged(results => {
-		// testCompleteListener.value = results.onComplete(() => this.proxy.$publishTestResults({ tests: [] }));
-		// }));
+
+		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
+		if (prevResults.length) {
+			this.proxy.$publishTestResults(prevResults);
+		}
+
+		this._register(resultService.onResultsChanged(evt => {
+			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
+			const serialized = results?.toJSON();
+			if (serialized) {
+				this.proxy.$publishTestResults([serialized]);
+			}
+		}));
 
 		testService.updateRootProviderCount(1);
 
 		for (const { resource, uri } of this.testService.subscriptions) {
 			this.proxy.$subscribeToTests(resource, uri);
 		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
+		this.resultService.push(new HydratedTestResult(results, persist));
 	}
 
 	/**

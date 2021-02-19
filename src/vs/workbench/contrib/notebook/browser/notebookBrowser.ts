@@ -162,6 +162,7 @@ export interface ICommonNotebookEditor {
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	getCellById(cellId: string): IGenericCellViewModel | undefined;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
@@ -604,6 +605,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
 
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
+	getCellById(cellId: string): ICellViewModel | undefined;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 }
 
@@ -774,14 +776,15 @@ export enum CursorAtBoundary {
 }
 
 export interface CellViewModelStateChangeEvent {
-	metadataChanged?: boolean;
-	selectionChanged?: boolean;
-	focusModeChanged?: boolean;
-	editStateChanged?: boolean;
-	languageChanged?: boolean;
-	foldingStateChanged?: boolean;
-	contentChanged?: boolean;
-	outputIsHoveredChanged?: boolean;
+	readonly metadataChanged?: boolean;
+	readonly selectionChanged?: boolean;
+	readonly focusModeChanged?: boolean;
+	readonly editStateChanged?: boolean;
+	readonly languageChanged?: boolean;
+	readonly foldingStateChanged?: boolean;
+	readonly contentChanged?: boolean;
+	readonly outputIsHoveredChanged?: boolean;
+	readonly cellIsHoveredChanged?: boolean;
 }
 
 export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {

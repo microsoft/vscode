@@ -11,8 +11,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
+import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
@@ -26,6 +25,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 

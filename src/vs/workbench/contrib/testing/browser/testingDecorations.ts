@@ -26,13 +26,14 @@ import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { IncrementalTestCollectionItem, IRichLocation, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, IRichLocation, ITestMessage, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResultService, TestResultItem } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
+	private currentUri?: URI;
 	private lastDecorations: ITestDecoration[] = [];
 
 	constructor(
@@ -52,9 +53,22 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				}
 			}
 		}));
+
+		this._register(this.results.onTestChanged(({ item: result }) => {
+			if (this.currentUri && result.item.location?.uri.toString() === this.currentUri.toString()) {
+				this.setDecorations(this.currentUri);
+			}
+		}));
+		this._register(this.results.onResultsChanged(() => {
+			if (this.currentUri) {
+				this.setDecorations(this.currentUri);
+			}
+		}));
 	}
 
 	private attachModel(uri?: URI) {
+		this.currentUri = uri;
+
 		if (!uri) {
 			this.collection.value = undefined;
 			this.clearDecorations();
@@ -62,15 +76,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		}
 
 		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri));
-		this._register(this.results.onTestChanged(({ item: result }) => {
-			if (result.item.location?.uri.toString() === uri.toString()) {
-				this.setDecorations(uri);
-			}
-		}));
-		this._register(this.results.onResultsChanged(() => {
-			this.setDecorations(uri);
-		}));
-
 		this.setDecorations(uri);
 	}
 

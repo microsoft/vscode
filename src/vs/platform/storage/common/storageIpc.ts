@@ -29,9 +29,9 @@ export interface ISerializableItemsChangeEvent {
 
 abstract class BaseStorageDatabaseClient extends Disposable implements IStorageDatabase {
 
-	abstract onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
+	abstract readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;
 
-	constructor(protected channel: IChannel, private workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined) {
+	constructor(protected channel: IChannel, protected workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined) {
 		super();
 	}
 
@@ -56,16 +56,7 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 		return this.channel.call('updateItems', serializableRequest);
 	}
 
-	async close(): Promise<void> {
-
-		// The database connection is not owned by us, but rather on the
-		// main side, as such we do not forward the close() request but
-		// let main side handle this properly via lifecycle methods.
-		//
-		// However, we cleanup our listeners  because we are no longer
-		// interested in change events from the global database
-		this.dispose();
-	}
+	abstract close(): Promise<void>;
 }
 
 class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements IStorageDatabase {
@@ -91,6 +82,14 @@ class GlobalStorageDatabaseClient extends BaseStorageDatabaseClient implements I
 			});
 		}
 	}
+
+	async close(): Promise<void> {
+
+		// The global storage database is shared across all instances so
+		// we do not await it. However we dispose the listener for external
+		// changes because we no longer interested int it.
+		this.dispose();
+	}
 }
 
 class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implements IStorageDatabase {
@@ -100,12 +99,33 @@ class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient implement
 	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier) {
 		super(channel, workspace);
 	}
+
+	async close(): Promise<void> {
+		const serializableRequest: ISerializableUpdateRequest = { workspace: this.workspace };
+
+		return this.channel.call('close', serializableRequest);
+	}
 }
 
 export class StorageDatabaseChannelClient extends Disposable {
 
-	readonly globalStorage = new GlobalStorageDatabaseClient(this.channel);
-	readonly workspaceStorage = this.workspace ? new WorkspaceStorageDatabaseClient(this.channel, this.workspace) : undefined;
+	private _globalStorage: GlobalStorageDatabaseClient | undefined = undefined;
+	get globalStorage() {
+		if (!this._globalStorage) {
+			this._globalStorage = new GlobalStorageDatabaseClient(this.channel);
+		}
+
+		return this._globalStorage;
+	}
+
+	private _workspaceStorage: WorkspaceStorageDatabaseClient | undefined = undefined;
+	get workspaceStorage() {
+		if (!this._workspaceStorage && this.workspace) {
+			this._workspaceStorage = new WorkspaceStorageDatabaseClient(this.channel, this.workspace);
+		}
+
+		return this._workspaceStorage;
+	}
 
 	constructor(
 		private channel: IChannel,

@@ -5,11 +5,11 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
-import { Promises } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
 const TARGET_KEY = '__$__targetStorageMarker';
@@ -220,9 +220,15 @@ interface IKeyTargets {
 	[key: string]: StorageTarget
 }
 
+export interface IStorageServiceOptions {
+	flushInterval: number;
+}
+
 export abstract class AbstractStorageService extends Disposable implements IStorageService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private static DEFAULT_FLUSH_INTERVAL = 60 * 1000; // every minute
 
 	private readonly _onDidChangeValue = this._register(new PauseableEmitter<IStorageValueChangeEvent>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
@@ -232,6 +238,56 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState = this._onWillSaveState.event;
+
+	private initializationPromise: Promise<void> | undefined;
+
+	private readonly flushWhenIdleScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), this.options.flushInterval));
+	private readonly runFlushWhenIdle = this._register(new MutableDisposable());
+
+	constructor(private options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
+		super();
+	}
+
+	private doFlushWhenIdle(): void {
+		this.runFlushWhenIdle.value = runWhenIdle(() => {
+			if (this.shouldFlushWhenIdle()) {
+				this.flush();
+			}
+
+			// repeat
+			this.flushWhenIdleScheduler.schedule();
+		});
+	}
+
+	protected shouldFlushWhenIdle(): boolean {
+		return true;
+	}
+
+	protected stopFlushWhenIdle(): void {
+		dispose([this.runFlushWhenIdle, this.flushWhenIdleScheduler]);
+	}
+
+	initialize(): Promise<void> {
+		if (!this.initializationPromise) {
+			this.initializationPromise = (async () => {
+
+				// Ask subclasses to initialize storage
+				await this.doInitialize();
+
+				// On some OS we do not get enough time to persist state on shutdown (e.g. when
+				// Windows restarts after applying updates). In other cases, VSCode might crash,
+				// so we periodically save state to reduce the chance of loosing any state.
+				// In the browser we do not have support for long running unload sequences. As such,
+				// we cannot ask for saving state in that moment, because that would result in a
+				// long running operation.
+				// Instead, periodically ask customers to save save. The library will be clever enough
+				// to only save state that has actually changed.
+				this.flushWhenIdleScheduler.schedule();
+			})();
+		}
+
+		return this.initializationPromise;
+	}
 
 	protected emitDidChangeValue(scope: StorageScope, key: string): void {
 
@@ -424,6 +480,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	// --- abstract
 
+	protected abstract doInitialize(): Promise<void>;
+
 	protected abstract getStorage(scope: StorageScope): IStorage | undefined;
 
 	protected abstract getLogDetails(scope: StorageScope): string | undefined;
@@ -450,6 +508,8 @@ export class InMemoryStorageService extends AbstractStorageService {
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		return scope === StorageScope.GLOBAL ? 'inMemory (global)' : 'inMemory (workspace)';
 	}
+
+	protected async doInitialize(): Promise<void> { }
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		// not supported

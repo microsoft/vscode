@@ -37,9 +37,14 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			// Name & Extension(s)
 			if (name) {
 				classes.push(`${name}-name-file-icon`);
-				const dotSegments = name.split('.');
-				for (let i = 1; i < dotSegments.length; i++) {
-					classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				// Avoid doing an explosive combination of extensions for very long filenames
+				// (most file systems do not allow files > 255 length) with lots of `.` characters
+				// https://github.com/microsoft/vscode/issues/116199
+				if (name.length <= 255) {
+					const dotSegments = name.split('.');
+					for (let i = 1; i < dotSegments.length; i++) {
+						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
