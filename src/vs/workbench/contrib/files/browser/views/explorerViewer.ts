@@ -9,7 +9,7 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, ByteSize } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, ByteSize } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -1338,44 +1338,23 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async addResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
 		if (resources && resources.length > 0) {
 
-			// Resolve target to check for name collisions and ask user
-			const targetStat = await this.fileService.resolve(target.resource);
-
 			if (token.isCancellationRequested) {
 				return;
 			}
 
-			// Check for name collisions
-			const targetNames = new Set<string>();
-			const caseSensitive = this.fileService.hasCapability(target.resource, FileSystemProviderCapabilities.PathCaseSensitive);
-			if (targetStat.children) {
-				targetStat.children.forEach(child => {
-					targetNames.add(caseSensitive ? child.name : child.name.toLowerCase());
-				});
-			}
-
-			const resourcesFiltered = (await Promise.all(resources.map(async resource => {
-				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
-					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
-					if (!confirmationResult.confirmed) {
-						return undefined;
-					}
-				}
-				return resource;
-			}))).filter(r => r instanceof URI) as URI[];
-			const resourceFileEdits = resourcesFiltered.map(resource => {
+			const resourceFileEdits = await this.expandResourceEdits(resources.map(resource => {
 				const sourceFileName = basename(resource);
 				const targetFile = joinPath(target.resource, sourceFileName);
-				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
-			});
+				return new ResourceFileEdit(resource, targetFile, { copy: true });
+			}));
 
-			await this.explorerService.applyBulkEdit(resourceFileEdits, {
-				undoLabel: resourcesFiltered.length === 1 ? localize('copyFile', "Copy {0}", basename(resourcesFiltered[0])) : localize('copynFile', "Copy {0} resources", resourcesFiltered.length),
-				progressLabel: resourcesFiltered.length === 1 ? localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) : localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length)
+			const success = await this.applyInteractiveBulkEdit(resourceFileEdits, {
+				undoLabel: resourceFileEdits.length === 1 ? localize('copyFile', "Copy {0}", basename(resourceFileEdits[0].oldResource!)) : localize('copynFile', "Copy {0} resources", resourceFileEdits.length),
+				progressLabel: resourceFileEdits.length === 1 ? localize('copyingFile', "Copying {0}", basename(resourceFileEdits[0].oldResource!)) : localize('copyingnFile', "Copying {0} resources", resourceFileEdits.length)
 			});
 
 			// if we only add one file, just open it directly
-			if (resourceFileEdits.length === 1) {
+			if (success && resourceFileEdits.length === 1) {
 				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
 				if (item && !item.isDirectory) {
 					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
@@ -1480,9 +1459,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
-
-		const mergeDirectories = this.configurationService.getValue<IFilesConfiguration>().explorer.onFolderConflict === 'merge';
-
 		// Do not allow moving readonly items
 		let resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
 		const labelSufix = getFileOrFolderLabelSufix(sources);
@@ -1491,16 +1467,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			progressLabel: localize('moving', "Moving {0}", labelSufix)
 		};
 
-		if (mergeDirectories) { // Add children of directories recursively
-			const explodedEdits: ResourceFileEdit[] = [];
-			for (const edit of resourceFileEdits) {
-				explodedEdits.push(...await this.recursivelyMoveChildrenOfConflictingFolders(edit));
-			}
+		// Add children of directories recursively
+		resourceFileEdits = await this.expandResourceEdits(resourceFileEdits);
 
-			resourceFileEdits = explodedEdits;
-		}
-
-		if (await this.applyInteractiveBulkEdit(resourceFileEdits.filter(edit => edit.newResource), options) && mergeDirectories) {
+		if (await this.applyInteractiveBulkEdit(resourceFileEdits.filter(edit => edit.newResource), options) && this.mergeDirectories()) {
 			// Since all children of conflicting folders are moved individually, we have to delete the remaining empty folders (once everything has been moved)
 			try {
 				// BulkEdit does not allow deleting in order. Executing all folder-deletions at once in arbitrary order would cause an error
@@ -1548,7 +1518,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 
 				try {
-					await this.explorerService.applyBulkEdit(edits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
+					await this.explorerService.applyBulkEdit(edits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { ...re.options, overwrite: true })), options);
 					return true;
 				} catch (error) {
 					this.notificationService.error(error);
@@ -1561,7 +1531,20 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return false;
 	}
 
-	private async recursivelyMoveChildrenOfConflictingFolders(edit: ResourceFileEdit): Promise<ResourceFileEdit[]> {
+	private async expandResourceEdits(edits: ResourceFileEdit[], deleteFolders = false): Promise<ResourceFileEdit[]> {
+		if (!this.mergeDirectories()) {
+			return edits;
+		}
+
+		const expandedEdits: ResourceFileEdit[] = [];
+		for (const edit of edits) {
+			expandedEdits.push(...await this.recursivelyMoveChildrenOfConflictingFolders(edit, deleteFolders));
+		}
+
+		return expandedEdits;
+	}
+
+	private async recursivelyMoveChildrenOfConflictingFolders(edit: ResourceFileEdit, deleteFolders = false): Promise<ResourceFileEdit[]> {
 		if (!edit.oldResource || !edit.newResource || !await this.fileService.exists(edit.newResource)) { // end recursion if there is no conflict
 			return [edit];
 		}
@@ -1572,14 +1555,21 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const edits: ResourceFileEdit[] = [];
-		const newEdits = resolvedOldResource.children!.map(child => new ResourceFileEdit(child.resource, URI.joinPath(edit.newResource!, child.name)));
+		const newEdits = resolvedOldResource.children!.map(child => new ResourceFileEdit(child.resource, URI.joinPath(edit.newResource!, child.name), edit.options));
 
 		for (const newEdit of newEdits) {
-			edits.push(...await this.recursivelyMoveChildrenOfConflictingFolders(newEdit));
+			edits.push(...await this.recursivelyMoveChildrenOfConflictingFolders(newEdit, deleteFolders));
 		}
 
-		edits.push(new ResourceFileEdit(edit.oldResource, undefined)); // delete the original folder (as it is already present in the target)
+		if (deleteFolders) {
+			edits.push(new ResourceFileEdit(edit.oldResource, undefined)); // delete the original folder (as it is already present in the target)
+		}
+
 		return edits;
+	}
+
+	private mergeDirectories(): boolean {
+		return this.configurationService.getValue<IFilesConfiguration>().explorer.onFolderConflict === 'merge';
 	}
 
 	private static getStatsFromDragAndDropData(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, dragStartEvent?: DragEvent): ExplorerItem[] {
