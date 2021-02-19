@@ -9,8 +9,8 @@ import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { getTestSubscriptionKey, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { getTestSubscriptionKey, ISerializedTestResults, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { HydratedTestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
@@ -48,11 +48,10 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		}
 
 		this._register(resultService.onResultsChanged(evt => {
-			if ('completed' in evt) {
-				const serialized = evt.completed.toJSON();
-				if (serialized) {
-					this.proxy.$publishTestResults([serialized]);
-				}
+			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
+			const serialized = results?.toJSON();
+			if (serialized) {
+				this.proxy.$publishTestResults([serialized]);
 			}
 		}));
 
@@ -61,6 +60,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		for (const { resource, uri } of this.testService.subscriptions) {
 			this.proxy.$subscribeToTests(resource, uri);
 		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
+		this.resultService.push(new HydratedTestResult(results, persist));
 	}
 
 	/**

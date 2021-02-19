@@ -1864,6 +1864,7 @@ export interface MainThreadTestingShape {
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 	$updateTestStateInRun(runId: string, testId: string, state: ITestState): void;
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
+	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void;
 	$retireTest(extId: string): void;
 }
 

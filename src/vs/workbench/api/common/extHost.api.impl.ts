@@ -339,6 +339,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
 			},
+			publishTestResult(results, persist = true) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.publishExtensionProvidedResults(results, persist);
+			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension);
 				return extHostTesting.onResultsChanged;

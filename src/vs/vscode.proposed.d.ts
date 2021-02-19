@@ -2228,6 +2228,22 @@ declare module 'vscode' {
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
 
 		/**
+		 * Inserts custom test results into the VS Code UI. The results are
+		 * inserted and sorted based off the `completedAt` timestamp. If the
+		 * results are being read from a file, for example, the `completedAt`
+		 * time should generally be the modified time of the file if not more
+		 * specific time is available.
+		 *
+		 * This will no-op if the inserted results are deeply equal to an
+		 * existing result.
+		 *
+		 * @param results test results
+		 * @param persist whether the test results should be saved by VS Code
+		 * and persisted across reloads. Defaults to true.
+		 */
+		export function publishTestResult(results: TestResults, persist?: boolean): void;
+
+		/**
 		* List of test results stored by VS Code, sorted in descnding
 		* order by their `completedAt` time.
 		*/
@@ -2553,7 +2569,7 @@ declare module 'vscode' {
 	 * may be out of date. If the test still exists in the workspace, consumers
 	 * can use its `id` to correlate the result instance with the living test.
 	 *
-	 * @todo coverage and other info may eventually live here
+	 * @todo coverage and other info may eventually be provided here
 	 */
 	export interface TestResults {
 		/**
@@ -2573,6 +2589,12 @@ declare module 'vscode' {
 	 * provided in {@link TestResult} interfaces.
 	 */
 	export interface TestItemWithResults extends TestItem {
+		/**
+		 * ID of the test result, this is required in order to correlate the result
+		 * with the live test item.
+		 */
+		readonly id: string;
+
 		/**
 		 * Current result of the test.
 		 */

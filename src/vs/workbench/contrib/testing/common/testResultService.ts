@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstInSorted } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
+import { equals } from 'vs/base/common/objects';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -409,7 +412,7 @@ export class LiveTestResult implements ITestResult {
 /**
  * Test results hydrated from a previously-serialized test run.
  */
-class HydratedTestResult implements ITestResult {
+export class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
@@ -434,7 +437,7 @@ class HydratedTestResult implements ITestResult {
 
 	private readonly byExtId = new Map<string, TestResultItem>();
 
-	constructor(private readonly serialized: ISerializedTestResults) {
+	constructor(private readonly serialized: ISerializedTestResults, private readonly persist = true) {
 		this.id = serialized.id;
 		this.completedAt = serialized.completedAt;
 
@@ -467,14 +470,15 @@ class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public toJSON(): ISerializedTestResults {
-		return this.serialized;
+	public toJSON(): ISerializedTestResults | undefined {
+		return this.persist ? this.serialized : undefined;
 	}
 }
 
 export type ResultChangeEvent =
 	| { completed: LiveTestResult }
 	| { started: LiveTestResult }
+	| { inserted: ITestResult }
 	| { removed: ITestResult[] };
 
 export interface ITestResultService {
@@ -502,7 +506,7 @@ export interface ITestResultService {
 	/**
 	 * Adds a new test result to the collection.
 	 */
-	push(result: LiveTestResult): LiveTestResult;
+	push<T extends ITestResult>(result: T): T;
 
 	/**
 	 * Looks up a set of test results by ID.
@@ -518,6 +522,14 @@ export interface ITestResultService {
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
 const RETAIN_LAST_RESULTS = 64;
+
+/**
+ * Returns if the tests in the results are exactly equal. Check the counts
+ * first as a cheap check before starting to iterate.
+ */
+const resultsEqual = (a: ITestResult, b: ITestResult) =>
+	a.completedAt === b.completedAt && equals(a.counts, b.counts) && Iterable.equals(a.tests, b.tests,
+		(at, bt) => equals(at.state, bt.state) && equals(at.item, bt.item));
 
 export class TestResultService implements ITestResultService {
 	declare _serviceBrand: undefined;
@@ -579,17 +591,47 @@ export class TestResultService implements ITestResultService {
 	/**
 	 * @inheritdoc
 	 */
-	public push(result: LiveTestResult): LiveTestResult {
-		this.results.unshift(result);
+	public push<T extends ITestResult>(result: T): T {
+		if (result.completedAt === undefined) {
+			this.results.unshift(result);
+		} else {
+			const index = findFirstInSorted(this.results, r => r.completedAt !== undefined && r.completedAt <= result.completedAt!);
+			const prev = this.results[index];
+			if (prev && resultsEqual(result, prev)) {
+				return result;
+			}
+
+			this.results.splice(index, 0, result);
+			this.persist();
+		}
+
 		if (this.results.length > RETAIN_LAST_RESULTS) {
 			this.results.pop();
 		}
 
-		result.onComplete(() => this.onComplete(result));
-		result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
-		this.isRunning.set(true);
-		this.changeResultEmitter.fire({ started: result });
-		result.setAllToState(queuedState, () => true);
+		if (result instanceof LiveTestResult) {
+			result.onComplete(() => this.onComplete(result));
+			result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
+			this.isRunning.set(true);
+			this.changeResultEmitter.fire({ started: result });
+			result.setAllToState(queuedState, () => true);
+		} else {
+			this.changeResultEmitter.fire({ inserted: result });
+			// If this is not a new result, go through each of its tests. For each
+			// test for which the new result is the most recently inserted, fir
+			// a change event so that UI updates.
+			for (const item of result.tests) {
+				for (const otherResult of this.results) {
+					if (otherResult === result) {
+						this.testChangeEmitter.fire({ item, result, reason: TestResultItemChangeReason.ComputedStateChange });
+						break;
+					} else if (otherResult.getStateByExtId(item.item.extId) !== undefined) {
+						break;
+					}
+				}
+			}
+		}
+
 		return result;
 	}
 
@@ -615,19 +657,26 @@ export class TestResultService implements ITestResultService {
 		}
 
 		this.results = keep;
-		this.serializedResults.store(this.results.map(r => r.toJSON()).filter(isDefined));
+		this.persist();
 		this.changeResultEmitter.fire({ removed });
 	}
 
 	private onComplete(result: LiveTestResult) {
-		// move the complete test run down behind any still-running ones
 		this.resort();
-		this.isRunning.set(this.results.length > 0 && this.results[0].completedAt === undefined);
-		this.serializedResults.store(this.results.map(r => r.toJSON()).filter(isDefined));
+		this.updateIsRunning();
+		this.persist();
 		this.changeResultEmitter.fire({ completed: result });
 	}
 
 	private resort() {
 		this.results.sort((a, b) => (b.completedAt ?? Number.MAX_SAFE_INTEGER) - (a.completedAt ?? Number.MAX_SAFE_INTEGER));
+	}
+
+	private updateIsRunning() {
+		this.isRunning.set(this.results.length > 0 && this.results[0].completedAt === undefined);
+	}
+
+	private persist() {
+		this.serializedResults.store(this.results.map(r => r.toJSON()).filter(isDefined));
 	}
 }
