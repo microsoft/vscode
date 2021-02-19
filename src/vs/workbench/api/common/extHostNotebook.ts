@@ -213,11 +213,16 @@ export class NotebookEditorDecorationType {
 	}
 }
 
+type NotebookContentProviderData = {
+	readonly provider: vscode.NotebookContentProvider;
+	readonly extension: IExtensionDescription;
+};
+
 export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostNotebookOutputRenderingHandler {
 	private static _notebookKernelProviderHandlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
-	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
+	private readonly _notebookContentProviders = new Map<string, NotebookContentProviderData>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
@@ -301,6 +306,22 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._documents.get(uri);
 	}
 
+	private _getNotebookDocument(uri: URI): ExtHostNotebookDocument {
+		const result = this._documents.get(uri);
+		if (!result) {
+			throw new Error(`NO notebook document for '${uri}'`);
+		}
+		return result;
+	}
+
+	private _getProviderData(viewType: string): NotebookContentProviderData {
+		const result = this._notebookContentProviders.get(viewType);
+		if (!result) {
+			throw new Error(`NO provider for '${viewType}'`);
+		}
+		return result;
+	}
+
 	registerNotebookContentProvider(
 		extension: IExtensionDescription,
 		viewType: string,
@@ -374,9 +395,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	async openNotebookDocument(uriComponents: UriComponents, viewType?: string): Promise<vscode.NotebookDocument> {
 		const cached = this._documents.get(URI.revive(uriComponents));
 		if (cached) {
-			return Promise.resolve(cached.notebookDocument);
+			return cached.notebookDocument;
 		}
-
 		await this._proxy.$tryOpenDocument(uriComponents, viewType);
 		const document = this._documents.get(URI.revive(uriComponents));
 		return assertIsDefined(document?.notebookDocument);
@@ -443,22 +463,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
-		const provider = this._notebookContentProviders.get(viewType);
-		if (!provider) {
-			throw new Error(`NO provider for '${viewType}'`);
-		}
-
-		const data = await provider.provider.openNotebook(URI.revive(uri), { backupId });
-		return {
-			metadata: {
-				...notebookDocumentMetadataDefaults,
-				...data.metadata
-			},
-			cells: data.cells.map(typeConverters.NotebookCellData.from),
-		};
-	}
-
 	async $resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void> {
 		const provider = this._notebookContentProviders.get(viewType);
 		const revivedUri = URI.revive(uri);
@@ -496,46 +500,40 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
+	// --- open, save, saveAs, backup
+
+	async $openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
+		const { provider } = this._getProviderData(viewType);
+		const data = await provider.openNotebook(URI.revive(uri), { backupId });
+		return {
+			metadata: {
+				...notebookDocumentMetadataDefaults,
+				...data.metadata
+			},
+			cells: data.cells.map(typeConverters.NotebookCellData.from),
+		};
+	}
+
 	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this._documents.get(URI.revive(uri));
-		if (!document) {
-			return false;
-		}
-
-		if (this._notebookContentProviders.has(viewType)) {
-			await this._notebookContentProviders.get(viewType)!.provider.saveNotebook(document.notebookDocument, token);
-			return true;
-		}
-
-		return false;
+		const document = this._getNotebookDocument(URI.revive(uri));
+		const { provider } = this._getProviderData(viewType);
+		await provider.saveNotebook(document.notebookDocument, token);
+		return true;
 	}
 
 	async $saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean> {
-		const document = this._documents.get(URI.revive(uri));
-		if (!document) {
-			return false;
-		}
-
-		if (this._notebookContentProviders.has(viewType)) {
-			await this._notebookContentProviders.get(viewType)!.provider.saveNotebookAs(URI.revive(target), document.notebookDocument, token);
-			return true;
-		}
-
-		return false;
+		const document = this._getNotebookDocument(URI.revive(uri));
+		const { provider } = this._getProviderData(viewType);
+		await provider.saveNotebookAs(URI.revive(target), document.notebookDocument, token);
+		return true;
 	}
 
 	private _backupIdPool: number = 0;
 
 	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string> {
-		const document = this._documents.get(URI.revive(uri));
-		const provider = this._notebookContentProviders.get(viewType);
+		const document = this._getNotebookDocument(URI.revive(uri));
+		const provider = this._getProviderData(viewType);
 
-		if (!document) {
-			throw new Error(`CANNOT find notebook document for ${uri}`);
-		}
-		if (!provider) {
-			throw new Error(`CANNOT find provider for ${viewType}`);
-		}
 		const storagePath = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
 		const fileName = String(hash([document.uri.toString(), this._backupIdPool++]));
 		const backupUri = URI.joinPath(storagePath, fileName);
@@ -580,26 +578,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._webviewComm.get(editorId)?.onDidReceiveMessage(forRendererType, message);
 	}
 
-	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void {
-		const document = this._documents.get(URI.revive(uriComponents));
-		if (document) {
-			document.acceptModelChanged(event, isDirty);
-		}
+	$acceptModelChanged(uri: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void {
+		const document = this._getNotebookDocument(URI.revive(uri));
+		document.acceptModelChanged(event, isDirty);
 	}
 
-	$acceptDirtyStateChanged(resource: UriComponents, isDirty: boolean): void {
-		const document = this._documents.get(URI.revive(resource));
-		if (document) {
-			document.acceptModelChanged({ rawEvents: [], versionId: document.notebookDocument.version }, isDirty);
-		}
+	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {
+		const document = this._getNotebookDocument(URI.revive(uri));
+		document.acceptModelChanged({ rawEvents: [], versionId: document.notebookDocument.version }, isDirty);
 	}
 
-	$acceptModelSaved(uriComponents: UriComponents): void {
-		const document = this._documents.get(URI.revive(uriComponents));
-		if (document) {
-			// this.$acceptDirtyStateChanged(uriComponents, false);
-			this._onDidSaveNotebookDocument.fire(document.notebookDocument);
-		}
+	$acceptModelSaved(uri: UriComponents): void {
+		const document = this._getNotebookDocument(URI.revive(uri));
+		this._onDidSaveNotebookDocument.fire(document.notebookDocument);
 	}
 
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void {
