@@ -739,7 +739,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		if (this._models.has(uri)) {
 			throw new Error(`notebook for ${uri} already exists`);
 		}
-		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, true, uri, data.cells, data.metadata, transientOptions);
+		const notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, uri, data.cells, data.metadata, transientOptions);
 		this._models.set(uri, new ModelData(notebookModel, this._onWillDisposeDocument.bind(this)));
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		return notebookModel;

@@ -11,7 +11,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -114,35 +114,23 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
 
 		if (!this.isResolved()) {
-			throw new Error('CANNOT call backup before notebook is resolved');
+			return {};
 		}
 
-		if (this.notebook.supportBackup) {
-			const tokenSource = new CancellationTokenSource(token);
-			const backupId = await this._notebookService.backup(this.viewType, this.resource, tokenSource.token);
-			if (token.isCancellationRequested) {
-				return {};
+		const backupId = await this._notebookService.backup(this.viewType, this.resource, token);
+		if (token.isCancellationRequested) {
+			return {};
+		}
+		const stats = await this._resolveStats(this.resource);
+
+		return {
+			meta: {
+				mtime: stats?.mtime ?? Date.now(),
+				name: this._name,
+				viewType: this.notebook.viewType,
+				backupId: backupId
 			}
-			const stats = await this._resolveStats(this.resource);
-
-			return {
-				meta: {
-					mtime: stats?.mtime || new Date().getTime(),
-					name: this._name,
-					viewType: this.notebook.viewType,
-					backupId: backupId
-				}
-			};
-		} else {
-			return {
-				meta: {
-					mtime: new Date().getTime(),
-					name: this._name,
-					viewType: this.notebook.viewType
-				},
-				content: this.notebook.createSnapshot(true)
-			};
-		}
+		};
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
