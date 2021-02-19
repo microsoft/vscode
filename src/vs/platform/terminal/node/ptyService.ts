@@ -61,6 +61,9 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+		if (shellLaunchConfig.attachPersistentTerminal) {
+			throw new Error('Attempt to create a process when attach object was provided');
+		}
 		const id = ++currentPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
@@ -76,7 +79,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, ipcHandlePath, this._logService, () => {
 			persistentTerminalProcess.dispose();
 			this._ptys.delete(id);
-		}, shellLaunchConfig.attachPersistentTerminal);
+		});
 		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentTerminalProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentTerminalProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
@@ -108,7 +111,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).getCwd();
 	}
 	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
-		return this._throwIfNoPty(id).acknowledgeCharCount(charCount);
+		return this._throwIfNoPty(id).acknowledgeDataEvent(charCount);
 	}
 	async getLatency(id: number): Promise<number> {
 		return 0;
@@ -207,14 +210,10 @@ export class PersistentTerminalProcess extends Disposable {
 
 	private _title = '';
 	private _pid = -1;
+	private _cwd = '';
 
-	public get pid(): number {
-		return this._pid;
-	}
-
-	public get title(): string {
-		return this._title;
-	}
+	get pid(): number { return this._pid; }
+	get title(): string { return this._title; }
 
 	constructor(
 		private _persistentTerminalId: number,
@@ -225,8 +224,7 @@ export class PersistentTerminalProcess extends Disposable {
 		cols: number, rows: number,
 		ipcHandlePath: string,
 		private readonly _logService: ILogService,
-		private readonly _onExit: () => void,
-		private readonly _attachPersistentTerminal?: any
+		private readonly _onExit: () => void
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
@@ -252,7 +250,11 @@ export class PersistentTerminalProcess extends Disposable {
 
 		this._register(this._terminalProcess.onProcessReady(e => this.triggerReplay()));
 
-		this._register(this._terminalProcess.onProcessReady(e => this._onProcessReady.fire(e)));
+		this._register(this._terminalProcess.onProcessReady(e => {
+			this._pid = e.pid;
+			this._cwd = e.cwd;
+			this._onProcessReady.fire(e);
+		}));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
@@ -274,14 +276,8 @@ export class PersistentTerminalProcess extends Disposable {
 			this._onExit();
 		}));
 	}
-	acknowledgeDataEvent(charCount: number): void {
-		return this._terminalProcess.acknowledgeDataEvent(charCount);
-	}
-	getLatency(): Promise<number> {
-		throw new Error('Method not implemented.');
-	}
 
-	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
+	async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
 		let result;
 		if (!this._isStarted) {
 			result = await this._terminalProcess.start();
@@ -291,54 +287,44 @@ export class PersistentTerminalProcess extends Disposable {
 			}
 			this._isStarted = true;
 		} else {
-			if (!this._attachPersistentTerminal) {
-				console.trace('no attach persistent term');
-				this._onProcessReady.fire({ pid: -1, cwd: await this._terminalProcess.getCwd() });
-			} else {
-				console.trace('persistent term', this._attachPersistentTerminal.id);
-				this._persistentTerminalId = this._attachPersistentTerminal.id;
-				this._onProcessReady.fire({ pid: this._persistentTerminalId, cwd: await this._terminalProcess.getCwd() });
-			}
+			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd });
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 		}
 		return { persistentTerminalId: this._persistentTerminalId };
 	}
-
-	public shutdown(immediate: boolean): void {
+	shutdown(immediate: boolean): void {
 		return this._terminalProcess.shutdown(immediate);
 	}
-
-	public input(data: string): void {
+	input(data: string): void {
 		if (this._inReplay) {
 			return;
 		}
 		return this._terminalProcess.input(data);
 	}
-
-	public acknowledgeCharCount(charCount: number): void {
-		if (this._inReplay) {
-			return;
-		}
-		return this._terminalProcess.acknowledgeDataEvent(charCount);
-	}
-
-	public resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number): void {
 		if (this._inReplay) {
 			return;
 		}
 		this._recorder.recordResize(cols, rows);
 		return this._terminalProcess.resize(cols, rows);
 	}
-
-	public getInitialCwd(): Promise<string> {
+	acknowledgeDataEvent(charCount: number): void {
+		if (this._inReplay) {
+			return;
+		}
+		return this._terminalProcess.acknowledgeDataEvent(charCount);
+	}
+	getInitialCwd(): Promise<string> {
 		return this._terminalProcess.getInitialCwd();
 	}
-
-	public getCwd(): Promise<string> {
+	getCwd(): Promise<string> {
 		return this._terminalProcess.getCwd();
 	}
+	getLatency(): Promise<number> {
+		return this._terminalProcess.getLatency();
+	}
 
-	public triggerReplay(): void {
+	triggerReplay(): void {
 		const ev = this._recorder.generateReplayEvent();
 		let dataLength = 0;
 		for (const e of ev.events) {
@@ -350,7 +336,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._terminalProcess.clearUnacknowledgedChars();
 	}
 
-	public sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
+	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
 		const data = this._pendingCommands.get(reqId);
 		if (!data) {
 			return;
@@ -358,7 +344,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._pendingCommands.delete(reqId);
 	}
 
-	public async orphanQuestionReply(): Promise<void> {
+	async orphanQuestionReply(): Promise<void> {
 		this._orphanQuestionReplyTime = Date.now();
 		if (this._orphanQuestionBarrier) {
 			const barrier = this._orphanQuestionBarrier;
@@ -367,7 +353,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	public reduceGraceTime(): void {
+	reduceGraceTime(): void {
 		if (this._disconnectRunner2.isScheduled()) {
 			// we are disconnected and already running the short reconnection timer
 			return;
@@ -378,7 +364,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	public async isOrphaned(): Promise<boolean> {
+	async isOrphaned(): Promise<boolean> {
 		return await this._orphanRequestQueue.queue(async () => this._isOrphaned());
 	}
 
