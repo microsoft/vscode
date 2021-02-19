@@ -10,6 +10,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { isWindows } from 'vs/base/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 suite('Debug - Link Detector', () => {
 
@@ -20,6 +21,7 @@ suite('Debug - Link Detector', () => {
 	 */
 	setup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		instantiationService.stub(ITunnelService, { canTunnel: () => false });
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
 
@@ -85,7 +87,7 @@ suite('Debug - Link Detector', () => {
 		assert.equal(expectedOutput, output.outerHTML);
 	});
 
-	test.skip('relativeLinkWithWorkspace', () => {
+	test('relativeLinkWithWorkspace', async () => {
 		const input = '\./foo/bar.js';
 		const output = linkDetector.linkify(input, false, new WorkspaceFolder({ uri: URI.file('/path/to/workspace'), name: 'ws', index: 0 }));
 		assert.equal('SPAN', output.tagName);
