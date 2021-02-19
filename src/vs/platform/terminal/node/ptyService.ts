@@ -76,7 +76,8 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		const ipcHandlePath = createRandomIPCHandle();
 		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
-		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, ipcHandlePath, this._logService, () => {
+		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, ipcHandlePath, this._logService);
+		process.onProcessExit(() => {
 			persistentTerminalProcess.dispose();
 			this._ptys.delete(id);
 		});
@@ -222,9 +223,9 @@ export class PersistentTerminalProcess extends Disposable {
 		public readonly workspaceName: string,
 		public readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
+		// TODO: This needs to get used?
 		ipcHandlePath: string,
-		private readonly _logService: ILogService,
-		private readonly _onExit: () => void
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
@@ -264,16 +265,6 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
 			// this._bufferer.stopBuffering(this._persistentTerminalId);
-
-			// const ev: IPtyHostProcessExitEvent = {
-			// 	type: 'exit',
-			// 	exitCode: exitCode
-			// };
-			// this._events.fire(ev);
-
-			// Remove process reference
-			// TODO: Use an event
-			this._onExit();
 		}));
 	}
 
