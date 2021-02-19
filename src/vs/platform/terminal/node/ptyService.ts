@@ -16,7 +16,9 @@ import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
 // TODO: On disconnect/restart, this will overwrite the older terminals
 let currentPtyId = 0;
+
 type WorkspaceId = string;
+
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
@@ -47,18 +49,6 @@ export class PtyService extends Disposable implements IPtyService {
 		super();
 	}
 
-	onPtyHostExit?: Event<number> | undefined;
-	onPtyHostStart?: Event<void> | undefined;
-
-	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
-		return this._throwIfNoPty(id).acknowledgeCharCount(charCount);
-	}
-
-	// following suit with the remoteTerminalService impl
-	async getLatency(id: number): Promise<number> {
-		return 0;
-	}
-
 	dispose() {
 		for (const pty of this._ptys.values()) {
 			pty.shutdown(true);
@@ -66,10 +56,8 @@ export class PtyService extends Disposable implements IPtyService {
 		this._ptys.clear();
 	}
 
-	async fetchPersistentTerminalProcess(id: number): Promise<number> {
-		await this._throwIfNoPty(id);
-		this._logService.info('fetched process to reconnect', id);
-		return id;
+	async shutdownAll(): Promise<void> {
+		this.dispose();
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
@@ -96,36 +84,38 @@ export class PtyService extends Disposable implements IPtyService {
 		return id;
 	}
 
+	async fetchPersistentTerminalProcess(id: number): Promise<number> {
+		await this._throwIfNoPty(id);
+		this._logService.info('fetched process to reconnect', id);
+		return id;
+	}
+
 	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
 		return this._throwIfNoPty(id).start();
 	}
-
-	async shutdownAll(): Promise<void> {
-		this.dispose();
-	}
-
 	async shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._throwIfNoPty(id).shutdown(immediate);
 	}
-
 	async input(id: number, data: string): Promise<void> {
 		return this._throwIfNoPty(id).input(data);
 	}
-
 	async resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._throwIfNoPty(id).resize(cols, rows);
 	}
-
 	async getInitialCwd(id: number): Promise<string> {
 		return this._throwIfNoPty(id).getInitialCwd();
 	}
-
-	async triggerReplay(id: number): Promise<void> {
-		return this._throwIfNoPty(id).triggerReplay();
-	}
-
 	async getCwd(id: number): Promise<string> {
 		return this._throwIfNoPty(id).getCwd();
+	}
+	async acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
+		return this._throwIfNoPty(id).acknowledgeCharCount(charCount);
+	}
+	async getLatency(id: number): Promise<number> {
+		return 0;
+	}
+	async triggerReplay(id: number): Promise<void> {
+		return this._throwIfNoPty(id).triggerReplay();
 	}
 
 	public async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

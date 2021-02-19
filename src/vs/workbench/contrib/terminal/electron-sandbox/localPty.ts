@@ -14,6 +14,8 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminal
  * created on the local pty host.
  */
 export class LocalPty extends Disposable implements ITerminalChildProcess {
+	private _inReplay = false;
+
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	public readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -28,7 +30,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	public readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-	private _inReplay = false;
 
 	constructor(
 		private readonly _localPtyId: number,
@@ -41,19 +42,19 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._localPtyService.onProcessTitleChanged(e => e.id === this._localPtyId && this._onProcessTitleChanged.fire(e.event));
 		this._localPtyService.onProcessOverrideDimensions(e => e.id === this._localPtyId && this._onProcessOverrideDimensions.fire(e.event));
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => e.id === this._localPtyId && this._onProcessResolvedShellLaunchConfig.fire(e.event));
-		this._localPtyService.onProcessReplay(event => {
-			if (event.id !== this._localPtyId) {
+		this._localPtyService.onProcessReplay(e => {
+			if (e.id !== this._localPtyId) {
 				return;
 			}
 			try {
 				this._inReplay = true;
 
-				for (const e of event.event.events) {
-					if (e.cols !== 0 || e.rows !== 0) {
+				for (const innerEvent of e.event.events) {
+					if (innerEvent.cols !== 0 || innerEvent.rows !== 0) {
 						// never override with 0x0 as that is a marker for an unknown initial size
-						this._onProcessOverrideDimensions.fire({ cols: e.cols, rows: e.rows, forceExactSize: true });
+						this._onProcessOverrideDimensions.fire({ cols: innerEvent.cols, rows: innerEvent.rows, forceExactSize: true });
 					}
-					this._onProcessData.fire({ data: e.data, sync: true });
+					this._onProcessData.fire({ data: innerEvent.data, sync: true });
 				}
 			} finally {
 				this._inReplay = false;
@@ -65,7 +66,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			return;
 		});
 
-
 		if (this._localPtyService.onPtyHostExit) {
 			this._localPtyService.onPtyHostExit(() => {
 				this._onProcessExit.fire(undefined);
@@ -76,41 +76,35 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	start(): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
 		return this._localPtyService.start(this._localPtyId);
 	}
-
 	shutdown(immediate: boolean): void {
 		this._localPtyService.shutdown(this._localPtyId, immediate);
 	}
-
 	input(data: string): void {
 		if (this._inReplay) {
 			return;
 		}
 		this._localPtyService.input(this._localPtyId, data);
 	}
-
 	resize(cols: number, rows: number): void {
 		if (this._inReplay) {
 			return;
 		}
 		this._localPtyService.resize(this._localPtyId, cols, rows);
 	}
-
+	getInitialCwd(): Promise<string> {
+		return this._localPtyService.getInitialCwd(this._localPtyId);
+	}
+	getCwd(): Promise<string> {
+		return this._localPtyService.getCwd(this._localPtyId);
+	}
+	getLatency(): Promise<number> {
+		// TODO: The idea here was to add the result plus the time it took to get the latency
+		return this._localPtyService.getLatency(this._localPtyId);
+	}
 	acknowledgeDataEvent(charCount: number): void {
 		if (this._inReplay) {
 			return;
 		}
 		this._localPtyService.acknowledgeDataEvent(this._localPtyId, charCount);
-	}
-
-	getInitialCwd(): Promise<string> {
-		return this._localPtyService.getInitialCwd(this._localPtyId);
-	}
-
-	getCwd(): Promise<string> {
-		return this._localPtyService.getCwd(this._localPtyId);
-	}
-
-	getLatency(): Promise<number> {
-		return this._localPtyService.getLatency(this._localPtyId);
 	}
 }
