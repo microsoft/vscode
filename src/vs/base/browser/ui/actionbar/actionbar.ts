@@ -238,18 +238,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 	// When an action bar is focusable again, make sure the first item can be focused
 	setFocusable(focusable: boolean): void {
 		this.focusable = focusable;
-		if (this.focusable) {
-			const first = this.viewItems.find(vi => vi instanceof BaseActionViewItem);
-			if (first instanceof BaseActionViewItem) {
-				first.setFocusable(true);
+		this.viewItems.forEach(vi => {
+			if (vi instanceof BaseActionViewItem) {
+				vi.setFocusable(this.focusable);
 			}
-		} else {
-			this.viewItems.forEach(vi => {
-				if (vi instanceof BaseActionViewItem) {
-					vi.setFocusable(false);
-				}
-			});
-		}
+		});
 	}
 
 	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
@@ -330,7 +323,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
-			if (this.focusable && this.viewItems.length === 0 && item instanceof BaseActionViewItem) {
+			if (this.focusable && item instanceof BaseActionViewItem) {
 				// We need to allow for the first enabled item to be focused on using tab navigation #106441
 				item.setFocusable(true);
 			}
