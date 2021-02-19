@@ -638,10 +638,6 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 					type: 'boolean',
 					description: `Controls whether a cell's editor is editable/readonly`
 				},
-				['runnable']: {
-					type: 'boolean',
-					description: 'Controls if the cell is executable'
-				},
 				['breakpointMargin']: {
 					type: 'boolean',
 					description: 'Controls if the cell has a margin to support the breakpoint UI'

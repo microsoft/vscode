@@ -62,7 +62,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	editable: true,
 	runnable: true,
 	cellEditable: true,
-	cellRunnable: true,
 	cellHasExecutionOrder: true,
 	custom: {},
 	runState: NotebookRunState.Idle,
@@ -73,7 +72,6 @@ export interface NotebookDocumentMetadata {
 	editable: boolean;
 	runnable: boolean;
 	cellEditable: boolean;
-	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
@@ -89,7 +87,6 @@ export enum NotebookCellRunState {
 
 export interface NotebookCellMetadata {
 	editable?: boolean;
-	runnable?: boolean;
 	breakpointMargin?: boolean;
 	hasExecutionOrder?: boolean;
 	executionOrder?: number;
