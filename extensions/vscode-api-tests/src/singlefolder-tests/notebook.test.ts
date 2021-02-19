@@ -65,7 +65,7 @@ async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) =>
 	await callback(e);
 }
 
-suite.only('Notebook API tests', function () {
+suite('Notebook API tests', function () {
 
 	const disposables: vscode.Disposable[] = [];
 
