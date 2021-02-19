@@ -521,7 +521,7 @@ class DropOverlay extends Themable {
 
 		// With tabs and opened editors: use the area below tabs as drop target
 		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
-			return this.groupView.titleDimensions.offset;
+			return this.groupView.titleHeight.offset;
 		}
 
 		// Without tabs or empty group: use entire editor area as drop target

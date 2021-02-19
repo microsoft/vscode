@@ -33,7 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -1290,25 +1290,42 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 	}
 
-	getDimensions(): IEditorGroupTitleDimensions {
-		let height: number;
+	getHeight(): IEditorGroupTitleHeight {
+		const showsBreadcrumbs = this.breadcrumbsControl && !this.breadcrumbsControl.isHidden();
+
+		// Return quickly if our used dimensions are known
+		if (this.dimensions.used) {
+			return {
+				total: this.dimensions.used.height,
+				offset: showsBreadcrumbs ? this.dimensions.used.height - BreadcrumbsControl.HEIGHT : this.dimensions.used.height
+			};
+		}
+
+		// Otherwise compute via browser APIs
+		else {
+			return this.computeHeight();
+		}
+	}
+
+	private computeHeight(): IEditorGroupTitleHeight {
+		let total: number;
 
 		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
-			height = this.tabsAndActionsContainer.offsetHeight;
+			total = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			height = TabsTitleControl.TAB_HEIGHT;
+			total = TabsTitleControl.TAB_HEIGHT;
 		}
 
-		const offset = height;
+		const offset = total;
 
 		// Account for breadcrumbs if visible
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			height += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
+			total += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
 		}
 
-		return { height, offset };
+		return { total, offset };
 	}
 
 	layout(dimensions: ITitleControlDimensions): Dimension {
@@ -1329,7 +1346,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// First time layout: compute the dimensions and store it
 		if (!this.dimensions.used) {
-			this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+			this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
 		}
 
 		return this.dimensions.used;
@@ -1353,7 +1370,7 @@ export class TabsTitleControl extends TitleControl {
 		// return it fast from the `layout` call without having to
 		// compute it over and over again
 		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
 
 		// In case the height of the title control changed from before
 		// (currently only possible if wrapping changed on/off), we need
