@@ -326,4 +326,26 @@ suite('Notebook Document', function () {
 		await notebook.save();
 		assert.strictEqual(notebook.isDirty, false);
 	});
+
+
+	test('setTextDocumentLanguage for notebook cells', async function () {
+
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const notebook = await vscode.notebook.openNotebookDocument(uri);
+		const first = notebook.cells[0];
+		assert.strictEqual(first.document.languageId, 'javascript');
+
+		const pclose = utils.asPromise(vscode.workspace.onDidCloseTextDocument);
+		const popen = utils.asPromise(vscode.workspace.onDidOpenTextDocument);
+
+		await vscode.languages.setTextDocumentLanguage(first.document, 'css');
+		assert.strictEqual(first.document.languageId, 'css');
+
+		const closed = await pclose;
+		const opened = await popen;
+
+		assert.strictEqual(closed.uri.toString(), first.uri.toString());
+		assert.strictEqual(opened.uri.toString(), first.uri.toString());
+		assert.strictEqual(opened === closed, true);
+	});
 });
