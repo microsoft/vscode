@@ -15,7 +15,7 @@ export interface IListVirtualDelegate<T> {
 }
 
 export interface IListRenderer<T, TTemplateData> {
-	templateId: string;
+	readonly templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
 	renderElement(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
 	disposeElement?(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
