@@ -240,7 +240,6 @@ export class PersistentTerminalProcess extends Disposable {
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);
-
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
@@ -303,8 +302,10 @@ export class PersistentTerminalProcess extends Disposable {
 			this._isStarted = true;
 		} else {
 			if (!this._attachPersistentTerminal) {
+				console.trace('no attach persistent term');
 				this._onProcessReady.fire({ pid: -1, cwd: await this._terminalProcess.getCwd() });
 			} else {
+				console.trace('persistent term', this._attachPersistentTerminal.id);
 				this._persistentTerminalId = this._attachPersistentTerminal.id;
 				this._onProcessReady.fire({ pid: this._persistentTerminalId, cwd: await this._terminalProcess.getCwd() });
 			}
