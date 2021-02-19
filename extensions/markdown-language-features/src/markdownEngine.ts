@@ -209,6 +209,15 @@ export class MarkdownEngine {
 	}
 
 	private addImageStabilizer(md: any): void {
+		md.core.ruler.push(
+			'initialize_vscode_image_stabilizer',
+			({ env }: { env: RenderEnv }) => {
+				if (!env.containingImages) {
+					env.containingImages = [];
+				}
+				return true;
+			});
+
 		const original = md.renderer.rules.image;
 		md.renderer.rules.image = (tokens: any, idx: number, options: any, env: RenderEnv, self: any) => {
 			const token = tokens[idx];
