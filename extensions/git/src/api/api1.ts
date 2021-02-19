@@ -216,6 +216,10 @@ export class ApiRepository implements Repository {
 	commit(message: string, opts?: CommitOptions): Promise<void> {
 		return this._repository.commit(message, opts);
 	}
+
+	deleteRef(ref: string): Promise<void> {
+		return this._repository.deleteRef(ref);
+	}
 }
 
 export class ApiGit implements Git {

@@ -205,6 +205,8 @@ export interface Repository {
 	log(options?: LogOptions): Promise<Commit[]>;
 
 	commit(message: string, opts?: CommitOptions): Promise<void>;
+
+	deleteRef(ref: string): Promise<void>;
 }
 
 export interface RemoteSource {
