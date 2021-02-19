@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -70,12 +70,6 @@ class ExtHostWebviewCommWrapper extends Disposable {
 	private _asWebviewUri(localResource: vscode.Uri): vscode.Uri {
 		return asWebviewUri(this._webviewInitData, this._editorId, localResource);
 	}
-}
-
-
-
-export interface ExtHostNotebookOutputRenderingHandler {
-	outputDisplayOrder: INotebookDisplayOrder | undefined;
 }
 
 export class ExtHostNotebookKernelProviderAdapter extends Disposable {
@@ -218,7 +212,7 @@ type NotebookContentProviderData = {
 	readonly extension: IExtensionDescription;
 };
 
-export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostNotebookOutputRenderingHandler {
+export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookKernelProviderHandlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
@@ -244,12 +238,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	readonly onDidChangeCellMetadata = this._onDidChangeCellMetadata.event;
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
-
-	private _outputDisplayOrder: INotebookDisplayOrder | undefined;
-
-	get outputDisplayOrder(): INotebookDisplayOrder | undefined {
-		return this._outputDisplayOrder;
-	}
 
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
 
@@ -541,10 +529,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		const backup = await provider.provider.backupNotebook(document.notebookDocument, { destination: backupUri }, cancellation);
 		document.updateBackup(backup);
 		return backup.id;
-	}
-
-	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
-		this._outputDisplayOrder = displayOrder;
 	}
 
 	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }) {

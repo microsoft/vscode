@@ -12,7 +12,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,7 +23,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -126,7 +125,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
@@ -357,26 +355,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		this._register(this._notebookService.onNotebookDocumentSaved(e => {
 			this._proxy.$acceptModelSaved(e);
-		}));
-
-		const updateOrder = () => {
-			let userOrder = this._configurationService.getValue<string[]>(DisplayOrderKey);
-			this._proxy.$acceptDisplayOrder({
-				defaultOrder: this._accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : NOTEBOOK_DISPLAY_ORDER,
-				userOrder: userOrder
-			});
-		};
-
-		updateOrder();
-
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.indexOf(DisplayOrderKey) >= 0) {
-				updateOrder();
-			}
-		}));
-
-		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			updateOrder();
 		}));
 
 		const activeEditorPane = this._editorService.activeEditorPane as any | undefined;
