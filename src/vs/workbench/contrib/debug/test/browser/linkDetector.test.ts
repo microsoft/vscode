@@ -88,7 +88,6 @@ suite('Debug - Link Detector', () => {
 	test('relativeLinkWithWorkspace', () => {
 		const input = '\./foo/bar.js';
 		const output = linkDetector.linkify(input, false, new WorkspaceFolder({ uri: URI.file('/path/to/workspace'), name: 'ws', index: 0 }));
-		console.log(output.outerHTML);
 		assert.equal('SPAN', output.tagName);
 		assert.ok(output.outerHTML.indexOf('link') >= 0);
 	});
