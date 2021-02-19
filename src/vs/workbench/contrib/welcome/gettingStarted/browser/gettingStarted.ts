@@ -219,12 +219,14 @@ export class GettingStartedPage extends EditorPane {
 		const mediaElement = assertIsDefined(this.container.querySelector('.getting-started-media') as HTMLImageElement);
 		this.taskDisposables.clear();
 		if (id) {
-			const taskElement = assertIsDefined(this.container.querySelector(`[data-task-id="${id}"]`));
-			taskElement.parentElement?.querySelectorAll('.expanded').forEach(node => {
+			const taskElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-task-id="${id}"]`));
+			taskElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
 				node.classList.remove('expanded');
+				node.style.height = ``;
 				node.setAttribute('aria-expanded', 'false');
 			});
-			setTimeout(() => (taskElement as HTMLDivElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
+			taskElement.style.height = `${taskElement.scrollHeight}px`;
+			setTimeout(() => (taskElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
 			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
 				this.editorInput.selectedTask = undefined;
 				return;
@@ -391,6 +393,16 @@ export class GettingStartedPage extends EditorPane {
 		this.categoriesScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
+
+		// Don't let our spacer elements move around based on internal content changes, only when the external size changes
+		this.container.querySelectorAll<HTMLDivElement>('.gap').forEach(element => {
+			element.style.width = '';
+			element.style.height = '';
+			setTimeout(() => {
+				element.style.width = `${element.clientWidth}px`;
+				element.style.height = `${element.clientHeight}px`;
+			}, 0);
+		});
 	}
 
 	private updateCategoryProgress() {

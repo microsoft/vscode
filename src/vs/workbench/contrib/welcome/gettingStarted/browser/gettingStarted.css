@@ -156,12 +156,11 @@
 	display: flex;
 	width: 100%;
 	overflow: hidden;
-	transition: max-height .1s linear;
-	max-height: 180px;
+	transition: height .1s linear;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) {
-	max-height: 54px;
+	height: 54px;
 	background: none;
 	opacity: 0.8;
 }
@@ -175,7 +174,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) .actions,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) button,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) a {
-	display: none;
+	visibility: hidden;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description-container {
