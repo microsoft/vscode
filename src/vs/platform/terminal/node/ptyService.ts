@@ -121,11 +121,11 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).triggerReplay();
 	}
 
-	public async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
+	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
-	public async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		if (args) {
 			const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 			if (layout) {

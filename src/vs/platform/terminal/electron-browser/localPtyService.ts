@@ -112,9 +112,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
-		this._register(proxy.onProcessReplay(e => {
-			this._onProcessReplay.fire(e);
-		}));
+		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 		return [client, proxy];
 	}
 
@@ -123,15 +121,15 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 
-	attachToProcess(id: number): Promise<void> {
-		return this._proxy.attachToProcess(id);
-	}
-
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
 		const result = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
 		clearTimeout(timeout);
 		return result;
+	}
+
+	attachToProcess(id: number): Promise<void> {
+		return this._proxy.attachToProcess(id);
 	}
 
 	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
