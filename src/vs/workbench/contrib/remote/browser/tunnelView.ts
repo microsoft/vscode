@@ -148,6 +148,33 @@ export class TunnelViewModel implements ITunnelViewModel {
 	}
 }
 
+class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
+	readonly label: string = '';
+	readonly tooltip: string = '';
+	readonly weight: number = 1;
+	readonly maximumWidth: number = 40;
+	readonly templateId: string = 'actionbar';
+	project(row: ITunnelItem): ActionBarCell {
+		const icon = row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon;
+		const context: [string, any][] =
+			[
+				['view', TUNNEL_VIEW_ID],
+				['tunnelType', row.tunnelType],
+				['tunnelCloseable', row.closeable]
+			];
+		let tooltip: string;
+		if (row instanceof TunnelItem) {
+			tooltip = `${row.processDescription ? nls.localize('tunnel.iconColumn.running', "Port has running process.") :
+				nls.localize('tunnel.iconColumn.notRunning', "No running process.")} ${row.tooltipPostfix}`;
+		} else {
+			tooltip = '';
+		}
+		return {
+			label: '', icon, tunnel: row, context, editId: TunnelEditId.None, tooltip
+		};
+	}
+}
+
 class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = nls.localize('tunnel.portColumn.label', "Port");
 	readonly tooltip: string = nls.localize('tunnel.portColumn.tooltip', "The label and remote port number of the forwarded port.");
@@ -155,7 +182,6 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const label = row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`;
-		const icon = row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon;
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
@@ -169,7 +195,7 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 			tooltip = label;
 		}
 		return {
-			label, icon, tunnel: row, context, menuId: MenuId.TunnelPortInline,
+			label, tunnel: row, context, menuId: MenuId.TunnelPortInline,
 			editId: row.tunnelType === TunnelType.Add ? TunnelEditId.New : TunnelEditId.Label, tooltip
 		};
 	}
@@ -602,7 +628,7 @@ export class TunnelPanel extends ViewPane {
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
 			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService);
-		const columns = [new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
+		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canMakePublic) {
 			columns.push(new PrivacyColumn());
 		}
