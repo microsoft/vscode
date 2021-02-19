@@ -14,7 +14,7 @@ const IntRegex: RegExp = /^\d+$/;
 const PwshMsixRegex: RegExp = /^Microsoft.PowerShell_.*/;
 const PwshPreviewMsixRegex: RegExp = /^Microsoft.PowerShellPreview_.*/;
 
-enum Arch {
+const enum Arch {
 	x64,
 	x86,
 	ARM
