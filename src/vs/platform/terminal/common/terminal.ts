@@ -81,7 +81,6 @@ export interface IPtyService {
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 
 	restartPtyHost?(): Promise<void>;
-
 	shutdownAll?(): Promise<void>;
 
 	createProcess(
@@ -95,27 +94,18 @@ export interface IPtyService {
 		workspaceId: string,
 		workspaceName: string
 	): Promise<number>;
-
 	attachToProcess(id: number): Promise<void>;
 
 	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined>;
-
 	shutdown(id: number, immediate: boolean): Promise<void>;
-
 	input(id: number, data: string): Promise<void>;
-
 	resize(id: number, cols: number, rows: number): Promise<void>;
-
+	getInitialCwd(id: number): Promise<string>;
+	getCwd(id: number): Promise<string>;
+	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
 
-	getInitialCwd(id: number): Promise<string>;
-
-	getCwd(id: number): Promise<string>;
-
-	getLatency(id: number): Promise<number>;
-
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
-
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
