@@ -16,6 +16,7 @@ import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { equals } from 'vs/base/common/objects';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -51,7 +52,7 @@ export class NoTabsTitleControl extends TitleControl {
 		// Breadcrumbs
 		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
-		this._register({ dispose: () => titleContainer.classList.remove('breadcrumbs') }); // important to remove because the container is a shared dom node
+		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -200,8 +201,8 @@ export class NoTabsTitleControl extends TitleControl {
 
 	protected handleBreadcrumbsEnablementChange(): void {
 		const titleContainer = assertIsDefined(this.titleContainer);
-
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
+
 		this.redraw();
 	}
 
@@ -340,9 +341,7 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	layout(dimensions: ITitleControlDimensions): Dimension {
-		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.layout(undefined);
-		}
+		this.breadcrumbsControl?.layout(undefined);
 
 		return new Dimension(dimensions.container.width, this.getHeight().total);
 	}

@@ -199,16 +199,6 @@ export class TabsTitleControl extends TitleControl {
 		return TabsTitleControl.SCROLLBAR_SIZES.large;
 	}
 
-	private updateBreadcrumbsControl(): void {
-		if (this.breadcrumbsControl?.update()) {
-			this.group.relayout(); // relayout when we have a breadcrumbs and when update changed its hidden-status
-		}
-	}
-
-	protected handleBreadcrumbsEnablementChange(): void {
-		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
-	}
-
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
 
 		// Group dragging
@@ -411,7 +401,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 
 		// Update Breadcrumbs
-		this.updateBreadcrumbsControl();
+		this.breadcrumbsControl?.update();
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -419,9 +409,13 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	closeEditors(editors: IEditorInput[]): void {
+
+		// Cleanup closed editors
 		this.handleClosedEditors();
+
+		// Update Breadcrumbs when last editor closed
 		if (this.group.count === 0) {
-			this.updateBreadcrumbsControl();
+			this.breadcrumbsControl?.update();
 		}
 	}
 
@@ -1379,6 +1373,10 @@ export class TabsTitleControl extends TitleControl {
 		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.group.relayout();
 		}
+	}
+
+	protected handleBreadcrumbsEnablementChange(): void {
+		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
