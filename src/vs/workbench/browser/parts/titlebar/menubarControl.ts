@@ -703,6 +703,12 @@ export class CustomMenubarControl extends MenubarControl {
 					}));
 				}
 			}
+
+			webNavigationActions.push(new Separator());
+		}
+
+		if (webNavigationActions.length) {
+			webNavigationActions.pop();
 		}
 
 		return webNavigationActions;
