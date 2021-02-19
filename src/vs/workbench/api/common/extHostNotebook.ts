@@ -518,7 +518,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	private _backupIdPool: number = 0;
 
-	async $backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string> {
+	async $backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string> {
 		const document = this._getNotebookDocument(URI.revive(uri));
 		const provider = this._getProviderData(viewType);
 

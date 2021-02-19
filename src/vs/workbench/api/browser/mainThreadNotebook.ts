@@ -476,7 +476,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				return this._proxy.$saveNotebookAs(viewType, uri, target, token);
 			},
 			backup: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$backup(viewType, uri, token);
+				return this._proxy.$backupNotebook(viewType, uri, token);
 			}
 		};
 

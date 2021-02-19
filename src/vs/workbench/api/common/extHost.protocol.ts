@@ -1799,23 +1799,23 @@ export interface INotebookKernelInfoDto2 {
 }
 
 export interface ExtHostNotebookShape {
-	$openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto>;
 	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
+	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelFriendlyId: string | undefined }): void;
 	$provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	$resolveNotebookKernel(handle: number, editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
 	$executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void>;
 	$cancelNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void>;
+	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
+	$openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
-	$backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
-	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelFriendlyId: string | undefined }): void;
-	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
+	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
-	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
+	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
 }
 
 export interface ExtHostStorageShape {
