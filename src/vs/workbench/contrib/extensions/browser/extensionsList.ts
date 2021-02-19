@@ -98,7 +98,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 					return action.createActionViewItem();
 				}
 				return undefined;
-			}
+			},
+			focusOnlyEnabledItems: true
 		});
 		actionbar.setFocusable(false);
 		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));

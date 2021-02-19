@@ -48,6 +48,7 @@ export interface IActionBarOptions {
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
+	readonly focusOnlyEnabledItems?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -430,13 +431,17 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		const startIndex = this.focusedItem;
+		let item: IActionViewItem;
+		do {
 
-		if (this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
-			this.focusedItem = startIndex;
-			return false;
-		}
+			if (this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
+				this.focusedItem = startIndex;
+				return false;
+			}
 
-		this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
+			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
+			item = this.viewItems[this.focusedItem];
+		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
 
 		if (this.focusedItem === startIndex) {
 			this.focusedItem = undefined;
@@ -452,16 +457,20 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		const startIndex = this.focusedItem;
-		this.focusedItem = this.focusedItem - 1;
+		let item: IActionViewItem;
 
-		if (this.focusedItem < 0) {
-			if (this.options.preventLoopNavigation) {
-				this.focusedItem = startIndex;
-				return false;
+		do {
+			this.focusedItem = this.focusedItem - 1;
+			if (this.focusedItem < 0) {
+				if (this.options.preventLoopNavigation) {
+					this.focusedItem = startIndex;
+					return false;
+				}
+
+				this.focusedItem = this.viewItems.length - 1;
 			}
-
-			this.focusedItem = this.viewItems.length - 1;
-		}
+			item = this.viewItems[this.focusedItem];
+		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
 
 
 		if (this.focusedItem === startIndex) {
