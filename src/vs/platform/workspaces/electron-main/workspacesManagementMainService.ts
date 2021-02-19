@@ -86,6 +86,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		if (!this.isWorkspacePath(uri)) {
 			return null; // does not look like a valid workspace config file
 		}
+
 		if (uri.scheme !== Schemas.file) {
 			return null;
 		}
@@ -121,7 +122,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return null;
 	}
 
-	private doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
+	/* TODO@bpasero make private again */ doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 		// Parse workspace file
 		const storedWorkspace: IStoredWorkspace = parse(contents); // use fault tolerant parser
