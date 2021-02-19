@@ -172,6 +172,7 @@ steps:
   - script: |
       set -e
 
+      # For legacy purposes, arch for x64 is just 'darwin'
       case $VSCODE_ARCH in
         x64) ASSET_ID="darwin" ;;
         arm64) ASSET_ID="darwin-arm64" ;;
