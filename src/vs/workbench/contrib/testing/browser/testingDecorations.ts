@@ -308,18 +308,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		}
 
 		testActions.push(new Action('testing.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined, async () => {
-			const path = [];
-			for (let id: string | null = this.test.id; id;) {
-				const node = this.collection.getNodeById(id);
-				if (!node) {
-					break;
-				}
-
-				path.unshift(node.item.label);
-				id = node.parent;
-			}
-
-			await this.commandService.executeCommand('vscode.revealTestInExplorer', this.test);
+			await this.commandService.executeCommand('vscode.revealTestInExplorer', this.test.item.extId);
 		}));
 
 		const breakpointActions = this.editor

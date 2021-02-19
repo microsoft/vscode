@@ -41,7 +41,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	private readonly changes = new NodeChangeList<HierarchicalElement | HierarchicalFolder>();
 	private readonly locations = new TestLocationStore<HierarchicalElement>();
 	private readonly itemSource = new IndexedSet<HierarchicalElement>();
-	private readonly itemsByExtId = this.itemSource.index(v => v.test.item.extId);
+	public readonly itemsByExtId = this.itemSource.index(v => v.test.item.extId);
 
 	/**
 	 * Map of item IDs to test item objects.

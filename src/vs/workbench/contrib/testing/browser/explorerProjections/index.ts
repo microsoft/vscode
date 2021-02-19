@@ -27,6 +27,11 @@ export interface ITestTreeProjection extends IDisposable {
 	onUpdate: Event<void>;
 
 	/**
+	 * Items indexed by their extension ID.
+	 */
+	itemsByExtId: ReadonlyMap<string, ITestTreeElement>;
+
+	/**
 	 * Gets the test at the given position in th editor. Should be fast,
 	 * since it is called on each cursor move.
 	 */

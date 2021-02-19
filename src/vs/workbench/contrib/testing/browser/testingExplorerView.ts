@@ -218,6 +218,14 @@ export class TestingExplorerViewModel extends Disposable {
 	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
 
 	/**
+	 * Whether there's a reveal request which has not yet been delivered. This
+	 * can happen if the user asks to reveal before the test tree is loaded.
+	 * We check to see if the reveal request is present on each tree update,
+	 * and do it then if so.
+	 */
+	private hasPendingReveal = false;
+
+	/**
 	 * Fires when the selected tests change.
 	 */
 	public readonly onDidChangeSelection: Event<ITreeEvent<ITestTreeElement | null>>;
@@ -258,7 +266,7 @@ export class TestingExplorerViewModel extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestService private readonly testService: ITestService,
-		@ITestExplorerFilterState filterState: TestExplorerFilterState,
+		@ITestExplorerFilterState private readonly filterState: TestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -268,6 +276,7 @@ export class TestingExplorerViewModel extends Disposable {
 	) {
 		super();
 
+		this.hasPendingReveal = !!filterState.reveal.value;
 		this.emptyTestsWidget = this._register(instantiationService.createInstance(EmptyTestsWidget, listContainer));
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
@@ -329,6 +338,8 @@ export class TestingExplorerViewModel extends Disposable {
 				filterState.focusInput();
 			}
 		}));
+
+		this._register(filterState.reveal.onDidChange(this.revealByExtId, this));
 
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
@@ -403,6 +414,28 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.tree.setFocus([item]);
 		this.tree.setSelection([item]);
+	}
+
+	/**
+	 * Tries to reveal by extension ID. Queues the request if the extension
+	 * ID is not currently available.
+	 */
+	private revealByExtId(testExtId: string | undefined) {
+		if (!testExtId) {
+			this.hasPendingReveal = false;
+			return;
+		}
+
+		const item = testExtId && this.projection?.itemsByExtId.get(testExtId);
+		if (!item) {
+			this.hasPendingReveal = true;
+			return;
+		}
+
+		setTimeout(() => this.revealItem(item, true), 1);
+		this.filterState.reveal.value = undefined;
+		this.hasPendingReveal = false;
+		this.tree.domFocus();
 	}
 
 	/**
@@ -518,6 +551,10 @@ export class TestingExplorerViewModel extends Disposable {
 	private applyProjectionChanges() {
 		this.emptyTestsWidget.setVisible(this.shouldShowEmptyPlaceholder());
 		this.projection.applyTo(this.tree);
+
+		if (this.hasPendingReveal) {
+			this.revealByExtId(this.filterState.reveal.value);
+		}
 	}
 
 	/**
