@@ -15,6 +15,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { localize } from 'vs/nls';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -170,6 +171,7 @@ export class LinkDetector {
 
 	private decorateLink(link: HTMLElement, onClick: (preserveFocus: boolean) => void) {
 		link.classList.add('link');
+		link.title = platform.isMacintosh ? localize('fileLinkMac', "Cmd + click to follow link") : localize('fileLink', "Ctrl + click to follow link");
 		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
 		link.onmouseleave = () => link.classList.remove('pointer');
 		link.onclick = (event) => {
@@ -177,6 +179,10 @@ export class LinkDetector {
 			if (!selection || selection.type === 'Range') {
 				return; // do not navigate when user is selecting
 			}
+			if (!(platform.isMacintosh ? event.metaKey : event.ctrlKey)) {
+				return;
+			}
+
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			onClick(false);
