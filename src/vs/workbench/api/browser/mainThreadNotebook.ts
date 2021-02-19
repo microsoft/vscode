@@ -458,7 +458,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			},
 			viewOptions: options.viewOptions,
 			openNotebook: async (viewType: string, uri: URI, backupId?: string, untitledDocumentData?: VSBuffer) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId);
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId, untitledDocumentData);
 				return {
 					data,
 					transientOptions: contentOptions

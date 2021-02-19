@@ -728,12 +728,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return Array.from(this.markdownRenderersInfos);
 	}
 
-	async fetchNotebookRawData(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
+	async fetchNotebookRawData(viewType: string, uri: URI, backupId?: string, untitledDocumentData?: VSBuffer): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
 		if (!await this.canResolve(viewType)) {
 			throw new Error(`CANNOT fetch notebook data, there is NO provider for '${viewType}'`);
 		}
 		const provider = this._notebookProviders.get(viewType)!;
-		return await provider.controller.openNotebook(viewType, uri, backupId);
+		return await provider.controller.openNotebook(viewType, uri, backupId, untitledDocumentData);
 	}
 
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel {

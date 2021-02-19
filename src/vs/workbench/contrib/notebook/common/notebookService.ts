@@ -70,7 +70,7 @@ export interface INotebookService {
 	updateActiveNotebookEditor(editor: IEditor | null): void;
 	updateVisibleNotebookEditor(editors: string[]): void;
 
-	fetchNotebookRawData(viewType: string, uri: URI, backupId?: string): Promise<INotebookRawData>;
+	fetchNotebookRawData(viewType: string, uri: URI, backupId?: string, untitledDocumentData?: VSBuffer): Promise<INotebookRawData>;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
