@@ -218,7 +218,10 @@ export class TerminalService implements ITerminalService {
 							this.splitInstance(terminalInstance, { attachPersistentTerminal: terminalLayout.terminal! });
 						}
 					});
-					const activeInstance = this.terminalInstances.find(t => t.persistentTerminalId === tabLayout.activeTerminalProcessId);
+					const activeInstance = this.terminalInstances.find(t => {
+						// TODO: Rename activeTerminalProcessId to avoid mentioning "process id"
+						return t.shellLaunchConfig.attachPersistentTerminal?.id === tabLayout.activeTerminalProcessId;
+					});
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
 					}
