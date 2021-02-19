@@ -21,8 +21,8 @@ suite('Notebook Folding', () => {
 	const undoRedoService = instantiationService.stub(IUndoRedoService, () => { });
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
-	test('Folding based on markdown cells', function () {
-		withTestNotebook(
+	test('Folding based on markdown cells', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -50,8 +50,8 @@ suite('Notebook Folding', () => {
 		);
 	});
 
-	test('Top level header in a cell wins', function () {
-		withTestNotebook(
+	test('Top level header in a cell wins', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -84,8 +84,8 @@ suite('Notebook Folding', () => {
 		);
 	});
 
-	test('Folding', function () {
-		withTestNotebook(
+	test('Folding', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -109,7 +109,7 @@ suite('Notebook Folding', () => {
 			}
 		);
 
-		withTestNotebook(
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -134,7 +134,7 @@ suite('Notebook Folding', () => {
 			}
 		);
 
-		withTestNotebook(
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -160,8 +160,8 @@ suite('Notebook Folding', () => {
 		);
 	});
 
-	test('Nested Folding', function () {
-		withTestNotebook(
+	test('Nested Folding', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -217,8 +217,8 @@ suite('Notebook Folding', () => {
 		);
 	});
 
-	test('Folding Memento', function () {
-		withTestNotebook(
+	test('Folding Memento', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -249,7 +249,7 @@ suite('Notebook Folding', () => {
 			}
 		);
 
-		withTestNotebook(
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -284,7 +284,7 @@ suite('Notebook Folding', () => {
 			}
 		);
 
-		withTestNotebook(
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -320,8 +320,8 @@ suite('Notebook Folding', () => {
 		);
 	});
 
-	test('View Index', function () {
-		withTestNotebook(
+	test('View Index', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -360,7 +360,7 @@ suite('Notebook Folding', () => {
 			}
 		);
 
-		withTestNotebook(
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,

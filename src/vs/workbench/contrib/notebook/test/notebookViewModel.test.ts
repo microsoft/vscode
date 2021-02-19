@@ -19,21 +19,21 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 suite('NotebookViewModel', () => {
 	const instantiationService = setupInstantiationService();
 	const textModelService = instantiationService.get(ITextModelService);
-	const blukEditService = instantiationService.get(IBulkEditService);
+	const bulkEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.get(IUndoRedoService);
 
 	test('ctor', function () {
 		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
-		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
+		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
 		assert.equal(viewModel.viewType, 'notebook');
 	});
 
-	test('insert/delete', function () {
-		withTestNotebook(
+	test('insert/delete', async function () {
+		await withTestNotebook(
 			instantiationService,
-			blukEditService,
+			bulkEditService,
 			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -56,10 +56,10 @@ suite('NotebookViewModel', () => {
 		);
 	});
 
-	test('move cells down', function () {
-		withTestNotebook(
+	test('move cells down', async function () {
+		await withTestNotebook(
 			instantiationService,
-			blukEditService,
+			bulkEditService,
 			undoRedoService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
@@ -87,10 +87,10 @@ suite('NotebookViewModel', () => {
 		);
 	});
 
-	test('move cells up', function () {
-		withTestNotebook(
+	test('move cells up', async function () {
+		await withTestNotebook(
 			instantiationService,
-			blukEditService,
+			bulkEditService,
 			undoRedoService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
@@ -112,10 +112,10 @@ suite('NotebookViewModel', () => {
 		);
 	});
 
-	test('index', function () {
-		withTestNotebook(
+	test('index', async function () {
+		await withTestNotebook(
 			instantiationService,
-			blukEditService,
+			bulkEditService,
 			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -141,10 +141,10 @@ suite('NotebookViewModel', () => {
 		);
 	});
 
-	test('metadata', function () {
-		withTestNotebook(
+	test('metadata', async function () {
+		await withTestNotebook(
 			instantiationService,
-			blukEditService,
+			bulkEditService,
 			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
@@ -262,8 +262,8 @@ suite('NotebookViewModel Decorations', () => {
 	const blukEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.get(IUndoRedoService);
 
-	test('tracking range', function () {
-		withTestNotebook(
+	test('tracking range', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -320,8 +320,8 @@ suite('NotebookViewModel Decorations', () => {
 		);
 	});
 
-	test('tracking range 2', function () {
-		withTestNotebook(
+	test('tracking range 2', async function () {
+		await withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -359,7 +359,7 @@ suite('NotebookViewModel Decorations', () => {
 		);
 	});
 
-	test('reduce range', function () {
+	test('reduce range', async function () {
 		assert.deepEqual(reduceCellRanges([
 			{ start: 0, end: 1 },
 			{ start: 1, end: 2 },
@@ -378,7 +378,7 @@ suite('NotebookViewModel Decorations', () => {
 		]);
 	});
 
-	test('diff hidden ranges', function () {
+	test('diff hidden ranges', async function () {
 		assert.deepEqual(getVisibleCells<number>([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
 
 		assert.deepEqual(
@@ -420,7 +420,7 @@ suite('NotebookViewModel Decorations', () => {
 		}), [{ start: 1, deleteCount: 1, toInsert: [2, 6] }]);
 	});
 
-	test('hidden ranges', function () {
+	test('hidden ranges', async function () {
 
 	});
 });

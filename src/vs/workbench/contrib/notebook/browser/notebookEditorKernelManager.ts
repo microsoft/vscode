@@ -109,7 +109,6 @@ export class NotebookEditorKernelManager extends Disposable {
 		this._notebookExecuting = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(contextKeyService);
 		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(contextKeyService);
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
-
 	}
 
 	public async setKernels(tokenSource: CancellationTokenSource) {
@@ -419,12 +418,32 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
-		if (!cell.getEvaluatedMetadata(this._delegate.viewModel.metadata).runnable) {
-			return;
+		if (!this.canExecuteCell(cell)) {
+			throw new Error('Cell is not executable: ' + cell.uri);
 		}
 
 		await this._ensureActiveKernel();
 		this._activeKernelExecuted = true;
 		await this._activeKernel?.executeNotebookCell!(this._delegate.viewModel.uri, cell.handle);
+	}
+
+	private canExecuteCell(cell: ICellViewModel): boolean {
+		if (!this.activeKernel) {
+			return false;
+		}
+
+		if (cell.cellKind !== CellKind.Code) {
+			return false;
+		}
+
+		if (!this.activeKernel.supportedLanguages) {
+			return true;
+		}
+
+		if (this.activeKernel.supportedLanguages.includes(cell.language)) {
+			return true;
+		}
+
+		return false;
 	}
 }
