@@ -545,19 +545,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
-	// TODO@rebornix: remove document - editor one on one mapping
-	private _getEditorFromURI(uriComponents: UriComponents) {
-		const uriStr = URI.revive(uriComponents).toString();
-		let editor: { editor: ExtHostNotebookEditor; } | undefined;
-		this._editors.forEach(e => {
-			if (e.editor.document.uri.toString() === uriStr) {
-				editor = e;
-			}
-		});
-
-		return editor;
-	}
-
 	$onDidReceiveMessage(editorId: string, forRendererType: string | undefined, message: any): void {
 		this._webviewComm.get(editorId)?.onDidReceiveMessage(forRendererType, message);
 	}
@@ -614,17 +601,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
-	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void {
-		this.logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uriComponents.path, data);
-		const editor = this._getEditorFromURI(uriComponents);
-
-		if (!editor) {
-			return;
-		}
-
-		if (data.metadata) {
-			editor.editor.notebookData.acceptDocumentPropertiesChanged(data);
-		}
+	$acceptDocumentPropertiesChanged(uri: UriComponents, data: INotebookDocumentPropertiesChangeData): void {
+		this.logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uri.path, data);
+		const document = this._getNotebookDocument(URI.revive(uri));
+		document.acceptDocumentPropertiesChanged(data);
 	}
 
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: number[], visibleRanges: extHostTypes.NotebookCellRange[]) {
