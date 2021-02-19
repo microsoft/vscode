@@ -103,17 +103,6 @@ steps:
 
   - script: |
       set -e
-      security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-      security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-      security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-      VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
-    displayName: Set Hardened Entitlements
-
-  - script: |
-      set -e
       pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
     displayName: Archive build
 
@@ -182,14 +171,21 @@ steps:
 
   - script: |
       set -e
+
+      case $VSCODE_ARCH in
+        x64) ASSET_ID="darwin" ;;
+        arm64) ASSET_ID="darwin-arm64" ;;
+        universal) ASSET_ID="darwin-universal" ;;
+      esac
+
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
       AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
       node build/azure-pipelines/common/createAsset.js \
-        "darwin-$(VSCODE_ARCH)" \
+        "$ASSET_ID" \
         archive \
-        "VSCode-darwin-$(VSCODE_ARCH).zip" \
+        "VSCode-$ASSET_ID.zip" \
         ../VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Publish Clients
 
