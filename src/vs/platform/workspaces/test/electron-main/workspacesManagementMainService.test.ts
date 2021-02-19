@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { dirname, extUriBiasedIgnorePathCase, joinPath } from 'vs/base/common/resources';
+import { extUriBiasedIgnorePathCase, joinPath } from 'vs/base/common/resources';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
@@ -375,13 +375,13 @@ suite('WorkspacesManagementMainService', () => {
 	});
 
 	test('getUntitledWorkspaceSync', async function () {
-		let untitled = service.getUntitledWorkspacesSync();
+		let untitled = service._test_getUntitledWorkspacesSync(0);
 		assert.strictEqual(untitled.length, 0);
 
 		const untitledOne = await createUntitledWorkspace([cwd, tmpDir]);
 		assert.ok(fs.existsSync(untitledOne.configPath.fsPath));
 
-		untitled = service.getUntitledWorkspacesSync();
+		untitled = service._test_getUntitledWorkspacesSync(1);
 		assert.strictEqual(1, untitled.length);
 		assert.strictEqual(untitledOne.id, untitled[0].workspace.id);
 		assert.ok(fs.existsSync(untitledOne.configPath.fsPath), `Unexpected missing untitled workspace: ${untitledOne.configPath.fsPath} does not exist anymore?`);
@@ -389,13 +389,10 @@ suite('WorkspacesManagementMainService', () => {
 		const untitledTwo = await createUntitledWorkspace([tmpDir, cwd]);
 		assert.ok(fs.existsSync(untitledTwo.configPath.fsPath));
 
-		const untitledHome = dirname(dirname(untitledTwo.configPath));
-		const beforeGettingUntitledWorkspaces = fs.readdirSync(untitledHome.fsPath).map(folder => fs.readFileSync(joinPath(untitledHome, folder, UNTITLED_WORKSPACE_NAME).fsPath, 'utf8'));
+		const beforeGettingUntitledWorkspaces = fs.readdirSync(environmentMainService.untitledWorkspacesHome.fsPath).map(folder => fs.readFileSync(joinPath(environmentMainService.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME).fsPath, 'utf8'));
 
-		assert.strictEqual(untitledHome.fsPath, dirname(dirname(untitledOne.configPath)).fsPath, `Unexpected different untitled workspace homes: ${untitledHome} vs ${dirname(dirname(untitledTwo.configPath))}`);
-
-		for (const folder of fs.readdirSync(untitledHome.fsPath)) {
-			const untitledPath = joinPath(untitledHome, folder, UNTITLED_WORKSPACE_NAME);
+		for (const folder of fs.readdirSync(environmentMainService.untitledWorkspacesHome.fsPath)) {
+			const untitledPath = joinPath(environmentMainService.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME);
 			assert.strictEqual(isUntitledWorkspace(untitledPath, environmentMainService), true);
 			assert.strictEqual(untitledPath.scheme, 'file');
 
@@ -411,17 +408,17 @@ suite('WorkspacesManagementMainService', () => {
 			assert.notStrictEqual(resolvedWorkspace, null, `Untitled workspace unexpectedly did not resolve: ${untitledPath.fsPath}`);
 		}
 
-		untitled = service.getUntitledWorkspacesSync();
+		untitled = service._test_getUntitledWorkspacesSync(2);
 		assert.ok(fs.existsSync(untitledOne.configPath.fsPath), `Unexpected missing untitled workspace: ${untitledOne.configPath.fsPath} does not exist anymore?`);
 		assert.ok(fs.existsSync(untitledTwo.configPath.fsPath), `Unexpected missing untitled workspace: ${untitledTwo.configPath.fsPath} does not exist anymore?`);
-		assert.strictEqual(2, untitled.length, `Unexpected workspaces count (expected 2), all workspaces:\n ${fs.readdirSync(untitledHome.fsPath).map(folder => fs.readFileSync(joinPath(untitledHome, folder, UNTITLED_WORKSPACE_NAME).fsPath, 'utf8'))}, before getUntitledWorkspacesSync: ${beforeGettingUntitledWorkspaces}`);
+		assert.strictEqual(2, untitled.length, `Unexpected workspaces count (expected 2), all workspaces:\n ${fs.readdirSync(environmentMainService.untitledWorkspacesHome.fsPath).map(folder => fs.readFileSync(joinPath(environmentMainService.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME).fsPath, 'utf8'))}, before _test_getUntitledWorkspacesSync: ${beforeGettingUntitledWorkspaces}`);
 
 		service.deleteUntitledWorkspaceSync(untitledOne);
-		untitled = service.getUntitledWorkspacesSync();
+		untitled = service._test_getUntitledWorkspacesSync(1);
 		assert.strictEqual(1, untitled.length);
 
 		service.deleteUntitledWorkspaceSync(untitledTwo);
-		untitled = service.getUntitledWorkspacesSync();
+		untitled = service._test_getUntitledWorkspacesSync(0);
 		assert.strictEqual(0, untitled.length);
 	});
 
