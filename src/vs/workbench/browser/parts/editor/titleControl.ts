@@ -30,7 +30,7 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceData
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupTitleDimensions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -390,7 +390,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract layout(dimensions: ITitleControlDimensions): Dimension;
 
-	abstract getDimensions(): IEditorGroupTitleDimensions;
+	abstract getHeight(): IEditorGroupTitleHeight;
 
 	dispose(): void {
 		dispose(this.breadcrumbsControl);

@@ -38,7 +38,6 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private contextKeyListener?: IDisposable;
 	private _activityBadge?: IDisposable;
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
-	private readonly tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -47,11 +46,9 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
-		this.tasExperimentService = tasExperimentService;
 		this._register(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViewWelcomeContent(TUNNEL_VIEW_ID, {
 			content: `No forwarded ports. Forward a port to access your running services locally.\n[Forward a Port](command:${ForwardPortAction.INLINE_ID})`,
 		}));
@@ -59,27 +56,16 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		this.enableForwardedPortsView();
 	}
 
-	private async usePanelTreatment(): Promise<boolean> {
-		if (this.tasExperimentService) {
-			return !!(await this.tasExperimentService.getTreatment<boolean>('portspanel'));
-		}
-		return false;
-	}
-
 	private async getViewContainer(): Promise<ViewContainer | null> {
-		if (await this.usePanelTreatment()) {
-			return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
-				id: TunnelPanel.ID,
-				title: nls.localize('ports', "Ports"),
-				icon: portsViewIcon,
-				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TunnelPanel.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-				storageId: TunnelPanel.ID,
-				hideIfEmpty: true,
-				order: 5
-			}, ViewContainerLocation.Panel);
-		} else {
-			return this.viewDescriptorService.getViewContainerById(VIEWLET_ID);
-		}
+		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
+			id: TunnelPanel.ID,
+			title: nls.localize('ports', "Ports"),
+			icon: portsViewIcon,
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TunnelPanel.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+			storageId: TunnelPanel.ID,
+			hideIfEmpty: true,
+			order: 5
+		}, ViewContainerLocation.Panel);
 	}
 
 	private async enableForwardedPortsView() {
@@ -92,7 +78,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 		if (this.environmentService.remoteAuthority && viewEnabled) {
 			const viewContainer = await this.getViewContainer();
-			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.configurationService), this.environmentService);
+			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				this.remoteExplorerService.enablePortsFeatures();
@@ -127,9 +113,6 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	}
 
 	private async updateActivityBadge() {
-		if (!(await this.usePanelTreatment())) {
-			return;
-		}
 		if (this._activityBadge) {
 			this._activityBadge.dispose();
 		}

@@ -16,7 +16,7 @@ import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/ex
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -438,7 +438,6 @@ function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyAr
 async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const notificationService = accessor.get(INotificationService);
-	const commandService = accessor.get(ICommandService);
 
 	try {
 		await editorService.save(editors, options);
@@ -449,9 +448,8 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
 				actions: {
 					primary: [
-						toAction({ id: SAVE_FILE_COMMAND_ID, label: nls.localize('retry', "Retry"), run: () => commandService.executeCommand(SAVE_FILE_COMMAND_ID) }),
-						toAction({ id: SAVE_FILE_AS_COMMAND_ID, label: SAVE_FILE_AS_LABEL, run: () => commandService.executeCommand(SAVE_FILE_AS_COMMAND_ID) }),
-						toAction({ id: REVERT_FILE_COMMAND_ID, label: nls.localize('discard', "Discard"), run: () => commandService.executeCommand(REVERT_FILE_COMMAND_ID) })
+						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => editorService.save(editors, options) }),
+						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
 					]
 				}
 			});

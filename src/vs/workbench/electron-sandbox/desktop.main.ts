@@ -155,7 +155,7 @@ class DesktopMain extends Disposable {
 		const loggerService = new LoggerChannelClient(mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
-		// Log
+		// Log (we can only use the real logger, once `IEnvironmentService#logFile` has a proper file:// based value (https://github.com/microsoft/vscode/issues/116829))
 		const logService = new SimpleLogService();
 		serviceCollection.set(ILogService, logService);
 

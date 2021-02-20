@@ -33,7 +33,7 @@ suite('Notebook Document', function () {
 	const disposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
-		// utils.assertNoRpc();
+		utils.assertNoRpc();
 		await utils.revertAllDirty();
 		await utils.closeAllEditors();
 		utils.disposeAll(disposables);
@@ -292,5 +292,60 @@ suite('Notebook Document', function () {
 			assert.strictEqual(data.cells[0].outputs.length, 1);
 			assert.deepStrictEqual(data.cells[0].outputs, [thirdOutput]);
 		}
+	});
+
+	test('document save API', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const notebook = await vscode.notebook.openNotebookDocument(uri);
+
+		assert.strictEqual(notebook.uri.toString(), uri.toString());
+		assert.strictEqual(notebook.isDirty, false);
+		assert.strictEqual(notebook.isUntitled, false);
+		assert.strictEqual(notebook.cells.length, 1);
+		assert.strictEqual(notebook.viewType, 'notebook.nbdtest');
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCells(notebook.uri, 0, 0, [{
+			cellKind: vscode.NotebookCellKind.Markdown,
+			language: 'markdown',
+			metadata: undefined,
+			outputs: [],
+			source: 'new_markdown'
+		}, {
+			cellKind: vscode.NotebookCellKind.Code,
+			language: 'fooLang',
+			metadata: undefined,
+			outputs: [],
+			source: 'new_code'
+		}]);
+
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(success, true);
+		assert.strictEqual(notebook.isDirty, true);
+
+		await notebook.save();
+		assert.strictEqual(notebook.isDirty, false);
+	});
+
+
+	test('setTextDocumentLanguage for notebook cells', async function () {
+
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const notebook = await vscode.notebook.openNotebookDocument(uri);
+		const first = notebook.cells[0];
+		assert.strictEqual(first.document.languageId, 'javascript');
+
+		const pclose = utils.asPromise(vscode.workspace.onDidCloseTextDocument);
+		const popen = utils.asPromise(vscode.workspace.onDidOpenTextDocument);
+
+		await vscode.languages.setTextDocumentLanguage(first.document, 'css');
+		assert.strictEqual(first.document.languageId, 'css');
+
+		const closed = await pclose;
+		const opened = await popen;
+
+		assert.strictEqual(closed.uri.toString(), first.uri.toString());
+		assert.strictEqual(opened.uri.toString(), first.uri.toString());
+		assert.strictEqual(opened === closed, true);
 	});
 });

@@ -95,7 +95,7 @@
 
 /* Links */
 
-.monaco-workbench .monaco-list-row .expression .value a.link {
+.monaco-workbench .monaco-list-row .expression .value a.link:hover {
 	text-decoration: underline;
 }
 

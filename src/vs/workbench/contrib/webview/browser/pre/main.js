@@ -312,6 +312,21 @@
 				repeat: e.repeat
 			});
 		};
+		/**
+		 * @param {KeyboardEvent} e
+		 */
+		const handleInnerUp = (e) => {
+			host.postMessage('did-keyup', {
+				key: e.key,
+				keyCode: e.keyCode,
+				code: e.code,
+				shiftKey: e.shiftKey,
+				altKey: e.altKey,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				repeat: e.repeat
+			});
+		};
 
 		/**
 		 * @param {KeyboardEvent} e
@@ -633,6 +648,7 @@
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 					newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
 					newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+					newFrame.contentWindow.addEventListener('keyup', handleInnerUp);
 					newFrame.contentWindow.addEventListener('contextmenu', e => e.preventDefault());
 
 					if (host.onIframeLoaded) {

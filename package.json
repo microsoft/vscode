@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.54.0",
-  "distro": "8abc3b69c9a71c8da5a17f3e06068485a0a90c4c",
+  "distro": "1e046e28c1c46d188d71cf517fdbd55338116ae2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -37,6 +37,7 @@
     "smoketest": "cd test/smoke && yarn compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
+    "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "valid-layers-check": "node build/lib/layersChecker.js",

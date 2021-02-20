@@ -20,7 +20,6 @@ import { IRelativePattern } from 'vs/base/common/glob';
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {
-	supportBackup: boolean;
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
 	openNotebook(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
@@ -28,7 +27,7 @@ export interface IMainNotebookController {
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
+	backup(uri: URI, token: CancellationToken): Promise<string>;
 }
 
 

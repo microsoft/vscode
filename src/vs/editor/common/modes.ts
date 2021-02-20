@@ -311,8 +311,8 @@ export interface InlineValueContext {
  */
 export interface InlineValueText {
 	type: 'text';
-	text: string;
 	range: IRange;
+	text: string;
 }
 
 /**
@@ -321,9 +321,9 @@ export interface InlineValueText {
  */
 export interface InlineValueVariableLookup {
 	type: 'variable';
-	variableName: string;
-	caseSensitiveLookup: boolean;
 	range: IRange;
+	variableName?: string;
+	caseSensitiveLookup: boolean;
 }
 
 /**
@@ -332,8 +332,8 @@ export interface InlineValueVariableLookup {
  */
 export interface InlineValueExpression {
 	type: 'expression';
-	expression: string;
 	range: IRange;
+	expression?: string;
 }
 
 /**

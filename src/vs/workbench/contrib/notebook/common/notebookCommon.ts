@@ -111,11 +111,6 @@ export interface TransientOptions {
 	transientMetadata: TransientMetadata;
 }
 
-export interface INotebookDisplayOrder {
-	defaultOrder: string[];
-	userOrder?: string[];
-}
-
 export interface INotebookMimeTypeSelector {
 	mimeTypes?: string[];
 }

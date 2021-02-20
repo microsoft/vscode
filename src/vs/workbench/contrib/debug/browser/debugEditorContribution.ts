@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as env from 'vs/base/common/platform';
 import { visit } from 'vs/base/common/json';
@@ -43,6 +44,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
@@ -569,6 +571,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private async updateInlineValueDecorations(stackFrame: IStackFrame | undefined): Promise<void> {
+
+		const var_value_format = '{0} = {1}';
+		const separator = ', ';
+
 		const model = this.editor.getModel();
 		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
@@ -618,13 +624,30 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								text = iv.text;
 								break;
 							case 'variable':
-								const value = await findVariable(iv.variableName, iv.caseSensitiveLookup);
+								let va = iv.variableName;
+								if (!va) {
+									const lineContent = model.getLineContent(iv.range.startLineNumber);
+									va = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
+								}
+								const value = await findVariable(va, iv.caseSensitiveLookup);
 								if (value) {
-									text = `${iv.variableName} = ${value}`;
+									text = strings.format(var_value_format, va, value);
 								}
 								break;
 							case 'expression':
-								text = `eval(${iv.expression})`;
+								let expr = iv.expression;
+								if (!expr) {
+									const lineContent = model.getLineContent(iv.range.startLineNumber);
+									expr = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
+								}
+								if (expr) {
+									const viewModel = this.debugService.getViewModel();
+									const expression = new Expression(expr);
+									await expression.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch');
+									if (expression.available) {
+										text = strings.format(var_value_format, expr, expression.value);
+									}
+								}
 								break;
 						}
 
@@ -650,7 +673,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			lineDecorations.forEach((segments, line) => {
 				if (segments.length > 0) {
 					segments = segments.sort((a, b) => a.column - b.column);
-					const text = segments.map(s => s.text).join(', ');
+					const text = segments.map(s => s.text).join(separator);
 					allDecorations.push(createInlineValueDecoration(line, text));
 				}
 			});

@@ -5,7 +5,8 @@
 
 import { TestItem, TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
-export const stubTest = (label: string): TestItem => ({
+export const stubTest = (label: string, idPrefix = 'id-'): TestItem => ({
+	id: idPrefix + label,
 	label,
 	location: undefined,
 	debuggable: true,
@@ -15,11 +16,11 @@ export const stubTest = (label: string): TestItem => ({
 
 export const testStubs = {
 	test: stubTest,
-	nested: () => ({
-		...stubTest('root'),
+	nested: (idPrefix = 'id-') => ({
+		...stubTest('root', idPrefix),
 		children: [
-			{ ...stubTest('a'), children: [stubTest('aa'), stubTest('ab')] },
-			stubTest('b'),
+			{ ...stubTest('a', idPrefix), children: [stubTest('aa', idPrefix), stubTest('ab', idPrefix)] },
+			stubTest('b', idPrefix),
 		],
 	}),
 };

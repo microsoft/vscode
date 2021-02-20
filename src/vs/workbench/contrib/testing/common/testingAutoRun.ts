@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapFind } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -15,7 +13,6 @@ import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testColl
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResultService, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 export interface ITestingAutoRun {
 	/**
@@ -32,7 +29,6 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceTestCollectionService private readonly workspaceTests: IWorkspaceTestCollectionService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 		@IConfigurationService private readonly configuration: IConfigurationService,
@@ -75,8 +71,6 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 			delay = getTestingConfiguration(this.configuration, TestingConfigKeys.AutoRunDelay);
 		}));
 
-		const workspaceTests = store.add(this.workspaceTests.subscribeToWorkspaceTests());
-
 		const scheduler = store.add(new RunOnceScheduler(async () => {
 			const tests = [...rerunIds.values()];
 
@@ -96,11 +90,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 			}
 
 			const { extId } = evt.item.item;
-			const workspaceTest = mapFind(workspaceTests.workspaceFolderCollections,
-				([, c]) => c.getNodeById(evt.item.id) ?? Iterable.find(c.all, t => t.item.extId === extId));
-			const subject = workspaceTest ?? evt.item;
-
-			rerunIds.set(subject.id, ({ testId: subject.id, providerId: subject.providerId }));
+			rerunIds.set(`${extId}/${evt.item.providerId}`, ({ testId: extId, providerId: evt.item.providerId }));
 
 			if (!isRunning) {
 				scheduler.schedule(delay);

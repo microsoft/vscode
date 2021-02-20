@@ -139,7 +139,7 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: 'vscode.peekTestError',
 	handler: async (accessor: ServicesAccessor, extId: string) => {
-		const lookup = accessor.get(ITestResultService).getStateByExtId(extId);
+		const lookup = accessor.get(ITestResultService).getStateById(extId);
 		if (lookup) {
 			accessor.get(ITestingPeekOpener).tryPeekFirstError(lookup[0], lookup[1]);
 		}

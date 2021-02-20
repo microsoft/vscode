@@ -321,8 +321,11 @@ export class TestNotebookEditor implements INotebookEditor {
 	createMarkdownPreview(cell: ICellViewModel): Promise<void> {
 		return Promise.resolve();
 	}
-	hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
-		return Promise.resolve();
+	async unhideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		// noop
+	}
+	async hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		// noop
 	}
 	removeMarkdownPreview(cell: ICellViewModel): Promise<void> {
 		return Promise.resolve();
@@ -457,7 +460,7 @@ export function withTestNotebook(instantiationService: TestInstantiationService,
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(viewType, false, URI.parse('test'), cells.map(cell => {
+	const notebook = new NotebookTextModel(viewType, URI.parse('test'), cells.map(cell => {
 		return {
 			source: cell[0],
 			language: cell[1],
