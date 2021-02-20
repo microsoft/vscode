@@ -237,9 +237,6 @@ export function escapeNonWindowsPath(path: string): string {
 	if (newPath.indexOf('\\') !== 0) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
-	if (newPath.indexOf(' ') !== -1) {
-		newPath = newPath.replace(/ /g, '\\ ');
-	}
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
 	newPath = newPath.replace(bannedChars, '');
 	return `'${newPath}'`;
