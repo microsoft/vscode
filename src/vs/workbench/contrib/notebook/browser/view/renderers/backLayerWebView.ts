@@ -846,7 +846,7 @@ var requirejs = (function() {
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
-							this.notebookEditor.focusNotebookCell(cell, 'container');
+							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
 						}
 						break;
 					}
