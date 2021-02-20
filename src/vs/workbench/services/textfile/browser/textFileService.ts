@@ -621,6 +621,10 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 	private checkCandidate(resource: URI): string | undefined {
 		let buffer = this._buf;
 		let candidates: string[] = this.textResourceConfigurationService.getValue(resource, 'files.encoding_candidate');
+		if (typeof candidates === 'undefined') {
+			return undefined;
+		}
+
 		for (const cand of candidates) {
 			try {
 				let textdecoder = new TextDecoder(cand, { fatal: true });
