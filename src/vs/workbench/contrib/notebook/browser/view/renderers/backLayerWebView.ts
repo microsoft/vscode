@@ -411,6 +411,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					/* markdown */
+					#container > div > div.preview {
+						color: var(--vscode-foreground);
+					}
 
 					#container > div > div.preview img {
 						max-width: 100%;
@@ -444,11 +447,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						line-height: 1.2;
 						border-bottom-width: 1px;
 						border-bottom-style: solid;
-						border-color: rgba(255, 255, 255, 0.18);
-					}
-
-					#container > div > div.preview h1 {
-						border-color: rgba(0, 0, 0, 0.18);
+						border-color: var(--vscode-foreground);
 					}
 
 					#container > div > div.preview h1,
