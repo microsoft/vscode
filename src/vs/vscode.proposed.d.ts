@@ -2426,19 +2426,16 @@ declare module 'vscode' {
 	 */
 	export interface TestItem {
 		/**
+		 * Unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of a test item.
+		 */
+		readonly id: string;
+
+		/**
 		 * Display name describing the test case.
 		 */
 		label: string;
-
-		/**
-		 * Optional unique identifier for the TestItem. This is used to correlate
-		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This must not change for the lifetime of a test item.
-		 *
-		 * If the ID is not provided, it defaults to the concatenation of the
-		 * item's label and its parent's ID, if any.
-		 */
-		readonly id?: string;
 
 		/**
 		 * Optional description that appears next to the label.
@@ -2589,12 +2586,6 @@ declare module 'vscode' {
 	 * provided in {@link TestResult} interfaces.
 	 */
 	export interface TestItemWithResults extends TestItem {
-		/**
-		 * ID of the test result, this is required in order to correlate the result
-		 * with the live test item.
-		 */
-		readonly id: string;
-
 		/**
 		 * Current result of the test.
 		 */

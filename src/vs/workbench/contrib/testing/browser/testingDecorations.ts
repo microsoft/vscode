@@ -137,7 +137,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
 			for (const test of ref.object.all) {
-				const stateLookup = this.results.getStateByExtId(test.item.extId);
+				const stateLookup = this.results.getStateById(test.item.extId);
 				if (hasValidLocation(uri, test.item)) {
 					newDecorations.push(this.instantiationService.createInstance(
 						RunTestDecoration, test, test.item.location, this.editor, stateLookup?.[1]));
@@ -275,7 +275,10 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 			});
 		} else {
 			// todo: customize click behavior
-			this.testService.runTests({ tests: [{ testId: this.test.id, providerId: this.test.providerId }], debug: false });
+			this.testService.runTests({
+				tests: [{ testId: this.test.item.extId, providerId: this.test.providerId }],
+				debug: false,
+			});
 		}
 
 		return true;
@@ -295,14 +298,14 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		if (this.test.item.runnable) {
 			testActions.push(new Action('testing.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
 				debug: false,
-				tests: [{ providerId: this.test.providerId, testId: this.test.id }],
+				tests: [{ providerId: this.test.providerId, testId: this.test.item.extId }],
 			})));
 		}
 
 		if (this.test.item.debuggable) {
 			testActions.push(new Action('testing.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
 				debug: true,
-				tests: [{ providerId: this.test.providerId, testId: this.test.id }],
+				tests: [{ providerId: this.test.providerId, testId: this.test.item.extId }],
 			})));
 		}
 

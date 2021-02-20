@@ -131,14 +131,14 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 			for (const folder of testCollection.workspaceFolders()) {
 				for (const child of folder.getChildren()) {
 					if (this.filter(child)) {
-						tests.push({ testId: child.id, providerId: child.providerId });
+						tests.push({ testId: child.item.extId, providerId: child.providerId });
 					}
 				}
 			}
 		} else {
-			for (const item of selected) {
-				if (item?.test && this.filter(item.test)) {
-					tests.push({ testId: item.test.id, providerId: item.test.providerId });
+			for (const treeElement of selected) {
+				if (treeElement?.test && this.filter(treeElement.test)) {
+					tests.push({ testId: treeElement.test.item.extId, providerId: treeElement.test.providerId });
 				}
 			}
 		}
@@ -233,7 +233,7 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 				for (const root of ref.object.rootIds) {
 					const node = ref.object.getNodeById(root);
 					if (node && (this.debug ? node.item.debuggable : node.item.runnable)) {
-						tests.push({ testId: node.id, providerId: node.providerId });
+						tests.push({ testId: node.item.extId, providerId: node.providerId });
 					}
 				}
 			} finally {
@@ -588,8 +588,11 @@ export class RunAtCursor extends RunOrDebugAtCursor {
 		return node.item.runnable;
 	}
 
-	protected runTest(service: ITestService, node: InternalTestItem): Promise<ITestResult> {
-		return service.runTests({ debug: false, tests: [{ testId: node.id, providerId: node.providerId }] });
+	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: [{ testId: internalTest.item.extId, providerId: internalTest.providerId }],
+		});
 	}
 }
 
@@ -607,8 +610,11 @@ export class DebugAtCursor extends RunOrDebugAtCursor {
 		return node.item.debuggable;
 	}
 
-	protected runTest(service: ITestService, node: InternalTestItem): Promise<ITestResult> {
-		return service.runTests({ debug: true, tests: [{ testId: node.id, providerId: node.providerId }] });
+	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: [{ testId: internalTest.item.extId, providerId: internalTest.providerId }],
+		});
 	}
 }
 
@@ -662,8 +668,11 @@ export class RunCurrentFile extends RunOrDebugCurrentFile {
 		return node.item.runnable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: false, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
 	}
 }
 
@@ -681,8 +690,11 @@ export class DebugCurrentFile extends RunOrDebugCurrentFile {
 		return node.item.debuggable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: true, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId }))
+		});
 	}
 }
 
@@ -784,8 +796,11 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 		return node.item.runnable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: false, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
 	}
 }
 
@@ -803,8 +818,11 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 		return node.item.debuggable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: true, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
 	}
 }
 
@@ -822,8 +840,11 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 		return node.item.runnable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: false, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
 	}
 }
 
@@ -841,8 +862,11 @@ export class DebugLastRun extends RunOrDebugLastRun {
 		return node.item.debuggable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: true, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
 	}
 }
 

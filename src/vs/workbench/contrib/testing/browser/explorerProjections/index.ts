@@ -27,9 +27,9 @@ export interface ITestTreeProjection extends IDisposable {
 	onUpdate: Event<void>;
 
 	/**
-	 * Items indexed by their extension ID.
+	 * Gets an element by its extension-assigned ID.
 	 */
-	itemsByExtId: ReadonlyMap<string, ITestTreeElement>;
+	getElementByTestId(testId: string): ITestTreeElement | undefined;
 
 	/**
 	 * Gets the test at the given position in th editor. Should be fast,

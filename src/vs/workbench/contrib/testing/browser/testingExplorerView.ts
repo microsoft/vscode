@@ -426,7 +426,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const item = testExtId && this.projection?.itemsByExtId.get(testExtId);
+		const item = testExtId && this.projection?.getElementByTestId(testExtId);
 		if (!item) {
 			this.hasPendingReveal = true;
 			return;
@@ -478,7 +478,7 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Tries to peek the first test error, if the item is in a failed state.
 	 */
 	private async tryPeekError(item: ITestTreeElement) {
-		const lookup = item.test && this.testResults.getStateByExtId(item.test.item.extId);
+		const lookup = item.test && this.testResults.getStateById(item.test.item.extId);
 		return lookup && isFailedState(lookup[1].state.state)
 			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })
 			: false;
@@ -515,7 +515,10 @@ export class TestingExplorerViewModel extends Disposable {
 			.filter(e => e.item.runnable);
 
 		if (toRun.length) {
-			this.testService.runTests({ debug: false, tests: toRun.map(t => ({ providerId: t.providerId, testId: t.id })) });
+			this.testService.runTests({
+				debug: false,
+				tests: toRun.map(t => ({ providerId: t.providerId, testId: t.item.extId })),
+			});
 		}
 	}
 
