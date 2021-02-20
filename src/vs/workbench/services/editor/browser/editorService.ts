@@ -5,8 +5,8 @@
 
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, OverrideOptions } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, customEditorsAssociationsSettingId, builtinProviderDisplayName, DEFAULT_CUSTOM_EDITOR, CustomEditorAssociation, CustomEditorsAssociations } from 'vs/workbench/common/editor';
+import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, customEditorsAssociationsSettingId, DEFAULT_CUSTOM_EDITOR, CustomEditorAssociation, CustomEditorsAssociations } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -549,7 +549,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const defaultEditorOverrideEntry = Object.freeze({
 			id: DEFAULT_EDITOR_ID,
 			label: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-			detail: builtinProviderDisplayName
+			detail: localize('builtinProviderDisplayName', "Built-in")
 		});
 		for (const handler of this.openEditorHandlers) {
 			if (typeof handler.getEditorOverrides === 'function') {
@@ -570,7 +570,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						}
 
 						const fileEditorInput = this.createEditorInput({ resource, forceFile: true });
-						const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: OverrideOptions.DISABLED } : { override: OverrideOptions.DISABLED };
+						const textOptions: IEditorOptions | ITextEditorOptions = { ...options, override: EditorOverride.DISABLED };
 						return {
 							override: (async () => {
 								// Try to replace existing editors for resource
@@ -597,7 +597,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
-		if (event.options?.override === OverrideOptions.DISABLED) {
+		if (event.options?.override === EditorOverride.DISABLED) {
 			return; // return early when overrides are explicitly disabled
 		}
 
@@ -624,8 +624,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
 			// If the override option is provided we want to open that specific editor or show a picker
-			if (resolvedOptions && (resolvedOptions.override === OverrideOptions.PICKER || typeof resolvedOptions.override === 'string')) {
-				return this.openEditorWith(resolvedEditor, resolvedOptions.override === OverrideOptions.PICKER ? undefined : resolvedOptions.override, resolvedOptions, resolvedGroup);
+			if (resolvedOptions && (resolvedOptions.override === EditorOverride.PICK || typeof resolvedOptions.override === 'string')) {
+				return this.openEditorWith(resolvedEditor, resolvedOptions.override === EditorOverride.PICK ? undefined : resolvedOptions.override, resolvedOptions, resolvedGroup);
 			}
 
 			return withNullAsUndefined(await resolvedGroup.openEditor(resolvedEditor, resolvedOptions));
@@ -1518,7 +1518,7 @@ export class DelegatingEditorService implements IEditorService {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
 			// If the override option is provided we want to open that specific editor or show a picker
-			if (resolvedOptions && (resolvedOptions.override === OverrideOptions.PICKER || typeof resolvedOptions.override === 'string')) {
+			if (resolvedOptions && (resolvedOptions.override === EditorOverride.PICK || typeof resolvedOptions.override === 'string')) {
 				return await this.editorService.openEditor(resolvedEditor, { ...resolvedOptions, override: withNullAsUndefined(resolvedOptions.override) }, resolvedGroup);
 			}
 			// Pass on to editor open handler

@@ -111,15 +111,17 @@ export enum EditorActivation {
 	PRESERVE
 }
 
-export enum OverrideOptions {
+export enum EditorOverride {
+
 	/**
 	 * Displays a picker and allows the user to decide which editor to use
 	 */
-	PICKER,
+	PICK = 1,
+
 	/**
 	 * Disables overrides
 	 */
-	DISABLED,
+	DISABLED
 }
 
 export enum EditorOpenContext {
@@ -216,9 +218,9 @@ export interface IEditorOptions {
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
 	 * - `string`: specific override by id
-	 * - `OverrideOptions`: Various options which can be given to dictate how overrides are handled
+	 * - `EditorOverride`: specific override handling
 	 */
-	readonly override?: string | OverrideOptions;
+	readonly override?: string | EditorOverride;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

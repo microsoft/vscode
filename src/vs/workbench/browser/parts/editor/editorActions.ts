@@ -22,7 +22,7 @@ import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/commo
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { OverrideOptions } from 'vs/platform/editor/common/editor';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 export class ExecuteCommandAction extends Action {
 
@@ -1911,7 +1911,7 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		await this.editorService.openEditor(activeInput, { ...options, override: OverrideOptions.PICKER }, group);
+		await this.editorService.openEditor(activeInput, { ...options, override: EditorOverride.PICK }, group);
 	}
 }
 

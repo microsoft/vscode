@@ -16,7 +16,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, OverrideOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, EditorOverride } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -351,7 +351,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 							await group.closeEditor(originalInput);
 							originalInput.dispose();
-							const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: OverrideOptions.DISABLED });
+							const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: EditorOverride.DISABLED });
 							if (newEditor) {
 								return newEditor;
 							} else {
@@ -368,7 +368,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					// there are notebook editors with the same resource
 
 					if (existingEditors.find(editor => editor.viewType === id)) {
-						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, { ...options, override: OverrideOptions.DISABLED }, group) };
+						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, { ...options, override: EditorOverride.DISABLED }, group) };
 					} else {
 						return {
 							override: (async () => {
@@ -378,7 +378,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 								await group.closeEditor(firstEditor);
 								firstEditor.dispose();
 								const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource!, originalInput.getName(), id);
-								const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: OverrideOptions.DISABLED });
+								const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: EditorOverride.DISABLED });
 
 								if (newEditor) {
 									return newEditor;
@@ -473,7 +473,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, originalInput.getName(), info.id);
-		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: OverrideOptions.DISABLED, index });
+		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: EditorOverride.DISABLED, index });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 
@@ -516,7 +516,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		const info = associatedEditors[0];
 
 		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), info.id);
-		const notebookOptions = new NotebookEditorOptions({ ...options, override: OverrideOptions.DISABLED });
+		const notebookOptions = new NotebookEditorOptions({ ...options, override: EditorOverride.DISABLED });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 }

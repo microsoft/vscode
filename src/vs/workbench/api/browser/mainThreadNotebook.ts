@@ -13,7 +13,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorActivation, ITextEditorOptions, OverrideOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -660,7 +660,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: OverrideOptions.DISABLED,
+			override: EditorOverride.DISABLED,
 		};
 
 		const columnArg = viewColumnToEditorGroup(this._editorGroupsService, options.position);
@@ -682,7 +682,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const input = this._editorService.createEditorInput({ resource: URI.revive(resource), options: editorOptions });
 
 		// TODO: handle options.selection
-		const editorPane = await this._editorService.openEditor(input, { override: viewType, ...options }, group);
+		const editorPane = await this._editorService.openEditor(input, { ...options, override: viewType }, group);
 		const notebookEditor = (editorPane as unknown as { isNotebookEditor?: boolean })?.isNotebookEditor ? (editorPane!.getControl() as INotebookEditor) : undefined;
 
 		if (notebookEditor) {

@@ -9,7 +9,7 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType, OverrideOptions } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -1007,9 +1007,9 @@ export class EditorOptions implements IEditorOptions {
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
 	 * - `string`: specific override by id
-	 * - `OverrideOptions`: Various options which can be given to dictate how overrides are handled
+	 * - `EditorOverride`: specific override handling
 	 */
-	override?: string | OverrideOptions;
+	override: string | EditorOverride | undefined;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -1642,12 +1642,10 @@ export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService
 
 export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
 
-export const builtinProviderDisplayName = localize('builtinProviderDisplayName', "Built-in");
-
 export const DEFAULT_CUSTOM_EDITOR: ICustomEditorInfo = {
 	id: 'default',
 	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: builtinProviderDisplayName
+	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
 };
 
 export type CustomEditorAssociation = {

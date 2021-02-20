@@ -43,7 +43,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
-import { OverrideOptions } from 'vs/platform/editor/common/editor';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 // Commands
 
@@ -358,9 +358,11 @@ CommandsRegistry.registerCommand({
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
 			const input = editorService.createEditorInput({ resource: uri });
-			return editorService.openEditor(input, { override: OverrideOptions.PICKER });
+
+			return editorService.openEditor(input, { override: EditorOverride.PICK });
 		}
-		return;
+
+		return undefined;
 	}
 });
 
