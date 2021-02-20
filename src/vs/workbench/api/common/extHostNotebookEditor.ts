@@ -88,6 +88,7 @@ export class ExtHostNotebookEditor {
 
 	//TODO@rebornix noop setter?
 	selection?: vscode.NotebookCell;
+	private _selections: vscode.NotebookCellRange[] = [];
 
 	private _visibleRanges: extHostTypes.NotebookCellRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
@@ -124,6 +125,9 @@ export class ExtHostNotebookEditor {
 				},
 				get selection() {
 					return that.selection;
+				},
+				get selections() {
+					return that._selections;
 				},
 				get visibleRanges() {
 					return that._visibleRanges;
@@ -171,6 +175,24 @@ export class ExtHostNotebookEditor {
 
 	_acceptVisibleRanges(value: extHostTypes.NotebookCellRange[]): void {
 		this._visibleRanges = value;
+	}
+
+	_acceptSelections(selectionHandles: number[]): void {
+		const indexes = selectionHandles.map(handle => this.notebookData.getCellIndexFromHandle(handle)).filter(index => index !== undefined).sort() as number[];
+		const first = indexes.shift();
+
+		if (first === undefined) {
+			this._selections = [];
+		} else {
+			this._selections = indexes.reduce(function (ranges, num) {
+				if (num - ranges[0][1] <= 0) {
+					ranges[0][1] = num + 1;
+				} else {
+					ranges.unshift([num, num + 1]);
+				}
+				return ranges;
+			}, [[first, first + 1]]).reverse().map(val => new extHostTypes.NotebookCellRange(val[0], val[1]));
+		}
 	}
 
 	get active(): boolean {

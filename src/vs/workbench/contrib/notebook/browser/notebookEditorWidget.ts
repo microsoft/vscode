@@ -725,7 +725,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const cellOptions = options.cellOptions;
 			const cell = this.viewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
-				this.selectElement(cell);
+				this.focusElement(cell);
 				await this.revealInCenterIfOutsideViewportAsync(cell);
 				const editor = this._renderedEditors.get(cell)!;
 				if (editor) {
@@ -1279,9 +1279,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	//#region Editor Features
 
-	selectElement(cell: ICellViewModel) {
+	focusElement(cell: ICellViewModel) {
+		this._list.focusElement(cell);
 		this._list.selectElement(cell);
-		// this.viewModel!.selectionHandles = [cell.handle];
 	}
 
 	revealCellRangeInView(range: ICellRange) {
@@ -1884,14 +1884,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		if (focusItem === 'editor') {
-			this.selectElement(cell);
+			this.focusElement(cell);
 			this._list.focusView();
 
 			cell.editState = CellEditState.Editing;
 			cell.focusMode = CellFocusMode.Editor;
 			this.revealInCenterIfOutsideViewport(cell);
 		} else if (focusItem === 'output') {
-			this.selectElement(cell);
+			this.focusElement(cell);
 			this._list.focusView();
 
 			if (!this._webview) {
@@ -1911,7 +1911,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			cell.editState = CellEditState.Preview;
 			cell.focusMode = CellFocusMode.Container;
 
-			this.selectElement(cell);
+			this.focusElement(cell);
 			this.revealInCenterIfOutsideViewport(cell);
 			this._list.focusView();
 		}

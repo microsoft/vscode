@@ -225,7 +225,7 @@ registerAction2(class extends Action2 {
 			}
 
 			const viewIndex = editor.viewModel!.getNearestVisibleCellIndexUpwards(index);
-			editor.selectElement(editor.viewModel!.viewCells[viewIndex]);
+			editor.focusElement(editor.viewModel!.viewCells[viewIndex]);
 		}
 	}
 });

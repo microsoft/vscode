@@ -369,8 +369,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				return model.getCellByHandle(handle);
 			}).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
-			if (viewSelections.length) {
-				this.setFocus([viewSelections[0]]);
+
+			const primary = model.primarySelectionHandle !== null ? model.getCellIndexByHandle(model.primarySelectionHandle) : null;
+			if (primary !== null && primary >= 0) {
+				this.setFocus([primary], undefined, true);
 			}
 		}));
 
@@ -510,6 +512,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
 			this._viewModel!.selectionHandles = [this._viewModel!.viewCells[0].handle];
+			this._viewModel!.primarySelectionHandle = this._viewModel!.viewCells[0].handle;
 		}
 	}
 
@@ -574,7 +577,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const index = this._getViewIndexUpperBound(cell);
 
 		if (index >= 0) {
-			this.setFocus([index]);
+			this.setFocus([index], undefined, false);
 		}
 	}
 
@@ -586,7 +589,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const index = this._getViewIndexUpperBound(cell);
 		if (index >= 0) {
 			this.setSelection([index]);
-			this.setFocus([index]);
 		}
 	}
 
@@ -599,24 +601,28 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
-		// if (!indexes.length) {
-		// 	return;
-		// }
-
-		// if (this._viewModel && !ignoreTextModelUpdate) {
-		// 	this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
-		// }
+		if (!indexes.length) {
+			if (this._viewModel && !ignoreTextModelUpdate) {
+				this._viewModel.primarySelectionHandle = null;
+			}
+		} else {
+			if (this._viewModel && !ignoreTextModelUpdate) {
+				this._viewModel.primarySelectionHandle = this.element(indexes[0]).handle ?? null;
+			}
+		}
 
 		super.setFocus(indexes, browserEvent);
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
 		if (!indexes.length) {
-			return;
-		}
-
-		if (this._viewModel && !ignoreTextModelUpdate) {
-			this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
+			if (this._viewModel && !ignoreTextModelUpdate) {
+				this._viewModel.selectionHandles = [];
+			}
+		} else {
+			if (this._viewModel && !ignoreTextModelUpdate) {
+				this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
+			}
 		}
 
 		super.setSelection(indexes, browserEvent);

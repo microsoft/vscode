@@ -330,6 +330,10 @@ export class ExtHostNotebookDocument extends Disposable {
 		return this._cells.find(cell => cell.handle === cellHandle);
 	}
 
+	getCellIndexFromHandle(cellHandle: number): number | undefined {
+		return this._cells.findIndex(cell => cell.handle === cellHandle);
+	}
+
 	getCellIndex(cell: ExtHostCell): number {
 		return this._cells.indexOf(cell);
 	}

@@ -596,6 +596,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				editor.editor.selection = undefined;
 			}
 
+			editor.editor._acceptSelections(data.selections.selections);
+
 			this._onDidChangeNotebookEditorSelection.fire({
 				notebookEditor: editor.editor.editor,
 				selection: editor.editor.selection

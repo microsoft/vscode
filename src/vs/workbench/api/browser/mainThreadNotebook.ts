@@ -692,7 +692,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			if (notebookEditor.viewModel && options.selection && notebookEditor.viewModel.viewCells[options.selection.start]) {
 				const focusedCell = notebookEditor.viewModel.viewCells[options.selection.start];
 				notebookEditor.revealInCenterIfOutsideViewport(focusedCell);
-				notebookEditor.selectElement(focusedCell);
+				notebookEditor.focusElement(focusedCell);
 			}
 			return notebookEditor.getId();
 		} else {

@@ -227,7 +227,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	selectElement(cell: CellViewModel): void {
+	focusElement(cell: CellViewModel): void {
 		throw new Error('Method not implemented.');
 	}
 

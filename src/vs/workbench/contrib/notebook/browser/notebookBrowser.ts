@@ -371,7 +371,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	/**
 	 * Select & focus cell
 	 */
-	selectElement(cell: ICellViewModel): void;
+	focusElement(cell: ICellViewModel): void;
 
 	/**
 	 * Layout info for the notebook editor

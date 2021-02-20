@@ -1348,7 +1348,7 @@ declare module 'vscode' {
 		// todo@API should replace selection
 		// never empty!
 		// primary/secondary selections
-		// readonly selections: NotebookCellRange[];
+		readonly selections: NotebookCellRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).

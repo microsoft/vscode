@@ -199,6 +199,20 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
 
+	private _primarySelectionHandle: number | null = null;
+
+	get primarySelectionHandle() {
+		return this._primarySelectionHandle;
+	}
+
+	set primarySelectionHandle(primary: number | null) {
+		if (primary === this._primarySelectionHandle) {
+			return;
+		}
+
+		this._primarySelectionHandle = primary;
+		this._onDidChangeSelection.fire();
+	}
 	private _selections: number[] = [];
 
 	get selectionHandles() {
@@ -452,6 +466,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getCellByHandle(handle: number) {
 		return this._handleToViewCellMapping.get(handle);
+	}
+
+	getCellIndexByHandle(handle: number) {
+		return this._viewCells.findIndex(cell => cell.handle === handle);
 	}
 
 	getCellIndex(cell: ICellViewModel) {
