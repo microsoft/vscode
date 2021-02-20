@@ -326,13 +326,18 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			this.markdownRenderersInfos.clear();
 
 			for (const extension of renderers) {
+				if (!extension.description.enableProposedApi && !extension.description.isBuiltin) {
+					// Only allow proposed extensions to use this extension point
+					return;
+				}
+
 				for (const notebookContribution of extension.value) {
 					if (!notebookContribution.entrypoint) { // avoid crashing
 						console.error(`Cannot register renderer for ${extension.description.identifier.value} since it did not have an entrypoint. This is now required: https://github.com/microsoft/vscode/issues/102644`);
 						continue;
 					}
 
-					const id = notebookContribution.id ?? notebookContribution.viewType;
+					const id = notebookContribution.id;
 					if (!id) {
 						console.error(`Notebook renderer from ${extension.description.identifier.value} is missing an 'id'`);
 						continue;
@@ -342,7 +347,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						id,
 						extension: extension.description,
 						entrypoint: notebookContribution.entrypoint,
-						displayName: 'todo',
+						displayName: notebookContribution.displayName,
 					}));
 				}
 			}
