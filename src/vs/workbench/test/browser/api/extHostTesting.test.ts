@@ -61,7 +61,7 @@ suite('ExtHost Testing', () => {
 
 	teardown(() => {
 		single.dispose();
-		assert.strictEqual(owned.idToInternal.size, 0, 'expected owned ids to be empty after dispose');
+		assert.strictEqual(!owned.idToInternal?.size, true, 'expected owned ids to be empty after dispose');
 	});
 
 	suite('OwnedTestCollection', () => {
