@@ -281,7 +281,6 @@ export interface IInitializeMarkdownMessage {
 }
 
 export type FromWebviewMessage =
-	| { readonly __vscode_notebook_message: undefined }
 	| WebviewIntialized
 	| IDimensionMessage
 	| IMouseEnterMessage
@@ -750,7 +749,7 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: FromWebviewMessage) => {
+		this._register(this.webview.onMessage((data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined }) => {
 			if (this._disposed) {
 				return;
 			}
