@@ -27,12 +27,12 @@ import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface WebviewIntialized {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'initialized'
 }
 
 export interface IDimensionMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'dimension';
 	id: string;
 	init?: boolean;
@@ -41,85 +41,85 @@ export interface IDimensionMessage {
 }
 
 export interface IMouseEnterMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'mouseenter';
 	id: string;
 }
 
 export interface IMouseLeaveMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'mouseleave';
 	id: string;
 }
 
 export interface IWheelMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'did-scroll-wheel';
 	payload: any;
 }
 
 
 export interface IScrollAckMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'scroll-ack';
 	data: { top: number };
 	version: number;
 }
 
 export interface IBlurOutputMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'focus-editor';
 	id: string;
 	focusNext?: boolean;
 }
 
 export interface IClickedDataUrlMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'clicked-data-url';
 	data: string | ArrayBuffer | null;
 	downloadName?: string;
 }
 
 export interface IFocusMarkdownPreviewMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'focusMarkdownPreview';
 	cellId: string;
 }
 
 export interface IMouseEnterMarkdownPreviewMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'mouseEnterMarkdownPreview';
 	cellId: string;
 }
 
 export interface IMouseLeaveMarkdownPreviewMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'mouseLeaveMarkdownPreview';
 	cellId: string;
 }
 
 export interface IToggleMarkdownPreviewMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'toggleMarkdownPreview';
 	cellId: string;
 }
 
 export interface ICellDragStartMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'cell-drag-start';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
 export interface ICellDragMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'cell-drag';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
 export interface ICellDragEndMessage {
-	readonly __vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	readonly type: 'cell-drag-end';
 	readonly cellId: string;
 	readonly ctrlKey: boolean
@@ -130,7 +130,7 @@ export interface ICellDragEndMessage {
 	};
 }
 export interface IInitializedMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	readonly type: 'initializedMarkdownPreview';
 }
 
@@ -241,7 +241,7 @@ export interface IUpdateDecorationsMessage {
 }
 
 export interface ICustomRendererMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'customRendererMessage';
 	rendererId: string;
 	message: unknown;
@@ -281,6 +281,7 @@ export interface IInitializeMarkdownMessage {
 }
 
 export type FromWebviewMessage =
+	| { readonly __vscode_notebook_message: undefined }
 	| WebviewIntialized
 	| IDimensionMessage
 	| IMouseEnterMessage
