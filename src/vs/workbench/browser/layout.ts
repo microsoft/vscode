@@ -229,6 +229,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore(),
 			setNotificationsFilter: false,
+			alwaysHideTitleBar: false,
 			editorWidgetSet: new Set<IEditor>()
 		}
 	};
@@ -328,6 +329,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
 			else if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'classic')) {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+			}
+			// The menu bar toggles the title bar in Zen Mode with zenMode.alwaysHideTitleBar
+			else if (this.state.zenMode.active && this.state.zenMode.alwaysHideTitleBar && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'classic')) {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 			}
 
@@ -894,6 +899,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return false;
 				}
 
+				if (this.state.zenMode.active && this.state.zenMode.alwaysHideTitleBar) {
+					return this.state.menuBar.toggled;
+				}
+
 				// macOS desktop does not need a title bar when full screen
 				if (isMacintosh && isNative) {
 					return !this.state.fullscreen;
@@ -1014,6 +1023,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				hideActivityBar: boolean;
 				hideStatusBar: boolean;
 				hideLineNumbers: boolean;
+				hideTitleBar: string;
 				silentNotifications: boolean;
 			} = this.configurationService.getValue('zenMode');
 
@@ -1023,6 +1033,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.zenMode.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
 			this.state.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.state.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
+			this.state.zenMode.alwaysHideTitleBar = config.hideTitleBar === 'always';
 
 			this.setPanelHidden(true, true);
 			this.setSideBarHidden(true, true);
@@ -1087,6 +1098,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			toggleFullScreen = this.state.zenMode.transitionedToFullScreen && this.state.fullscreen;
 		}
+
+		// Propagate to grid
+		this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
 		if (!skipLayout) {
 			this.layout();
