@@ -17,7 +17,7 @@ const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]].*$/,
 		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$|^\s*(case\s.+:|default\s*:)$/,
 		indentNextLinePattern: /^\s*(else|((else )?if|for|while) *\(.*\))$/,
-		decreaseIndentWithPreviousLinePattern: /^((\s*(else|((else )?if|for|while) *\(.*\)))|(\s*(case\s.+:|default\s*:)))\s*\{$/,
+		decreaseIndentWithPreviousLinePattern: /^((\s*(else|((else )?if|for|while) *\(.*\)))|(\s*(case\s.+:|default\s*:)))\s*\r?\n\s*\{$/,
 	},
 	wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
 	onEnterRules: [
