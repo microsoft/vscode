@@ -1418,11 +1418,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 export interface IEditorOpenHandler {
 	(
-		delegate: (group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => Promise<IEditorPane | null>,
 		group: IEditorGroup,
-		editor: IEditorInput,
-		options?: IEditorOptions | ITextEditorOptions
-	): Promise<IEditorPane | null>;
+		delegate: () => Promise<IEditorPane | undefined>,
+	): Promise<IEditorPane | undefined>;
 }
 
 /**
@@ -1447,23 +1445,7 @@ export class DelegatingEditorService implements IEditorService {
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
-			// If the override option is provided we want to open that specific editor or show a picker
-			if (resolvedOptions && (resolvedOptions.override === EditorOverride.PICK || typeof resolvedOptions.override === 'string')) {
-				return await this.editorService.openEditor(resolvedEditor, { ...resolvedOptions, override: withNullAsUndefined(resolvedOptions.override) }, resolvedGroup);
-			}
-			// Pass on to editor open handler
-			const editorPane = await this.editorOpenHandler(
-				(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => group.openEditor(editor, options),
-				resolvedGroup,
-				resolvedEditor,
-				resolvedOptions
-			);
-
-			if (editorPane) {
-				return editorPane; // the opening was handled, so return early
-			}
-
-			return withNullAsUndefined(await resolvedGroup.openEditor(resolvedEditor, resolvedOptions));
+			return this.editorOpenHandler(resolvedGroup, () => this.editorService.openEditor(resolvedEditor, resolvedOptions, resolvedGroup));
 		}
 
 		return undefined;
