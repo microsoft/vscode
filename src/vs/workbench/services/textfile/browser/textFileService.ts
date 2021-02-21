@@ -591,6 +591,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 	}
 	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detectedEncoding: string | null): Promise<string> {
 		let preferredEncoding: string | undefined;
+		let candidate = this.checkCandidate(resource);
 
 		// Encoding passed in as option
 		if (options?.encoding) {
@@ -600,7 +601,10 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 				preferredEncoding = options.encoding; // give passed in encoding highest priority
 			}
 		}
-
+		// Encoding candidate
+		else if (candidate) {
+			preferredEncoding = candidate;
+		}
 		// Encoding detected
 		else if (detectedEncoding) {
 			preferredEncoding = detectedEncoding;
@@ -645,13 +649,10 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		let fileEncoding: string;
 
 		const override = this.getEncodingOverride(resource);
-		let candidate = this.checkCandidate(resource);
 		if (override) {
 			fileEncoding = override; // encoding override always wins
 		} else if (preferredEncoding) {
 			fileEncoding = preferredEncoding; // preferred encoding comes second
-		} else if (candidate) {
-			fileEncoding = candidate; // encoding candidate is the third
 		} else {
 			fileEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding'); // and last we check for settings
 		}
