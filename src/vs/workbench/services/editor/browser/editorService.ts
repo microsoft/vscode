@@ -514,44 +514,48 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Ensure the default one is always present
 		if (!overrides.some(([, entry]) => entry.id === DEFAULT_EDITOR_ASSOCIATION.id)) {
-			overrides.unshift([
-				{
-					open: (editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
-						const resource = EditorResourceAccessor.getOriginalUri(editor);
-						if (!resource) {
-							return;
-						}
-
-						const fileEditorInput = this.createEditorInput({ resource, forceFile: true });
-						const textOptions: IEditorOptions | ITextEditorOptions = { ...options, override: EditorOverride.DISABLED };
-						return {
-							override: (async () => {
-
-								// Try to replace existing editors for resource
-								const existingEditor = firstOrDefault(this.findEditors(resource, group));
-								if (existingEditor && !fileEditorInput.matches(existingEditor)) {
-									await this.replaceEditors([{
-										editor: existingEditor,
-										replacement: fileEditorInput,
-										options: options ? EditorOptions.create(options) : undefined,
-									}], group);
-								}
-
-								return this.openEditor(fileEditorInput, textOptions, group);
-							})()
-						};
-					}
-				},
-				{
-					id: DEFAULT_EDITOR_ASSOCIATION.id,
-					label: DEFAULT_EDITOR_ASSOCIATION.displayName,
-					detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-					active: this.fileEditorInputFactory.isFileEditorInput(this.activeEditor) && isEqual(this.activeEditor.resource, resource),
-				}
-			]);
+			overrides.unshift(this.getDefaultEditorOverride(resource));
 		}
 
 		return overrides;
+	}
+
+	private getDefaultEditorOverride(resource: URI): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry] {
+		return [
+			{
+				open: (editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
+					const resource = EditorResourceAccessor.getOriginalUri(editor);
+					if (!resource) {
+						return;
+					}
+
+					const fileEditorInput = this.createEditorInput({ resource, forceFile: true });
+					const textOptions: IEditorOptions | ITextEditorOptions = { ...options, override: EditorOverride.DISABLED };
+					return {
+						override: (async () => {
+
+							// Try to replace existing editors for resource
+							const existingEditor = firstOrDefault(this.findEditors(resource, group));
+							if (existingEditor && !fileEditorInput.matches(existingEditor)) {
+								await this.replaceEditors([{
+									editor: existingEditor,
+									replacement: fileEditorInput,
+									options: options ? EditorOptions.create(options) : undefined,
+								}], group);
+							}
+
+							return this.openEditor(fileEditorInput, textOptions, group);
+						})()
+					};
+				}
+			},
+			{
+				id: DEFAULT_EDITOR_ASSOCIATION.id,
+				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				active: this.fileEditorInputFactory.isFileEditorInput(this.activeEditor) && isEqual(this.activeEditor.resource, resource),
+			}
+		];
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {

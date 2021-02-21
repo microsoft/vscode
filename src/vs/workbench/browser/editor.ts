@@ -274,48 +274,48 @@ export interface IEditorAssociationsRegistry {
 	/**
 	 * Register handlers for editor types
 	 */
-	registerEditorTypesHandler(source: string, handler: IEditorTypesHandler): IDisposable;
+	registerEditorTypesHandler(id: string, handler: IEditorTypesHandler): IDisposable;
 }
 
 class EditorAssociationsRegistry implements IEditorAssociationsRegistry {
 
 	private readonly editorTypesHandlers = new Map<string, IEditorTypesHandler>();
 
-	registerEditorTypesHandler(source: string, handler: IEditorTypesHandler): IDisposable {
-		if (this.editorTypesHandlers.has(source)) {
-			throw new Error(`Use a different name for the editor component, ${source} is already occupied.`);
+	registerEditorTypesHandler(id: string, handler: IEditorTypesHandler): IDisposable {
+		if (this.editorTypesHandlers.has(id)) {
+			throw new Error(`An editor type handler with ${id} was already registered.`);
 		}
 
-		this.editorTypesHandlers.set(source, handler);
-		this.updateSchema();
+		this.editorTypesHandlers.set(id, handler);
+		this.updateEditorAssociationsSchema();
 
 		const editorTypeChangeEvent = handler.onDidChangeEditorTypes(() => {
-			this.updateSchema();
+			this.updateEditorAssociationsSchema();
 		});
 
 		return {
 			dispose: () => {
 				editorTypeChangeEvent.dispose();
-				this.editorTypesHandlers.delete(source);
-				this.updateSchema();
+				this.editorTypesHandlers.delete(id);
+				this.updateEditorAssociationsSchema();
 			}
 		};
 	}
 
-	private updateSchema() {
+	private updateEditorAssociationsSchema() {
 		const enumValues: string[] = [];
 		const enumDescriptions: string[] = [];
 
-		const infos: IEditorType[] = [DEFAULT_EDITOR_ASSOCIATION];
+		const editorTypes: IEditorType[] = [DEFAULT_EDITOR_ASSOCIATION];
 
 		for (const [, handler] of this.editorTypesHandlers) {
-			infos.push(...handler.getEditorTypes());
+			editorTypes.push(...handler.getEditorTypes());
 		}
 
-		infos.forEach(info => {
-			enumValues.push(info.id);
-			enumDescriptions.push(localize('editorAssociations.editorType.sourceDescription', "Source: {0}", info.providerDisplayName));
-		});
+		for (const { id, providerDisplayName } of editorTypes) {
+			enumValues.push(id);
+			enumDescriptions.push(localize('editorAssociations.editorType.sourceDescription', "Source: {0}", providerDisplayName));
+		}
 
 		editorTypeSchemaAddition.enum = enumValues;
 		editorTypeSchemaAddition.enumDescriptions = enumDescriptions;
