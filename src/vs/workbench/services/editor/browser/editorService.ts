@@ -46,11 +46,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
-/**
- * Id of the default editor for open with.
- */
-export const DEFAULT_EDITOR_ID = 'default';
-
 const viewTypeSchemaAddition: IJSONSchema = {
 	type: 'string',
 	enum: []
@@ -535,6 +530,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region editor overrides
 
+	private static readonly DEFAULT_EDITOR_OVERRIDE_ID = 'default';
+
 	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
@@ -547,7 +544,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const overrides: [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] = [];
 		const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 		const defaultEditorOverrideEntry = Object.freeze({
-			id: DEFAULT_EDITOR_ID,
+			id: EditorService.DEFAULT_EDITOR_OVERRIDE_ID,
 			label: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
 			detail: localize('builtinProviderDisplayName', "Built-in")
 		});
@@ -560,7 +557,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 			}
 		}
-		if (!overrides.some(([_, entry]) => entry.id === DEFAULT_EDITOR_ID)) {
+		if (!overrides.some(([_, entry]) => entry.id === EditorService.DEFAULT_EDITOR_OVERRIDE_ID)) {
 			overrides.unshift([
 				{
 					open: (input: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
