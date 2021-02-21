@@ -23,18 +23,19 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEditorAssociationsRegistry, EditorsAssociations, editorsAssociationsSettingId, EditorAssociation } from 'vs/workbench/browser/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId, EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
 
-export class CustomEditorService extends Disposable implements ICustomEditorService, ICustomEditorViewTypesHandler {
+export class CustomEditorService extends Disposable implements ICustomEditorService, IEditorTypesHandler {
 	_serviceBrand: any;
 
 	private readonly _contributedEditors: ContributedCustomEditors;
@@ -44,8 +45,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _customEditorContextKey: IContextKey<string>;
 	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
-	private readonly _onDidChangeViewTypes = new Emitter<void>();
-	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
+	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
+	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
 	private readonly _fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
 
@@ -68,9 +69,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		this._register(this._contributedEditors.onChange(() => {
 			this.updateContexts();
-			this._onDidChangeViewTypes.fire();
+			this._onDidChangeEditorTypes.fire();
 		}));
-		this._register(this.editorService.registerCustomEditorViewTypesHandler('Custom Editor', this));
+		this._register(Registry.as<IEditorAssociationsRegistry>(EditorExtensions.Associations).registerEditorTypesHandler('Custom Editor', this));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
 
 		this._register(fileService.onDidRunOperation(e => {
@@ -90,7 +91,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this.updateContexts();
 	}
 
-	getViewTypes(): ICustomEditorInfo[] {
+	getEditorTypes(): IEditorType[] {
 		return [...this._contributedEditors];
 	}
 
@@ -117,11 +118,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
 		return new CustomEditorInfoCollection(
 			coalesce(rawAssociations
 				.filter(association => CustomEditorInfo.selectorMatches(association, resource))
-				.map(association => this._contributedEditors.get(association.viewType))));
+				.map(association => this._contributedEditors.get(association.editorType))));
 	}
 
 	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
@@ -187,22 +188,22 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 				// And persist the setting
 				if (pick) {
-					const newAssociation: CustomEditorAssociation = { viewType: pick, filenamePattern: '*' + resourceExt };
-					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
+					const newAssociation: EditorAssociation = { editorType: pick, filenamePattern: '*' + resourceExt };
+					const currentAssociations = [...this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId)];
 
 					// First try updating existing association
 					for (let i = 0; i < currentAssociations.length; ++i) {
 						const existing = currentAssociations[i];
 						if (existing.filenamePattern === newAssociation.filenamePattern) {
 							currentAssociations.splice(i, 1, newAssociation);
-							this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+							this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
 							return;
 						}
 					}
 
 					// Otherwise, create a new one
 					currentAssociations.unshift(newAssociation);
-					this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+					this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
 				}
 			});
 			picker.show();

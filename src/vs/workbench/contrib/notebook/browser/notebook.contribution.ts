@@ -22,9 +22,9 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, EditorsAssociations, editorsAssociationsSettingId, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CustomEditorsAssociations, customEditorsAssociationsSettingId, EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
@@ -303,18 +303,18 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	}
 
 	getUserAssociatedEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
 
 		return coalesce(rawAssociations
 			.filter(association => CustomEditorInfo.selectorMatches(association, resource)));
 	}
 
 	getUserAssociatedNotebookEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
 
 		return coalesce(rawAssociations
 			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
-			.map(association => this.notebookService.getContributedNotebookProvider(association.viewType)));
+			.map(association => this.notebookService.getContributedNotebookProvider(association.editorType)));
 	}
 
 	getContributedEditors(resource: URI) {
@@ -431,7 +431,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			}
 
 			const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
-			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
+			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.editorType));
 
 			if (userAssociatedEditors.length && !notebookEditor.length) {
 				// user pick a non-notebook editor for this resource
@@ -494,7 +494,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
-		const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
+		const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.editorType));
 
 		if (userAssociatedEditors.length && !notebookEditor.length) {
 			// user pick a non-notebook editor for this resource

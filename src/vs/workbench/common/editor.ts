@@ -20,7 +20,7 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { ACTIVE_GROUP, ICustomEditorInfo, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
@@ -1635,24 +1635,5 @@ export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService
 
 	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
 }
-
-//#endregion
-
-//#region Editor Open With
-
-export const customEditorsAssociationsSettingId = 'workbench.editorAssociations';
-
-export const DEFAULT_CUSTOM_EDITOR: ICustomEditorInfo = {
-	id: 'default',
-	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
-};
-
-export type CustomEditorAssociation = {
-	readonly viewType: string;
-	readonly filenamePattern?: string;
-};
-
-export type CustomEditorsAssociations = readonly CustomEditorAssociation[];
 
 //#endregion

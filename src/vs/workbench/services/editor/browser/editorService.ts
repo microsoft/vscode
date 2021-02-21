@@ -6,7 +6,8 @@
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, customEditorsAssociationsSettingId, DEFAULT_CUSTOM_EDITOR, CustomEditorAssociation, CustomEditorsAssociations } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorAssociation, EditorsAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -18,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath, isEqual, extname } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
@@ -33,57 +34,16 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IKeyMods, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
-const viewTypeSchemaAddition: IJSONSchema = {
-	type: 'string',
-	enum: []
-};
-
-const editorAssociationsConfigurationNode: IConfigurationNode = {
-	...workbenchConfigurationNodeBase,
-	properties: {
-		[customEditorsAssociationsSettingId]: {
-			type: 'array',
-			markdownDescription: localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
-			items: {
-				type: 'object',
-				defaultSnippets: [{
-					body: {
-						'viewType': '$1',
-						'filenamePattern': '$2'
-					}
-				}],
-				properties: {
-					'viewType': {
-						anyOf: [
-							{
-								type: 'string',
-								description: localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
-							},
-							viewTypeSchemaAddition
-						]
-					},
-					'filenamePattern': {
-						type: 'string',
-						description: localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
-					}
-				}
-			}
-		}
-	}
-};
 export class EditorService extends Disposable implements EditorServiceImpl {
 
 	declare readonly _serviceBrand: undefined;
@@ -786,22 +746,22 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 					// And persist the setting
 					if (pick && id) {
-						const newAssociation: CustomEditorAssociation = { viewType: id, filenamePattern: '*' + resourceExt };
-						const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
+						const newAssociation: EditorAssociation = { editorType: id, filenamePattern: '*' + resourceExt };
+						const currentAssociations = [...this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId)];
 
 						// First try updating existing association
 						for (let i = 0; i < currentAssociations.length; ++i) {
 							const existing = currentAssociations[i];
 							if (existing.filenamePattern === newAssociation.filenamePattern) {
 								currentAssociations.splice(i, 1, newAssociation);
-								this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+								this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
 								return;
 							}
 						}
 
 						// Otherwise, create a new one
 						currentAssociations.unshift(newAssociation);
-						this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+						this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
 					}
 				});
 
@@ -1365,54 +1325,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region Custom View Type
-
-	private readonly customEditorViewTypesHandlers = new Map<string, ICustomEditorViewTypesHandler>();
-
-	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable {
-		if (this.customEditorViewTypesHandlers.has(source)) {
-			throw new Error(`Use a different name for the custom editor component, ${source} is already occupied.`);
-		}
-
-		this.customEditorViewTypesHandlers.set(source, handler);
-		this.updateSchema();
-
-		const viewTypeChangeEvent = handler.onDidChangeViewTypes(() => {
-			this.updateSchema();
-		});
-
-		return {
-			dispose: () => {
-				viewTypeChangeEvent.dispose();
-				this.customEditorViewTypesHandlers.delete(source);
-				this.updateSchema();
-			}
-		};
-	}
-
-	private updateSchema() {
-		const enumValues: string[] = [];
-		const enumDescriptions: string[] = [];
-
-		const infos: ICustomEditorInfo[] = [DEFAULT_CUSTOM_EDITOR];
-
-		for (const [, handler] of this.customEditorViewTypesHandlers) {
-			infos.push(...handler.getViewTypes());
-		}
-
-		infos.forEach(info => {
-			enumValues.push(info.id);
-			enumDescriptions.push(localize('editorAssociations.viewType.sourceDescription', "Source: {0}", info.providerDisplayName));
-		});
-
-		viewTypeSchemaAddition.enum = enumValues;
-		viewTypeSchemaAddition.enumDescriptions = enumDescriptions;
-
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
-	}
-
-	//#endregion
 
 	//#region Editor Tracking
 
@@ -1583,14 +1495,9 @@ export class DelegatingEditorService implements IEditorService {
 	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { return this.editorService.revert(editors, options); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { return this.editorService.revertAll(options); }
 
-	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable { return this.editorService.registerCustomEditorViewTypesHandler(source, handler); }
-
 	whenClosed(editors: IResourceEditorInput[]): Promise<void> { return this.editorService.whenClosed(editors); }
 
 	//#endregion
 }
 
 registerSingleton(IEditorService, EditorService);
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration(editorAssociationsConfigurationNode);
