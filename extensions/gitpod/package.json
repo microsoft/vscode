@@ -66,21 +66,31 @@
       },
       {
         "command": "gitpod.ports.openBrowser",
-        "title": "Open Browser",
+        "title": "%openBrowser%",
         "icon": "$(globe)"
       },
       {
         "command": "gitpod.ports.makePrivate",
-        "title": "Make Private",
+        "title": "%makePrivate%",
         "icon": "$(lock)"
       },
       {
         "command": "gitpod.ports.makePublic",
-        "title": "Make Public",
+        "title": "%makePublic%",
         "icon": "$(unlock)"
+      },
+      {
+        "command": "gitpod.extensions.addToConfig",
+        "title": "%addToConfig%"
       }
     ],
     "menus": {
+      "extension/context": [
+        {
+          "command": "gitpod.extensions.addToConfig",
+          "group": "2_configure"
+        }
+      ],
       "menuBar/home": [
         {
           "command": "gitpod.open.context",
@@ -240,6 +250,7 @@
     "utf-8-validate": "^5.0.2",
     "uuid": "^8.3.1",
     "vscode-nls": "^5.0.0",
-    "ws": "^7.3.1"
+    "ws": "^7.3.1",
+    "yaml": "^1.10.0"
   }
 }
