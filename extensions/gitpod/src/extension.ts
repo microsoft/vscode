@@ -25,6 +25,7 @@ import * as util from 'util';
 import * as uuid from 'uuid';
 import * as vscode from 'vscode';
 import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
+import { GitpodPluginModel } from './gitpod-plugin-model';
 import WebSocket = require('ws');
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -34,6 +35,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
+	const checkoutLocation = workspaceInfoResponse.getCheckoutLocation();
 	const workspaceId = workspaceInfoResponse.getWorkspaceId();
 	const gitpodHost = workspaceInfoResponse.getGitpodHost();
 	const gitpodApi = workspaceInfoResponse.getGitpodApi()!;
@@ -584,6 +586,32 @@ export async function activate(context: vscode.ExtensionContext) {
 	} else {
 		console.error(`cannot create a symlink to the cli server socket, GITPOD_CLI_SERVER_SOCKETS_PATH="${vscodeIpcHookCli}", GITPOD_CLI_SERVER_SOCKETS_PATH="${cliServerSocketsPath}"`);
 	}
+	//#endregion
+
+	//#region extension managemnet
+	const gitpodFileUri = vscode.Uri.file(path.join(checkoutLocation, '.gitpod.yml'));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.extensions.addToConfig', async (id: string) => {
+		let document: vscode.TextDocument | undefined;
+		let content = '';
+		try {
+			await util.promisify(fs.access.bind(fs))(gitpodFileUri.fsPath, fs.constants.F_OK);
+			document = await vscode.workspace.openTextDocument(gitpodFileUri);
+			content = document.getText();
+		} catch { /* no-op */ }
+		const model = new GitpodPluginModel(content);
+		model.add(id);
+		const edit = new vscode.WorkspaceEdit();
+		if (document) {
+			edit.replace(gitpodFileUri, document.validateRange(new vscode.Range(
+				document.positionAt(0),
+				document.positionAt(content.length)
+			)), String(model));
+		} else {
+			edit.createFile(gitpodFileUri, { overwrite: true });
+			edit.insert(gitpodFileUri, new vscode.Position(0, 0), String(model));
+		}
+		await vscode.workspace.applyEdit(edit);
+	}));
 	//#endregion
 }
 

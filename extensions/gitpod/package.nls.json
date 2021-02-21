@@ -11,5 +11,9 @@
 	"reportIssue": "Gitpod: Report Issue",
 	"stopWorkspace": "Gitpod: Stop Workspace",
 	"upgradeSubscription": "Gitpod: Upgrade Subscription",
-	"extendTimeout": "Gitpod: Extend Workspace Timeout"
+	"extendTimeout": "Gitpod: Extend Workspace Timeout",
+	"openBrowser": "Open Browser",
+	"makePrivate": "Make Private",
+	"makePublic": "Make Public",
+	"addToConfig": "Add to .gitpod.yml"
 }
