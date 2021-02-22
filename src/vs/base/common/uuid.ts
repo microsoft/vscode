@@ -21,6 +21,8 @@ for (let i = 0; i < 256; i++) {
 // 1. node nodejs use`crypto#randomBytes`, see: https://nodejs.org/docs/latest/api/crypto.html#crypto_crypto_randombytes_size_callback
 let _fillRandomValues: (bucket: Uint8Array) => Uint8Array;
 
+declare const crypto: undefined | { getRandomValues(data: Uint8Array): Uint8Array };
+
 if (typeof crypto === 'object' && typeof crypto.getRandomValues === 'function') {
 	// browser
 	_fillRandomValues = crypto.getRandomValues.bind(crypto);

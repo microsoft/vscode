@@ -1010,9 +1010,15 @@ export class TestLifecycleService implements ILifecycleService {
 
 	async when(): Promise<void> { }
 
+	shutdownJoiners: Promise<void>[] = [];
+
 	fireShutdown(reason = ShutdownReason.QUIT): void {
+		this.shutdownJoiners = [];
+
 		this._onWillShutdown.fire({
-			join: () => { },
+			join: p => {
+				this.shutdownJoiners.push(p);
+			},
 			reason
 		});
 	}
