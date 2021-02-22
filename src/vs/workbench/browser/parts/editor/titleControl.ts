@@ -229,7 +229,7 @@ export abstract class TitleControl extends Themable {
 
 			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
 				titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary },
-				isPrimaryGroup, 7, shouldInlineGroup
+				isPrimaryGroup, 9, shouldInlineGroup
 			));
 		}
 
