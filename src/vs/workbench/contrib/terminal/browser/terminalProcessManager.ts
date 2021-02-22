@@ -89,8 +89,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
-	private _persistentTerminalId: number | undefined;
-	public get persistentTerminalId(): number | undefined { return this._persistentTerminalId; }
+	public get persistentTerminalId(): number | undefined { return this._process?.id; }
 
 	public get hasWrittenData(): boolean {
 		return this._hasWrittenData;
@@ -236,9 +235,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}, LAUNCHING_DURATION);
 
 		const result = await this._process.start();
-		if (result && 'persistentTerminalId' in result) {
-			this._persistentTerminalId = result.persistentTerminalId;
-		} else if (result) {
+		if (result) {
 			// Error
 			return result;
 		}
