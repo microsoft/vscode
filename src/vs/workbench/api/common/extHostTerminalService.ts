@@ -9,18 +9,18 @@ import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShap
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ITerminalChildProcess, ITerminalLaunchError, ITerminalDimensionsOverride } from 'vs/platform/terminal/common/terminal';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 

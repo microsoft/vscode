@@ -12,11 +12,11 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITerminalExternalLinkProvider, ITerminalLink } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
-import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IShellLaunchConfig, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
