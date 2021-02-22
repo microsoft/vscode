@@ -23,7 +23,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState, cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -193,40 +193,31 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	get primarySelectionHandle() {
-		return this._selectionCollection.primaryHandle;
+		const index = this._selectionCollection.selection?.start;
+		return this.getCellByIndex(index)?.handle ?? null;
 	}
 
 	set primarySelectionHandle(primary: number | null) {
-		this._selectionCollection.setFocus(primary);
-
 		const index = primary !== null ? this.viewCells.findIndex(cell => cell.handle === primary) : null;
 		const range = index !== null ? { start: index, end: index + 1 } : null;
 		this._selectionCollection.setFocus2(range, true);
 	}
 
 	get selectionHandles() {
-		return this._selectionCollection.allSelectionHandles;
+		const handlesSet = new Set<number>();
+		const handles: number[] = [];
+		cellRangesToIndexes(this._selectionCollection.selections).map(index => this.getCellByIndex(index)).forEach(cell => {
+			if (cell && !handlesSet.has(cell.handle)) {
+				handles.push(cell.handle);
+			}
+		});
+
+		return handles;
 	}
 
 	set selectionHandles(selectionHandles: number[]) {
-		this._selectionCollection.setSelections(selectionHandles);
-
 		const indexes = selectionHandles.map(handle => this._viewCells.findIndex(cell => cell.handle === handle));
-		const first = indexes.shift();
-
-		if (first === undefined) {
-			this._selectionCollection.setSelections2([], true);
-		} else {
-			const selections = indexes.reduce(function (ranges, num) {
-				if (num - ranges[0][1] <= 0) {
-					ranges[0][1] = num + 1;
-				} else {
-					ranges.unshift([num, num + 1]);
-				}
-				return ranges;
-			}, [[first, first + 1]]).reverse().map(val => ({ start: val[0], end: val[1] }));
-			this._selectionCollection.setSelections2(selections, true);
-		}
+		this._selectionCollection.setSelections2(cellIndexesToRanges(indexes), true);
 	}
 
 	get primary() {
@@ -392,14 +383,18 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._focused = focused;
 	}
 
+	updateSelectionsFromView(primary: number | null, selections: number[]) {
+		const primaryIndex = primary !== null ? this.getCellIndexByHandle(primary) : null;
+		const selectionIndexes = selections.map(sel => this.getCellIndexByHandle(sel));
+		this._selectionCollection.setState2(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true);
+	}
+
 	updateSelectionsFromEdits(state: ISelectionState) {
 		if (this._focused) {
 			if (state.kind === SelectionStateType.Handle) {
-				this.primarySelectionHandle = state.primary;
-				this.selectionHandles = state.selections;
+				this._selectionCollection.setState(state.primary, state.selections);
 			} else {
-				this._selectionCollection.setFocus2(state.primary !== null ? { start: state.primary, end: state.primary + 1 } : null, true);
-				this._selectionCollection.setSelections2(state.selections, true);
+				this._selectionCollection.setState2(state.selections[0] ?? null, state.selections, true);
 			}
 		}
 	}
@@ -491,12 +486,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._handleToViewCellMapping.get(handle);
 	}
 
-	getCellIndexByHandle(handle: number) {
+	getCellIndexByHandle(handle: number): number {
 		return this._viewCells.findIndex(cell => cell.handle === handle);
 	}
 
 	getCellIndex(cell: ICellViewModel) {
 		return this._viewCells.indexOf(cell as CellViewModel);
+	}
+
+	getCellByIndex(index: number) {
+		return this._viewCells[index];
 	}
 
 	/**

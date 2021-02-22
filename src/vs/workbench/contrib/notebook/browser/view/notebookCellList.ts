@@ -21,7 +21,7 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 
@@ -365,14 +365,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		this._viewModelStore.add(model.onDidChangeSelection(() => {
 			// convert model selections to view selections
-			const viewSelections = model.selectionHandles.map(handle => {
-				return model.getCellByHandle(handle);
-			}).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
+			const primary = cellRangesToIndexes([model.getSelection()]).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 
-			const primary = model.primarySelectionHandle !== null ? model.getCellIndexByHandle(model.primarySelectionHandle) : null;
-			if (primary !== null && primary >= 0) {
-				this.setFocus([primary], undefined, true);
+			if (primary.length) {
+				this.setFocus(primary, undefined, true);
 			}
 		}));
 
@@ -601,13 +599,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
+		if (ignoreTextModelUpdate) {
+			return;
+		}
+
 		if (!indexes.length) {
-			if (this._viewModel && !ignoreTextModelUpdate) {
-				this._viewModel.primarySelectionHandle = null;
+			if (this._viewModel) {
+				this._viewModel.updateSelectionsFromView(null, []);
 			}
 		} else {
-			if (this._viewModel && !ignoreTextModelUpdate) {
-				this._viewModel.primarySelectionHandle = this.element(indexes[0]).handle ?? null;
+			if (this._viewModel) {
+				const focusedElementHandle = this.element(indexes[0]).handle;
+				this._viewModel.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
 			}
 		}
 
@@ -615,13 +618,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
+		if (ignoreTextModelUpdate) {
+			return;
+		}
+
 		if (!indexes.length) {
-			if (this._viewModel && !ignoreTextModelUpdate) {
-				this._viewModel.selectionHandles = [];
+			if (this._viewModel) {
+				this._viewModel.updateSelectionsFromView(this.getFocusedElements()[0]?.handle ?? null, []);
 			}
 		} else {
-			if (this._viewModel && !ignoreTextModelUpdate) {
-				this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
+			if (this._viewModel) {
+				this._viewModel.updateSelectionsFromView(this.getFocusedElements()[0]?.handle ?? null, indexes.map(index => this.element(index)).map(cell => cell.handle));
 			}
 		}
 

@@ -64,7 +64,7 @@ export class NotebookCellSelectionCollection extends Disposable {
 		super();
 	}
 
-	private _setState(primary: number | null, selections: number[]) {
+	setState(primary: number | null, selections: number[]) {
 		if (primary === null) {
 			const changed = primary !== this._primarySelectionHandle || !selectionsEqual(selections, this._selectionHandles);
 
@@ -78,19 +78,11 @@ export class NotebookCellSelectionCollection extends Disposable {
 			const changed = primary !== this._primarySelectionHandle || !selectionsEqual(newSelections, this._selectionHandles);
 
 			this._primarySelectionHandle = primary;
-			this._selectionHandles = selections;
+			this._selectionHandles = newSelections;
 			if (changed) {
 				this._onDidChangeSelection.fire();
 			}
 		}
-	}
-
-	setSelections(handles: number[]) {
-		this._setState(this._primarySelectionHandle, handles);
-	}
-
-	setFocus(handle: number | null) {
-		this._setState(handle, this._selectionHandles);
 	}
 
 	private _primary: ICellRange | null = null;
@@ -109,11 +101,11 @@ export class NotebookCellSelectionCollection extends Disposable {
 		return this._selections[0];
 	}
 
-	private _setState2(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean) {
+	setState2(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean) {
 		if (primary !== null) {
 			const primaryRange = primary;
 			// TODO@rebornix deal with overlap
-			const newSelections = [primaryRange, ...selections.filter(selection => selection.start === primaryRange.start && selection.end === primaryRange.end).sort((a, b) => a.start - b.start)];
+			const newSelections = [primaryRange, ...selections.filter(selection => !(selection.start === primaryRange.start && selection.end === primaryRange.end)).sort((a, b) => a.start - b.start)];
 
 			const changed = primary !== this._primary || !rangesEqual(this._selections, newSelections);
 			this._primary = primary;
@@ -143,10 +135,10 @@ export class NotebookCellSelectionCollection extends Disposable {
 	}
 
 	setFocus2(selection: ICellRange | null, forceEventEmit: boolean) {
-		this._setState2(selection, this._selections, forceEventEmit);
+		this.setState2(selection, this._selections, forceEventEmit);
 	}
 
 	setSelections2(selections: ICellRange[], forceEventEmit: boolean) {
-		this._setState2(this._primary, selections, forceEventEmit);
+		this.setState2(this._primary, selections, forceEventEmit);
 	}
 }

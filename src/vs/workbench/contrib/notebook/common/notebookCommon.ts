@@ -312,7 +312,10 @@ export interface ISelectionHandleState {
 
 export interface ISelectionIndexState {
 	kind: SelectionStateType.Index;
-	primary: number | null;
+
+	/**
+	 * [primarySelection, ...secondarySelections]
+	 */
 	selections: ICellRange[];
 }
 
@@ -820,4 +823,34 @@ export interface INotebookDecorationRenderOptions {
 	backgroundColor?: string | ThemeColor;
 	borderColor?: string | ThemeColor;
 	top?: editorCommon.IContentDecorationRenderOptions;
+}
+
+
+export function cellIndexesToRanges(indexes: number[]) {
+	const first = indexes.shift();
+
+	if (first === undefined) {
+		return [];
+	}
+
+	return indexes.reduce(function (ranges, num) {
+		if (num <= ranges[0][1]) {
+			ranges[0][1] = num + 1;
+		} else {
+			ranges.unshift([num, num + 1]);
+		}
+		return ranges;
+	}, [[first, first + 1]]).reverse().map(val => ({ start: val[0], end: val[1] }));
+}
+
+export function cellRangesToIndexes(ranges: ICellRange[]) {
+	const indexes = ranges.reduce((a, b) => {
+		for (let i = b.start; i < b.end; i++) {
+			a.push(i);
+		}
+
+		return a;
+	}, [] as number[]);
+
+	return indexes;
 }
