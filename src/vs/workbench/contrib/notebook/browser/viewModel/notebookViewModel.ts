@@ -23,7 +23,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -350,7 +350,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 
 			if (contentChanges.endSelectionState) {
-				this.updateSelectionsFromEdits(contentChanges.endSelectionState.primary, contentChanges.endSelectionState.selections);
+				this.updateSelectionsFromEdits(contentChanges.endSelectionState);
 			}
 		}));
 
@@ -387,11 +387,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._focused = focused;
 	}
 
-	updateSelectionsFromEdits(primary: number | null, selections: number[]) {
+	updateSelectionsFromEdits(state: ISelectionState) {
 		if (this._focused) {
-			// TODO@rebornix
-			this.primarySelectionHandle = primary;
-			this.selectionHandles = selections;
+			if (state.kind === SelectionStateType.Handle) {
+				this.primarySelectionHandle = state.primary;
+				this.selectionHandles = state.selections;
+			} else {
+				this._selectionCollection.setFocus2(state.primary, true);
+				this._selectionCollection.setSelections2(state.selections, true);
+			}
 		}
 	}
 
@@ -694,13 +698,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					}
 				]
 			}
-		], synchronous, { primary: previouslyPrimary, selections: beforeSelections }, () => undefined, undefined);
+		], synchronous, { kind: SelectionStateType.Handle, primary: previouslyPrimary, selections: beforeSelections }, () => undefined, undefined);
 		return this._viewCells[index];
 	}
 
 	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean = true) {
-		const primaryCell = this.primarySelectionHandle !== null ? this.getCellByHandle(this.primarySelectionHandle) : null;
-		const primarySelectionIndex = primaryCell ? this.getCellIndex(primaryCell) : null;
+		const primarySelectionIndex = this.primary;
 		let endPrimarySelection: number | null = null;
 
 		if (index === primarySelectionIndex) {
@@ -721,8 +724,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				cells: []
 			}],
 			synchronous,
-			{ primary: this.primarySelectionHandle, selections: this.selectionHandles },
-			() => ({ primary: endPrimarySelection, selections: endSelections }),
+			{ kind: SelectionStateType.Handle, primary: this.primarySelectionHandle, selections: this.selectionHandles },
+			() => ({ kind: SelectionStateType.Handle, primary: endPrimarySelection, selections: endSelections }),
 			undefined,
 			pushUndoStop
 		);
@@ -749,7 +752,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				length,
 				newIdx
 			}
-		], synchronous, { primary: this.primarySelectionHandle, selections: this.selectionHandles }, () => ({ primary: viewCell.handle, selections: [viewCell.handle] }), undefined);
+		], synchronous, { kind: SelectionStateType.Handle, primary: this.primarySelectionHandle, selections: this.selectionHandles }, () => ({ kind: SelectionStateType.Handle, primary: viewCell.handle, selections: [viewCell.handle] }), undefined);
 		return true;
 	}
 

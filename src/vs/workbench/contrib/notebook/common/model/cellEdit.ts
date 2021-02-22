@@ -6,12 +6,7 @@
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-
-interface ISelectionState {
-	primary: number | null;
-	selections: number[];
-}
+import { ISelectionState, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 /**
  * It should not modify Undo/Redo stack

@@ -194,10 +194,7 @@ class DelayedEmitter {
 				this._notebookTextModelChangedEvent = {
 					rawEvents: [...this._notebookTextModelChangedEvent.rawEvents, data],
 					versionId: this._textModel.versionId,
-					endSelectionState: {
-						primary: endSelections?.primary ?? null,
-						selections: endSelections?.selections ?? this._notebookTextModelChangedEvent.endSelectionState?.selections ?? []
-					},
+					endSelectionState: endSelections !== undefined ? endSelections : this._notebookTextModelChangedEvent.endSelectionState,
 					synchronous: synchronous
 				};
 			}

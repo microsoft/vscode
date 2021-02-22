@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CellKind, CellEditType, NotebookTextModelChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -300,7 +300,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => ({ primary: 0, selections: [0] }), undefined);
+				], true, undefined, () => ({ kind: SelectionStateType.Index, primary: 0, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.equal(textModel.cells.length, 4);
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
@@ -341,7 +341,7 @@ suite('NotebookTextModel', () => {
 						editType: CellEditType.Metadata,
 						metadata: { editable: false },
 					}
-				], true, undefined, () => ({ primary: 0, selections: [0] }), undefined);
+				], true, undefined, () => ({ kind: SelectionStateType.Index, primary: 0, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.notEqual(changeEvent, undefined);
 				assert.equal(changeEvent!.rawEvents.length, 2);
