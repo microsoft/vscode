@@ -162,7 +162,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo.tabs
 		};
-		console.log('setting', args);
 		this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
