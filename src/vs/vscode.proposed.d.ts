@@ -2407,6 +2407,12 @@ declare module 'vscode' {
 		tests: T[];
 
 		/**
+		 * Array of tests the user wishes has marked as excluded in VS Code.
+		 * May be omitted if no exclusions are present.
+		 */
+		exclude?: T[];
+
+		/**
 		 * Whether or not tests in this run should be debugged.
 		 */
 		debug: boolean;

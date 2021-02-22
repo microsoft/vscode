@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
-import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
+import { OwnedTestCollection, SingleUseTestCollection, TestTree } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
 import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
@@ -39,7 +39,7 @@ export class TestOwnedTestCollection extends OwnedTestCollection {
  */
 export const getInitializedMainTestCollection = (root = testStubs.nested()) => {
 	const c = new MainThreadTestCollection(0);
-	const singleUse = new TestSingleUseCollection({ object: new Map(), dispose: () => undefined }, () => undefined);
+	const singleUse = new TestSingleUseCollection({ object: new TestTree(), dispose: () => undefined }, () => undefined);
 	singleUse.addRoot(root, 'provider');
 	c.apply(singleUse.collectDiff());
 	return c;
