@@ -16,7 +16,6 @@ import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -598,7 +597,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e) && BrowserFeatures.clipboard.richText);
+		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e));
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
@@ -737,11 +736,11 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	}
 
 	public getSelectionStart(): number {
-		return this._actual.domNode.selectionStart;
+		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionEnd : this._actual.domNode.selectionStart;
 	}
 
 	public getSelectionEnd(): number {
-		return this._actual.domNode.selectionEnd;
+		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionStart : this._actual.domNode.selectionEnd;
 	}
 
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {

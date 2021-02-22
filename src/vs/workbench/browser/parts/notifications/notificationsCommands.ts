@@ -32,9 +32,9 @@ const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTIFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
 
-export const NotificationFocusedContext = new RawContextKey<boolean>('notificationFocus', true);
-export const NotificationsCenterVisibleContext = new RawContextKey<boolean>('notificationCenterVisible', false);
-export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('notificationToastsVisible', false);
+export const NotificationFocusedContext = new RawContextKey<boolean>('notificationFocus', true, localize('notificationFocus', "Whether a notification has keyboard focus"));
+export const NotificationsCenterVisibleContext = new RawContextKey<boolean>('notificationCenterVisible', false, localize('notificationCenterVisible', "Whether the notifications center is visible"));
+export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('notificationToastsVisible', false, localize('notificationToastsVisible', "Whether a notification toast is visible"));
 
 export interface INotificationsCenterController {
 	readonly isVisible: boolean;

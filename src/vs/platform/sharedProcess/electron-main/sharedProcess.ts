@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain } from 'electron';
+import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMainEvent } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { FileAccess } from 'vs/base/common/network';
 import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
@@ -17,10 +17,11 @@ import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/i
 import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
 import { WindowError } from 'vs/platform/windows/electron-main/windows';
+import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
-	private readonly whenSpawnedBarrier = new Barrier();
+	private readonly afterWindowOpenBarrier = new Barrier();
 
 	private window: BrowserWindow | undefined = undefined;
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
@@ -47,28 +48,33 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
 
 		// Shared process connections from workbench windows
-		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => {
-			this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => this.onWindowConnection(e, nonce));
 
-			// await the shared process to be overall ready
-			// we do not just wait for IPC ready because the
-			// workbench window will communicate directly
-			await this.whenReady();
+		// Release barrier to create shared process after first window opens
+		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.afterWindowOpenBarrier.open());
+	}
 
-			// connect to the shared process window
-			const port = await this.connect();
+	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
+		this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
 
-			// Check back if the requesting window meanwhile closed
-			// Since shared process is delayed on startup there is
-			// a chance that the window close before the shared process
-			// was ready for a connection.
-			if (e.sender.isDestroyed()) {
-				return port.close();
-			}
+		// await the shared process to be overall ready
+		// we do not just wait for IPC ready because the
+		// workbench window will communicate directly
+		await this.whenReady();
 
-			// send the port back to the requesting window
-			e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
-		});
+		// connect to the shared process window
+		const port = await this.connect();
+
+		// Check back if the requesting window meanwhile closed
+		// Since shared process is delayed on startup there is
+		// a chance that the window close before the shared process
+		// was ready for a connection.
+		if (e.sender.isDestroyed()) {
+			return port.close();
+		}
+
+		// send the port back to the requesting window
+		e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
 	}
 
 	private onWillShutdown(): void {
@@ -125,8 +131,11 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		if (!this._whenIpcReady) {
 			this._whenIpcReady = (async () => {
 
-				// Always wait for `spawn()`
-				await this.whenSpawnedBarrier.wait();
+				// Always wait for first window asking for connection
+				await this.afterWindowOpenBarrier.wait();
+
+				// Resolve shell environment
+				this.userEnv = { ...this.userEnv, ...(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env)) };
 
 				// Create window for shared process
 				this.createWindow();
@@ -211,13 +220,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, message: `SharedProcess: crashed (detail: ${details?.reason})` }));
 		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE, message: 'SharedProcess: detected unresponsive window' }));
 		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this._onDidError.fire({ type: WindowError.LOAD, message: `SharedProcess: failed to load window: ${errorDescription}` }));
-	}
-
-	spawn(userEnv: NodeJS.ProcessEnv): void {
-		this.userEnv = { ...this.userEnv, ...userEnv };
-
-		// Release barrier
-		this.whenSpawnedBarrier.open();
 	}
 
 	async connect(): Promise<MessagePortMain> {

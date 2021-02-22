@@ -563,7 +563,7 @@ export interface IViewsService {
 /**
  * View Contexts
  */
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
+export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
 export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');

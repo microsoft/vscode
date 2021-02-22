@@ -360,7 +360,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (manifest.requiresWorkspaceTrust === 'onStart') {
 			const trustState = await this.workspaceTrustService.requireWorkspaceTrust(
 				{
-					immediate: true,
+					modal: true,
 					message: 'Installing this extension requires you to trust the contents of this workspace.'
 				});
 			return trustState === WorkspaceTrustState.Trusted ? Promise.resolve() : Promise.reject(canceled());

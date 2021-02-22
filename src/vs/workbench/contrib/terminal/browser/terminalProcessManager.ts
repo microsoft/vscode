@@ -23,11 +23,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, IProcessDataEvent, ITerminalDimensionsOverride } from 'vs/platform/terminal/common/terminal';
+import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants } from 'vs/platform/terminal/common/terminal';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -89,8 +89,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
-	private _remoteTerminalId: number | undefined;
-	public get remoteTerminalId(): number | undefined { return this._remoteTerminalId; }
+	private _persistentTerminalId: number | undefined;
+	public get persistentTerminalId(): number | undefined { return this._persistentTerminalId; }
 
 	public get hasWrittenData(): boolean {
 		return this._hasWrittenData;
@@ -188,8 +188,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			} else {
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
-				shellLaunchConfig.flowControl = false;
-				this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+				if (shellLaunchConfig.attachPersistentTerminal) {
+					this._process = await this._terminalInstanceService.attachToProcess(shellLaunchConfig.attachPersistentTerminal.id);
+				} else {
+					this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+				}
 			}
 		}
 
@@ -210,8 +213,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._initialCwd = e.cwd;
 			this._onProcessReady.fire();
 
-			// Send any queued data that's waiting
 			if (this._preLaunchInputQueue.length > 0 && this._process) {
+				// Send any queued data that's waiting
 				this._process.input(this._preLaunchInputQueue.join(''));
 				this._preLaunchInputQueue.length = 0;
 			}
@@ -233,8 +236,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}, LAUNCHING_DURATION);
 
 		const result = await this._process.start();
-		if (result && 'remoteTerminalId' in result) {
-			this._remoteTerminalId = result.remoteTerminalId;
+		if (result && 'persistentTerminalId' in result) {
+			this._persistentTerminalId = result.persistentTerminalId;
 		} else if (result) {
 			// Error
 			return result;
