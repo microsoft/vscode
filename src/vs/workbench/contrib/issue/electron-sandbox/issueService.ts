@@ -34,25 +34,40 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
-		const extensions = await this.extensionManagementService.getInstalled();
-		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
-		const extensionData = enabledExtensions.map((extension): IssueReporterExtensionData => {
-			const { manifest } = extension;
-			const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
-			const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-			const isBuiltin = extension.type === ExtensionType.System;
-			return {
-				name: manifest.name,
-				publisher: manifest.publisher,
-				version: manifest.version,
-				repositoryUrl: manifest.repository && manifest.repository.url,
-				bugsUrl: manifest.bugs && manifest.bugs.url,
-				displayName: manifest.displayName,
-				id: extension.identifier.id,
-				isTheme,
-				isBuiltin,
-			};
-		});
+		const extensionData: IssueReporterExtensionData[] = [];
+		try {
+			const extensions = await this.extensionManagementService.getInstalled();
+			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
+			extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
+				const { manifest } = extension;
+				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
+				const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+				const isBuiltin = extension.type === ExtensionType.System;
+				return {
+					name: manifest.name,
+					publisher: manifest.publisher,
+					version: manifest.version,
+					repositoryUrl: manifest.repository && manifest.repository.url,
+					bugsUrl: manifest.bugs && manifest.bugs.url,
+					displayName: manifest.displayName,
+					id: extension.identifier.id,
+					isTheme,
+					isBuiltin,
+				};
+			}));
+		} catch (e) {
+			extensionData.push({
+				name: 'Workbench Issue Service',
+				publisher: 'Unknown',
+				version: '0.0.0',
+				repositoryUrl: undefined,
+				bugsUrl: undefined,
+				displayName: `Extensions not loaded: ${e}`,
+				id: 'workbench.issue',
+				isTheme: false,
+				isBuiltin: true
+			});
+		}
 		const experiments = await this.experimentService.getCurrentExperiments();
 		const githubSessions = await this.authenticationService.getSessions('github');
 		const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
