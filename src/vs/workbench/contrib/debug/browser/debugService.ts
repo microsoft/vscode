@@ -279,7 +279,7 @@ export class DebugService implements IDebugService {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
 			if (!options?.parentSession) {
-				const saveBeforeStartConfig = this.configurationService.getValue('debug.saveBeforeStart');
+				const saveBeforeStartConfig: string = this.configurationService.getValue('debug.saveBeforeStart');
 
 				if (saveBeforeStartConfig !== 'none') {
 					await this.editorService.saveAll();
