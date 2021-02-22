@@ -1743,7 +1743,6 @@ export interface ExtHostCommentsShape {
 
 export interface INotebookSelectionChangeEvent {
 	primary: number | null;
-	// handles
 	selections: ICellRange[];
 }
 

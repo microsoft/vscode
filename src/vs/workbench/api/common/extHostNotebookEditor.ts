@@ -85,9 +85,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 }
 
 export class ExtHostNotebookEditor {
-
-	//TODO@rebornix noop setter?
-	selection?: vscode.NotebookCell;
+	private _selection?: vscode.NotebookCell;
 	private _selections: vscode.NotebookCellRange[] = [];
 
 	private _visibleRanges: extHostTypes.NotebookCellRange[] = [];
@@ -124,7 +122,7 @@ export class ExtHostNotebookEditor {
 					return that.notebookData.notebookDocument;
 				},
 				get selection() {
-					return that.selection;
+					return that._selection;
 				},
 				get selections() {
 					return that._selections;
@@ -178,7 +176,7 @@ export class ExtHostNotebookEditor {
 	}
 
 	_acceptSelections(primary: number | null, selections: ICellRange[]): void {
-		this.selection = primary !== null ? this.notebookData.getCellFromIndex(primary)?.cell : undefined;
+		this._selection = primary !== null ? this.notebookData.getCellFromIndex(primary)?.cell : undefined;
 		this._selections = selections.map(val => new extHostTypes.NotebookCellRange(val.start, val.end));
 	}
 

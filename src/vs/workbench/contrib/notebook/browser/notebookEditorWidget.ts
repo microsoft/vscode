@@ -1285,7 +1285,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	focusElement(cell: ICellViewModel) {
 		this._list.focusElement(cell);
-		this._list.selectElement(cell);
 	}
 
 	revealCellRangeInView(range: ICellRange) {

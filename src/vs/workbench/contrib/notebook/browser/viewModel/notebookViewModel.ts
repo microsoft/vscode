@@ -924,7 +924,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				{ quotableLabel: 'Join Notebook Cells' }
 			);
 
-			// TODO@rebornix
 			this.selectionHandles = endSelections;
 
 			return { cell: above, deletedCells: [cell] };
