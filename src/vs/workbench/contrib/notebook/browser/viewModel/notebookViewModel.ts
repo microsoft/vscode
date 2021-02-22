@@ -683,7 +683,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					}
 				]
 			}
-		], synchronous, { primary: previouslyPrimary, selections: beforeSelections }, () => null, undefined);
+		], synchronous, { primary: previouslyPrimary, selections: beforeSelections }, () => undefined, undefined);
 		return this._viewCells[index];
 	}
 

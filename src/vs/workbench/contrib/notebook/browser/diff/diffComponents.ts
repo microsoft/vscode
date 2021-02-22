@@ -443,8 +443,8 @@ abstract class AbstractElementRenderer extends Disposable {
 					this.notebookEditor.textModel!.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
 					true,
-					null,
-					() => null,
+					undefined,
+					() => undefined,
 					undefined
 				);
 			}
@@ -457,7 +457,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this.notebookEditor.textModel!.applyEdits(this.notebookEditor.textModel!.versionId, [
 				{ editType: CellEditType.Metadata, index, metadata: result }
-			], true, null, () => null, undefined);
+			], true, undefined, () => undefined, undefined);
 		} catch {
 		}
 	}

@@ -56,7 +56,7 @@ export class BulkCellEdits {
 
 			// apply edits
 			const edits = group.map(entry => entry.cellEdit);
-			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, null, () => null, this._undoRedoGroup);
+			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, undefined, () => undefined, this._undoRedoGroup);
 			ref.dispose();
 
 			this._progress.report(undefined);

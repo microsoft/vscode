@@ -344,11 +344,11 @@ abstract class AbstractCellRenderer {
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
-				], true, null, () => null, undefined);
+				], true, undefined, () => undefined, undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
-				], true, null, () => null, undefined);
+				], true, undefined, () => undefined, undefined);
 			}
 		}));
 	}

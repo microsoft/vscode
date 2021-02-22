@@ -17,9 +17,9 @@ interface ISelectionState {
  * It should not modify Undo/Redo stack
  */
 export interface ITextCellEditingDelegate {
-	insertCell?(index: number, cell: NotebookCellTextModel, endSelections: ISelectionState | null): void;
-	deleteCell?(index: number, endSelections: ISelectionState | null): void;
-	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | null, endSelections: ISelectionState | null): void;
+	insertCell?(index: number, cell: NotebookCellTextModel, endSelections: ISelectionState | undefined): void;
+	deleteCell?(index: number, endSelections: ISelectionState | undefined): void;
+	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined): void;
 	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata): void;
 }
 
@@ -33,8 +33,8 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		private length: number,
 		private toIndex: number,
 		private editingDelegate: ITextCellEditingDelegate,
-		private beforedSelections: ISelectionState | null,
-		private endSelections: ISelectionState | null
+		private beforedSelections: ISelectionState | undefined,
+		private endSelections: ISelectionState | undefined
 	) {
 	}
 
@@ -62,8 +62,8 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 		public resource: URI,
 		private diffs: [number, NotebookCellTextModel[], NotebookCellTextModel[]][],
 		private editingDelegate: ITextCellEditingDelegate,
-		private beforeHandles: ISelectionState | null,
-		private endHandles: ISelectionState | null
+		private beforeHandles: ISelectionState | undefined,
+		private endHandles: ISelectionState | undefined
 	) {
 	}
 

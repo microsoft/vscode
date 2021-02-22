@@ -308,7 +308,7 @@ export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
 	readonly synchronous: boolean;
-	readonly endSelectionState: ISelectionState | null;
+	readonly endSelectionState: ISelectionState | undefined;
 };
 
 export const enum CellEditType {

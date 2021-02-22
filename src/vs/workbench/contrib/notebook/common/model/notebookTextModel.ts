@@ -59,10 +59,10 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
 
 	private _operations: IUndoRedoElement[] = [];
-	private _beginSelectionState: ISelectionState | null = null;
-	private _resultSelectionState: ISelectionState | null = null;
+	private _beginSelectionState: ISelectionState | undefined = undefined;
+	private _resultSelectionState: ISelectionState | undefined = undefined;
 
-	constructor(readonly resource: URI, readonly label: string, readonly undoRedoGroup: UndoRedoGroup | undefined, private _delayedEmitter: DelayedEmitter, selectionState: ISelectionState | null) {
+	constructor(readonly resource: URI, readonly label: string, readonly undoRedoGroup: UndoRedoGroup | undefined, private _delayedEmitter: DelayedEmitter, selectionState: ISelectionState | undefined) {
 		this.type = UndoRedoElementType.Workspace;
 		this._beginSelectionState = selectionState;
 	}
@@ -74,11 +74,11 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 		return this._operations.length === 0;
 	}
 
-	pushEndSelectionState(selectionState: ISelectionState | null) {
+	pushEndSelectionState(selectionState: ISelectionState | undefined) {
 		this._resultSelectionState = selectionState;
 	}
 
-	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | null, resultSelectionState: ISelectionState | null) {
+	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined) {
 		if (this._operations.length === 0) {
 			this._beginSelectionState = this._beginSelectionState ?? beginSelectionState;
 		}
@@ -109,7 +109,7 @@ export class NotebookOperationManager {
 
 	}
 
-	pushStackElement(label: string, selectionState: ISelectionState | null, undoRedoGroup: UndoRedoGroup | undefined) {
+	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
 		if (this._pendingStackOperation) {
 			this._pendingStackOperation.pushEndSelectionState(selectionState);
 			if (!this._pendingStackOperation.isEmpty) {
@@ -122,7 +122,7 @@ export class NotebookOperationManager {
 		this._pendingStackOperation = new StackOperation(this._resource, label, undoRedoGroup, this._delayedEmitter, selectionState);
 	}
 
-	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | null, resultSelectionState: ISelectionState | null) {
+	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined) {
 		if (this._pendingStackOperation) {
 			this._pendingStackOperation.pushEditOperation(element, beginSelectionState, resultSelectionState);
 			return;
@@ -148,7 +148,7 @@ class DelayedEmitter {
 		this._deferredCnt++;
 	}
 
-	endDeferredEmit(endSelections: ISelectionState | null): void {
+	endDeferredEmit(endSelections: ISelectionState | undefined): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
 			this._computeEndState();
@@ -169,7 +169,7 @@ class DelayedEmitter {
 	}
 
 
-	emit(data: NotebookRawContentEvent, synchronous: boolean, endSelections: ISelectionState | null) {
+	emit(data: NotebookRawContentEvent, synchronous: boolean, endSelections: ISelectionState | undefined) {
 
 		if (this._deferredCnt === 0) {
 			this._computeEndState();
@@ -266,7 +266,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		for (let i = 0; i < mainCells.length; i++) {
 			this._mapping.set(mainCells[i].handle, mainCells[i]);
 			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
-				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true, null);
+				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true, undefined);
 			});
 
 			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
@@ -282,11 +282,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		super.dispose();
 	}
 
-	pushStackElement(label: string, selectionState: ISelectionState | null, undoRedoGroup: UndoRedoGroup | undefined) {
+	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
 		this._operationManager.pushStackElement(label, selectionState, undoRedoGroup);
 	}
 
-	applyEdits(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | null, endSelectionsComputer: () => ISelectionState | null, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
+	applyEdits(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
@@ -354,7 +354,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._updateNotebookMetadata(edit.metadata, computeUndoRedo);
 					break;
 				case CellEditType.Move:
-					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, null, null);
+					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, undefined, undefined);
 					break;
 			}
 		}
@@ -395,7 +395,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._modelService
 			);
 			const dirtyStateListener = cell.onDidChangeContent(() => {
-				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true, null);
+				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true, undefined);
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			this._mapping.set(cell.handle, cell);
@@ -418,9 +418,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		if (computeUndoRedo) {
 			this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
-				insertCell: (index, cell, endSelections: ISelectionState | null) => { this._insertNewCell(index, [cell], true, endSelections); },
-				deleteCell: (index, endSelections: ISelectionState | null) => { this._removeCell(index, 1, true, endSelections); },
-			}, null, null), null, null);
+				insertCell: (index, cell, endSelections: ISelectionState | undefined) => { this._insertNewCell(index, [cell], true, endSelections); },
+				deleteCell: (index, endSelections: ISelectionState | undefined) => { this._removeCell(index, 1, true, endSelections); },
+			}, undefined, undefined), undefined, undefined);
 		}
 
 		// should be deferred
@@ -428,7 +428,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			kind: NotebookCellsChangeType.ModelChange,
 			changes: diffs,
 			transient: false
-		}, synchronous, null);
+		}, synchronous, undefined);
 	}
 
 	private _increaseVersionId(): void {
@@ -470,17 +470,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						runState: that.metadata.runState
 					}, false);
 				}
-			}(), null, null);
+			}(), undefined, undefined);
 		}
 
-		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, metadata: this.metadata, transient: this._isDocumentMetadataChangeTransient(oldMetadata, metadata) }, true, null);
+		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, metadata: this.metadata, transient: this._isDocumentMetadataChangeTransient(oldMetadata, metadata) }, true, undefined);
 	}
 
-	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | null): void {
+	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections: ISelectionState | undefined): void {
 		for (let i = 0; i < cells.length; i++) {
 			this._mapping.set(cells[i].handle, cells[i]);
 			const dirtyStateListener = cells[i].onDidChangeContent(() => {
-				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true, null);
+				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true, undefined);
 			});
 
 			this._cellListeners.set(cells[i].handle, dirtyStateListener);
@@ -501,7 +501,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	private _removeCell(index: number, count: number, synchronous: boolean, endSelections: ISelectionState | null) {
+	private _removeCell(index: number, count: number, synchronous: boolean, endSelections: ISelectionState | undefined) {
 		for (let i = index; i < index + count; i++) {
 			const cell = this._cells[i];
 			this._cellListeners.get(cell.handle)?.dispose();
@@ -583,7 +583,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 							runState: cell.metadata.runState
 						}, false);
 					}
-				}), null, null);
+				}), undefined, undefined);
 			}
 			// should be deferred
 			cell.metadata = metadata;
@@ -591,7 +591,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			cell.metadata = metadata;
 		}
 
-		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellMetadata, index: this._cells.indexOf(cell), metadata: cell.metadata, transient: !triggerDirtyChange }, true, null);
+		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellMetadata, index: this._cells.indexOf(cell), metadata: cell.metadata, transient: !triggerDirtyChange }, true, undefined);
 	}
 
 	private _changeCellLanguage(handle: number, languageId: string, computeUndoRedo: boolean) {
@@ -617,10 +617,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				redo() {
 					that._changeCellLanguage(cell.handle, languageId, false);
 				}
-			}(), null, null);
+			}(), undefined, undefined);
 		}
 
-		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }, true, null);
+		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }, true, undefined);
 	}
 
 	private _spliceNotebookCellOutputs2(cellHandle: number, outputs: ICellOutput[], computeUndoRedo: boolean): void {
@@ -645,7 +645,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				index: this._cells.indexOf(cell),
 				outputs: cell.outputs ?? [],
 				transient: this.transientOptions.transientOutputs,
-			}, true, null);
+			}, true, undefined);
 		}
 	}
 
@@ -670,7 +670,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			outputItems: items,
 			append: true,
 			transient: this.transientOptions.transientOutputs
-		}, true, null);
+		}, true, undefined);
 	}
 
 	private _replaceNotebookCellOutputItems(cellHandle: number, outputId: string, items: IOutputItemDto[]) {
@@ -694,13 +694,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			outputItems: items,
 			append: false,
 			transient: this.transientOptions.transientOutputs
-		}, true, null);
+		}, true, undefined);
 	}
 
-	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: ISelectionState | null, endSelections: ISelectionState | null): boolean {
+	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined): boolean {
 		if (pushedToUndoStack) {
 			this._operationManager.pushEditOperation(new MoveCellEdit(this.uri, index, length, newIdx, {
-				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | null, endSelections: ISelectionState | null) => {
+				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined) => {
 					this._moveCellToIdx(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
 				},
 			}, beforeSelections, endSelections), beforeSelections, endSelections);
