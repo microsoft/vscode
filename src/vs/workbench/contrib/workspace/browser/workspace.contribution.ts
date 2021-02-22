@@ -110,6 +110,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
+		this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => {
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+				this.toggleRequestBadge(false);
+			}
+		}));
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKSPACE_TRUST_ENABLED)) {
 				const isEnabled = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED);
