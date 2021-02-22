@@ -66,7 +66,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				id: 'workbench.issue',
 				isTheme: false,
 				isBuiltin: true
-			})
+			});
 		}
 		const experiments = await this.experimentService.getCurrentExperiments();
 		const githubSessions = await this.authenticationService.getSessions('github');
