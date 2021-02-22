@@ -908,7 +908,6 @@ export class TimelinePane extends ViewPane {
 				item = selection[0];
 			}
 
-			// const item = e.element;
 			if (item === null) {
 				return;
 			}
@@ -923,8 +922,6 @@ export class TimelinePane extends ViewPane {
 					}
 
 					this.commandService.executeCommand(item.command.id, ...args);
-
-					// this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
 				}
 			}
 			else if (isLoadMoreCommand(item)) {
