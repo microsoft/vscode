@@ -52,10 +52,10 @@ export class JoinCellEdit implements IResourceUndoRedoElement {
 
 		const cell = this.editingDelegate.createCellViewModel(this._deletedRawCell);
 		if (this.direction === 'above') {
-			this.editingDelegate.insertCell(this.index, this._deletedRawCell, [cell.handle]);
+			this.editingDelegate.insertCell(this.index, this._deletedRawCell, { primary: cell.handle, selections: [cell.handle] });
 			cell.focusMode = CellFocusMode.Editor;
 		} else {
-			this.editingDelegate.insertCell(this.index, cell.model, [this.cell.handle]);
+			this.editingDelegate.insertCell(this.index, cell.model, { primary: this.cell.handle, selections: [this.cell.handle] });
 			this.cell.focusMode = CellFocusMode.Editor;
 		}
 	}
@@ -70,7 +70,7 @@ export class JoinCellEdit implements IResourceUndoRedoElement {
 			{ range: this.inverseRange, text: this.insertContent }
 		]);
 
-		this.editingDelegate.deleteCell(this.index, [this.cell.handle]);
+		this.editingDelegate.deleteCell(this.index, { primary: this.cell.handle, selections: [this.cell.handle] });
 		this.cell.focusMode = CellFocusMode.Editor;
 	}
 }

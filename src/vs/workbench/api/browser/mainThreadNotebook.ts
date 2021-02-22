@@ -163,7 +163,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		if (!textModel) {
 			return false;
 		}
-		return textModel.applyEdits(modelVersionId, cellEdits, true, undefined, () => undefined, undefined);
+		return textModel.applyEdits(modelVersionId, cellEdits, true, null, () => null, undefined);
 	}
 
 	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {
@@ -248,7 +248,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 				disposableStore.add(editor.onDidChangeSelection(() => {
 					const selectionHandles = editor.getSelectionHandles();
-					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: selectionHandles } });
+					const primarySelection = editor.getPrimarySelection();
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: selectionHandles, primary: primarySelection } });
 				}));
 
 				this._editorEventListenersMapping.set(editor.getId(), disposableStore);

@@ -594,12 +594,18 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				const selectionIndexes = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]);
 				const edits: ICellEditOperation[] = selectionIndexes.map(value => ({ editType: CellEditType.Replace, index: value[1], count: 1, cells: [] }));
 
-				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, editor.getSelectionHandles(), () => {
+				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, { primary: editor.getPrimarySelection(), selections: editor.getSelectionHandles() }, () => {
 					const firstSelectIndex = selectionIndexes[0][1];
 					if (firstSelectIndex < viewModel.notebookDocument.cells.length) {
-						return [viewModel.notebookDocument.cells[firstSelectIndex].handle];
+						return {
+							primary: viewModel.notebookDocument.cells[firstSelectIndex].handle,
+							selections: [viewModel.notebookDocument.cells[firstSelectIndex].handle]
+						};
 					} else {
-						return [viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle];
+						return {
+							primary: viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle,
+							selections: [viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle]
+						};
 					}
 				}, undefined, true);
 				notebookService.setToCopy(selectedCells.map(cell => cell.model), false);

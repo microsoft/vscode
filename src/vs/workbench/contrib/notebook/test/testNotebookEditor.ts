@@ -115,6 +115,10 @@ export class TestNotebookEditor implements INotebookEditor {
 		return [];
 	}
 
+	getPrimarySelection() {
+		return null;
+	}
+
 
 	setOptions(options: NotebookEditorOptions | undefined): Promise<void> {
 		throw new Error('Method not implemented.');

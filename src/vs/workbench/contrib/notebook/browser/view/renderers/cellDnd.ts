@@ -256,7 +256,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private copyCells(draggedCells: ICellViewModel[], ontoCell: ICellViewModel, direction: 'above' | 'below') {
-		this.notebookEditor.textModel!.pushStackElement('Copy Cells', undefined, undefined);
+		this.notebookEditor.textModel!.pushStackElement('Copy Cells', null, undefined);
 		let firstNewCell: ICellViewModel | undefined = undefined;
 		let firstNewCellState: CellEditState = CellEditState.Preview;
 		for (let i = 0; i < draggedCells.length; i++) {
@@ -273,7 +273,7 @@ export class CellDragAndDropController extends Disposable {
 			this.notebookEditor.focusNotebookCell(firstNewCell, firstNewCellState === CellEditState.Editing ? 'editor' : 'container');
 		}
 
-		this.notebookEditor.textModel!.pushStackElement('Copy Cells', undefined, undefined);
+		this.notebookEditor.textModel!.pushStackElement('Copy Cells', null, undefined);
 	}
 
 	public startExplicitDrag(cell: ICellViewModel, position: { clientY: number }) {

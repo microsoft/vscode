@@ -8,13 +8,18 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
+interface ISelectionState {
+	primary: number | null;
+	selections: number[];
+}
+
 /**
  * It should not modify Undo/Redo stack
  */
 export interface ITextCellEditingDelegate {
-	insertCell?(index: number, cell: NotebookCellTextModel, endSelections?: number[]): void;
-	deleteCell?(index: number, endSelections?: number[]): void;
-	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void;
+	insertCell?(index: number, cell: NotebookCellTextModel, endSelections: ISelectionState | null): void;
+	deleteCell?(index: number, endSelections: ISelectionState | null): void;
+	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | null, endSelections: ISelectionState | null): void;
 	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata): void;
 }
 
@@ -28,8 +33,8 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		private length: number,
 		private toIndex: number,
 		private editingDelegate: ITextCellEditingDelegate,
-		private beforedSelections: number[] | undefined,
-		private endSelections: number[] | undefined
+		private beforedSelections: ISelectionState | null,
+		private endSelections: ISelectionState | null
 	) {
 	}
 
@@ -57,8 +62,8 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 		public resource: URI,
 		private diffs: [number, NotebookCellTextModel[], NotebookCellTextModel[]][],
 		private editingDelegate: ITextCellEditingDelegate,
-		private beforeHandles: number[] | undefined,
-		private endHandles: number[] | undefined
+		private beforeHandles: ISelectionState | null,
+		private endHandles: ISelectionState | null
 	) {
 	}
 

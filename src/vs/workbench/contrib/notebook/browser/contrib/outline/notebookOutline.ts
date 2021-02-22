@@ -389,7 +389,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const [selected] = viewModel.selectionHandles;
+		const selected = viewModel.primarySelectionHandle;
 		const entries: OutlineEntry[] = [];
 
 		for (let i = 0; i < viewModel.viewCells.length; i++) {
@@ -510,8 +510,8 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		let newActive: OutlineEntry | undefined;
 		const { viewModel } = this._editor;
 
-		if (viewModel) {
-			const [selected] = viewModel.selectionHandles;
+		if (viewModel && viewModel.primarySelectionHandle !== null) {
+			const selected = viewModel.primarySelectionHandle;
 			const cell = viewModel.getCellByHandle(selected);
 			if (cell) {
 				for (let entry of this._entries) {

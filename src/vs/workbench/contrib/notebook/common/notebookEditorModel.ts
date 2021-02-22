@@ -224,7 +224,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			this.notebook.metadata = data.data.metadata;
 			this.notebook.transientOptions = data.transientOptions;
 			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this.notebook.cells.length, cells: data.data.cells }];
-			this.notebook.applyEdits(this.notebook.versionId, edits, true, undefined, () => undefined, undefined);
+			this.notebook.applyEdits(this.notebook.versionId, edits, true, null, () => null, undefined);
 		}
 
 		if (backupId) {

@@ -298,11 +298,17 @@ export type NotebookCellsChangedEventDto = {
 };
 
 export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+
+export interface ISelectionState {
+	primary: number | null;
+	selections: number[];
+}
+
 export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
 	readonly synchronous: boolean;
-	readonly endSelections?: number[];
+	readonly endSelectionState: ISelectionState | null;
 };
 
 export const enum CellEditType {
@@ -658,6 +664,7 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
 	getSelectionHandles(): number[];
+	getPrimarySelection(): number | null;
 	isNotebookEditor: boolean;
 	visibleRanges: ICellRange[];
 	uri?: URI;

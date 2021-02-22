@@ -338,6 +338,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.selectionHandles || [];
 	}
 
+	getPrimarySelection() {
+		return this.viewModel?.primarySelectionHandle ?? null;
+	}
+
 	getSelectionViewModels(): ICellViewModel[] {
 		if (!this.viewModel) {
 			return [];
@@ -1516,7 +1520,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const focused = this._list.getFocusedElements();
-		return this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
+		const selections = this._list.getSelectedElements();
+		return this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused[0]?.handle ?? null, selections);
 	}
 
 	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {

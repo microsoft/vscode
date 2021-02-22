@@ -589,12 +589,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (data.selections) {
-			if (data.selections.selections.length) {
-				const firstCell = data.selections.selections[0];
-				editor.editor.selection = editor.editor.notebookData.getCell(firstCell)?.cell;
-			} else {
-				editor.editor.selection = undefined;
-			}
+			editor.editor.selection = data.selections.primary !== null ? editor.editor.notebookData.getCell(data.selections.primary)?.cell : undefined;
 
 			editor.editor._acceptSelections(data.selections.selections);
 
