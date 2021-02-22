@@ -491,7 +491,17 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const actionViewItem = item;
 
 			if (i === this.focusedItem) {
-				if (types.isFunction(actionViewItem.focus)) {
+				let focusItem = true;
+
+				if (!types.isFunction(actionViewItem.focus)) {
+					focusItem = false;
+				}
+
+				if (this.options.focusOnlyEnabledItems && types.isFunction(item.isEnabled) && !item.isEnabled()) {
+					focusItem = false;
+				}
+
+				if (focusItem) {
 					actionViewItem.focus(fromRight);
 				} else {
 					this.actionsList.focus({ preventScroll });
