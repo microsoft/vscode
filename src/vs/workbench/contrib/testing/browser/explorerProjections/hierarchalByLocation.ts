@@ -7,7 +7,6 @@ import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IndexedSet } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
@@ -40,13 +39,11 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	private readonly updateEmitter = new Emitter<void>();
 	private readonly changes = new NodeChangeList<HierarchicalElement | HierarchicalFolder>();
 	private readonly locations = new TestLocationStore<HierarchicalElement>();
-	private readonly itemSource = new IndexedSet<HierarchicalElement>();
-	public readonly itemsByExtId = this.itemSource.index(v => v.test.item.extId);
 
 	/**
-	 * Map of item IDs to test item objects.
+	 * Map of test IDs to test item objects.
 	 */
-	protected readonly items = this.itemSource.index(v => v.test.id);
+	protected readonly items = new Map<string, HierarchicalElement>();
 
 	/**
 	 * Root folders
@@ -70,7 +67,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			}
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
-				const lookup = this.results.getStateByExtId(inTree.test.item.extId)?.[1];
+				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
 				inTree.ownState = lookup?.state.state ?? TestRunState.Unset;
 				const computed = lookup?.computedState ?? TestRunState.Unset;
 				if (computed !== inTree.state) {
@@ -85,7 +82,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		// when test states change, reflect in the tree
 		// todo: optimize this to avoid needing to iterate
 		this._register(results.onTestChanged(({ item: result }) => {
-			const item = this.itemsByExtId.get(result.item.extId);
+			const item = this.items.get(result.item.extId);
 			if (item) {
 				item.ownState = result.state.state;
 				item.retired = result.retired;
@@ -104,6 +101,13 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		for (const folder of this.folders.values()) {
 			this.changes.added(folder);
 		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public getElementByTestId(testId: string): ITestTreeElement | undefined {
+		return this.items.get(testId);
 	}
 
 	private applyFolderChange(evt: IWorkspaceFoldersChangeEvent) {
@@ -145,15 +149,15 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 				}
 
 				case TestDiffOpType.Update: {
-					const item = op[1];
-					const existing = this.items.get(item.id);
+					const internalTest = op[1];
+					const existing = this.items.get(internalTest.item.extId);
 					if (!existing) {
 						break;
 					}
 
-					const locationChanged = !locationsEqual(existing.location, item.item.location);
+					const locationChanged = !locationsEqual(existing.location, internalTest.item.location);
 					if (locationChanged) { this.locations.remove(existing); }
-					existing.update(item);
+					existing.update(internalTest);
 					if (locationChanged) { this.locations.add(existing); }
 					this.addUpdated(existing);
 					break;
@@ -218,23 +222,23 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		return { element: node, incompressible: true, children: recurse(node.children) };
 	};
 
-	protected unstoreItem(item: HierarchicalElement) {
-		item.parentItem.children.delete(item);
-		this.itemSource.delete(item);
-		this.locations.remove(item);
-		return item.children;
+	protected unstoreItem(treeElement: HierarchicalElement) {
+		treeElement.parentItem.children.delete(treeElement);
+		this.items.delete(treeElement.test.item.extId);
+		this.locations.remove(treeElement);
+		return treeElement.children;
 	}
 
-	protected storeItem(item: HierarchicalElement) {
-		item.parentItem.children.add(item);
-		this.itemSource.add(item);
-		this.locations.add(item);
+	protected storeItem(treeElement: HierarchicalElement) {
+		treeElement.parentItem.children.add(treeElement);
+		this.items.set(treeElement.test.item.extId, treeElement);
+		this.locations.add(treeElement);
 
-		const prevState = this.results.getStateByExtId(item.test.item.extId)?.[1];
+		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];
 		if (prevState) {
-			item.ownState = prevState.state.state;
-			item.retired = prevState.retired;
-			refreshComputedState(computedStateAccessor, item, this.addUpdated, prevState.computedState);
+			treeElement.ownState = prevState.state.state;
+			treeElement.retired = prevState.retired;
+			refreshComputedState(computedStateAccessor, treeElement, this.addUpdated, prevState.computedState);
 		}
 	}
 }

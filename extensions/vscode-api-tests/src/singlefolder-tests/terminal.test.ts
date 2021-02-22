@@ -19,6 +19,8 @@ import { assertNoRpc } from '../utils';
 		extensionContext = (global as any).testExtensionContext;
 
 		const config = workspace.getConfiguration('terminal.integrated');
+		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
+		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
@@ -637,10 +639,7 @@ import { assertNoRpc } from '../utils';
 					'~c2~c1'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event
@@ -683,10 +682,7 @@ import { assertNoRpc } from '../utils';
 					'~c2~'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event
@@ -728,10 +724,7 @@ import { assertNoRpc } from '../utils';
 					'~b1~'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event
@@ -770,10 +763,7 @@ import { assertNoRpc } from '../utils';
 					'~b2~'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event

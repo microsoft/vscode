@@ -629,9 +629,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private _openedDefaultEditors: boolean = false;
-	get openedDefaultEditors() {
-		return this._openedDefaultEditors;
-	}
+	get openedDefaultEditors() { return this._openedDefaultEditors; }
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
@@ -639,14 +637,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._openedDefaultEditors = true;
 
 			return {
-				filesToOpenOrCreate: defaultLayout.editors
-					.map<IPath>(f => {
-						// Support the old path+scheme api until embedders can migrate
-						if ('path' in f && 'scheme' in f) {
-							return { fileUri: URI.file((f as any).path).with({ scheme: (f as any).scheme }) };
-						}
-						return { fileUri: URI.revive(f.uri), openOnlyIfExists: f.openOnlyIfExists, overrideId: f.openWith };
-					})
+				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
+					return { fileUri: URI.revive(file.uri), openOnlyIfExists: file.openOnlyIfExists, editorOverrideId: file.openWith };
+				})
 			};
 		}
 
@@ -723,7 +716,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// If we still have views left over, wait until all extensions have been registered and try again
 				if (defaultViews.length) {
 					await this.extensionService.whenInstalledExtensionsRegistered();
-
 
 					let i = defaultViews.length;
 					while (i) {
@@ -989,15 +981,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 				editorControlSet.clear();
 			} else {
-				this.editorService.visibleTextEditorControls.forEach(editorControl => {
+				for (const editorControl of this.editorService.visibleTextEditorControls) {
 					if (!editorControlSet.has(editorControl)) {
 						editorControlSet.add(editorControl);
 						this.state.zenMode.transitionDisposables.add(editorControl.onDidDispose(() => {
 							editorControlSet.delete(editorControl);
 						}));
 					}
+
 					setEditorLineNumbers(editorControl);
-				});
+				}
 			}
 		};
 
@@ -1167,7 +1160,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
 
-		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
+		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar]) {
 			this._register(part.onDidVisibilityChange((visible) => {
 				if (part === sideBar) {
 					this.setSideBarHidden(!visible, true);
@@ -1178,7 +1171,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 				this._onPartVisibilityChange.fire();
 			}));
-		});
+		}
 
 		this._register(this.storageService.onWillSaveState(() => {
 			const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;

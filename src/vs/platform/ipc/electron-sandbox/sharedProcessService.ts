@@ -12,6 +12,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { mark } from 'vs/base/common/performance';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 
@@ -30,6 +31,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 	private async connect(): Promise<MessagePortClient> {
 		this.logService.trace('Renderer->SharedProcess#connect');
+		mark('code/willConnectSharedProcess');
 
 		// Ask to create message channel inside the window
 		// and send over a UUID to correlate the response
@@ -42,6 +44,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		const onMessageChannelResult = Event.fromDOMEventEmitter<{ nonce: string, port: MessagePort, source: unknown }>(window, 'message', (e: MessageEvent) => ({ nonce: e.data, port: e.ports[0], source: e.source }));
 		const { port } = await Event.toPromise(Event.once(Event.filter(onMessageChannelResult, e => e.nonce === nonce && e.source === window)));
 
+		mark('code/didConnectSharedProcess');
 		this.logService.trace('Renderer->SharedProcess#connect: connection established');
 
 		return this._register(new MessagePortClient(port, `window:${this.nativeHostService.windowId}`));

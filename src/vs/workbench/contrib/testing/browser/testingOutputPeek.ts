@@ -254,7 +254,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return undefined;
 		}
 
-		const test = this.testResults.getResult(parts.resultId)?.getStateByExtId(parts.testExtId);
+		const test = this.testResults.getResult(parts.resultId)?.getStateById(parts.testExtId);
 		return test && {
 			test: test.item,
 			state: test.state,

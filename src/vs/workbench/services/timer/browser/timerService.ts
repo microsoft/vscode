@@ -233,6 +233,14 @@ export interface IStartupMetrics {
 		readonly ellapsedWorkspaceServiceInit: number;
 
 		/**
+		 * The time it took to connect to the shared process.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willConnectSharedProcess` and `didConnectSharedProcess` performance marks.
+		 */
+		readonly ellapsedSharedProcesConnectionCreate: number;
+
+		/**
 		 * The time it took to initialize required user data (settings & global state) using settings sync service.
 		 *
 		 * * Happens in the renderer-process (only in Web)
@@ -524,6 +532,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),
 				ellapsedWaitForShellEnv: this._marks.getDuration('code/willWaitForShellEnv', 'code/didWaitForShellEnv'),
 				ellapsedStorageInit: this._marks.getDuration('code/willInitStorage', 'code/didInitStorage'),
+				ellapsedSharedProcesConnectionCreate: this._marks.getDuration('code/willConnectSharedProcess', 'code/didConnectSharedProcess'),
 				ellapsedWorkspaceStorageInit: this._marks.getDuration('code/willInitWorkspaceStorage', 'code/didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: this._marks.getDuration('code/willInitWorkspaceService', 'code/didInitWorkspaceService'),
 				ellapsedRequiredUserDataInit: this._marks.getDuration('code/willInitRequiredUserData', 'code/didInitRequiredUserData'),

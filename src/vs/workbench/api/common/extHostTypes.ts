@@ -2936,20 +2936,113 @@ export class NotebookCellMetadata {
 		readonly custom?: Record<string, any>,
 	) { }
 
-	with(change: Partial<Omit<NotebookCellMetadata, 'with'>>): NotebookCellMetadata {
+	with(change: {
+		editable?: boolean | null,
+		breakpointMargin?: boolean | null,
+		runnable?: boolean | null,
+		hasExecutionOrder?: boolean | null,
+		executionOrder?: number | null,
+		runState?: NotebookCellRunState | null,
+		runStartTime?: number | null,
+		statusMessage?: string | null,
+		lastRunDuration?: number | null,
+		inputCollapsed?: boolean | null,
+		outputCollapsed?: boolean | null,
+		custom?: Record<string, any> | null,
+	}): NotebookCellMetadata {
+
+		let { editable, breakpointMargin, runnable, hasExecutionOrder, executionOrder, runState, runStartTime, statusMessage, lastRunDuration, inputCollapsed, outputCollapsed, custom } = change;
+
+		if (editable === undefined) {
+			editable = this.editable;
+		} else if (editable === null) {
+			editable = undefined;
+		}
+		if (breakpointMargin === undefined) {
+			breakpointMargin = this.breakpointMargin;
+		} else if (breakpointMargin === null) {
+			breakpointMargin = undefined;
+		}
+		if (runnable === undefined) {
+			runnable = this.runnable;
+		} else if (runnable === null) {
+			runnable = undefined;
+		}
+		if (hasExecutionOrder === undefined) {
+			hasExecutionOrder = this.hasExecutionOrder;
+		} else if (hasExecutionOrder === null) {
+			hasExecutionOrder = undefined;
+		}
+		if (executionOrder === undefined) {
+			executionOrder = this.executionOrder;
+		} else if (executionOrder === null) {
+			executionOrder = undefined;
+		}
+		if (runState === undefined) {
+			runState = this.runState;
+		} else if (runState === null) {
+			runState = undefined;
+		}
+		if (runStartTime === undefined) {
+			runStartTime = this.runStartTime;
+		} else if (runStartTime === null) {
+			runStartTime = undefined;
+		}
+		if (statusMessage === undefined) {
+			statusMessage = this.statusMessage;
+		} else if (statusMessage === null) {
+			statusMessage = undefined;
+		}
+		if (lastRunDuration === undefined) {
+			lastRunDuration = this.lastRunDuration;
+		} else if (lastRunDuration === null) {
+			lastRunDuration = undefined;
+		}
+		if (inputCollapsed === undefined) {
+			inputCollapsed = this.inputCollapsed;
+		} else if (inputCollapsed === null) {
+			inputCollapsed = undefined;
+		}
+		if (outputCollapsed === undefined) {
+			outputCollapsed = this.outputCollapsed;
+		} else if (outputCollapsed === null) {
+			outputCollapsed = undefined;
+		}
+		if (custom === undefined) {
+			custom = this.custom;
+		} else if (custom === null) {
+			custom = undefined;
+		}
+
+		if (editable === this.editable &&
+			breakpointMargin === this.breakpointMargin &&
+			runnable === this.runnable &&
+			hasExecutionOrder === this.hasExecutionOrder &&
+			executionOrder === this.executionOrder &&
+			runState === this.runState &&
+			runStartTime === this.runStartTime &&
+			statusMessage === this.statusMessage &&
+			lastRunDuration === this.lastRunDuration &&
+			inputCollapsed === this.inputCollapsed &&
+			outputCollapsed === this.outputCollapsed &&
+			custom === this.custom
+		) {
+			return this;
+		}
+
 		return new NotebookCellMetadata(
-			change.editable ?? this.editable,
-			change.breakpointMargin ?? this.breakpointMargin,
-			change.runnable ?? this.runnable,
-			change.hasExecutionOrder ?? this.hasExecutionOrder,
-			change.executionOrder ?? this.executionOrder,
-			change.runState ?? this.runState,
-			change.runStartTime ?? this.runStartTime,
-			change.statusMessage ?? this.statusMessage,
-			change.lastRunDuration ?? this.lastRunDuration,
-			change.inputCollapsed ?? this.inputCollapsed,
-			change.outputCollapsed ?? this.outputCollapsed,
-			change.custom ?? this.custom
+			editable,
+			breakpointMargin,
+			runnable,
+			hasExecutionOrder,
+			executionOrder,
+			runState,
+			runStartTime,
+			statusMessage,
+			lastRunDuration,
+			inputCollapsed,
+			outputCollapsed,
+			custom,
 		);
 	}
 }
@@ -2968,18 +3061,93 @@ export class NotebookDocumentMetadata {
 		readonly trusted: boolean = true,
 	) { }
 
-	with(change: Partial<Omit<NotebookDocumentMetadata, 'with'>>) {
+	with(change: {
+		editable?: boolean | null,
+		runnable?: boolean | null,
+		cellEditable?: boolean | null,
+		cellRunnable?: boolean | null,
+		cellHasExecutionOrder?: boolean | null,
+		displayOrder?: vscode.GlobPattern[] | null,
+		custom?: { [key: string]: any; } | null,
+		runState?: NotebookRunState | null,
+		trusted?: boolean | null,
+	}): NotebookDocumentMetadata {
+
+		let { editable, runnable, cellEditable, cellRunnable, cellHasExecutionOrder, displayOrder, custom, runState, trusted } = change;
+
+		if (editable === undefined) {
+			editable = this.editable;
+		} else if (editable === null) {
+			editable = undefined;
+		}
+		if (runnable === undefined) {
+			runnable = this.runnable;
+		} else if (runnable === null) {
+			runnable = undefined;
+		}
+		if (cellEditable === undefined) {
+			cellEditable = this.cellEditable;
+		} else if (cellEditable === null) {
+			cellEditable = undefined;
+		}
+		if (cellRunnable === undefined) {
+			cellRunnable = this.cellRunnable;
+		} else if (cellRunnable === null) {
+			cellRunnable = undefined;
+		}
+		if (cellHasExecutionOrder === undefined) {
+			cellHasExecutionOrder = this.cellHasExecutionOrder;
+		} else if (cellHasExecutionOrder === null) {
+			cellHasExecutionOrder = undefined;
+		}
+		if (displayOrder === undefined) {
+			displayOrder = this.displayOrder;
+		} else if (displayOrder === null) {
+			displayOrder = undefined;
+		}
+		if (custom === undefined) {
+			custom = this.custom;
+		} else if (custom === null) {
+			custom = undefined;
+		}
+		if (runState === undefined) {
+			runState = this.runState;
+		} else if (runState === null) {
+			runState = undefined;
+		}
+		if (trusted === undefined) {
+			trusted = this.trusted;
+		} else if (trusted === null) {
+			trusted = undefined;
+		}
+
+		if (editable === this.editable &&
+			runnable === this.runnable &&
+			cellEditable === this.cellEditable &&
+			cellRunnable === this.cellRunnable &&
+			cellHasExecutionOrder === this.cellHasExecutionOrder &&
+			displayOrder === this.displayOrder &&
+			custom === this.custom &&
+			runState === this.runState &&
+			trusted === this.trusted
+		) {
+			return this;
+		}
+
+
 		return new NotebookDocumentMetadata(
-			change.editable ?? this.editable,
-			change.runnable ?? this.runnable,
-			change.cellEditable ?? this.cellEditable,
-			change.cellRunnable ?? this.cellRunnable,
-			change.cellHasExecutionOrder ?? this.cellHasExecutionOrder,
-			change.displayOrder ?? this.displayOrder,
-			change.custom ?? this.custom,
-			change.runState ?? this.runState,
-			change.trusted ?? this.trusted
+			editable,
+			runnable,
+			cellEditable,
+			cellRunnable,
+			cellHasExecutionOrder,
+			displayOrder,
+			custom,
+			runState,
+			trusted
 		);
+
+
 	}
 }
 

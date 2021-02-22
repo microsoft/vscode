@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalTabLayoutInfoById, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -11,7 +11,7 @@ import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance, Direction, ITerminalTab, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
@@ -299,15 +299,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
 		const isHorizontal = this.splitPaneContainer?.orientation === Orientation.HORIZONTAL;
-		const remoteInstances = this.terminalInstances.filter(instance => typeof instance.remoteTerminalId === 'number');
-		const totalSize = remoteInstances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
+		const instances = this.terminalInstances.filter(instance => typeof instance.persistentTerminalId === 'number');
+		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {
 			isActive: isActive,
-			activeTerminalProcessId: this.activeInstance?.processId || 0,
-			terminals: remoteInstances.map(t => {
+			activePersistentTerminalId: this.activeInstance ? this.activeInstance.persistentTerminalId : undefined,
+			terminals: instances.map(t => {
 				return {
 					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,
-					terminal: t.remoteTerminalId!
+					terminal: t.persistentTerminalId ? t.persistentTerminalId : t.id
 				};
 			})
 		};
@@ -485,6 +485,8 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			this._initialRelativeSizes = relativeSizes;
 			return;
 		}
+		// for the local case
+		this._initialRelativeSizes = relativeSizes;
 
 		this._splitPaneContainer.resizePanes(relativeSizes);
 	}

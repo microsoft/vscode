@@ -1625,9 +1625,9 @@ export namespace TestState {
 }
 
 export namespace TestItem {
-	export function from(item: vscode.TestItem, parentExtId?: string): ITestItem {
+	export function from(item: vscode.TestItem): ITestItem {
 		return {
-			extId: item.id ?? (parentExtId ? `${parentExtId}\0${item.label}` : item.label),
+			extId: item.id,
 			label: item.label,
 			location: item.location ? location.from(item.location) as any : undefined,
 			debuggable: item.debuggable ?? false,
@@ -1663,18 +1663,16 @@ export namespace TestResults {
 			[null, results.results],
 		];
 
-		let counter = 0;
 		while (queue.length) {
 			const [parent, children] = queue.pop()!;
 			for (const item of children) {
 				const serializedItem: SerializedTestResultItem = {
 					children: item.children?.map(c => c.id) ?? [],
 					computedState: item.result.state,
-					id: `${id}-${counter++}`,
-					item: TestItem.from(item, parent?.item.extId),
+					item: TestItem.from(item),
 					state: TestState.from(item.result),
 					retired: undefined,
-					parent: parent?.id ?? null,
+					parent: parent?.item.extId ?? null,
 					providerId: '',
 					direct: !parent,
 				};
@@ -1702,7 +1700,7 @@ export namespace TestResults {
 		const roots: SerializedTestResultItem[] = [];
 		const byInternalId = new Map<string, SerializedTestResultItem>();
 		for (const item of serialized.items) {
-			byInternalId.set(item.id, item);
+			byInternalId.set(item.item.extId, item);
 			if (item.direct) {
 				roots.push(item);
 			}

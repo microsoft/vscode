@@ -23,6 +23,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
+	private readonly editorInputFactories = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
@@ -80,10 +82,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private findEditorByResource(resource: URI): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
-			const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
-			if (customFactory?.canResolveBackup(editor, resource)) {
-				return editor;
-			} else if (isEqual(editor.resource, resource)) {
+			const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
+			if (customFactory?.canResolveBackup(editor, resource) || isEqual(editor.resource, resource)) {
 				return editor;
 			}
 		}
@@ -111,8 +111,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		// handle custom editors by asking the custom editor input factory
 		// to create the input.
-		const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
-
+		const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
 		if (customFactory) {
 			const editor = await customFactory.createCustomEditorInput(resource, this.instantiationService);
 			return { editor, options };

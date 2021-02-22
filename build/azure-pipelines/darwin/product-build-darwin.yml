@@ -181,14 +181,14 @@ steps:
       set -e
       ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -216,7 +216,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       ./resources/server/test/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -227,7 +227,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |

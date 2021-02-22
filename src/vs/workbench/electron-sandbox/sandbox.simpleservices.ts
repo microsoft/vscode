@@ -459,7 +459,8 @@ class SimpleTelemetryService implements ITelemetryService {
 		return {
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		};
 	}
 }

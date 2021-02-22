@@ -519,9 +519,9 @@ class ProcAutomaticPortForwarding extends Disposable {
 			startingCandidates = this.remoteExplorerService.tunnelModel.candidates;
 		}
 
-		startingCandidates.forEach(async (value) => {
+		for (const value of startingCandidates) {
 			this.initialCandidates.add(makeAddress(value.host, value.port));
-		});
+		}
 	}
 
 	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {

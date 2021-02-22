@@ -1205,8 +1205,7 @@ declare module 'vscode' {
 
 		constructor(editable?: boolean, breakpointMargin?: boolean, runnable?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runState?: NotebookCellRunState, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
-		// todo@API write a proper signature
-		with(change: Partial<Omit<NotebookCellMetadata, 'with'>>): NotebookCellMetadata;
+		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, runnable?: boolean | null, hasExecutionOrder?: boolean | null, executionOrder?: number | null, runState?: NotebookCellRunState | null, runStartTime?: number | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1258,8 +1257,7 @@ declare module 'vscode' {
 
 		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, displayOrder?: GlobPattern[], custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
 
-		// TODO@API make this a proper signature
-		with(change: Partial<Omit<NotebookDocumentMetadata, 'with'>>): NotebookDocumentMetadata;
+		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, displayOrder?: GlobPattern[] | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -2168,6 +2166,11 @@ declare module 'vscode' {
 
 	export interface ExtensionContext {
 		readonly extensionRuntime: ExtensionRuntime;
+
+		/**
+		 * Indicates that this is a fresh install of VS Code.
+		 */
+		readonly isNewInstall: boolean;
 	}
 
 	//#endregion
@@ -2426,19 +2429,16 @@ declare module 'vscode' {
 	 */
 	export interface TestItem {
 		/**
+		 * Unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of a test item.
+		 */
+		readonly id: string;
+
+		/**
 		 * Display name describing the test case.
 		 */
 		label: string;
-
-		/**
-		 * Optional unique identifier for the TestItem. This is used to correlate
-		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This must not change for the lifetime of a test item.
-		 *
-		 * If the ID is not provided, it defaults to the concatenation of the
-		 * item's label and its parent's ID, if any.
-		 */
-		readonly id?: string;
 
 		/**
 		 * Optional description that appears next to the label.
@@ -2589,12 +2589,6 @@ declare module 'vscode' {
 	 * provided in {@link TestResult} interfaces.
 	 */
 	export interface TestItemWithResults extends TestItem {
-		/**
-		 * ID of the test result, this is required in order to correlate the result
-		 * with the live test item.
-		 */
-		readonly id: string;
-
 		/**
 		 * Current result of the test.
 		 */
@@ -2827,9 +2821,11 @@ declare module 'vscode' {
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
-		 * @param message Optional message which would be displayed in the prompt
+		 * @param modal When true, a modal dialog is used to prompt the user for workspace
+		 * trust, otherwise a badge will be shown on the Settings activity bar item.
+		 * Default value is true.
 		 */
-		export function requireWorkspaceTrust(message?: string): Thenable<WorkspaceTrustState>;
+		export function requireWorkspaceTrust(modal?: boolean): Thenable<WorkspaceTrustState>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes

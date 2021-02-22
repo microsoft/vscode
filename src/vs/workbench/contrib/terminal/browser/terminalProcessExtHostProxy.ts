@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import * as nls from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 let hasReceivedResponseFromRemoteExtHost: boolean = false;
 

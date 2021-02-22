@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 enum Constants {
 	MaxRestarts = 5
@@ -43,6 +44,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string } }>());
 	readonly onProcessReady = this._onProcessReady.event;
+	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
+	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<{ id: number, event: string }>());
 	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<{ id: number, event: ITerminalDimensionsOverride | undefined }>());
@@ -54,6 +57,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+
+		this._register(toDisposable(() => this._disposePtyHost()));
 
 		[this._client, this._proxy] = this._startPtyHost();
 	}
@@ -77,11 +82,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		heartbeatService.onBeat(() => this._handleHeartbeat());
 
 		// Handle exit
-		this._register({
-			dispose: () => {
-				this._disposePtyHost();
-			}
-		});
 		this._register(client.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
@@ -109,6 +109,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
+
 		return [client, proxy];
 	}
 
@@ -117,13 +119,18 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		super.dispose();
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean): Promise<number> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
-		const result = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty);
+		const result = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
 		clearTimeout(timeout);
 		return result;
 	}
-	start(id: number): Promise<ITerminalLaunchError | { remoteTerminalId: number; } | undefined> {
+
+	attachToProcess(id: number): Promise<void> {
+		return this._proxy.attachToProcess(id);
+	}
+
+	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
@@ -146,6 +153,12 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
+	}
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
+		return this._proxy.setTerminalLayoutInfo(args);
+	}
+	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		return this._proxy.getTerminalLayoutInfo(args);
 	}
 
 	async restartPtyHost(): Promise<void> {

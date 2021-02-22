@@ -53,13 +53,13 @@ import { revive } from 'vs/base/common/marshalling';
 import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
-import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { DebugConfigurationProviderTriggerKind, WorkspaceTrustState } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { InternalTestItem, ITestState, RunTestForProviderRequest, RunTestsRequest, TestIdWithProvider, TestsDiff, ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
+import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 export interface IEnvironment {
@@ -833,7 +833,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
-	$requireWorkspaceTrust(message?: string): Promise<WorkspaceTrustState>
+	$requireWorkspaceTrust(modal?: boolean): Promise<WorkspaceTrustState>
 }
 
 export interface IFileChangeDto {

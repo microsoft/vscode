@@ -282,13 +282,13 @@ function registerEditorGroupsLayoutCommand(): void {
 
 export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
 	const target = editorGroupService.activeGroup;
-	editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).forEach(group => {
+	for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 		if (group === target) {
 			return; // keep target
 		}
 
 		editorGroupService.mergeGroup(group, target);
-	});
+	}
 }
 
 function registerDiffEditorCommands(): void {

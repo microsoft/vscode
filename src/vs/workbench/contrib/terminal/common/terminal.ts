@@ -9,9 +9,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -179,30 +179,6 @@ export interface IRemoteTerminalAttachTarget {
 	isOrphan: boolean;
 }
 
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
-}
-
-export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
-export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IRemoteTerminalAttachTarget>;
-
-export interface IRawTerminalTabLayoutInfo<T> {
-	isActive: boolean;
-	activeTerminalProcessId: number;
-	terminals: IRawTerminalInstanceLayoutInfo<T>[];
-}
-
-export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
-export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
-
-export interface IRawTerminalsLayoutInfo<T> {
-	tabs: IRawTerminalTabLayoutInfo<T>[];
-}
-
-export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IRemoteTerminalAttachTarget | null>;
-export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
-
 /**
  * Provides access to native Windows calls that can be injected into non-native layers.
  */
@@ -216,11 +192,6 @@ export interface ITerminalNativeWindowsDelegate {
 	 * @param path The Windows path.
 	 */
 	getWslPath(path: string): Promise<string>;
-}
-
-export interface IShellDefinition {
-	label: string;
-	path: string;
 }
 
 export interface ICommandTracker {
@@ -246,6 +217,27 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
+export interface IShellDefinition {
+	label: string;
+	path: string;
+}
+
+export interface IAvailableShellsRequest {
+	callback: (shells: IShellDefinition[]) => void;
+}
+
+
+export interface IDefaultShellAndArgsRequest {
+	useAutomationShell: boolean;
+	callback: (shell: string, args: string[] | string | undefined) => void;
+}
+
+export interface IWindowsShellHelper extends IDisposable {
+	readonly onShellNameChange: Event<string>;
+
+	getShellName(): Promise<string>;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
@@ -254,7 +246,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-	readonly remoteTerminalId: number | undefined;
+	readonly persistentTerminalId: number | undefined;
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
 
