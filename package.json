@@ -190,7 +190,7 @@
     "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
-    "tsec": "0.1.3",
+    "tsec": "0.1.4",
     "typescript": "^4.3.0-dev.20210216",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",

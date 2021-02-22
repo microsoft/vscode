@@ -6331,7 +6331,7 @@ minimalistic-crypto-utils@^1.0.0, minimalistic-crypto-utils@^1.0.1:
   resolved "https://registry.yarnpkg.com/minimalistic-crypto-utils/-/minimalistic-crypto-utils-1.0.1.tgz#f6c00c1c0b082246e5c4d99dfb8c7c083b2b582a"
   integrity sha1-9sAMHAsIIkblxNmd+4x8CDsrWCo=
 
-"minimatch@2 || 3", minimatch@3.0.4, minimatch@^3.0.0, minimatch@^3.0.4:
+"minimatch@2 || 3", minimatch@3.0.4, minimatch@^3.0.0, minimatch@^3.0.3, minimatch@^3.0.4:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/minimatch/-/minimatch-3.0.4.tgz#5166e286457f03306064be5497e8dbb0c3d32083"
   integrity sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==
@@ -9596,12 +9596,13 @@ ts-morph@^3.1.3:
     multimatch "^4.0.0"
     typescript "^3.0.1"
 
-tsec@0.1.3:
-  version "0.1.3"
-  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.1.3.tgz#e3bc072c3307ba532c45efc8050d5eb8d52dadee"
-  integrity sha512-ek9ga1ZHFpLb96ydHQXgsAlgk2uEiVswmwyGNGuMakl2KFnJqLa2zvG7Qqxoo1PhSooyY7WNP1cgSYzgWTHetg==
+tsec@0.1.4:
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/tsec/-/tsec-0.1.4.tgz#dc8743c28ad01230ea4692e326866e0d54487f3f"
+  integrity sha512-7r6m7gmRE11si2FeM0pPoLfGV3AZTRcJJxx2bS5MYtvwaEMNqq2QlaVAEYaH1RqICeN3ODe2jVBJkC+JYQ/gtQ==
   dependencies:
     glob "^7.1.1"
+    minimatch "^3.0.3"
 
 tslib@^1.8.1:
   version "1.9.3"
