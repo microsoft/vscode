@@ -12,9 +12,9 @@ import { ISelectionState, NotebookCellMetadata } from 'vs/workbench/contrib/note
  * It should not modify Undo/Redo stack
  */
 export interface ITextCellEditingDelegate {
-	insertCell?(index: number, cell: NotebookCellTextModel, endSelections: ISelectionState | undefined): void;
-	deleteCell?(index: number, endSelections: ISelectionState | undefined): void;
-	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | undefined, endSelections: ISelectionState | undefined): void;
+	insertCell?(index: number, cell: NotebookCellTextModel, endSelections?: ISelectionState): void;
+	deleteCell?(index: number, endSelections?: ISelectionState): void;
+	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | undefined, endSelections?: ISelectionState): void;
 	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata): void;
 }
 
