@@ -9,7 +9,7 @@ import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -1006,10 +1006,10 @@ export class EditorOptions implements IEditorOptions {
 	/**
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
-	 * - `false`: disable overrides
 	 * - `string`: specific override by id
+	 * - `EditorOverride`: specific override handling
 	 */
-	override?: false | string;
+	override: string | EditorOverride | undefined;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -1067,7 +1067,7 @@ export class EditorOptions implements IEditorOptions {
 			this.index = options.index;
 		}
 
-		if (typeof options.override === 'string' || options.override === false) {
+		if (options.override !== undefined) {
 			this.override = options.override;
 		}
 

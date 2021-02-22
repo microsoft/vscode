@@ -11,6 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
@@ -40,7 +41,7 @@ export class EditorWalkThroughAction extends Action {
 
 	public run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
-		return this.editorService.openEditor(input, { pinned: true, override: false })
+		return this.editorService.openEditor(input, { pinned: true, override: EditorOverride.DISABLED })
 			.then(() => void (0));
 	}
 }
