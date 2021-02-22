@@ -160,7 +160,7 @@ export class GitHubServer {
 		}
 
 		try {
-			const uri = vscode.Uri.parse(uriOrToken);
+			const uri = vscode.Uri.parse(uriOrToken.trim());
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
 			uriHandler.handleUri(uri);
 		} catch (e) {
