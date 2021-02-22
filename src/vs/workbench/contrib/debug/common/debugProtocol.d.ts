@@ -704,6 +704,7 @@ declare module DebugProtocol {
 		The request configures the debuggers response to thrown exceptions.
 		If an exception is configured to break, a 'stopped' event is fired (with reason 'exception').
 		Clients should only call this request if the capability 'exceptionBreakpointFilters' returns one or more filters.
+		If a filter or filter option is invalid (e.g. due to an invalid 'condition'), the request should fail with an 'ErrorResponse' explaining the problem(s).
 	*/
 	export interface SetExceptionBreakpointsRequest extends Request {
 		// command: 'setExceptionBreakpoints';
@@ -1629,10 +1630,14 @@ declare module DebugProtocol {
 		filter: string;
 		/** The name of the filter option. This will be shown in the UI. */
 		label: string;
+		/** An optional help text providing additional information about the exception filter. This string is typically shown as a hover and must be translated. */
+		description?: string;
 		/** Initial value of the filter option. If not specified a value 'false' is assumed. */
 		default?: boolean;
 		/** Controls whether a condition can be specified for this filter option. If false or missing, a condition can not be set. */
 		supportsCondition?: boolean;
+		/** An optional help text providing information about the condition. This string is shown as the placeholder text for a text box and must be translated. */
+		conditionDescription?: string;
 	}
 
 	/** A structured message object. Used to return errors from requests. */
@@ -1774,6 +1779,8 @@ declare module DebugProtocol {
 		endLine?: number;
 		/** An optional end column of the range covered by the stack frame. */
 		endColumn?: number;
+		/** Indicates whether this frame can be restarted with the 'restart' request. Clients should only use this if the debug adapter supports the 'restart' request (capability 'supportsRestartRequest' is true). */
+		canRestart?: boolean;
 		/** Optional memory reference for the current instruction pointer in this frame. */
 		instructionPointerReference?: string;
 		/** The module associated with this frame, if any. */

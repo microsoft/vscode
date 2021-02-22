@@ -351,6 +351,12 @@ export enum IndentAction {
 	Outdent = 3
 }
 
+export enum InlineHintKind {
+	Other = 0,
+	Type = 1,
+	Parameter = 2
+}
+
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx

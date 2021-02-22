@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index, distinct } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { Promises, ThrottledDelayer } from 'vs/base/common/async';
 import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
@@ -869,7 +869,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			promises.push(this.queryGallery({ names, pageSize: names.length }, CancellationToken.None));
 		}
 
-		return Promise.all(promises).then(() => undefined);
+		return Promises.settled(promises).then(() => undefined);
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
@@ -883,7 +883,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
-		return Promise.all(toUpdate.map(e => this.install(e)));
+		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}
 
 	canInstall(extension: IExtension): boolean {

@@ -186,7 +186,7 @@ export interface IFileEditorInputFactory {
 	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
 }
 
-interface ICustomEditorInputFactory {
+export interface ICustomEditorInputFactory {
 	createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput>;
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
@@ -1549,9 +1549,9 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			pinned: true,
 			override: path.overrideId
 		} : {
-				pinned: true,
-				override: path.overrideId
-			};
+			pinned: true,
+			override: path.overrideId
+		};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
 		if (!exists) {
@@ -1585,7 +1585,7 @@ export function computeEditorAriaLabel(input: IEditorInput, index: number | unde
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
 	}
 
-	if (group && group.isSticky(index ?? input)) {
+	if (group?.isSticky(index ?? input)) {
 		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
 	}
 

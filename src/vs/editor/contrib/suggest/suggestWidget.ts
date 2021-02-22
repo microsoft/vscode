@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/suggest';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -20,7 +21,7 @@ import { Context as SuggestContext, CompletionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorWidgetBackground, quickInputListFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -39,7 +40,7 @@ import { clamp } from 'vs/base/common/numbers';
 export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
 export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
 export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
-export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hc: quickInputListFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 
 const enum State {
@@ -102,7 +103,7 @@ export class SuggestWidget implements IDisposable {
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
 	private _completionModel?: CompletionModel;
-	private _cappedHeight?: { wanted: number, capped: number };
+	private _cappedHeight?: { wanted: number; capped: number; };
 	private _explainMode: boolean = false;
 
 	readonly element: ResizableHTMLElement;
@@ -216,6 +217,7 @@ export class SuggestWidget implements IDisposable {
 			getHeight: (_element: CompletionItem): number => this.getLayoutInfo().itemHeight,
 			getTemplateId: (_element: CompletionItem): string => 'suggestion'
 		}, [renderer], {
+			alwaysConsumeMouseWheel: true,
 			useShadows: false,
 			mouseSupport: false,
 			accessibilityProvider: {

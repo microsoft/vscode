@@ -169,11 +169,9 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 		key: string;
 		edit?: boolean;
 	};
+	focusSearch?: boolean;
 }
 
-/**
- * TODO Why do we need this class?
- */
 export class SettingsEditorOptions extends EditorOptions implements ISettingsEditorOptions {
 
 	target?: ConfigurationTarget;
@@ -183,6 +181,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 		key: string;
 		edit?: boolean;
 	};
+	focusSearch?: boolean;
 
 	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
 		const options = new SettingsEditorOptions();
@@ -192,6 +191,8 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 		options.folderUri = settings.folderUri;
 		options.query = settings.query;
 		options.revealSetting = settings.revealSetting;
+		options.pinned = true;
+		options.focusSearch = settings.focusSearch;
 
 		return options;
 	}
@@ -223,7 +224,7 @@ export interface IPreferencesService {
 	openRemoteSettings(): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
+	switchSettings(target: ConfigurationTarget, resource: URI): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;

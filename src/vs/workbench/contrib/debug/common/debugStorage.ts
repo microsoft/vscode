@@ -15,6 +15,7 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_DATA_BREAKPOINTS_KEY = 'debug.databreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
+const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
 export class DebugStorage {
 	constructor(
@@ -22,6 +23,14 @@ export class DebugStorage {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) { }
+
+	loadDebugUxState(): 'simple' | 'default' {
+		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'simple') as 'simple' | 'default';
+	}
+
+	storeDebugUxState(value: 'simple' | 'default'): void {
+		this.storageService.store(DEBUG_UX_STATE_KEY, value, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
 
 	loadBreakpoints(): Breakpoint[] {
 		let result: Breakpoint[] | undefined;
@@ -49,7 +58,7 @@ export class DebugStorage {
 		let result: ExceptionBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled, exBreakpoint.supportsCondition, exBreakpoint.condition);
+				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled, exBreakpoint.supportsCondition, exBreakpoint.condition, exBreakpoint.description, exBreakpoint.conditionDescription);
 			});
 		} catch (e) { }
 

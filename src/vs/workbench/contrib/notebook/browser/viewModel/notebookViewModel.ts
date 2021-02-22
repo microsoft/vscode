@@ -23,7 +23,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -166,10 +166,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	get notebookDocument() {
 		return this._notebook;
-	}
-
-	get resolvedLanguages() {
-		return this._notebook.resolvedLanguages;
 	}
 
 	get uri() {
@@ -649,7 +645,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return result;
 	}
 
-	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IProcessedOutput[], synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []): CellViewModel {
+	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[], synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []): CellViewModel {
 		const beforeSelections = previouslyFocused.map(e => e.handle);
 		this._notebook.applyEdits(this._notebook.versionId, [
 			{

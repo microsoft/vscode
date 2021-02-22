@@ -32,7 +32,6 @@ import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugSession, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_MODE, IThread, IDebugConfiguration, VIEWLET_ID, IConfig, ILaunch, IViewModel, IConfigurationManager, IDebugModel, IEnablement, IBreakpoint, IBreakpointData, ICompound, IStackFrame, getStateLabel, IDebugSessionOptions, CONTEXT_DEBUG_UX, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, IGlobalConfig, CALLSTACK_VIEW_ID, IAdapterManager, IExceptionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { getExtensionHostDebugSession } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { isErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -108,17 +107,17 @@ export class DebugService implements IDebugService {
 		this.adapterManager = this.instantiationService.createInstance(AdapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.toDispose.push(this.configurationManager);
+		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 
 		contextKeyService.bufferChangeEvents(() => {
 			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set((this.adapterManager.hasDebuggers() && !!this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+			this.debugUx.set(this.debugStorage.loadDebugUxState());
 			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		});
 
-		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
@@ -154,7 +153,9 @@ export class DebugService implements IDebugService {
 			this.onStateChange();
 		}));
 		this.toDispose.push(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
-			this.debugUx.set(!!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.adapterManager.hasDebuggers())) ? 'default' : 'simple');
+			const debugUxValue = !!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.adapterManager.hasDebuggers())) ? 'default' : 'simple';
+			this.debugUx.set(debugUxValue);
+			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));
 		this.toDispose.push(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
@@ -240,7 +241,9 @@ export class DebugService implements IDebugService {
 				this.debugState.set(getStateLabel(state));
 				this.inDebugMode.set(state !== State.Inactive);
 				// Only show the simple ux if debug is not yet started and if no launch.json exists
-				this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple');
+				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
+				this.debugUx.set(debugUxValue);
+				this.debugStorage.storeDebugUxState(debugUxValue);
 			});
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
@@ -534,7 +537,7 @@ export class DebugService implements IDebugService {
 			}
 
 			const errorMessage = error instanceof Error ? error.message : error;
-			await this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []);
+			await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
 			return false;
 		}
 	}

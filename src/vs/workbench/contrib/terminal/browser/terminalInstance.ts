@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IShellLaunchConfig, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -47,6 +47,7 @@ import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTypeAheadAddon';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -949,6 +950,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
+		this._processManager.onPtyDisconnect(() => {
+			this._safeSetOption('disableStdin', true);
+			// Use api source so it cannot be overridden
+			this.setTitle(nls.localize('ptyDisconnected', "{0} (disconnected)", this._title), TitleEventSource.Api);
+		});
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
@@ -1166,6 +1172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	@debounce(500)
 	public reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): void {
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
@@ -1506,10 +1513,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		switch (eventSource) {
 			case TitleEventSource.Process:
-				title = path.basename(title);
 				if (platform.isWindows) {
 					// Remove the .exe extension
+					title = path.basename(title);
 					title = title.split('.exe')[0];
+				} else {
+					const firstSpaceIndex = title.indexOf(' ');
+					if (title.startsWith('/')) {
+						title = path.basename(title);
+					} else if (firstSpaceIndex > -1) {
+						title = title.substring(0, firstSpaceIndex);
+					}
 				}
 				break;
 			case TitleEventSource.Api:
@@ -1573,17 +1587,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
-		this._environmentInfo?.disposable.dispose();
-
 		// Check if the widget should not exist
 		if (!info ||
 			this._configHelper.config.environmentChangesIndicator === 'off' ||
 			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction) {
+			this._environmentInfo?.disposable.dispose();
 			this._environmentInfo = undefined;
 			return;
 		}
 
+		// Recreate the process if the terminal has not yet been interacted with and it's not a
+		// special terminal (eg. task, extension terminal)
+		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal) {
+			this.relaunch();
+			return;
+		}
+
 		// (Re-)create the widget
+		this._environmentInfo?.disposable.dispose();
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);
 		if (disposable) {

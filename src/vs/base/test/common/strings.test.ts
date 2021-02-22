@@ -215,6 +215,11 @@ suite('Strings', () => {
 		assert.strictEqual(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
 	});
 
+	test('issue #115221: isEmojiImprecise misses ⭐', () => {
+		const codePoint = strings.getNextCodePoint('⭐', '⭐'.length, 0);
+		assert.strictEqual(strings.isEmojiImprecise(codePoint), true);
+	});
+
 	test('isBasicASCII', () => {
 		function assertIsBasicASCII(str: string, expected: boolean): void {
 			assert.strictEqual(strings.isBasicASCII(str), expected, str + ` (${str.charCodeAt(0)})`);

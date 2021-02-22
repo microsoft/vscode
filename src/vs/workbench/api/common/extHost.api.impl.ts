@@ -15,7 +15,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { score } from 'vs/editor/common/modes/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -35,7 +35,7 @@ import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
 import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { ExtHostProgress } from 'vs/workbench/api/common/extHostProgress';
-import { ExtHostQuickOpen } from 'vs/workbench/api/common/extHostQuickOpen';
+import { createExtHostQuickOpen } from 'vs/workbench/api/common/extHostQuickOpen';
 import { ExtHostSCM } from 'vs/workbench/api/common/extHostSCM';
 import { ExtHostStatusBar } from 'vs/workbench/api/common/extHostStatusBar';
 import { IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
@@ -48,7 +48,7 @@ import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { throwProposedApiError, checkProposedApiEnabled, checkRequiresWorkspaceTrust } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
@@ -147,7 +147,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService, extHostApiDeprecation));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostLogService, extHostDocumentsAndEditors));
-	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
+	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, createExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
@@ -198,10 +198,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				} else if (typeof selector === 'string') {
 					informOnce(selector);
 				} else {
-					if (typeof selector.scheme === 'undefined') {
+					const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
+					if (typeof filter.scheme === 'undefined') {
 						informOnce(selector);
 					}
-					if (!extension.enableProposedApi && typeof selector.exclusive === 'boolean') {
+					if (!extension.enableProposedApi && typeof filter.exclusive === 'boolean') {
 						throwProposedApiError(extension);
 					}
 				}
@@ -230,7 +231,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			logout(providerId: string, sessionId: string): Thenable<void> {
 				checkProposedApiEnabled(extension);
-				return extHostAuthentication.logout(providerId, sessionId);
+				return extHostAuthentication.removeSession(providerId, sessionId);
 			}
 		};
 
@@ -262,7 +263,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
 				checkProposedApiEnabled(extension);
 				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
-					const activeTextEditor = extHostEditors.getActiveTextEditor();
+					const activeTextEditor = extHostDocumentsAndEditors.activeEditor(true);
 					if (!activeTextEditor) {
 						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
@@ -288,9 +289,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot?.fsPath ?? ''; },
 			get uriScheme() { return initData.environment.appUriScheme; },
-			get clipboard(): vscode.Clipboard {
-				return extHostClipboard;
-			},
+			get clipboard(): vscode.Clipboard { return extHostClipboard.value; },
 			get shell() {
 				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
@@ -340,13 +339,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
 			},
+			publishTestResult(results, persist = true) {
+				checkProposedApiEnabled(extension);
+				return extHostTesting.publishExtensionProvidedResults(results, persist);
+			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.onLastResultsChanged;
+				return extHostTesting.onResultsChanged;
 			},
 			get testResults() {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.lastResults;
+				return extHostTesting.results;
 			},
 		};
 
@@ -410,6 +413,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerEvaluatableExpressionProvider(selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);
+			},
+			registerInlineValuesProvider(selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension);
+				return extHostLanguageFeatures.registerInlineValuesProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
@@ -831,7 +838,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostFileSystem.registerFileSystemProvider(extension.identifier, scheme, provider, options);
 			},
 			get fs() {
-				return extHostConsumerFileSystem;
+				return extHostConsumerFileSystem.value;
 			},
 			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
 				checkProposedApiEnabled(extension);
@@ -883,11 +890,23 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeTunnels: (listener, thisArg?, disposables?) => {
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
-
 			},
 			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
+			},
+			get trustState() {
+				checkProposedApiEnabled(extension);
+				checkRequiresWorkspaceTrust(extension);
+				return extHostWorkspace.trustState;
+			},
+			requireWorkspaceTrust: (message?: string) => {
+				checkProposedApiEnabled(extension);
+				checkRequiresWorkspaceTrust(extension);
+				return extHostWorkspace.requireWorkspaceTrust(message);
+			},
+			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
+				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
 			}
 		};
 
@@ -1119,6 +1138,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
 			CancellationError: errors.CancellationError,
 			CancellationTokenSource: CancellationTokenSource,
+			CandidatePortSource: CandidatePortSource,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
 			CodeActionTrigger: extHostTypes.CodeActionTrigger,
@@ -1155,6 +1175,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EndOfLine: extHostTypes.EndOfLine,
 			EnvironmentVariableMutatorType: extHostTypes.EnvironmentVariableMutatorType,
 			EvaluatableExpression: extHostTypes.EvaluatableExpression,
+			InlineValueText: extHostTypes.InlineValueText,
+			InlineValueVariableLookup: extHostTypes.InlineValueVariableLookup,
+			InlineValueEvaluatableExpression: extHostTypes.InlineValueEvaluatableExpression,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
@@ -1168,7 +1191,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
-			InlineHint: extHostTypes.InlineHint,
 			Location: extHostTypes.Location,
 			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: OverviewRulerLane,
@@ -1218,6 +1240,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
+			get InlineHint() {
+				return extHostTypes.InlineHint;
+			},
+			get InlineHintKind() {
+				return extHostTypes.InlineHintKind;
+			},
 			get RemoteAuthorityResolverError() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.RemoteAuthorityResolverError;
@@ -1238,17 +1266,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TimelineItem;
 			},
-			get CellKind() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.CellKind;
+			get NotebookCellRange() {
+				return extHostTypes.NotebookCellRange;
 			},
-			get CellOutputKind() {
+			get NotebookCellKind() {
 				// checkProposedApiEnabled(extension);
-				return extHostTypes.CellOutputKind;
+				return extHostTypes.NotebookCellKind;
 			},
 			get NotebookCellRunState() {
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.NotebookCellRunState;
+			},
+			get NotebookDocumentMetadata() {
+				return extHostTypes.NotebookDocumentMetadata;
+			},
+			get NotebookCellMetadata() {
+				return extHostTypes.NotebookCellMetadata;
 			},
 			get NotebookRunState() {
 				// checkProposedApiEnabled(extension);
@@ -1282,19 +1315,19 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// checkProposedApiEnabled(extension);
 				return extHostTypes.TestMessageSeverity;
 			},
-			get TestState() {
+			get WorkspaceTrustState() {
 				// checkProposedApiEnabled(extension);
-				return extHostTypes.TestState;
-			},
+				return extHostTypes.WorkspaceTrustState;
+			}
 		};
 	};
 }
 
 class Extension<T> implements vscode.Extension<T> {
 
-	private _extensionService: IExtHostExtensionService;
-	private _originExtensionId: ExtensionIdentifier;
-	private _identifier: ExtensionIdentifier;
+	#extensionService: IExtHostExtensionService;
+	#originExtensionId: ExtensionIdentifier;
+	#identifier: ExtensionIdentifier;
 
 	readonly id: string;
 	readonly extensionUri: URI;
@@ -1303,9 +1336,9 @@ class Extension<T> implements vscode.Extension<T> {
 	readonly extensionKind: vscode.ExtensionKind;
 
 	constructor(extensionService: IExtHostExtensionService, originExtensionId: ExtensionIdentifier, description: IExtensionDescription, kind: extHostTypes.ExtensionKind) {
-		this._extensionService = extensionService;
-		this._originExtensionId = originExtensionId;
-		this._identifier = description.identifier;
+		this.#extensionService = extensionService;
+		this.#originExtensionId = originExtensionId;
+		this.#identifier = description.identifier;
 		this.id = description.identifier.value;
 		this.extensionUri = description.extensionLocation;
 		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
@@ -1314,17 +1347,17 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	get isActive(): boolean {
-		return this._extensionService.isActivated(this._identifier);
+		return this.#extensionService.isActivated(this.#identifier);
 	}
 
 	get exports(): T {
 		if (this.packageJSON.api === 'none') {
 			return undefined!; // Strict nulloverride - Public api
 		}
-		return <T>this._extensionService.getExtensionExports(this._identifier);
+		return <T>this.#extensionService.getExtensionExports(this.#identifier);
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateByIdWithErrors(this._identifier, { startup: false, extensionId: this._originExtensionId, activationEvent: 'api' }).then(() => this.exports);
+		return this.#extensionService.activateByIdWithErrors(this.#identifier, { startup: false, extensionId: this.#originExtensionId, activationEvent: 'api' }).then(() => this.exports);
 	}
 }

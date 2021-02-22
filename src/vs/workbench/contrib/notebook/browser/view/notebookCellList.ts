@@ -368,7 +368,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const viewSelections = model.selectionHandles.map(handle => {
 				return model.getCellByHandle(handle);
 			}).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
-			this.setFocus(viewSelections, undefined, true);
+			this.setSelection(viewSelections, undefined, true);
+			if (viewSelections.length) {
+				this.setFocus([viewSelections[0]]);
+			}
 		}));
 
 		const hiddenRanges = model.getHiddenRanges();
@@ -531,7 +534,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 
 	private _getViewIndexUpperBound(cell: ICellViewModel): number {
-		const modelIndex = this._viewModel!.getCellIndex(cell);
+		if (!this._viewModel) {
+			return -1;
+		}
+
+		const modelIndex = this._viewModel.getCellIndex(cell);
 		if (!this.hiddenRangesPrefixSum) {
 			return modelIndex;
 		}
@@ -592,6 +599,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
+		// if (!indexes.length) {
+		// 	return;
+		// }
+
+		// if (this._viewModel && !ignoreTextModelUpdate) {
+		// 	this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
+		// }
+
+		super.setFocus(indexes, browserEvent);
+	}
+
+	setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
 		if (!indexes.length) {
 			return;
 		}
@@ -600,7 +619,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
 		}
 
-		super.setFocus(indexes, browserEvent);
+		super.setSelection(indexes, browserEvent);
 	}
 
 	revealElementsInView(range: ICellRange) {
@@ -947,7 +966,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
 		const element = this.view.element(viewIndex);
 
-		if (!element.editorAttached) {
+		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
+		if (element.editState === CellEditState.Editing && !element.editorAttached) {
 			return getEditorAttachedPromise(element);
 		}
 

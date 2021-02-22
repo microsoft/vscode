@@ -56,7 +56,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			return;
 		}
 
-		await this.extensionService.activateByEvent(`onUriOpen:${targetUri.scheme}`);
+		await this.extensionService.activateByEvent(`onOpenExternalUri:${targetUri.scheme}`);
 
 		for (const [id, openerMetadata] of this._registeredOpeners) {
 			if (openerMetadata.schemes.has(targetUri.scheme)) {
@@ -87,7 +87,10 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 
 						this.notificationService.notify({
 							severity: Severity.Error,
-							message: localize('openerFailedMessage', 'Could not open uri with \'{0}\': {1}', id, e.toString()),
+							message: localize({
+								key: 'openerFailedMessage',
+								comment: ['{0} is the id of the opener. {1} is the url being opened.'],
+							}, 'Could not open uri with \'{0}\': {1}', id, e.toString()),
 							actions: {
 								primary: [
 									openDefaultAction
@@ -117,7 +120,7 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			extensionId,
 		});
 
-		this._contributedExternalUriOpenersStore.add(id, extensionId.value);
+		this._contributedExternalUriOpenersStore.didRegisterOpener(id, extensionId.value);
 	}
 
 	async $unregisterUriOpener(id: string): Promise<void> {

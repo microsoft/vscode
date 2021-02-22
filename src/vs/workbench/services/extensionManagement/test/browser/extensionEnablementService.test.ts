@@ -30,6 +30,8 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { mock } from 'vs/base/test/common/mock';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -64,7 +66,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
 			instantiationService.get(IHostService),
-			new class extends mock<IExtensionBisectService>() { isDisabledByBisect() { return false; } }
+			new class extends mock<IExtensionBisectService>() { isDisabledByBisect() { return false; } },
+			instantiationService.get(IWorkspaceTrustService) || instantiationService.stub(IWorkspaceTrustService, new TestWorkspaceTrustService())
 		);
 	}
 
@@ -88,12 +91,17 @@ suite('ExtensionEnablementService Test', () => {
 	let instantiationService: TestInstantiationService;
 	let testObject: IWorkbenchExtensionEnablementService;
 
+	const didInstallEvent = new Emitter<DidInstallExtensionEvent>();
 	const didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => Promise.resolve([] as ILocalExtension[]) } as IExtensionManagementService);
+		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
+			onDidInstallExtension: didInstallEvent.event,
+			onDidUninstallExtension: didUninstallEvent.event,
+			getInstalled: () => Promise.resolve([] as ILocalExtension[])
+		});
 		instantiationService.stub(IExtensionManagementServerService, <IExtensionManagementServerService>{
 			localExtensionManagementServer: {
 				extensionManagementService: instantiationService.get(IExtensionManagementService)
@@ -455,7 +463,11 @@ suite('ExtensionEnablementService Test', () => {
 	test('test extension is disabled when disabled in environment', async () => {
 		const extension = aLocalExtension('pub.a');
 		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: ['pub.a'] } as IWorkbenchEnvironmentService);
-		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => Promise.resolve([extension, aLocalExtension('pub.b')]) } as IExtensionManagementService);
+		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
+			onDidInstallExtension: didInstallEvent.event,
+			onDidUninstallExtension: didUninstallEvent.event,
+			getInstalled: () => Promise.resolve([extension, aLocalExtension('pub.b')])
+		});
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(extension));
 		assert.deepEqual(testObject.getEnablementState(extension), EnablementState.DisabledByEnvironment);

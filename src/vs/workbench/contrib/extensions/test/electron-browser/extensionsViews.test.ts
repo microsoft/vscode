@@ -37,7 +37,7 @@ import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentSe
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
 import { ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IMenuService } from 'vs/platform/actions/common/actions';

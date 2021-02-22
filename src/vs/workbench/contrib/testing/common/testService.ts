@@ -5,17 +5,18 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsRequest, RunTestsResult, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
 export interface MainTestController {
 	lookupTest(test: TestIdWithProvider): Promise<InternalTestItem | undefined>;
-	runTests(request: RunTestForProviderRequest, token: CancellationToken): Promise<RunTestsResult>;
+	runTests(request: RunTestForProviderRequest, token: CancellationToken): Promise<void>;
 }
 
 export type TestDiffListener = (diff: TestsDiff) => void;
@@ -56,21 +57,40 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	getReviverDiff(): TestsDiff;
 }
 
-export const waitForAllRoots = (collection: IMainThreadTestCollection, timeout = 3000) => {
-	if (collection.pendingRootProviders === 0) {
+export const waitForAllRoots = (collection: IMainThreadTestCollection, ct = CancellationToken.None) => {
+	if (collection.pendingRootProviders === 0 || ct.isCancellationRequested) {
 		return Promise.resolve();
 	}
 
-	let listener: IDisposable;
+	const disposable = new DisposableStore();
 	return new Promise<void>(resolve => {
-		listener = collection.onPendingRootProvidersChange(count => {
+		disposable.add(collection.onPendingRootProvidersChange(count => {
 			if (count === 0) {
 				resolve();
 			}
-		});
+		}));
 
-		setTimeout(resolve, timeout);
-	}).finally(() => listener.dispose());
+		disposable.add(ct.onCancellationRequested(() => resolve()));
+	}).finally(() => disposable.dispose());
+};
+
+export const waitForAllTests = async (collection: IMainThreadTestCollection, ct = CancellationToken.None) => {
+	await waitForAllRoots(collection, ct);
+
+	if (collection.busyProviders === 0 || ct.isCancellationRequested) {
+		return;
+	}
+
+	const disposable = new DisposableStore();
+	return new Promise<void>(resolve => {
+		disposable.add(collection.onBusyProvidersChange(count => {
+			if (count === 0) {
+				resolve();
+			}
+		}));
+
+		disposable.add(ct.onCancellationRequested(() => resolve()));
+	}).finally(() => disposable.dispose());
 };
 
 export interface ITestService {
@@ -84,7 +104,7 @@ export interface ITestService {
 
 	registerTestController(id: string, controller: MainTestController): void;
 	unregisterTestController(id: string): void;
-	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<RunTestsResult>;
+	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
 	cancelTestRun(req: RunTestsRequest): void;
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
 	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): IReference<IMainThreadTestCollection>;

@@ -22,15 +22,15 @@ import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RunOnceWorker } from 'vs/base/common/async';
+import { Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -40,7 +40,6 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { isErrorWithActions, IErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
@@ -711,8 +710,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count === 0;
 	}
 
-	get titleDimensions(): IEditorGroupTitleDimensions {
-		return this.titleAreaControl.getDimensions();
+	get titleHeight(): IEditorGroupTitleHeight {
+		return this.titleAreaControl.getHeight();
 	}
 
 	get isMinimized(): boolean {
@@ -1022,7 +1021,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				// Extract possible error actions from the error
 				let errorActions: ReadonlyArray<IAction> | undefined = undefined;
 				if (isErrorWithActions(error)) {
-					errorActions = (error as IErrorWithActions).actions;
+					errorActions = error.actions;
 				}
 
 				// If the context is USER, we try to show a modal dialog instead of a background notification
@@ -1110,7 +1109,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Open the other ones inactive
 		const startingIndex = this.getIndexOfEditor(editor) + 1;
-		await Promise.all(editors.map(async ({ editor, options }, index) => {
+		await Promises.settled(editors.map(async ({ editor, options }, index) => {
 			const adjustedEditorOptions = options || new EditorOptions();
 			adjustedEditorOptions.inactive = true;
 			adjustedEditorOptions.pinned = true;
@@ -1347,10 +1346,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.mapEditorToPendingConfirmation.set(editor, handleDirtyClosingPromise);
 		}
 
-		const veto = await handleDirtyClosingPromise;
-
-		// Make sure to remove from our map of cached pending confirmations
-		this.mapEditorToPendingConfirmation.delete(editor);
+		let veto: boolean;
+		try {
+			veto = await handleDirtyClosingPromise;
+		} finally {
+			this.mapEditorToPendingConfirmation.delete(editor);
+		}
 
 		// Return for the first veto we got
 		if (veto) {

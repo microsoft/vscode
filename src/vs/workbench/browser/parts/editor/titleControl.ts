@@ -7,9 +7,9 @@ import 'vs/css!./media/titlecontrol';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, SubmenuAction } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -30,7 +30,7 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceData
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupTitleDimensions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -124,7 +124,7 @@ export abstract class TitleControl extends Themable {
 		}
 
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+			if (this.breadcrumbsControl?.update()) {
 				this.handleBreadcrumbsEnablementChange();
 			}
 		}));
@@ -218,13 +218,19 @@ export abstract class TitleControl extends Themable {
 		const activeEditorPane = this.group.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
 			const scopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.contextKeyService;
-			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
+			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, true);
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
 				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
 			}));
 
-			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, (group: string) => group === 'navigation' || group === '1_run'));
+			const isPrimaryGroup = (group: string) => group === 'navigation' || group === '1_run';
+			const shouldInlineGroup = (action: SubmenuAction, group: string) => isPrimaryGroup(group) && action.actions.length <= 1;
+
+			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
+				titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary },
+				isPrimaryGroup, 7, shouldInlineGroup
+			));
 		}
 
 		return { primary, secondary };
@@ -384,7 +390,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract layout(dimensions: ITitleControlDimensions): Dimension;
 
-	abstract getDimensions(): IEditorGroupTitleDimensions;
+	abstract getHeight(): IEditorGroupTitleHeight;
 
 	dispose(): void {
 		dispose(this.breadcrumbsControl);

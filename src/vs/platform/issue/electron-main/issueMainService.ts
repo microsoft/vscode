@@ -10,8 +10,7 @@ import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { IDiagnosticsService, PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -39,7 +38,7 @@ export class IssueMainService implements ICommonIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
@@ -272,7 +271,7 @@ export class IssueMainService implements ICommonIssueService {
 				this._processExplorerWindow.setMenuBarVisibility(false);
 
 				const windowConfiguration = {
-					appRoot: this.environmentService.appRoot,
+					appRoot: this.environmentMainService.appRoot,
 					windowId: this._processExplorerWindow.id,
 					userEnv: this.userEnv,
 					machineId: this.machineId,
@@ -398,13 +397,13 @@ export class IssueMainService implements ICommonIssueService {
 		}
 
 		const windowConfiguration = {
-			appRoot: this.environmentService.appRoot,
+			appRoot: this.environmentMainService.appRoot,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			userEnv: this.userEnv,
 			data,
 			features,
-			disableExtensions: this.environmentService.disableExtensions,
+			disableExtensions: this.environmentMainService.disableExtensions,
 			os: {
 				type: os.type(),
 				arch: os.arch(),

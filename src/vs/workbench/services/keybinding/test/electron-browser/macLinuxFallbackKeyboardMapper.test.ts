@@ -28,6 +28,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+Z'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -43,6 +44,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['meta+K', 'meta+='],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -67,6 +69,7 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+Z'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -89,11 +92,12 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['meta+,', 'meta+/'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Meta+', () => {
+	test('resolveKeyboardEvent Single Modifier Meta+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -113,6 +117,107 @@ suite('keyboardMapper - MAC fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Shift+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Shift,
+				code: null!
+			},
+			{
+				label: '⇧',
+				ariaLabel: 'Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['shift'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Alt+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: true,
+				metaKey: false,
+				keyCode: KeyCode.Alt,
+				code: null!
+			},
+			{
+				label: '⌥',
+				ariaLabel: 'Alt',
+				electronAccelerator: null,
+				userSettingsLabel: 'alt',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['alt'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Meta+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: KeyCode.Meta,
+				code: null!
+			},
+			{
+				label: '⌘',
+				ariaLabel: 'Command',
+				electronAccelerator: null,
+				userSettingsLabel: 'cmd',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Only Modifiers Ctrl+Shift+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: true,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Shift,
+				code: null!
+			},
+			{
+				label: '⌃⇧',
+				ariaLabel: 'Control+Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -137,6 +242,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Z'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -152,6 +258,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+='],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -176,6 +283,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Z'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -194,6 +302,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+,', 'ctrl+/'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -211,11 +320,12 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+,'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+	test('resolveKeyboardEvent Single Modifier Ctrl+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -235,6 +345,7 @@ suite('keyboardMapper - LINUX fallback', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
 			}
 		);
 	});

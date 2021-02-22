@@ -7,7 +7,7 @@ import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -237,12 +237,12 @@ export function escapeNonWindowsPath(path: string): string {
 	if (newPath.indexOf('\\') !== 0) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
-	if (!newPath && (newPath.indexOf('"') !== -1)) {
-		newPath = '\'' + newPath + '\'';
-	} else if (newPath.indexOf(' ') !== -1) {
+	if (newPath.indexOf(' ') !== -1) {
 		newPath = newPath.replace(/ /g, '\\ ');
 	}
-	return newPath;
+	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
+	newPath = newPath.replace(bannedChars, '');
+	return `'${newPath}'`;
 }
 
 export type TerminalShellSetting = (

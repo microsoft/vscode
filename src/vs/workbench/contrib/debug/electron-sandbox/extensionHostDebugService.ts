@@ -5,7 +5,7 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
 export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event, Listener } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
 import { URI } from 'vs/base/common/uri';
 
-export function isThenable<T>(obj: any): obj is Promise<T> {
-	return obj && typeof (<Promise<any>>obj).then === 'function';
+export function isThenable<T>(obj: unknown): obj is Promise<T> {
+	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
 }
 
 export interface CancelablePromise<T> extends Promise<T> {
@@ -23,7 +24,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
 		source.token.onCancellationRequested(() => {
-			reject(errors.canceled());
+			reject(canceled());
 		});
 		Promise.resolve(thenable).then(value => {
 			source.dispose();
@@ -165,10 +166,10 @@ export class Throttler {
 		this.activePromise = promiseFactory();
 
 		return new Promise((resolve, reject) => {
-			this.activePromise!.then((result: any) => {
+			this.activePromise!.then((result: T) => {
 				this.activePromise = null;
 				resolve(result);
-			}, (err: any) => {
+			}, (err: unknown) => {
 				this.activePromise = null;
 				reject(err);
 			});
@@ -178,7 +179,7 @@ export class Throttler {
 
 export class Sequencer {
 
-	private current: Promise<any> = Promise.resolve(null);
+	private current: Promise<unknown> = Promise.resolve(null);
 
 	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
 		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
@@ -187,7 +188,7 @@ export class Sequencer {
 
 export class SequencerByKey<TKey> {
 
-	private promiseMap = new Map<TKey, Promise<any>>();
+	private promiseMap = new Map<TKey, Promise<unknown>>();
 
 	queue<T>(key: TKey, promiseTask: ITask<Promise<T>>): Promise<T> {
 		const runningPromise = this.promiseMap.get(key) ?? Promise.resolve();
@@ -282,7 +283,7 @@ export class Delayer<T> implements IDisposable {
 
 		if (this.completionPromise) {
 			if (this.doReject) {
-				this.doReject(errors.canceled());
+				this.doReject(canceled());
 			}
 			this.completionPromise = null;
 		}
@@ -320,7 +321,7 @@ export class ThrottledDelayer<T> {
 	}
 
 	trigger(promiseFactory: ITask<Promise<T>>, delay?: number): Promise<T> {
-		return this.delayer.trigger(() => this.throttler.queue(promiseFactory), delay) as any as Promise<T>;
+		return this.delayer.trigger(() => this.throttler.queue(promiseFactory), delay) as unknown as Promise<T>;
 	}
 
 	isTriggered(): boolean {
@@ -377,7 +378,7 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 		const handle = setTimeout(resolve, millis);
 		token.onCancellationRequested(() => {
 			clearTimeout(handle);
-			reject(errors.canceled());
+			reject(canceled());
 		});
 	});
 }
@@ -487,7 +488,7 @@ export function firstParallel<T>(promiseList: Promise<T>[], shouldStop: (t: T) =
 interface ILimitedTaskFactory<T> {
 	factory: ITask<Promise<T>>;
 	c: (value: T | Promise<T>) => void;
-	e: (error?: any) => void;
+	e: (error?: unknown) => void;
 }
 
 /**
@@ -666,7 +667,7 @@ export class IntervalTimer implements IDisposable {
 
 export class RunOnceScheduler {
 
-	protected runner: ((...args: any[]) => void) | null;
+	protected runner: ((...args: unknown[]) => void) | null;
 
 	private timeoutToken: any;
 	private timeout: number;
@@ -826,7 +827,7 @@ export class IdleValue<T> {
 
 	private _didRun: boolean = false;
 	private _value?: T;
-	private _error: any;
+	private _error: unknown;
 
 	constructor(executor: () => T) {
 		this._executor = () => {
@@ -1014,7 +1015,9 @@ export class IntervalCounter {
 
 //#endregion
 
-export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
+//#region
+
+export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
 
 /**
  * Creates a promise whose resolution or rejection can be controlled imperatively.
@@ -1022,7 +1025,7 @@ export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 export class DeferredPromise<T> {
 
 	private completeCallback!: ValueCallback<T>;
-	private errorCallback!: (err: any) => void;
+	private errorCallback!: (err: unknown) => void;
 	private rejected = false;
 	private resolved = false;
 
@@ -1055,7 +1058,7 @@ export class DeferredPromise<T> {
 		});
 	}
 
-	public error(err: any) {
+	public error(err: unknown) {
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
 			this.rejected = true;
@@ -1065,9 +1068,152 @@ export class DeferredPromise<T> {
 
 	public cancel() {
 		new Promise<void>(resolve => {
-			this.errorCallback(errors.canceled());
+			this.errorCallback(canceled());
 			this.rejected = true;
 			resolve();
 		});
 	}
 }
+
+//#endregion
+
+//#region
+
+export interface IWaitUntil {
+	waitUntil(thenable: Promise<unknown>): void;
+}
+
+export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
+
+	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
+
+	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
+		if (!this._listeners) {
+			return;
+		}
+
+		if (!this._asyncDeliveryQueue) {
+			this._asyncDeliveryQueue = new LinkedList();
+		}
+
+		for (const listener of this._listeners) {
+			this._asyncDeliveryQueue.push([listener, data]);
+		}
+
+		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
+
+			const [listener, data] = this._asyncDeliveryQueue.shift()!;
+			const thenables: Promise<unknown>[] = [];
+
+			const event = <T>{
+				...data,
+				waitUntil: (p: Promise<unknown>): void => {
+					if (Object.isFrozen(thenables)) {
+						throw new Error('waitUntil can NOT be called asynchronous');
+					}
+					if (promiseJoin) {
+						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
+					}
+					thenables.push(p);
+				}
+			};
+
+			try {
+				if (typeof listener === 'function') {
+					listener.call(undefined, event);
+				} else {
+					listener[0].call(listener[1], event);
+				}
+			} catch (e) {
+				onUnexpectedError(e);
+				continue;
+			}
+
+			// freeze thenables-collection to enforce sync-calls to
+			// wait until and then wait for all thenables to resolve
+			Object.freeze(thenables);
+			await Promises.settled(thenables).catch(e => onUnexpectedError(e));
+		}
+	}
+}
+
+//#endregion
+
+//#region Promises
+
+export namespace Promises {
+
+	export interface IResolvedPromise<T> {
+		status: 'fulfilled';
+		value: T;
+	}
+
+	export interface IRejectedPromise {
+		status: 'rejected';
+		reason: Error;
+	}
+
+	/**
+	 * Interface of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
+	 */
+	interface PromiseWithAllSettled<T> {
+		allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>>;
+	}
+
+	/**
+	 * A polyfill of `Promise.allSettled`: returns after all promises have
+	 * resolved or rejected and provides access to each result or error
+	 * in the order of the original passed in promises array.
+	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
+	 */
+	export async function allSettled<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
+			return allSettledNative(promises); // in some environments we can benefit from native implementation
+		}
+
+		return allSettledShim(promises);
+	}
+
+	async function allSettledNative<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
+	}
+
+	async function allSettledShim<T>(promises: Promise<T>[]): Promise<ReadonlyArray<IResolvedPromise<T> | IRejectedPromise>> {
+		return Promise.all(promises.map(promise => (promise.then(value => {
+			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
+
+			return fulfilled;
+		}, error => {
+			const rejected: IRejectedPromise = { status: 'rejected', reason: error };
+
+			return rejected;
+		}))));
+	}
+
+	/**
+	 * A drop-in replacement for `Promise.all` with the only difference
+	 * that the method awaits every promise to either fulfill or reject.
+	 *
+	 * Similar to `Promise.all`, only the first error will be returned
+	 * if any.
+	 */
+	export async function settled<T>(promises: Promise<T>[]): Promise<T[]> {
+		let firstError: Error | undefined = undefined;
+
+		const result = await Promise.all(promises.map(promise => promise.then(value => value, error => {
+			if (!firstError) {
+				firstError = error;
+			}
+
+			return undefined; // do not rethrow so that other promises can settle
+		})));
+
+		if (typeof firstError !== 'undefined') {
+			throw firstError;
+		}
+
+		return result as unknown as T[]; // cast is needed and protected by the `throw` above
+	}
+}
+
+//#endregion

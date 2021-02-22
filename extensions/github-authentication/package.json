@@ -53,7 +53,7 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "node-fetch": "2.6.0",
+    "node-fetch": "2.6.1",
     "uuid": "8.1.0",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.1.2"
@@ -62,5 +62,9 @@
     "@types/node": "^12.19.9",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

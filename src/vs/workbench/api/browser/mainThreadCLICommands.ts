@@ -26,10 +26,9 @@ import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
 
 // this class contains the commands that the CLI server is reying on
 
-CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents, options: { allowTunneling?: boolean }) {
-	// TODO: discuss martin, ben where to put this
+CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents | string) {
 	const openerService = accessor.get(IOpenerService);
-	openerService.open(URI.revive(uri), { openExternal: true, allowTunneling: options?.allowTunneling === true });
+	openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
 });
 
 interface ManageExtensionsArgs {
@@ -100,7 +99,7 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 
 	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
 		if (!canExecuteOnWorkspace(manifest, this.productService, this.configurationService)) {
-			output.log(localize('cannot be installed', "Cannot install '{0}' because this extension has defined that it cannot run on the remote server.", getExtensionId(manifest.publisher, manifest.name)));
+			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;
 		}
 		return true;

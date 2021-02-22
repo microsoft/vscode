@@ -61,6 +61,7 @@ export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loade
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false);
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
+export const CONTEXT_STACK_FRAME_SUPPORTS_RESTART = new RawContextKey<boolean>('stackFrameSupportsRestart', false);
 export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
 export const CONTEXT_STEP_INTO_TARGETS_SUPPORTED = new RawContextKey<boolean>('stepIntoTargetsSupported', false);
 export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false);
@@ -107,7 +108,7 @@ export interface ITreeElement {
 }
 
 export interface IReplElement extends ITreeElement {
-	toString(): string;
+	toString(includeSource?: boolean): string;
 	readonly sourceData?: IReplElementSource;
 }
 
@@ -132,7 +133,7 @@ export interface IExpression extends IExpressionContainer {
 
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getCustomTelemetryService(): Promise<TelemetryService | undefined>;
 }
 
@@ -351,6 +352,7 @@ export interface IStackFrame extends ITreeElement {
 	readonly frameId: number;
 	readonly range: IRange;
 	readonly source: Source;
+	readonly canRestart: boolean;
 	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	forgetScopes(): void;
@@ -411,6 +413,7 @@ export interface IExceptionBreakpoint extends IEnablement {
 	readonly filter: string;
 	readonly label: string;
 	readonly condition: string | undefined;
+	readonly description: string | undefined;
 }
 
 export interface IDataBreakpoint extends IBaseBreakpoint {
@@ -504,6 +507,7 @@ export interface IDebugConfiguration {
 		lineHeight: number;
 		wordWrap: boolean;
 		closeOnEnd: boolean;
+		collapseIdenticalLines: boolean;
 		historySuggestions: boolean;
 	};
 	focusWindowOnBreak: boolean;
@@ -661,7 +665,7 @@ export interface IDebugAdapterTrackerFactory {
 }
 
 export interface ITerminalLauncher {
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 }
 
 export interface IConfigurationManager {
@@ -715,7 +719,7 @@ export interface IAdapterManager {
 	unregisterDebugAdapterDescriptorFactory(debugAdapterDescriptorFactory: IDebugAdapterDescriptorFactory): void;
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined>;
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 }
 
 export interface ILaunch {

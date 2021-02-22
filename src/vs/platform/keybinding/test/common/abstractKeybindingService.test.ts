@@ -118,6 +118,7 @@ suite('AbstractKeybindingService', () => {
 				contextMatchesRules: undefined!,
 				getContextKeyValue: undefined!,
 				createScoped: undefined!,
+				createOverlay: undefined!,
 				getContext: (target: IContextKeyServiceTarget): any => {
 					return currentContextValue;
 				},

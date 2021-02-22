@@ -42,7 +42,7 @@
 }
 
 .menubar .menubar-menu-items-holder {
-	position: absolute;
+	position: fixed;
 	left: 0px;
 	opacity: 1;
 	z-index: 2000;

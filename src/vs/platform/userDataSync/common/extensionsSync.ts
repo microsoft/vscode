@@ -27,6 +27,7 @@ import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/co
 import { getErrorMessage } from 'vs/base/common/errors';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { Promises } from 'vs/base/common/async';
 
 interface IExtensionResourceMergeResult extends IAcceptResult {
 	readonly added: ISyncExtension[];
@@ -357,7 +358,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 		if (removed.length) {
 			const extensionsToRemove = installedExtensions.filter(({ identifier, isBuiltin }) => !isBuiltin && removed.some(r => areSameExtensions(identifier, r)));
-			await Promise.all(extensionsToRemove.map(async extensionToRemove => {
+			await Promises.settled(extensionsToRemove.map(async extensionToRemove => {
 				this.logService.trace(`${this.syncResourceLogLabel}: Uninstalling local extension...`, extensionToRemove.identifier.id);
 				await this.extensionManagementService.uninstall(extensionToRemove, { donotIncludePack: true, donotCheckDependents: true });
 				this.logService.info(`${this.syncResourceLogLabel}: Uninstalled local extension.`, extensionToRemove.identifier.id);
@@ -366,7 +367,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 
 		if (added.length || updated.length) {
-			await Promise.all([...added, ...updated].map(async e => {
+			await Promises.settled([...added, ...updated].map(async e => {
 				const installedExtension = installedExtensions.find(installed => areSameExtensions(installed.identifier, e.identifier));
 
 				// Builtin Extension Sync: Enablement & State

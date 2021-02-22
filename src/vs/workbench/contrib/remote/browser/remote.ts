@@ -25,11 +25,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -40,7 +36,7 @@ import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
-import { Action, IActionViewItem } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -57,6 +53,7 @@ import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 
 export interface HelpInformation {
@@ -521,6 +518,10 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		return isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority[0] : viewDescriptor.remoteAuthority;
 	}
 
+	protected setFilter(viewDescriptor: IViewDescriptor): void {
+		this.remoteExplorerService.targetType = isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority : [viewDescriptor.remoteAuthority!];
+	}
+
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
 			const optionItems = SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService);
@@ -547,7 +548,7 @@ registerAction2(SwitchRemoteAction);
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		name: nls.localize('remote.explorer', "Remote Explorer"),
+		title: nls.localize('remote.explorer', "Remote Explorer"),
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
 		hideIfEmpty: true,
 		viewOrderDelegate: {
@@ -578,25 +579,6 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 		icon: icons.remoteExplorerViewIcon,
 		order: 4
 	}, ViewContainerLocation.Sidebar);
-
-class OpenRemoteViewletAction extends ShowViewletAction {
-
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = nls.localize('toggleRemoteViewlet', "Show Remote Explorer");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
-	}
-}
-
-// Register Action to Open Viewlet
-Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.from(OpenRemoteViewletAction, {
-		primary: 0
-	}),
-	'View: Show Remote Explorer',
-	CATEGORIES.View.value
-);
 
 class RemoteMarkers implements IWorkbenchContribution {
 

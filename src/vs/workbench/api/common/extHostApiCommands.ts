@@ -359,6 +359,14 @@ const newCommands: ApiCommand[] = [
 			};
 		}))
 	),
+	// --- debug support
+	new ApiCommand(
+		'vscode.executeInlineValueProvider', '_executeInlineValueProvider', 'Execute inline value provider',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
+		new ApiCommandResult<modes.InlineValue[], vscode.InlineValue[]>('A promise that resolves to an array of InlineValue objects', result => {
+			return result.map(typeConverters.InlineValue.to);
+		})
+	),
 	// --- open'ish commands
 	new ApiCommand(
 		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',

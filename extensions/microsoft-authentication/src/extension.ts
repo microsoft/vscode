@@ -20,16 +20,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
 		onDidChangeSessions: onDidChangeSessions.event,
-		getSessions: () => Promise.resolve(loginService.sessions),
-		login: async (scopes: string[]) => {
+		getSessions: (scopes: string[]) => loginService.getSessions(scopes),
+		createSession: async (scopes: string[]) => {
 			try {
 				/* __GDPR__
 					"login" : { }
 				*/
 				telemetryReporter.sendTelemetryEvent('login');
 
-				const session = await loginService.login(scopes.sort().join(' '));
-				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
+				const session = await loginService.createSession(scopes.sort().join(' '));
+				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 				return session;
 			} catch (e) {
 				/* __GDPR__
@@ -40,15 +40,17 @@ export async function activate(context: vscode.ExtensionContext) {
 				throw e;
 			}
 		},
-		logout: async (id: string) => {
+		removeSession: async (id: string) => {
 			try {
 				/* __GDPR__
 					"logout" : { }
 				*/
 				telemetryReporter.sendTelemetryEvent('logout');
 
-				await loginService.logout(id);
-				onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
+				const session = await loginService.removeSession(id);
+				if (session) {
+					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+				}
 			} catch (e) {
 				/* __GDPR__
 					"logoutFailed" : { }

@@ -7,47 +7,56 @@ import { strictEqual } from 'assert';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { tmpdir } from 'os';
-import { mkdirp, rimraf } from 'vs/base/node/pfs';
+import { promises } from 'fs';
+import { rimraf } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
 
-flakySuite('NativeStorageService', function () {
+flakySuite('StorageService (native)', function () {
+
+	class StorageTestEnvironmentService extends NativeEnvironmentService {
+
+		constructor(private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
+			super(parseArgs(process.argv, OPTIONS));
+		}
+
+		get workspaceStorageHome(): URI {
+			return this.workspaceStorageFolderPath;
+		}
+
+		get extensionsPath(): string {
+			return this._extensionsPath;
+		}
+	}
 
 	let testDir: string;
 
-	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
+	createSuite<NativeStorageService>({
+		setup: async () => {
+			testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storageservice');
 
-		return mkdirp(testDir);
-	});
+			await promises.mkdir(testDir, { recursive: true });
 
-	teardown(() => {
-		return rimraf(testDir);
+			const storageService = new NativeStorageService(new InMemoryStorageDatabase(), { id: String(Date.now()) }, new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
+			await storageService.initialize();
+
+			return storageService;
+		},
+		teardown: async storageService => {
+			await storageService.close();
+
+			return rimraf(testDir);
+		}
 	});
 
 	test('Migrate Data', async function () {
-
-		class StorageTestEnvironmentService extends NativeEnvironmentService {
-
-			constructor(private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
-				super(parseArgs(process.argv, OPTIONS));
-			}
-
-			get workspaceStorageHome(): URI {
-				return this.workspaceStorageFolderPath;
-			}
-
-			get extensionsPath(): string {
-				return this._extensionsPath;
-			}
-		}
-
-		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
-		await storage.initialize({ id: String(Date.now()) });
+		const storage = new NativeStorageService(new InMemoryStorageDatabase(), { id: String(Date.now()) }, new NullLogService(), new StorageTestEnvironmentService(URI.file(testDir), testDir));
+		await storage.initialize();
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storage.store('barNumber', 55, StorageScope.WORKSPACE, StorageTarget.MACHINE);

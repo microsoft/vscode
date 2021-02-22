@@ -81,14 +81,14 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
-export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
+export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
 	const titleBarStyle = getTitleBarStyle(configurationService);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (titleBarStyle === 'native' && menuBarVisibility === 'compact') {
-		return 'default';
+	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact')) {
+		return 'classic';
 	} else {
 		return menuBarVisibility;
 	}
@@ -114,6 +114,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -253,6 +254,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;
+
+	enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 /**

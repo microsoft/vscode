@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { env as processEnv } from 'vs/base/common/process';
-import { ProcessState, ITerminalProcessManager, IShellLaunchConfig, ITerminalConfigHelper, ITerminalChildProcess, IBeforeProcessDataEvent, ITerminalEnvironment, ITerminalLaunchError, IProcessDataEvent, ITerminalDimensionsOverride, FlowControlConstants } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -27,6 +27,7 @@ import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection, IEnv
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, IProcessDataEvent, ITerminalDimensionsOverride } from 'vs/platform/terminal/common/terminal';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -66,7 +67,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	private _ackDataBufferer: AckDataBufferer;
+	private _hasWrittenData: boolean = false;
 
+	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
+	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -87,6 +91,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
 	private _remoteTerminalId: number | undefined;
 	public get remoteTerminalId(): number | undefined { return this._remoteTerminalId; }
+
+	public get hasWrittenData(): boolean {
+		return this._hasWrittenData;
+	}
 
 	constructor(
 		private readonly _terminalId: number,
@@ -243,7 +251,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
-		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService), isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
+		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService);
+		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
 		if (!shellLaunchConfig.strictEnv) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
@@ -254,7 +263,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// info widget. While technically these could differ due to the slight change of a race
 			// condition, the chance is minimal plus the impact on the user is also not that great
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
-			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
+			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
 				this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
 				this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
@@ -303,7 +312,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const env = await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
-		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
+		this._terminalInstanceService.onPtyHostUnresponsive(() => this._onPtyDisconnect.fire());
+		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
 	}
 
 	public setDimensions(cols: number, rows: number): void {
@@ -323,6 +333,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public write(data: string): void {
+		this._hasWrittenData = true;
 		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
 			if (this._process) {
 				// Send data if the pty is ready

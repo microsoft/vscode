@@ -9,12 +9,9 @@ import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workb
 suite('Workbench - Testing URIs', () => {
 	test('round trip', () => {
 		const uris: ParsedTestUri[] = [
-			{ type: TestUriType.LiveActualOutput, messageIndex: 42, providerId: 'p', testId: 't' },
-			{ type: TestUriType.LiveExpectedOutput, messageIndex: 42, providerId: 'p', testId: 't' },
-			{ type: TestUriType.LiveMessage, messageIndex: 42, providerId: 'p', testId: 't' },
-			{ type: TestUriType.ResultActualOutput, messageIndex: 42, resultId: 'r', testId: 't' },
-			{ type: TestUriType.ResultExpectedOutput, messageIndex: 42, resultId: 'r', testId: 't' },
-			{ type: TestUriType.ResultMessage, messageIndex: 42, resultId: 'r', testId: 't' },
+			{ type: TestUriType.ResultActualOutput, messageIndex: 42, resultId: 'r', testExtId: 't' },
+			{ type: TestUriType.ResultExpectedOutput, messageIndex: 42, resultId: 'r', testExtId: 't' },
+			{ type: TestUriType.ResultMessage, messageIndex: 42, resultId: 'r', testExtId: 't' },
 		];
 
 		for (const uri of uris) {

@@ -183,7 +183,8 @@ export class ExplorerView extends ViewPane {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IOpenerService openerService: IOpenerService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -456,6 +457,13 @@ export class ExplorerView extends ViewPane {
 				if (navigationController) {
 					navigationController.updateCollapsed(e.node.collapsed);
 				}
+			}
+		}));
+
+		this._register(this.tree.onMouseDblClick(e => {
+			if (e.element === null) {
+				// click in empty area -> create a new file #116676
+				this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
 			}
 		}));
 
@@ -898,7 +906,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.files.action.refreshFilesExplorer',
-			title: nls.localize('refreshExplorer', "Refresh Explorer"),
+			title: { value: nls.localize('refreshExplorer', "Refresh Explorer"), original: 'Refresh Explorer' },
 			f1: true,
 			icon: Codicon.refresh,
 			menu: {
@@ -922,7 +930,7 @@ registerAction2(class extends ViewAction<ExplorerView> {
 	constructor() {
 		super({
 			id: 'workbench.files.action.collapseExplorerFolders',
-			title: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"),
+			title: { value: nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer"), original: 'Collapse Folders in Explorer' },
 			viewId: VIEW_ID,
 			f1: true,
 			icon: Codicon.collapseAll,

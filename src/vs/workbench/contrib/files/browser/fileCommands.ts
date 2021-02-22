@@ -27,7 +27,7 @@ import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMul
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -43,6 +43,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { toAction } from 'vs/base/common/actions';
 
 // Commands
 
@@ -442,7 +443,16 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 		await editorService.save(editors, options);
 	} catch (error) {
 		if (!isPromiseCanceledError(error)) {
-			notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+			notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
+				actions: {
+					primary: [
+						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => editorService.save(editors, options) }),
+						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
+					]
+				}
+			});
 		}
 	}
 }

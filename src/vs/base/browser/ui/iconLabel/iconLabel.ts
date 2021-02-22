@@ -192,13 +192,14 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private static adjustXAndShowCustomHover(hoverOptions: IHoverDelegateOptions | undefined, mouseX: number | undefined, hoverDelegate: IHoverDelegate, isHovering: boolean) {
+	private static adjustXAndShowCustomHover(hoverOptions: IHoverDelegateOptions | undefined, mouseX: number | undefined, hoverDelegate: IHoverDelegate, isHovering: boolean): IDisposable | undefined {
 		if (hoverOptions && isHovering) {
 			if (mouseX !== undefined) {
 				(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
 			}
-			hoverDelegate.showHover(hoverOptions);
+			return hoverDelegate.showHover(hoverOptions);
 		}
+		return undefined;
 	}
 
 	private getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): (token: CancellationToken) => Promise<string | IMarkdownString | undefined> {
@@ -224,17 +225,22 @@ export class IconLabel extends Disposable {
 		let mouseX: number | undefined;
 		let isHovering = false;
 		let tokenSource: CancellationTokenSource;
+		let hoverDisposable: IDisposable | undefined;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
 			if (isHovering) {
 				return;
 			}
 			tokenSource = new CancellationTokenSource();
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
-				isHovering = false;
-				hoverOptions = undefined;
-				tokenSource.dispose(true);
-				mouseLeaveDisposable.dispose();
-				mouseDownDisposable.dispose();
+				if ((e.type === dom.EventType.MOUSE_DOWN) || (<any>e).fromElement === htmlElement) {
+					hoverDisposable?.dispose();
+					hoverDisposable = undefined;
+					isHovering = false;
+					hoverOptions = undefined;
+					tokenSource.dispose(true);
+					mouseLeaveDisposable.dispose();
+					mouseDownDisposable.dispose();
+				}
 			}
 			const mouseLeaveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_LEAVE, true)(mouseLeaveOrDown.bind(htmlElement));
 			const mouseDownDisposable = domEvent(htmlElement, dom.EventType.MOUSE_DOWN, true)(mouseLeaveOrDown.bind(htmlElement));
@@ -257,19 +263,23 @@ export class IconLabel extends Disposable {
 							target,
 							anchorPosition: AnchorPosition.BELOW
 						};
-						IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+						hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 
-						const resolvedTooltip = await tooltip(tokenSource.token);
+						const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) ? markdownTooltip.markdownNotSupportedFallback : undefined);
 						if (resolvedTooltip) {
 							hoverOptions = {
 								text: resolvedTooltip,
 								target,
 								anchorPosition: AnchorPosition.BELOW
 							};
+							// awaiting the tooltip could take a while. Make sure we're still hovering.
+							hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+						} else if (hoverDisposable) {
+							hoverDisposable.dispose();
+							hoverDisposable = undefined;
 						}
 					}
-					// awaiting the tooltip could take a while. Make sure we're still hovering.
-					IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+
 				}
 				mouseMoveDisposable.dispose();
 			}, hoverDelay);

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, open, close, read, write, fdatasync, Dirent, Stats } from 'fs';
+import { open, close, read, write, fdatasync, Stats, promises } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists, readdirWithFileTypes } from 'vs/base/node/pfs';
+import { SymlinkSupport, move, copy, rimraf, RimRafMode, exists, readdir, IDirent } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -30,7 +30,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
-	usePolling: boolean;
+	usePolling: boolean | string[];
 }
 
 export interface IDiskFileSystemProviderOptions {
@@ -80,7 +80,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, symbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
 				type: this.toType(stat, symbolicLink),
@@ -95,7 +95,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
-			const children = await readdirWithFileTypes(this.toFilePath(resource));
+			const children = await readdir(this.toFilePath(resource), { withFileTypes: true });
 
 			const result: [string, FileType][] = [];
 			await Promise.all(children.map(async child => {
@@ -119,7 +119,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private toType(entry: Stats | Dirent, symbolicLink?: { dangling: boolean }): FileType {
+	private toType(entry: Stats | IDirent, symbolicLink?: { dangling: boolean }): FileType {
 
 		// Signal file type by checking for file / directory, except:
 		// - symbolic links pointing to non-existing files are FileType.Unknown
@@ -151,7 +151,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		try {
 			const filePath = this.toFilePath(resource);
 
-			return await readFile(filePath);
+			return await promises.readFile(filePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -212,18 +212,20 @@ export class DiskFileSystemProvider extends Disposable implements
 
 			let flags: string | undefined = undefined;
 			if (opts.create) {
-				if (isWindows && await exists(filePath)) {
+				if (isWindows) {
 					try {
 						// On Windows and if the file exists, we use a different strategy of saving the file
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
 						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
 						// (see https://github.com/microsoft/vscode/issues/6363)
-						await truncate(filePath, 0);
+						await promises.truncate(filePath, 0);
 
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
 						flags = 'r+';
 					} catch (error) {
-						this.logService.trace(error);
+						if (error.code !== 'ENOENT') {
+							this.logService.trace(error);
+						}
 					}
 				}
 
@@ -398,7 +400,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async mkdir(resource: URI): Promise<void> {
 		try {
-			await promisify(mkdir)(this.toFilePath(resource));
+			await promises.mkdir(this.toFilePath(resource));
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -418,7 +420,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		if (opts.recursive) {
 			await rimraf(filePath, RimRafMode.MOVE);
 		} else {
-			await unlink(filePath);
+			await promises.unlink(filePath);
 		}
 	}
 
@@ -463,7 +465,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
 
 			// Copy
-			await copy(fromFilePath, toFilePath);
+			await copy(fromFilePath, toFilePath, { preserveSymlinks: true });
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks

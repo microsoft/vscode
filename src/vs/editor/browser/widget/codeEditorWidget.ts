@@ -1002,7 +1002,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 			case editorCommon.Handler.ReplacePreviousChar: {
 				const args = <Partial<editorCommon.ReplacePreviousCharPayload>>payload;
-				this._replacePreviousChar(source, args.text || '', args.replaceCharCnt || 0);
+				this._compositionType(source, args.text || '', args.replaceCharCnt || 0, 0, 0);
+				return;
+			}
+			case editorCommon.Handler.CompositionType: {
+				const args = <Partial<editorCommon.CompositionTypePayload>>payload;
+				this._compositionType(source, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
 				return;
 			}
 			case editorCommon.Handler.Paste: {
@@ -1061,11 +1066,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	private _replacePreviousChar(source: string | null | undefined, text: string, replaceCharCnt: number): void {
+	private _compositionType(source: string | null | undefined, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.replacePreviousChar(text, replaceCharCnt, source);
+		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
@@ -1583,8 +1588,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				type: (text: string) => {
 					this._type('keyboard', text);
 				},
-				replacePreviousChar: (text: string, replaceCharCnt: number) => {
-					this._replacePreviousChar('keyboard', text, replaceCharCnt);
+				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
+					this._compositionType('keyboard', text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 				},
 				startComposition: () => {
 					this._startComposition();
@@ -1606,9 +1611,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					const payload: editorCommon.TypePayload = { text };
 					this._commandService.executeCommand(editorCommon.Handler.Type, payload);
 				},
-				replacePreviousChar: (text: string, replaceCharCnt: number) => {
-					const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt };
-					this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
+				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
+					// Try if possible to go through the existing `replacePreviousChar` command
+					if (replaceNextCharCnt || positionDelta) {
+						// must be handled through the new command
+						const payload: editorCommon.CompositionTypePayload = { text, replacePrevCharCnt, replaceNextCharCnt, positionDelta };
+						this._commandService.executeCommand(editorCommon.Handler.CompositionType, payload);
+					} else {
+						const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt: replacePrevCharCnt };
+						this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
+					}
 				},
 				startComposition: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});

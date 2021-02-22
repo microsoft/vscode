@@ -88,6 +88,7 @@
 	margin: 0;
 	background-repeat: no-repeat;
 	background-position: center;
+	background-size: contain;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
@@ -157,6 +158,7 @@
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 	max-width: fit-content;
+	max-width: -moz-fit-content;
 }
 
 .scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,

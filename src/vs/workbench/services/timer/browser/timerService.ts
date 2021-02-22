@@ -46,6 +46,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequiredUserDataInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -214,6 +215,14 @@ export interface IStartupMetrics {
 		 * * Measured with the `code/willInitWorkspaceStorage` and `code/didInitWorkspaceStorage` performance marks.
 		 */
 		readonly ellapsedWorkspaceStorageInit: number;
+
+		/**
+		 * The time it took to init the storage database connection from the workbench.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `code/willInitStorage` and `code/didInitStorage` performance marks.
+		 */
+		readonly ellapsedStorageInit: number;
 
 		/**
 		 * The time it took to initialize the workspace and configuration service.
@@ -514,6 +523,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedWindowLoadToRequire: this._marks.getDuration('code/willOpenNewWindow', 'code/willLoadWorkbenchMain'),
 				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),
 				ellapsedWaitForShellEnv: this._marks.getDuration('code/willWaitForShellEnv', 'code/didWaitForShellEnv'),
+				ellapsedStorageInit: this._marks.getDuration('code/willInitStorage', 'code/didInitStorage'),
 				ellapsedWorkspaceStorageInit: this._marks.getDuration('code/willInitWorkspaceStorage', 'code/didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: this._marks.getDuration('code/willInitWorkspaceService', 'code/didInitWorkspaceService'),
 				ellapsedRequiredUserDataInit: this._marks.getDuration('code/willInitRequiredUserData', 'code/didInitRequiredUserData'),

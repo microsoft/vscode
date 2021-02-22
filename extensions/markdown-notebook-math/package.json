@@ -1,0 +1,45 @@
+{
+  "name": "markdown-notebook-math",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "icon": "icon.png",
+  "publisher": "vscode",
+  "enableProposedApi": true,
+  "license": "MIT",
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "engines": {
+    "vscode": "^1.54.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "contributes": {
+    "notebookMarkdownRenderer": [
+      {
+        "id": "markdownItRenderer-katex",
+        "displayName": "Markdown it renderer",
+        "entrypoint": "./notebook-out/extension.js"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "npm run build-notebook",
+    "watch": "npm run build-notebook",
+    "build-notebook": "npx webpack-cli --config webpack.notebook.js --mode production"
+  },
+  "dependencies": {
+    "@iktakahiro/markdown-it-katex": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^0.0.0",
+    "css-loader": "^5.0.2",
+    "markdown-it": "^12.0.4",
+    "style-loader": "^2.0.0",
+    "url-loader": "^4.1.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

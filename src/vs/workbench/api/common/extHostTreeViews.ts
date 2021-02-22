@@ -84,7 +84,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -110,7 +110,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
 			},
-			dispose: () => {
+			dispose: async () => {
+				// Wait for the registration promise to finish before doing the dispose.
+				await registerPromise;
 				this.treeViews.delete(viewId);
 				treeView.dispose();
 			}
@@ -240,7 +242,6 @@ class ExtHostTreeView<T> extends Disposable {
 			}
 		}
 		this.dataProvider = options.treeDataProvider;
-		this.proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany });
 		if (this.dataProvider.onDidChangeTreeData) {
 			this._register(this.dataProvider.onDidChangeTreeData(element => this._onDidChangeData.fire({ message: false, element })));
 		}

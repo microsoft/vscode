@@ -10,7 +10,6 @@ import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/s
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 /**
  * A content provider that returns various outputs for tests. This is used
@@ -20,8 +19,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
-		@ITestService private readonly testService: ITestService,
-		@ITestService private readonly resultService: ITestResultService,
+		@ITestResultService private readonly resultService: ITestResultService,
 	) {
 		textModelResolverService.registerTextModelContentProvider(TEST_DATA_SCHEME, this);
 	}
@@ -40,9 +38,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			return null;
 		}
 
-		const test = 'providerId' in parsed
-			? await this.testService.lookupTest({ providerId: parsed.providerId, testId: parsed.testId })
-			: this.resultService.lookup(parsed.resultId)?.tests.find(t => t.id === parsed.testId);
+		const test = this.resultService.getResult(parsed.resultId)?.getStateById(parsed.testExtId);
 
 		if (!test) {
 			return null;
@@ -51,16 +47,13 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 		let text: string | undefined;
 		switch (parsed.type) {
 			case TestUriType.ResultActualOutput:
-			case TestUriType.LiveActualOutput:
-				text = test.item.state.messages[parsed.messageIndex]?.actualOutput;
+				text = test.state.messages[parsed.messageIndex]?.actualOutput;
 				break;
 			case TestUriType.ResultExpectedOutput:
-			case TestUriType.LiveExpectedOutput:
-				text = test.item.state.messages[parsed.messageIndex]?.expectedOutput;
+				text = test.state.messages[parsed.messageIndex]?.expectedOutput;
 				break;
 			case TestUriType.ResultMessage:
-			case TestUriType.LiveMessage:
-				text = test.item.state.messages[parsed.messageIndex]?.message.toString();
+				text = test.state.messages[parsed.messageIndex]?.message.toString();
 				break;
 		}
 

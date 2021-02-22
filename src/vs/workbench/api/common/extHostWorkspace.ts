@@ -20,11 +20,12 @@ import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Severity } from 'vs/platform/notification/common/notification';
+import { WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Range, RelativePattern } from 'vs/workbench/api/common/extHostTypes';
+import { Range, RelativePattern, WorkspaceTrustState } from 'vs/workbench/api/common/extHostTypes';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
@@ -168,6 +169,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
+	private readonly _onDidChangeWorkspaceTrustState = new Emitter<vscode.WorkspaceTrustStateChangeEvent>();
+	readonly onDidChangeWorkspaceTrustState: Event<vscode.WorkspaceTrustStateChangeEvent> = this._onDidChangeWorkspaceTrustState.event;
+
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
 	private readonly _barrier: Barrier;
@@ -180,6 +184,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
 
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
+
+	private _workspaceTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -198,7 +204,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData | null): void {
+	$initializeWorkspace(data: IWorkspaceData | null, trustState: WorkspaceTrustState): void {
+		this._workspaceTrustState = trustState;
 		this.$acceptWorkspaceData(data);
 		this._barrier.open();
 	}
@@ -548,6 +555,21 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._proxy.$resolveProxy(url);
+	}
+
+	// --- trust ---
+
+	get trustState(): WorkspaceTrustState {
+		return this._workspaceTrustState;
+	}
+
+	requireWorkspaceTrust(message?: string): Promise<WorkspaceTrustState> {
+		return this._proxy.$requireWorkspaceTrust(message);
+	}
+
+	$onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void {
+		this._workspaceTrustState = state.currentTrustState;
+		this._onDidChangeWorkspaceTrustState.fire(Object.freeze(state));
 	}
 }
 

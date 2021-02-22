@@ -5,7 +5,7 @@
 
 import {
 	IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode,
-	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, HEADER_EXECUTION_ID, MergeState, Change, IUserDataSyncStoreManagementService, UserDataSyncStoreError
+	UserDataSyncError, ISyncResourceHandle, IUserDataManifest, ISyncTask, IResourcePreview, IManualSyncTask, ISyncResourcePreview, MergeState, Change, IUserDataSyncStoreManagementService, UserDataSyncStoreError, createSyncHeaders
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,12 +36,6 @@ type SyncErrorClassification = {
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
-
-function createSyncHeaders(executionId: string): IHeaders {
-	const headers: IHeaders = {};
-	headers[HEADER_EXECUTION_ID] = executionId;
-	return headers;
-}
 
 export class UserDataSyncService extends Disposable implements IUserDataSyncService {
 
@@ -195,8 +189,29 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				try {
 					await synchroniser.sync(manifest, syncHeaders);
 				} catch (e) {
-					this.handleSynchronizerError(e, synchroniser.resource);
-					this._syncErrors.push([synchroniser.resource, UserDataSyncError.toUserDataSyncError(e)]);
+
+					if (e instanceof UserDataSyncError) {
+						// Bail out for following errors
+						switch (e.code) {
+							case UserDataSyncErrorCode.TooLarge:
+								throw new UserDataSyncError(e.message, e.code, synchroniser.resource);
+							case UserDataSyncErrorCode.TooManyRequests:
+							case UserDataSyncErrorCode.TooManyRequestsAndRetryAfter:
+							case UserDataSyncErrorCode.LocalTooManyRequests:
+							case UserDataSyncErrorCode.Gone:
+							case UserDataSyncErrorCode.UpgradeRequired:
+							case UserDataSyncErrorCode.IncompatibleRemoteContent:
+							case UserDataSyncErrorCode.IncompatibleLocalContent:
+								throw e;
+						}
+					}
+
+					// Log and report other errors and continue
+					const userDataSyncError = UserDataSyncError.toUserDataSyncError(e);
+					this.reportUserDataSyncError(userDataSyncError, executionId);
+					this.logService.error(e);
+					this.logService.error(`${synchroniser.resource}: ${toErrorMessage(e)}`);
+					this._syncErrors.push([synchroniser.resource, userDataSyncError]);
 				}
 			}
 
@@ -369,26 +384,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.storageService.store(LAST_SYNC_TIME_KEY, this._lastSyncTime, StorageScope.GLOBAL, StorageTarget.MACHINE);
 			this._onDidChangeLastSyncTime.fire(this._lastSyncTime);
 		}
-	}
-
-	private handleSynchronizerError(e: Error, source: SyncResource): void {
-		if (e instanceof UserDataSyncError) {
-			switch (e.code) {
-				case UserDataSyncErrorCode.TooLarge:
-					throw new UserDataSyncError(e.message, e.code, source);
-
-				case UserDataSyncErrorCode.TooManyRequests:
-				case UserDataSyncErrorCode.TooManyRequestsAndRetryAfter:
-				case UserDataSyncErrorCode.LocalTooManyRequests:
-				case UserDataSyncErrorCode.Gone:
-				case UserDataSyncErrorCode.UpgradeRequired:
-				case UserDataSyncErrorCode.IncompatibleRemoteContent:
-				case UserDataSyncErrorCode.IncompatibleLocalContent:
-					throw e;
-			}
-		}
-		this.logService.error(e);
-		this.logService.error(`${source}: ${toErrorMessage(e)}`);
 	}
 
 	private reportUserDataSyncError(userDataSyncError: UserDataSyncError, executionId: string) {
