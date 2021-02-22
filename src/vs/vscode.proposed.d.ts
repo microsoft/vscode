@@ -2166,6 +2166,11 @@ declare module 'vscode' {
 
 	export interface ExtensionContext {
 		readonly extensionRuntime: ExtensionRuntime;
+
+		/**
+		 * Indicates that this is a fresh install of VS Code.
+		 */
+		readonly isNewInstall: boolean;
 	}
 
 	//#endregion
