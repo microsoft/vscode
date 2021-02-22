@@ -5,6 +5,7 @@
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as strings from 'vs/base/common/strings';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
@@ -504,7 +505,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					listInactiveFocusOutline: editorBackground,
 				},
 				accessibilityProvider: {
-					getAriaLabel() { return null; },
+					getAriaLabel: (element) => {
+						if (!this.viewModel) {
+							return '';
+						}
+						const index = this.viewModel.getCellIndex(element);
+
+						if (index >= 0) {
+							return `Cell index ${index}, ${element.cellKind === CellKind.Markdown ? 'markdown' : 'code'}  cell`;
+						}
+
+						return '';
+					},
 					getWidgetAriaLabel() {
 						return nls.localize('notebookTreeAriaLabel', "Notebook");
 					}
@@ -1878,12 +1890,35 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		await this._activeKernel?.executeNotebookCell!(this.viewModel.uri, cell.handle);
 	}
 
+	private _cellFocusAria(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+		const index = this._notebookViewModel?.getCellIndex(cell);
+
+		if (index !== undefined && index >= 0) {
+			let position = '';
+			switch (focusItem) {
+				case 'editor':
+					position = `the inner ${cell.cellKind === CellKind.Markdown ? 'markdown' : 'code'} editor is focused, press escape to focus the cell container`;
+					break;
+				case 'output':
+					position = `the cell output is focused, press escape to focus the cell container`;
+					break;
+				case 'container':
+					position = `the ${cell.cellKind === CellKind.Markdown ? 'markdown preview' : 'cell container'} is focused, press enter to focus the inner ${cell.cellKind === CellKind.Markdown ? 'markdown' : 'code'} editor`;
+					break;
+				default:
+					break;
+			}
+			aria.alert(`Cell index ${this._notebookViewModel?.getCellIndex(cell)}, ${position} `);
+		}
+	}
+
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions) {
 		if (this._isDisposed) {
 			return;
 		}
 
 		if (focusItem === 'editor') {
+			this._cellFocusAria(cell, focusItem);
 			this.selectElement(cell);
 			this._list.focusView();
 
@@ -1893,6 +1928,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.revealInCenterIfOutsideViewport(cell);
 			}
 		} else if (focusItem === 'output') {
+			this._cellFocusAria(cell, focusItem);
 			this.selectElement(cell);
 			this._list.focusView();
 
@@ -1916,6 +1952,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			cell.focusMode = CellFocusMode.Container;
 
 			this.selectElement(cell);
+			this._cellFocusAria(cell, focusItem);
+
 			if (!options?.skipReveal) {
 				this.revealInCenterIfOutsideViewport(cell);
 			}

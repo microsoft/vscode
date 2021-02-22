@@ -5,6 +5,7 @@
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { domEvent } from 'vs/base/browser/event';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -852,7 +853,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateExecutionOrder(metadata, templateData);
 		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
-		templateData.cellRunState.renderState(element.metadata?.runState);
+		templateData.cellRunState.renderState(element.metadata?.runState, () => {
+			if (!this.notebookEditor.viewModel) {
+				return -1;
+			}
+
+			return this.notebookEditor.viewModel.getCellIndex(element);
+		});
 
 		if (metadata.runState === NotebookCellRunState.Running) {
 			if (metadata.runStartTime) {
@@ -1061,6 +1068,7 @@ export class RunStateRenderer {
 
 	private spinnerTimer: any | undefined;
 	private pendingNewState: NotebookCellRunState | undefined;
+	private lastRunState: NotebookCellRunState | undefined;
 
 	constructor(private readonly element: HTMLElement, private readonly runToolbar: ToolBar, private readonly instantiationService: IInstantiationService) {
 		DOM.hide(element);
@@ -1073,7 +1081,7 @@ export class RunStateRenderer {
 		}
 	}
 
-	renderState(runState: NotebookCellRunState = NotebookCellRunState.Idle) {
+	renderState(runState: NotebookCellRunState = NotebookCellRunState.Idle, getCellIndex: () => number) {
 		if (this.spinnerTimer) {
 			this.pendingNewState = runState;
 			return;
@@ -1086,16 +1094,21 @@ export class RunStateRenderer {
 		}
 
 		if (runState === NotebookCellRunState.Success) {
+			aria.alert(`Code cell at index ${getCellIndex()} finishes running successfully`);
 			DOM.reset(this.element, renderIcon(successStateIcon));
 		} else if (runState === NotebookCellRunState.Error) {
+			aria.alert(`Code cell at index ${getCellIndex()} finishes running with errors`);
 			DOM.reset(this.element, renderIcon(errorStateIcon));
 		} else if (runState === NotebookCellRunState.Running) {
+			if (this.lastRunState !== NotebookCellRunState.Running) {
+				aria.alert(`Code cell at index ${getCellIndex()} starts running`);
+			}
 			DOM.reset(this.element, renderIcon(syncing));
 
 			this.spinnerTimer = setTimeout(() => {
 				this.spinnerTimer = undefined;
 				if (this.pendingNewState) {
-					this.renderState(this.pendingNewState);
+					this.renderState(this.pendingNewState, getCellIndex);
 					this.pendingNewState = undefined;
 				}
 			}, RunStateRenderer.MIN_SPINNER_TIME);
@@ -1108,6 +1121,8 @@ export class RunStateRenderer {
 		} else {
 			this.element.style.display = 'flex';
 		}
+
+		this.lastRunState = runState;
 	}
 }
 
