@@ -9,7 +9,7 @@ import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 type RegionFilter = (r: FoldingRegion) => boolean;
 type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
@@ -52,13 +52,7 @@ export class FoldingModel extends Disposable {
 				return;
 			}
 
-			const indexes = this._viewModel.getSelections().reduce((a, b) => {
-				for (let i = b.start; i < b.end; i++) {
-					a.push(i);
-				}
-
-				return a;
-			}, [] as number[]);
+			const indexes = cellRangesToIndexes(this._viewModel.getSelections());
 
 			let changed = false;
 
