@@ -271,6 +271,13 @@ export class SingleUseTestCollection implements IDisposable {
 			const deletedChildren = internal.previousChildren;
 			const currentChildren = new Set<string>();
 			for (const child of actual.children) {
+				// If a child was recreated, delete the old object before calling
+				// addItem() anew.
+				const previous = this.testIdToInternal.object.get(child.id);
+				if (previous && previous.actual !== child) {
+					this.removeItembyId(child.id);
+				}
+
 				const c = this.addItem(child, providerId, internal.item.extId);
 				deletedChildren.delete(c.item.extId);
 				currentChildren.add(c.item.extId);

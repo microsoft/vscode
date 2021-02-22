@@ -267,11 +267,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 						}
 					}
 
-					const internal = this.getInternalTestForReference(test);
-					if (internal) {
-						this.flushCollectionDiffs();
-						this.proxy.$updateTestStateInRun(req.runId, internal.item.extId, TestState.from(state));
-					}
+					this.flushCollectionDiffs();
+					this.proxy.$updateTestStateInRun(req.runId, test.id, TestState.from(state));
 				},
 				tests: includeTests.map(t => TestItemFilteredWrapper.unwrap(t.actual)),
 				exclude: excludeTests.map(([, t]) => TestItemFilteredWrapper.unwrap(t.actual)),
@@ -331,6 +328,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
+		const onDidInvalidateTest = new Emitter<vscode.TestItem>();
+		workspaceHierarchy.onDidInvalidateTest?.(node => {
+			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
+			if (wrapper.hasNodeMatchingFilter) {
+				onDidInvalidateTest.fire(wrapper);
+			}
+		});
+
 		const onDidChangeTest = new Emitter<vscode.TestItem>();
 		workspaceHierarchy.onDidChangeTest(node => {
 			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
@@ -373,6 +378,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				onDidChangeTest.dispose();
 				TestItemFilteredWrapper.removeFilter(document);
 			},
+			discoveredInitialTests: workspaceHierarchy.discoveredInitialTests,
+			onDidInvalidateTest: onDidInvalidateTest.event,
 			onDidChangeTest: onDidChangeTest.event
 		};
 	}
