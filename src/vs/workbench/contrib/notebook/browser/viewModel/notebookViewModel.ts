@@ -188,22 +188,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private _selectionCollection = new NotebookCellSelectionCollection();
 
-	get selectionCollection() {
-		return this._selectionCollection;
-	}
-
-	get primarySelectionHandle() {
-		const index = this._selectionCollection.selection?.start;
-		return this.getCellByIndex(index)?.handle ?? null;
-	}
-
-	set primarySelectionHandle(primary: number | null) {
-		const index = primary !== null ? this.viewCells.findIndex(cell => cell.handle === primary) : null;
-		const range = index !== null ? { start: index, end: index + 1 } : null;
-		this._selectionCollection.setFocus2(range, true);
-	}
-
-	get selectionHandles() {
+	private get selectionHandles() {
 		const handlesSet = new Set<number>();
 		const handles: number[] = [];
 		cellRangesToIndexes(this._selectionCollection.selections).map(index => this.getCellByIndex(index)).forEach(cell => {
@@ -215,13 +200,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return handles;
 	}
 
-	set selectionHandles(selectionHandles: number[]) {
+	private set selectionHandles(selectionHandles: number[]) {
 		const indexes = selectionHandles.map(handle => this._viewCells.findIndex(cell => cell.handle === handle));
-		this._selectionCollection.setSelections2(cellIndexesToRanges(indexes), true);
-	}
-
-	get primary() {
-		return this._selectionCollection.primary;
+		this._selectionCollection.setSelections(cellIndexesToRanges(indexes), true);
 	}
 
 	private _decorationsTree = new DecorationsTree();
@@ -386,7 +367,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	updateSelectionsFromView(primary: number | null, selections: number[]) {
 		const primaryIndex = primary !== null ? this.getCellIndexByHandle(primary) : null;
 		const selectionIndexes = selections.map(sel => this.getCellIndexByHandle(sel));
-		this._selectionCollection.setState2(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), false);
+		this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), false);
 	}
 
 	updateSelectionsFromEdits(state: ISelectionState) {
@@ -394,9 +375,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (state.kind === SelectionStateType.Handle) {
 				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
 				const selectionIndexes = state.selections.map(sel => this.getCellIndexByHandle(sel));
-				this._selectionCollection.setState2(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true);
+				this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true);
 			} else {
-				this._selectionCollection.setState2(state.selections[0] ?? null, state.selections, true);
+				this._selectionCollection.setState(state.selections[0] ?? null, state.selections, true);
 			}
 		}
 	}
@@ -758,7 +739,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				length,
 				newIdx
 			}
-		], synchronous, { kind: SelectionStateType.Handle, primary: this.primarySelectionHandle, selections: this.selectionHandles }, () => ({ kind: SelectionStateType.Handle, primary: viewCell.handle, selections: [viewCell.handle] }), undefined);
+		], synchronous, { kind: SelectionStateType.Index, selections: this.getSelections() }, () => ({ kind: SelectionStateType.Index, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
 		return true;
 	}
 

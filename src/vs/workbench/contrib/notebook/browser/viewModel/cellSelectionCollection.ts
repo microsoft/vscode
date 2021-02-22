@@ -7,20 +7,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-function selectionsEqual(a: number[], b: number[]) {
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	for (let i = 0; i < a.length; i++) {
-		if (a[i] !== b[i]) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 function rangesEqual(a: ICellRange[], b: ICellRange[]) {
 	if (a.length !== b.length) {
 		return false;
@@ -40,56 +26,11 @@ function rangesEqual(a: ICellRange[], b: ICellRange[]) {
 export class NotebookCellSelectionCollection extends Disposable {
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
-
-	private _primarySelectionHandle: number | null = null;
-
-	get primaryHandle() {
-		return this._primarySelectionHandle;
-	}
-
-	set primaryHandle(primary: number | null) {
-		throw new Error('use setSelections');
-	}
-	private _selectionHandles: number[] = [];
-
-	get allSelectionHandles() {
-		return this._selectionHandles;
-	}
-
-	set allSelectionHandles(selections: number[]) {
-		throw new Error('use setSelections');
-	}
-
 	constructor() {
 		super();
 	}
 
-	setState(primary: number | null, selections: number[]) {
-		if (primary === null) {
-			const changed = primary !== this._primarySelectionHandle || !selectionsEqual(selections, this._selectionHandles);
-
-			this._primarySelectionHandle = primary;
-			this._selectionHandles = selections;
-			if (changed) {
-				this._onDidChangeSelection.fire();
-			}
-		} else {
-			const newSelections = [primary, ...selections.filter(selection => selection !== primary)];
-			const changed = primary !== this._primarySelectionHandle || !selectionsEqual(newSelections, this._selectionHandles);
-
-			this._primarySelectionHandle = primary;
-			this._selectionHandles = newSelections;
-			if (changed) {
-				this._onDidChangeSelection.fire();
-			}
-		}
-	}
-
 	private _primary: ICellRange | null = null;
-
-	get primary() {
-		return this._primary;
-	}
 
 	private _selections: ICellRange[] = [];
 
@@ -101,7 +42,7 @@ export class NotebookCellSelectionCollection extends Disposable {
 		return this._selections[0];
 	}
 
-	setState2(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean) {
+	setState(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean) {
 		if (primary !== null) {
 			const primaryRange = primary;
 			// TODO@rebornix deal with overlap
@@ -134,11 +75,11 @@ export class NotebookCellSelectionCollection extends Disposable {
 		}
 	}
 
-	setFocus2(selection: ICellRange | null, forceEventEmit: boolean) {
-		this.setState2(selection, this._selections, forceEventEmit);
+	setFocus(selection: ICellRange | null, forceEventEmit: boolean) {
+		this.setState(selection, this._selections, forceEventEmit);
 	}
 
-	setSelections2(selections: ICellRange[], forceEventEmit: boolean) {
-		this.setState2(this._primary, selections, forceEventEmit);
+	setSelections(selections: ICellRange[], forceEventEmit: boolean) {
+		this.setState(this._primary, selections, forceEventEmit);
 	}
 }
