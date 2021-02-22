@@ -51,7 +51,6 @@ import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/err
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { sep, posix, join, isAbsolute } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
@@ -513,13 +512,6 @@ export class CodeApplication extends Disposable {
 
 			return sharedProcessClient;
 		})();
-
-		// Spawn shared process after the first window has opened and 3s have passed
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
-			this._register(new RunOnceScheduler(async () => {
-				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env));
-			}, 3000)).schedule();
-		});
 
 		return { sharedProcess, sharedProcessReady, sharedProcessClient };
 	}
