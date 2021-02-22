@@ -187,7 +187,7 @@ export class WorkspaceTrustRequestModel extends Disposable implements IWorkspace
 	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
 
 	initiateRequest(request: IWorkspaceTrustRequest): void {
-		if (this.trustRequest && (!request.immediate || this.trustRequest.immediate)) {
+		if (this.trustRequest && (!request.modal || this.trustRequest.modal)) {
 			return;
 		}
 
@@ -323,14 +323,14 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		if (this.currentTrustState === WorkspaceTrustState.Trusted) {
 			return this.currentTrustState;
 		}
-		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request?.immediate) {
+		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request?.modal) {
 			return this.currentTrustState;
 		}
 
 		if (this._trustRequestPromise) {
-			if (request?.immediate &&
+			if (request?.modal &&
 				this.requestModel.trustRequest &&
-				!this.requestModel.trustRequest.immediate) {
+				!this.requestModel.trustRequest.modal) {
 				this.requestModel.initiateRequest(request);
 			}
 

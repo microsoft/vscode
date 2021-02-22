@@ -900,10 +900,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkRequiresWorkspaceTrust(extension);
 				return extHostWorkspace.trustState;
 			},
-			requireWorkspaceTrust: (message?: string) => {
+			requireWorkspaceTrust: (modal?: boolean) => {
 				checkProposedApiEnabled(extension);
 				checkRequiresWorkspaceTrust(extension);
-				return extHostWorkspace.requireWorkspaceTrust(message);
+				return extHostWorkspace.requireWorkspaceTrust(modal);
 			},
 			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
 				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
