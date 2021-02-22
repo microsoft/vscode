@@ -71,12 +71,11 @@ export class TunnelViewModel implements ITunnelViewModel {
 	private _candidates: Map<string, CandidatePort> = new Map();
 
 	readonly input = {
-		label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
+		name: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
 		tunnelType: TunnelType.Add,
 		remoteHost: '',
 		remotePort: 0,
 		processDescription: '',
-		icon: undefined,
 		tooltipPostfix: '',
 		source: ''
 	};
@@ -101,9 +100,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 			result.push(...this.detected);
 		}
 
-		if (result.length === 0) {
-			result.push(this.input);
-		}
+		result.push(this.input);
 		return result;
 	}
 
@@ -126,9 +123,6 @@ export class TunnelViewModel implements ITunnelViewModel {
 				return a.remotePort < b.remotePort ? -1 : 1;
 			}
 		});
-		if (this.remoteExplorerService.getEditableData(undefined)) {
-			forwarded.push(this.input);
-		}
 		return forwarded;
 	}
 
@@ -154,7 +148,8 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly maximumWidth: number = 40;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
-		const icon = row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon;
+		const isAdd = row.tunnelType === TunnelType.Add;
+		const icon = isAdd ? '' : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
@@ -162,7 +157,7 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		let tooltip: string;
-		if (row instanceof TunnelItem) {
+		if (row instanceof TunnelItem && !isAdd) {
 			tooltip = `${row.processDescription ? nls.localize('tunnel.iconColumn.running', "Port has running process.") :
 				nls.localize('tunnel.iconColumn.notRunning', "No running process.")} ${row.tooltipPostfix}`;
 		} else {
@@ -180,7 +175,8 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
-		const label = row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`;
+		const isAdd = row.tunnelType === TunnelType.Add;
+		const label = isAdd ? row.name : (row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`);
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
@@ -188,7 +184,7 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		let tooltip: string;
-		if (row instanceof TunnelItem) {
+		if (row instanceof TunnelItem && !isAdd) {
 			tooltip = `${row.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", row.name) : ''} ${row.tooltipPostfix}`;
 		} else {
 			tooltip = label;
