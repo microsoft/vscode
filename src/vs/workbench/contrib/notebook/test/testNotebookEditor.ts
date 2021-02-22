@@ -325,8 +325,11 @@ export class TestNotebookEditor implements INotebookEditor {
 	createMarkdownPreview(cell: ICellViewModel): Promise<void> {
 		return Promise.resolve();
 	}
-	hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
-		return Promise.resolve();
+	async unhideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		// noop
+	}
+	async hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		// noop
 	}
 	removeMarkdownPreview(cell: ICellViewModel): Promise<void> {
 		return Promise.resolve();

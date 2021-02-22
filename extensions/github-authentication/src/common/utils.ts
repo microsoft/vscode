@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable } from 'vscode';
+import { EventEmitter, Event, Disposable } from 'vscode';
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
 	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
@@ -47,29 +47,34 @@ const passthrough = (value: any, resolve: (value?: any) => void) => resolve(valu
  * @param adapter controls resolution of the returned promise
  * @returns a promise that resolves or rejects as specified by the adapter
  */
-export async function promiseFromEvent<T, U>(
+export function promiseFromEvent<T, U>(
 	event: Event<T>,
-	adapter: PromiseAdapter<T, U> = passthrough): Promise<U> {
+	adapter: PromiseAdapter<T, U> = passthrough): { promise: Promise<U>, cancel: EventEmitter<void> } {
 	let subscription: Disposable;
-	return new Promise<U>((resolve, reject) =>
-		subscription = event((value: T) => {
-			try {
-				Promise.resolve(adapter(value, resolve, reject))
-					.catch(reject);
-			} catch (error) {
-				reject(error);
+	let cancel = new EventEmitter<void>();
+	return {
+		promise: new Promise<U>((resolve, reject) => {
+			cancel.event(_ => reject());
+			subscription = event((value: T) => {
+				try {
+					Promise.resolve(adapter(value, resolve, reject))
+						.catch(reject);
+				} catch (error) {
+					reject(error);
+				}
+			});
+		}).then(
+			(result: U) => {
+				subscription.dispose();
+				return result;
+			},
+			error => {
+				subscription.dispose();
+				throw error;
 			}
-		})
-	).then(
-		(result: U) => {
-			subscription.dispose();
-			return result;
-		},
-		error => {
-			subscription.dispose();
-			throw error;
-		}
-	);
+		),
+		cancel
+	};
 }
 
 export function arrayEquals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {

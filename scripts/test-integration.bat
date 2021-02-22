@@ -40,8 +40,8 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 )
 
 :: Integration & performance tests in AMD
-@REM ::call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
-@REM ::if %errorlevel% neq 0 exit /b %errorlevel%
+call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in the extension host
 

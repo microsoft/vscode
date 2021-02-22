@@ -96,7 +96,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				// the workspace because it's less ephemeral.
 				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
-				.map(item => ({ providerId: item.providerId, testId: item.id })),
+				.map(t => ({ providerId: t.providerId, testId: t.item.extId })),
 			debug: req.debug
 		}, token);
 	}
@@ -256,7 +256,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					const internal = this.getInternalTestForReference(test);
 					if (internal) {
 						this.flushCollectionDiffs();
-						this.proxy.$updateTestStateInRun(req.runId, internal.id, TestState.from(state));
+						this.proxy.$updateTestStateInRun(req.runId, internal.item.extId, TestState.from(state));
 					}
 				}, tests, debug: req.debug
 			}, cancellation);
@@ -389,6 +389,10 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		return w;
 	}
 
+	public get id() {
+		return this.actual.id;
+	}
+
 	public get label() {
 		return this.actual.label;
 	}
@@ -506,7 +510,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		this.updated.delete(node);
 
 		if (node.parent && this.alreadyRemoved.has(node.parent)) {
-			this.alreadyRemoved.add(node.id);
+			this.alreadyRemoved.add(node.item.extId);
 			return;
 		}
 
@@ -646,8 +650,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 * If the test item is a mirrored test item, returns its underlying ID.
 	 */
 	public getMirroredTestDataByReference(item: vscode.TestItem) {
-		const id = getMirroredItemId(item);
-		return id ? this.items.get(id) : undefined;
+		return this.items.get(item.id);
 	}
 
 	/**
@@ -676,12 +679,6 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	}
 }
 
-const getMirroredItemId = (item: vscode.TestItem) => {
-	return (item as any)[MirroredItemId] as string | undefined;
-};
-
-const MirroredItemId = Symbol('MirroredItemId');
-
 class TestItemFromMirror implements vscode.RequiredTestItem {
 	readonly #internal: MirroredCollectionTestItem;
 	readonly #collection: MirroredTestCollection;
@@ -695,8 +692,6 @@ class TestItemFromMirror implements vscode.RequiredTestItem {
 	public get children() {
 		return this.#collection.getAllAsTestItem(this.#internal.children);
 	}
-
-	get [MirroredItemId]() { return this.#internal.id; }
 
 	constructor(internal: MirroredCollectionTestItem, collection: MirroredTestCollection) {
 		this.#internal = internal;
@@ -714,7 +709,7 @@ class TestItemFromMirror implements vscode.RequiredTestItem {
 			children: this.children.map(c => (c as TestItemFromMirror).toJSON()),
 
 			providerId: this.#internal.providerId,
-			testId: this.#internal.id,
+			testId: this.id,
 		};
 
 		return serialized;

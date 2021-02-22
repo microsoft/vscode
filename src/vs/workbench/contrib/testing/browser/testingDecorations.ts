@@ -31,6 +31,18 @@ import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/t
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
+function isInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
+	const diffEditors = codeEditorService.listDiffEditors();
+
+	for (const diffEditor of diffEditors) {
+		if (diffEditor.getModifiedEditor() === codeEditor || diffEditor.getOriginalEditor() === codeEditor) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
 	private currentUri?: URI;
@@ -48,6 +60,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -99,6 +112,10 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private attachModel(uri?: URI) {
+		if (isInDiffEditor(this.codeEditorService, this.editor)) {
+			uri = undefined;
+		}
+
 		this.currentUri = uri;
 
 		if (!uri) {
@@ -107,7 +124,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
-		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri));
+		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri!));
 		this.setDecorations(uri);
 	}
 
@@ -120,10 +137,10 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
 			for (const test of ref.object.all) {
-				const stateLookup = this.results.getStateByExtId(test.item.extId);
+				const stateLookup = this.results.getStateById(test.item.extId);
 				if (hasValidLocation(uri, test.item)) {
 					newDecorations.push(this.instantiationService.createInstance(
-						RunTestDecoration, test, ref.object, test.item.location, this.editor, stateLookup?.[1]));
+						RunTestDecoration, test, test.item.location, this.editor, stateLookup?.[1]));
 				}
 
 				if (!stateLookup) {
@@ -209,7 +226,6 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 
 	constructor(
 		private readonly test: IncrementalTestCollectionItem,
-		private readonly collection: IMainThreadTestCollection,
 		private readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		stateItem: TestResultItem | undefined,
@@ -259,7 +275,10 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 			});
 		} else {
 			// todo: customize click behavior
-			this.testService.runTests({ tests: [{ testId: this.test.id, providerId: this.test.providerId }], debug: false });
+			this.testService.runTests({
+				tests: [{ testId: this.test.item.extId, providerId: this.test.providerId }],
+				debug: false,
+			});
 		}
 
 		return true;
@@ -279,30 +298,19 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		if (this.test.item.runnable) {
 			testActions.push(new Action('testing.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
 				debug: false,
-				tests: [{ providerId: this.test.providerId, testId: this.test.id }],
+				tests: [{ providerId: this.test.providerId, testId: this.test.item.extId }],
 			})));
 		}
 
 		if (this.test.item.debuggable) {
 			testActions.push(new Action('testing.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
 				debug: true,
-				tests: [{ providerId: this.test.providerId, testId: this.test.id }],
+				tests: [{ providerId: this.test.providerId, testId: this.test.item.extId }],
 			})));
 		}
 
 		testActions.push(new Action('testing.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined, async () => {
-			const path = [];
-			for (let id: string | null = this.test.id; id;) {
-				const node = this.collection.getNodeById(id);
-				if (!node) {
-					break;
-				}
-
-				path.unshift(node.item.label);
-				id = node.parent;
-			}
-
-			await this.commandService.executeCommand('vscode.revealTestInExplorer', this.test);
+			await this.commandService.executeCommand('vscode.revealTestInExplorer', this.test.item.extId);
 		}));
 
 		const breakpointActions = this.editor
@@ -346,6 +354,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.className = `testing-inline-message-margin testing-inline-message-severity-${severity}`;
 		options.isWholeLine = true;
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+		options.collapseOnReplaceEdit = true;
 
 		const rulerColor = severity === TestMessageSeverity.Error
 			? overviewRulerError
