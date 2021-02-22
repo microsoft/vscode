@@ -491,12 +491,12 @@ function registerConfiguration(): void {
 				default: true
 			},
 			'debug.saveBeforeStart': {
-				description: nls.localize('debug.saveBeforeStart', "Save all dirty editors before starting a debug session."),
+				description: nls.localize('debug.saveBeforeStart', "Controls what editors to save before starting a debug session."),
 				enum: ['allEditorsInActiveGroup', 'nonUntitledEditorsInActiveGroup', 'none'],
 				enumDescriptions: [
-					nls.localize('debug.saveBeforeStart.allEditorsInActiveGroup', "Save all editors before starting a debug session."),
-					nls.localize('debug.saveBeforeStart.nonUntitledEditorsInActiveGroup', "Save all editors except untitled ones before starting a debug session."),
-					nls.localize('debug.saveBeforeStart.none', "Don't save editors before starting a debug session."),
+					nls.localize('debug.saveBeforeStart.allEditorsInActiveGroup', "Save all editors in the active group before starting a debug session."),
+					nls.localize('debug.saveBeforeStart.nonUntitledEditorsInActiveGroup', "Save all editors in the active group except untitled ones before starting a debug session."),
+					nls.localize('debug.saveBeforeStart.none', "Don't save any editors before starting a debug session."),
 				],
 				default: 'allEditorsInActiveGroup'
 			}
