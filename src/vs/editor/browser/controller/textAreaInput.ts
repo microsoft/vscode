@@ -737,11 +737,11 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	}
 
 	public getSelectionStart(): number {
-		return this._actual.domNode.selectionStart;
+		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionEnd : this._actual.domNode.selectionStart;
 	}
 
 	public getSelectionEnd(): number {
-		return this._actual.domNode.selectionEnd;
+		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionStart : this._actual.domNode.selectionEnd;
 	}
 
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
