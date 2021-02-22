@@ -116,7 +116,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 	public static async promptForPermission(taskService: ITaskService, storageService: IStorageService, notificationService: INotificationService, workspaceTrustService: IWorkspaceTrustService,
 		openerService: IOpenerService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>) {
-		const isWorkspaceTrusted = await workspaceTrustService.requireWorkspaceTrust({ immediate: false }) === WorkspaceTrustState.Trusted;
+		const isWorkspaceTrusted = await workspaceTrustService.requireWorkspaceTrust({ modal: false }) === WorkspaceTrustState.Trusted;
 		if (!isWorkspaceTrusted) {
 			return;
 		}

@@ -45,7 +45,7 @@ export interface IWorkspaceTrustModel {
 }
 
 export interface IWorkspaceTrustRequest {
-	immediate: boolean;
+	modal: boolean;
 	message?: string;
 }
 
