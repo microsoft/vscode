@@ -391,6 +391,10 @@ export class TypeOperations {
 		return true;
 	}
 
+	/**
+	 * This operation works by calculating the before and after of the indentation then doing a
+	 * simple replace, hence why the selection starts at column 1.
+	 */
 	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
 		const currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		const actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(config.autoIndent, model, range, ch, {
@@ -643,6 +647,42 @@ export class TypeOperations {
 		});
 	}
 
+	/**
+	 * This generates auto-closing start commands like `_runAutoClosingOpenCharType()` but takes
+	 * into account any changes to the indentation by modifying the starting column.
+	 */
+	private static _runAutoIndentAndAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean, autoClosingPairClose: string): EditOperationResult | null {
+		const commands: ICommand[] = [];
+
+		// This follows the same conditions as _runAutoIndentType() and returns null if there are
+		// invalid indentation operations.
+		for (const selection of selections) {
+			const currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, selection.startLineNumber, selection.startColumn);
+			const actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(config.autoIndent, model, selection, ch, {
+				shiftIndent: (indentation) => {
+					return TypeOperations.shiftIndent(config, indentation);
+				},
+				unshiftIndent: (indentation) => {
+					return TypeOperations.unshiftIndent(config, indentation);
+				},
+			});
+
+			if (actualIndentation !== null && actualIndentation !== config.normalizeIndentation(currentIndentation)) {
+				// currentIndentation = before, actualIndentation = after, so use the length of the
+				// resulting indentation (actualIndentation) as the start of the selection.
+				const transformedSelection = new Selection(selection.startLineNumber, actualIndentation.length + 1, selection.endLineNumber, selection.endColumn);
+				commands.push(new TypeWithAutoClosingCommand(transformedSelection, ch, insertOpenCharacter, autoClosingPairClose));
+			} else {
+				return null;
+			}
+		}
+
+		return new EditOperationResult(EditOperationType.Typing, commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false
+		});
+	}
+
 	private static _shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
 		if (isQuote(ch)) {
 			return (config.autoSurround === 'quotes' || config.autoSurround === 'languageDefined');
@@ -832,6 +872,18 @@ export class TypeOperations {
 		}
 
 		if (!isDoingComposition && this._isAutoIndentType(config, model, selections)) {
+			// The reason why an indent operation messes with the auto-closing pair is because
+			// an indent operation will return before the auto-closing start operation has a
+			// chance to run at all. So in order for auto-closing pairs to be preserved, it
+			// has to intercept the default auto indent operation.
+			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
+			if (autoClosingPairClose) {
+				const withAutoClosedOperation = this._runAutoIndentAndAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairClose);
+				if (withAutoClosedOperation) {
+					return withAutoClosedOperation;
+				}
+			}
+
 			let commands: Array<ICommand | null> = [];
 			let autoIndentFails = false;
 			for (let i = 0, len = selections.length; i < len; i++) {
@@ -842,28 +894,6 @@ export class TypeOperations {
 				}
 			}
 			if (!autoIndentFails) {
-				// The reason why an indent operation messes with the auto-closing pair is because
-				// an indent operation will return before the auto-closing start operation has a
-				// chance to run at all. So in order for auto-closing pairs to be preserved, it
-				// has to be appended to the indent operation's command list.
-				/*const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
-				if (autoClosingPairClose) {
-					const transformedSelections: Selection[] = [];
-					const indentLength = config.insertSpaces ? config.indentSize : 1;
-
-					for (const selection of selections) {
-						transformedSelections.push(new Selection(
-							selection.startLineNumber,
-							selection.startColumn - indentLength,
-							selection.endLineNumber,
-							selection.endColumn - indentLength
-						));
-					}
-
-					const autoClosingCommands = this._runAutoClosingOpenCharType(prevEditOperationType, config, model, transformedSelections, ch, true, autoClosingPairClose).commands;
-					commands.splice(0, 0, ...autoClosingCommands); // The auto-close operation seems to have no effect when executed after an indent operation.
-				}*/
-
 				return new EditOperationResult(EditOperationType.Typing, commands, {
 					shouldPushStackElementBefore: true,
 					shouldPushStackElementAfter: false,
