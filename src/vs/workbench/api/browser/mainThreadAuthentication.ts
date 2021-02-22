@@ -177,7 +177,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	}
 
-	private async selectSession(providerId: string, extensionId: string, extensionName: string, potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
+	private async selectSession(providerId: string, extensionId: string, extensionName: string, potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean, silent: boolean): Promise<modes.AuthenticationSession | undefined> {
 		if (!potentialSessions.length) {
 			throw new Error('No potential sessions found');
 		}
@@ -191,15 +191,25 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				if (matchingSession) {
 					const allowed = this.authenticationService.isAccessAllowed(providerId, matchingSession.account.label, extensionId);
 					if (!allowed) {
-						const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
-						if (!didAcceptPrompt) {
-							throw new Error('User did not consent to login.');
+						if (!silent) {
+							const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
+							if (!didAcceptPrompt) {
+								throw new Error('User did not consent to login.');
+							}
+						} else {
+							this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, potentialSessions);
+							return undefined;
 						}
 					}
 
 					return matchingSession;
 				}
 			}
+		}
+
+		if (silent) {
+			this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, potentialSessions);
+			return undefined;
 		}
 
 		return this.authenticationService.selectSession(providerId, extensionId, extensionName, potentialSessions);
@@ -228,12 +238,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					}
 				}
 			} else {
-				if (!silent) {
-					session = await this.selectSession(providerId, extensionId, extensionName, sessions, !!options.clearSessionPreference);
-				} else {
-					this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, sessions);
-					return undefined;
-				}
+				return this.selectSession(providerId, extensionId, extensionName, sessions, !!options.clearSessionPreference, silent);
 			}
 		} else {
 			if (!silent) {
