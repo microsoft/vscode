@@ -490,15 +490,15 @@ function registerConfiguration(): void {
 				description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInlineBreakpointCandidates' }, "Controls whether inline breakpoints candidate decorations should be shown in the editor while debugging."),
 				default: true
 			},
-			'debug.saveBeforeRun': {
-				description: nls.localize('debug.saveBeforeRun', "Save all dirty editors before starting a debug session."),
-				enum: ['always', 'never', 'prompt'],
+			'debug.saveBeforeStart': {
+				description: nls.localize('debug.saveBeforeStart', "Save all dirty editors before starting a debug session."),
+				enum: ['allEditorsInActiveGroup', 'nonUntitledEditorsInActiveGroup', 'none'],
 				enumDescriptions: [
-					nls.localize('debug.saveBeforeRun.always', "Always saves all editors before starting a debug session."),
-					nls.localize('debug.saveBeforeRun.never', "Never saves editors before starting a debug session."),
-					nls.localize('debug.SaveBeforeRun.prompt', "Prompts whether to save editors before starting a debug session."),
+					nls.localize('debug.saveBeforeStart.allEditorsInActiveGroup', "Save all editors before starting a debug session."),
+					nls.localize('debug.saveBeforeStart.nonUntitledEditorsInActiveGroup', "Save all editors except untitled ones before starting a debug session."),
+					nls.localize('debug.saveBeforeStart.none', "Don't save editors before starting a debug session."),
 				],
-				default: 'always'
+				default: 'allEditorsInActiveGroup'
 			}
 		}
 	});
