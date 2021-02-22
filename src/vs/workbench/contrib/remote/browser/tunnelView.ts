@@ -149,7 +149,7 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const isAdd = row.tunnelType === TunnelType.Add;
-		const icon = isAdd ? '' : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
+		const icon = isAdd ? forwardPortIcon : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
@@ -176,7 +176,7 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const isAdd = row.tunnelType === TunnelType.Add;
-		const label = isAdd ? row.name : (row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`);
+		const label = isAdd ? '' : (row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`);
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
