@@ -72,6 +72,8 @@ export class TunnelViewModel implements ITunnelViewModel {
 
 	readonly input = {
 		name: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
+		label: '',
+		icon: forwardPortIcon,
 		tunnelType: TunnelType.Add,
 		remoteHost: '',
 		remotePort: 0,
@@ -149,7 +151,7 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const isAdd = row.tunnelType === TunnelType.Add;
-		const icon = isAdd ? forwardPortIcon : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
+		const icon = isAdd ? row.icon : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
