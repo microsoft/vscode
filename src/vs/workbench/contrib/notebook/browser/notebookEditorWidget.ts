@@ -334,14 +334,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._uuid;
 	}
 
-	getSelectionHandles(): number[] {
-		return this.viewModel?.selectionHandles ?? [];
-	}
-
-	getPrimaryHandle() {
-		return this.viewModel?.primarySelectionHandle ?? null;
-	}
-
 	getSelections() {
 		return this.viewModel?.selections ?? [];
 	}

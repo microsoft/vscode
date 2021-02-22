@@ -358,7 +358,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	getDomNode(): HTMLElement;
 	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
-	getSelectionHandles(): number[];
 	getSelectionViewModels(): ICellViewModel[];
 
 	/**

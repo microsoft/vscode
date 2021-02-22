@@ -663,8 +663,6 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	readonly onDidFocusEditorWidget: Event<void>;
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
-	getSelectionHandles(): number[];
-	getPrimaryHandle(): number | null;
 	getPrimary(): number | null;
 	getSelections(): ICellRange[];
 	isNotebookEditor: boolean;

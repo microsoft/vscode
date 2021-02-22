@@ -117,15 +117,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	removeEditorDecorations(key: string): void {
 		// throw new Error('Method not implemented.');
 	}
-	getSelectionHandles(): number[] {
-		return [];
-	}
-
-	getPrimaryHandle() {
-		return null;
-	}
-
-
 	setOptions(options: NotebookEditorOptions | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
