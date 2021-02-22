@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
@@ -23,7 +23,6 @@ export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
-
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
@@ -47,13 +46,13 @@ export class PtyService extends Disposable implements IPtyService {
 		private readonly _logService: ILogService
 	) {
 		super();
-	}
 
-	dispose() {
-		for (const pty of this._ptys.values()) {
-			pty.shutdown(true);
-		}
-		this._ptys.clear();
+		this._register(toDisposable(() => {
+			for (const pty of this._ptys.values()) {
+				pty.shutdown(true);
+			}
+			this._ptys.clear();
+		}));
 	}
 
 	async shutdownAll(): Promise<void> {

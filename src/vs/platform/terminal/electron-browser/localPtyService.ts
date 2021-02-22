@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -58,6 +58,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	) {
 		super();
 
+		this._register(toDisposable(() => this._disposePtyHost()));
+
 		[this._client, this._proxy] = this._startPtyHost();
 	}
 
@@ -80,11 +82,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		heartbeatService.onBeat(() => this._handleHeartbeat());
 
 		// Handle exit
-		this._register({
-			dispose: () => {
-				this._disposePtyHost();
-			}
-		});
 		this._register(client.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
@@ -113,6 +110,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
+
 		return [client, proxy];
 	}
 
