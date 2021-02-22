@@ -75,7 +75,8 @@ suite('NotebookConcatDocument', function () {
 				{
 					documentUri: notebookUri,
 					id: '_notebook_editor_0',
-					selections: [0],
+					primary: 0,
+					selections: [{ start: 0, end: 1 }],
 					visibleRanges: []
 				}
 			]

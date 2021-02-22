@@ -31,6 +31,7 @@ import { dirname } from 'vs/base/common/resources';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -130,20 +131,6 @@ function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOpt
 	return ModelDecorationOptions.createDynamic(options);
 }
 
-function selectionsEqual(a: number[], b: number[]) {
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	for (let i = 0; i < a.length; i++) {
-		if (a[i] !== b[i]) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 let MODEL_ID = 0;
 
 
@@ -199,34 +186,54 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
 
-	private _primarySelectionHandle: number | null = null;
+	private _selectionCollection = new NotebookCellSelectionCollection();
+
+	get selectionCollection() {
+		return this._selectionCollection;
+	}
 
 	get primarySelectionHandle() {
-		return this._primarySelectionHandle;
+		return this._selectionCollection.primaryHandle;
 	}
 
 	set primarySelectionHandle(primary: number | null) {
-		if (primary === this._primarySelectionHandle) {
-			return;
-		}
+		this._selectionCollection.setFocus(primary);
 
-		this._primarySelectionHandle = primary;
-		this._onDidChangeSelection.fire();
+		const index = primary !== null ? this.viewCells.findIndex(cell => cell.handle === primary) : null;
+		this._selectionCollection.setFocus2(index, true);
 	}
-	private _selections: number[] = [];
 
 	get selectionHandles() {
-		return this._selections;
+		return this._selectionCollection.allSelectionHandles;
 	}
 
-	set selectionHandles(selections: number[]) {
-		selections = selections.sort();
-		if (selectionsEqual(selections, this.selectionHandles)) {
-			return;
-		}
+	set selectionHandles(selectionHandles: number[]) {
+		this._selectionCollection.setSelections(selectionHandles);
 
-		this._selections = selections;
-		this._onDidChangeSelection.fire();
+		const indexes = selectionHandles.map(handle => this._viewCells.findIndex(cell => cell.handle === handle));
+		const first = indexes.shift();
+
+		if (first === undefined) {
+			this._selectionCollection.setSelections2([], true);
+		} else {
+			const selections = indexes.reduce(function (ranges, num) {
+				if (num - ranges[0][1] <= 0) {
+					ranges[0][1] = num + 1;
+				} else {
+					ranges.unshift([num, num + 1]);
+				}
+				return ranges;
+			}, [[first, first + 1]]).reverse().map(val => ({ start: val[0], end: val[1] }));
+			this._selectionCollection.setSelections2(selections, true);
+		}
+	}
+
+	get primary() {
+		return this._selectionCollection.primary;
+	}
+
+	get selections() {
+		return this._selectionCollection.selections;
 	}
 
 	private _decorationsTree = new DecorationsTree();
@@ -361,6 +368,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					}
 				}
 			});
+		}));
+
+		this._register(this._selectionCollection.onDidChangeSelection(e => {
+			this._onDidChangeSelection.fire(e);
 		}));
 
 		this._viewCells = this._notebook.cells.map(cell => {
@@ -738,7 +749,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				length,
 				newIdx
 			}
-		], synchronous, { primary: this._primarySelectionHandle, selections: this._selections }, () => ({ primary: viewCell.handle, selections: [viewCell.handle] }), undefined);
+		], synchronous, { primary: this.primarySelectionHandle, selections: this.selectionHandles }, () => ({ primary: viewCell.handle, selections: [viewCell.handle] }), undefined);
 		return true;
 	}
 

@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -589,9 +589,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (data.selections) {
-			editor.editor.selection = data.selections.primary !== null ? editor.editor.notebookData.getCell(data.selections.primary)?.cell : undefined;
-
-			editor.editor._acceptSelections(data.selections.selections);
+			editor.editor._acceptSelections(data.selections.primary, data.selections.selections);
 
 			this._onDidChangeNotebookEditorSelection.fire({
 				notebookEditor: editor.editor.editor,
@@ -606,7 +604,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		document.acceptDocumentPropertiesChanged(data);
 	}
 
-	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: number[], visibleRanges: extHostTypes.NotebookCellRange[]) {
+	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, primary: number | null, selections: ICellRange[], visibleRanges: extHostTypes.NotebookCellRange[]) {
 		const revivedUri = document.uri;
 		let webComm = this._webviewComm.get(editorId);
 
@@ -622,13 +620,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			document
 		);
 
-		if (selections.length) {
-			const firstCell = selections[0];
-			editor.selection = editor.notebookData.getCell(firstCell)?.cell;
-		} else {
-			editor.selection = undefined;
-		}
-
+		editor._acceptSelections(primary, selections);
 		editor._acceptVisibleRanges(visibleRanges);
 
 		this._editors.get(editorId)?.editor.dispose();
@@ -734,7 +726,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				const document = this._documents.get(revivedUri);
 
 				if (document) {
-					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections, editorModelData.visibleRanges.map(typeConverters.NotebookCellRange.to));
+					this._createExtHostEditor(document, editorModelData.id, editorModelData.primary, editorModelData.selections, editorModelData.visibleRanges.map(typeConverters.NotebookCellRange.to));
 					editorChanged = true;
 				}
 			}

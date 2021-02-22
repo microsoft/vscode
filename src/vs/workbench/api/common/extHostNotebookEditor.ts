@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, ICellRange, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
 
@@ -177,22 +177,9 @@ export class ExtHostNotebookEditor {
 		this._visibleRanges = value;
 	}
 
-	_acceptSelections(selectionHandles: number[]): void {
-		const indexes = selectionHandles.map(handle => this.notebookData.getCellIndexFromHandle(handle)).filter(index => index !== undefined).sort() as number[];
-		const first = indexes.shift();
-
-		if (first === undefined) {
-			this._selections = [];
-		} else {
-			this._selections = indexes.reduce(function (ranges, num) {
-				if (num - ranges[0][1] <= 0) {
-					ranges[0][1] = num + 1;
-				} else {
-					ranges.unshift([num, num + 1]);
-				}
-				return ranges;
-			}, [[first, first + 1]]).reverse().map(val => new extHostTypes.NotebookCellRange(val[0], val[1]));
-		}
+	_acceptSelections(primary: number | null, selections: ICellRange[]): void {
+		this.selection = primary !== null ? this.notebookData.getCellFromIndex(primary)?.cell : undefined;
+		this._selections = selections.map(val => new extHostTypes.NotebookCellRange(val.start, val.end));
 	}
 
 	get active(): boolean {

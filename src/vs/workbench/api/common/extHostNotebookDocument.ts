@@ -326,6 +326,10 @@ export class ExtHostNotebookDocument extends Disposable {
 		this._emitter.emitCellMetadataChange(event);
 	}
 
+	getCellFromIndex(index: number): ExtHostCell | undefined {
+		return this._cells[index];
+	}
+
 	getCell(cellHandle: number): ExtHostCell | undefined {
 		return this._cells.find(cell => cell.handle === cellHandle);
 	}

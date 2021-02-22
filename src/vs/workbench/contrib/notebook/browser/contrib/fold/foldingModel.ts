@@ -52,10 +52,13 @@ export class FoldingModel extends Disposable {
 				return;
 			}
 
-			const selectionHandles = this._viewModel.selectionHandles;
-			const indexes = selectionHandles.map(handle =>
-				this._viewModel!.getCellIndex(this._viewModel!.getCellByHandle(handle)!)
-			);
+			const indexes = this._viewModel.selections.reduce((a, b) => {
+				for (let i = b.start; i < b.end; i++) {
+					a.push(i);
+				}
+
+				return a;
+			}, [] as number[]);
 
 			let changed = false;
 

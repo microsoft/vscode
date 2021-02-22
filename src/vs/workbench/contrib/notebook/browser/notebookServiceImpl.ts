@@ -599,7 +599,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				const selectionIndexes = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]);
 				const edits: ICellEditOperation[] = selectionIndexes.map(value => ({ editType: CellEditType.Replace, index: value[1], count: 1, cells: [] }));
 
-				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, { primary: editor.getPrimarySelection(), selections: editor.getSelectionHandles() }, () => {
+				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, { primary: editor.getPrimaryHandle(), selections: editor.getSelectionHandles() }, () => {
 					const firstSelectIndex = selectionIndexes[0][1];
 					if (firstSelectIndex < viewModel.notebookDocument.cells.length) {
 						return {

@@ -65,6 +65,12 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getPrimary(): number | null {
+		throw new Error('Method not implemented.');
+	}
+	getSelections(): ICellRange[] {
+		throw new Error('Method not implemented.');
+	}
 	getSelectionViewModels(): ICellViewModel[] {
 		throw new Error('Method not implemented.');
 	}
@@ -115,7 +121,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		return [];
 	}
 
-	getPrimarySelection() {
+	getPrimaryHandle() {
 		return null;
 	}
 
