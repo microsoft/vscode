@@ -65,7 +65,7 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
-	getPrimary(): number | null {
+	getSelection(): ICellRange | undefined {
 		throw new Error('Method not implemented.');
 	}
 	getSelections(): ICellRange[] {

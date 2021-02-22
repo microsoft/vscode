@@ -200,7 +200,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._selectionCollection.setFocus(primary);
 
 		const index = primary !== null ? this.viewCells.findIndex(cell => cell.handle === primary) : null;
-		this._selectionCollection.setFocus2(index, true);
+		const range = index !== null ? { start: index, end: index + 1 } : null;
+		this._selectionCollection.setFocus2(range, true);
 	}
 
 	get selectionHandles() {
@@ -230,10 +231,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	get primary() {
 		return this._selectionCollection.primary;
-	}
-
-	get selections() {
-		return this._selectionCollection.selections;
 	}
 
 	private _decorationsTree = new DecorationsTree();
@@ -383,6 +380,14 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
+	getSelection() {
+		return this._selectionCollection.selection;
+	}
+
+	getSelections() {
+		return this._selectionCollection.selections;
+	}
+
 	setFocus(focused: boolean) {
 		this._focused = focused;
 	}
@@ -393,7 +398,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				this.primarySelectionHandle = state.primary;
 				this.selectionHandles = state.selections;
 			} else {
-				this._selectionCollection.setFocus2(state.primary, true);
+				this._selectionCollection.setFocus2(state.primary !== null ? { start: state.primary, end: state.primary + 1 } : null, true);
 				this._selectionCollection.setSelections2(state.selections, true);
 			}
 		}
@@ -703,7 +708,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean = true) {
-		const primarySelectionIndex = this.primary;
+		const primarySelectionIndex = this.getSelection()?.start ?? null;
 		let endPrimarySelection: number | null = null;
 
 		if (index === primarySelectionIndex) {

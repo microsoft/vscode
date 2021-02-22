@@ -52,7 +52,7 @@ export class FoldingModel extends Disposable {
 				return;
 			}
 
-			const indexes = this._viewModel.selections.reduce((a, b) => {
+			const indexes = this._viewModel.getSelections().reduce((a, b) => {
 				for (let i = b.start; i < b.end; i++) {
 					a.push(i);
 				}

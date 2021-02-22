@@ -85,7 +85,6 @@ suite('NotebookCell#Document', function () {
 			addedEditors: [{
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
-				primary: 0,
 				selections: [{ start: 0, end: 1 }],
 				visibleRanges: []
 			}]

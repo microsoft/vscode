@@ -98,7 +98,6 @@ class DocumentAndEditorState {
 		return {
 			id: add.getId(),
 			documentUri: add.uri!,
-			primary: add.getPrimary(),
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges
 		};
@@ -248,7 +247,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				}));
 
 				disposableStore.add(editor.onDidChangeSelection(() => {
-					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: editor.getSelections(), primary: editor.getPrimary() } });
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: editor.getSelections() } });
 				}));
 
 				this._editorEventListenersMapping.set(editor.getId(), disposableStore);

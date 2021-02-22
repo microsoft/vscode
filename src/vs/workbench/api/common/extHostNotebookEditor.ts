@@ -175,8 +175,9 @@ export class ExtHostNotebookEditor {
 		this._visibleRanges = value;
 	}
 
-	_acceptSelections(primary: number | null, selections: ICellRange[]): void {
-		this._selection = primary !== null ? this.notebookData.getCellFromIndex(primary)?.cell : undefined;
+	_acceptSelections(selections: ICellRange[]): void {
+		const primarySelection = selections[0];
+		this._selection = primarySelection ? this.notebookData.getCellFromIndex(primarySelection.start)?.cell : undefined;
 		this._selections = selections.map(val => new extHostTypes.NotebookCellRange(val.start, val.end));
 	}
 

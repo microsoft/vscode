@@ -589,7 +589,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (data.selections) {
-			editor.editor._acceptSelections(data.selections.primary, data.selections.selections);
+			editor.editor._acceptSelections(data.selections.selections);
 
 			this._onDidChangeNotebookEditorSelection.fire({
 				notebookEditor: editor.editor.editor,
@@ -604,7 +604,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		document.acceptDocumentPropertiesChanged(data);
 	}
 
-	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, primary: number | null, selections: ICellRange[], visibleRanges: extHostTypes.NotebookCellRange[]) {
+	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: ICellRange[], visibleRanges: extHostTypes.NotebookCellRange[]) {
 		const revivedUri = document.uri;
 		let webComm = this._webviewComm.get(editorId);
 
@@ -620,7 +620,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			document
 		);
 
-		editor._acceptSelections(primary, selections);
+		editor._acceptSelections(selections);
 		editor._acceptVisibleRanges(visibleRanges);
 
 		this._editors.get(editorId)?.editor.dispose();
@@ -726,7 +726,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				const document = this._documents.get(revivedUri);
 
 				if (document) {
-					this._createExtHostEditor(document, editorModelData.id, editorModelData.primary, editorModelData.selections, editorModelData.visibleRanges.map(typeConverters.NotebookCellRange.to));
+					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections, editorModelData.visibleRanges.map(typeConverters.NotebookCellRange.to));
 					editorChanged = true;
 				}
 			}

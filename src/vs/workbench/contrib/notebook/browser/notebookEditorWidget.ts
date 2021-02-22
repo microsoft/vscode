@@ -335,11 +335,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	getSelections() {
-		return this.viewModel?.selections ?? [];
+		return this.viewModel?.getSelections() ?? [];
 	}
 
-	getPrimary() {
-		return this.viewModel?.primary ?? null;
+	getSelection() {
+		return this.viewModel?.getSelection();
 	}
 
 	getSelectionViewModels(): ICellViewModel[] {
@@ -347,7 +347,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return [];
 		}
 
-		return this.viewModel.selections.map(range => this.viewModel!.viewCells.slice(range.start, range.end)).reduce((a, b) => { a.push(...b); return a; }, [] as ICellViewModel[]);
+		return this.viewModel.getSelections().map(range => this.viewModel!.viewCells.slice(range.start, range.end)).reduce((a, b) => { a.push(...b); return a; }, [] as ICellViewModel[]);
 	}
 
 	hasModel(): this is IActiveNotebookEditor {

@@ -93,7 +93,7 @@ export class NotebookCellSelectionCollection extends Disposable {
 		this._setState(handle, this._selectionHandles);
 	}
 
-	private _primary: number | null = null;
+	private _primary: ICellRange | null = null;
 
 	get primary() {
 		return this._primary;
@@ -101,19 +101,27 @@ export class NotebookCellSelectionCollection extends Disposable {
 
 	private _selections: ICellRange[] = [];
 
-	get selections() {
+	get selections(): ICellRange[] {
 		return this._selections;
 	}
 
-	private _setState2(primary: number | null, selections: ICellRange[], forceEventEmit: boolean) {
+	get selection(): ICellRange {
+		return this._selections[0];
+	}
+
+	private _setState2(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean) {
 		if (primary !== null) {
-			const primaryRange = { start: primary, end: primary + 1 };
+			const primaryRange = primary;
 			// TODO@rebornix deal with overlap
 			const newSelections = [primaryRange, ...selections.filter(selection => selection.start === primaryRange.start && selection.end === primaryRange.end).sort((a, b) => a.start - b.start)];
 
 			const changed = primary !== this._primary || !rangesEqual(this._selections, newSelections);
 			this._primary = primary;
 			this._selections = newSelections;
+
+			if (!this._selections.length) {
+				this._selections.push({ start: 0, end: 0 });
+			}
 
 			if (changed || forceEventEmit) {
 				this._onDidChangeSelection.fire();
@@ -124,14 +132,18 @@ export class NotebookCellSelectionCollection extends Disposable {
 			this._primary = primary;
 			this._selections = selections;
 
+			if (!this._selections.length) {
+				this._selections.push({ start: 0, end: 0 });
+			}
+
 			if (changed || forceEventEmit) {
 				this._onDidChangeSelection.fire();
 			}
 		}
 	}
 
-	setFocus2(index: number | null, forceEventEmit: boolean) {
-		this._setState2(index, this._selections, forceEventEmit);
+	setFocus2(selection: ICellRange | null, forceEventEmit: boolean) {
+		this._setState2(selection, this._selections, forceEventEmit);
 	}
 
 	setSelections2(selections: ICellRange[], forceEventEmit: boolean) {

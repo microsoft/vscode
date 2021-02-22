@@ -1742,7 +1742,6 @@ export interface ExtHostCommentsShape {
 }
 
 export interface INotebookSelectionChangeEvent {
-	primary: number | null;
 	selections: ICellRange[];
 }
 
@@ -1771,7 +1770,6 @@ export interface INotebookModelAddedData {
 export interface INotebookEditorAddData {
 	id: string;
 	documentUri: UriComponents;
-	primary: number | null;
 	selections: ICellRange[];
 	visibleRanges: ICellRange[];
 }

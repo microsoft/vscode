@@ -1344,10 +1344,12 @@ declare module 'vscode' {
 		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
 
-		// @rebornix
-		// todo@API should replace selection
-		// never empty!
-		// primary/secondary selections
+		/**
+		 * todo@API should replace selection
+		 * The selections on this notebook editor.
+		 *
+		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
+		 */
 		readonly selections: NotebookCellRange[];
 
 		/**
