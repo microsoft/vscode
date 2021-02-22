@@ -1241,6 +1241,47 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
 	});
 
+	test.only('Two outputs instead of 1', async function () {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stdout' })], { outputType: 'stream', streamName: 'stdout' })
+		]);
+		await vscode.workspace.applyEdit(edit);
+
+		assert.strictEqual(document.cells[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+
+		const edit2 = new vscode.WorkspaceEdit();
+		// All of the following edit operations fail.
+		edit2.appendNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('hello', '1', { outputType: 'stream', streamName: 'stderr' })], { outputType: 'stream', streamName: 'stderr' })
+		]);
+		// edit2.replaceNotebookCellOutput(document.uri, 0, [
+		// 	...document.cells[0].outputs,
+		// 	new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('hello', '1', { outputType: 'stream', streamName: 'stderr' })], { outputType: 'stream', streamName: 'stderr' })
+		// ]);
+		// edit2.replaceNotebookCellOutput(document.uri, 0, [
+		// 	...document.cells[0].outputs,
+		// 	new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stderr' })], { outputType: 'stream', streamName: 'stderr' })
+		// ]);
+		await vscode.workspace.applyEdit(edit);
+
+
+		assert.strictEqual(document.cells[0].outputs.length, 2);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[1].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].metadata, { outputType: 'stream', streamName: 'stderr' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].outputs[0].metadata, { outputType: 'stream', streamName: 'stderr' });
+
+	});
+
 	// });
 
 	// suite('webview', () => {
