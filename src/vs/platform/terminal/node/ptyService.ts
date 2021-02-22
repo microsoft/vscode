@@ -202,8 +202,6 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
-	private readonly _onBufferData = this._register(new Emitter<string>());
-	readonly onBufferData = this._onBufferData.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
@@ -241,7 +239,7 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
-		this._bufferer = new TerminalDataBufferer((id, data) => this._onBufferData.fire(data));
+		this._bufferer = new TerminalDataBufferer((id, data) => this._onProcessData.fire({ data: data, sync: true }));
 
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
@@ -253,7 +251,7 @@ export class PersistentTerminalProcess extends Disposable {
 		// Buffer data events to reduce the amount of messages going to the renderer
 		this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
 
-		this._register(this._terminalProcess.onProcessData(e => this._recorder.recordData(e)));
+		this._register(this.onProcessData(e => this._recorder.recordData(e.data)));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
 			this._bufferer.stopBuffering(this._persistentTerminalId);
 		}));
