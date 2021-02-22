@@ -1464,10 +1464,11 @@ export interface IEditorMemento<T> {
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
-	private customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
 	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
+
+	private readonly customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
 	start(accessor: ServicesAccessor): void {
 		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
@@ -1505,7 +1506,6 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
 			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
-
 		}
 
 		return toDisposable(() => {
@@ -1547,10 +1547,10 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 				startColumn: path.columnNumber || 1
 			},
 			pinned: true,
-			override: path.overrideId
+			override: path.editorOverrideId
 		} : {
 			pinned: true,
-			override: path.overrideId
+			override: path.editorOverrideId
 		};
 
 		let input: IResourceEditorInput | IUntitledTextResourceEditorInput;

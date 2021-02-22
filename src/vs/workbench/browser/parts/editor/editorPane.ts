@@ -166,11 +166,11 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected saveState(): void {
 
 		// Save all editor memento for this editor type
-		EditorPane.EDITOR_MEMENTOS.forEach(editorMemento => {
+		for (const [, editorMemento] of EditorPane.EDITOR_MEMENTOS) {
 			if (editorMemento.id === this.getId()) {
 				editorMemento.saveState();
 			}
-		});
+		}
 
 		super.saveState();
 	}

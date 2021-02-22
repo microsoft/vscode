@@ -696,7 +696,9 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 	protected async doCloseAll(): Promise<void> {
 		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors()));
 
-		this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
+		for (const groupToClose of this.groupsToClose) {
+			this.editorGroupService.removeGroup(groupToClose);
+		}
 	}
 }
 
