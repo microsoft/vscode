@@ -546,6 +546,7 @@ export namespace Codicon {
 	export const runAbove = new Codicon('run-above', { character: '\\ebbd' });
 	export const runBelow = new Codicon('run-below', { character: '\\ebbe' });
 	export const notebookTemplate = new Codicon('notebook-template', { character: '\\ebbf' });
+	export const debugRerun = new Codicon('debug-rerun', { character: '\\ebc0' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
