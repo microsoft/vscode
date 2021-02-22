@@ -205,7 +205,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	registerListeners() {
 
 		// forward changes to dirty state
-		// todo@bpasero this seem way too complicated... is there an easy way to
+		// todo@rebornix todo@mjbvz this seem way too complicated... is there an easy way to
 		// the actual resource from a working copy?
 		this._register(this._workingCopyService.onDidChangeDirty(e => {
 			if (e.resource.scheme !== Schemas.vscodeNotebook) {

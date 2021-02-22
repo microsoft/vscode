@@ -220,7 +220,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 			}
 
-			// TODO@bpasero (Electron 4 regression): when running on multiple displays where the target display
+			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
 			// correctly unless we set the bounds again (https://github.com/microsoft/vscode/issues/74872)
 			//
@@ -581,7 +581,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Unresponsive
 		if (type === WindowError.UNRESPONSIVE) {
 			if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
-				// TODO@bpasero Workaround for https://github.com/microsoft/vscode/issues/56994
+				// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
 				// In certain cases the window can report unresponsiveness because a breakpoint was hit
 				// and the process is stopped executing. The most typical cases are:
 				// - devtools are opened and debugging happens
