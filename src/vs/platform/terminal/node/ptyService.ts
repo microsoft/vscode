@@ -13,6 +13,7 @@ import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
+import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 
 // TODO: On disconnect/restart, this will overwrite the older terminals
 let currentPtyId = 0;
@@ -182,7 +183,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 export class PersistentTerminalProcess extends Disposable {
 
-	// private readonly _bufferer: TerminalDataBufferer;
+	private readonly _bufferer: TerminalDataBufferer;
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
 
@@ -201,6 +202,8 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
+	private readonly _onBufferData = this._register(new Emitter<string>());
+	readonly onBufferData = this._onBufferData.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
@@ -238,14 +241,7 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
-		// TODO: Bring back bufferer
-		// this._bufferer = new TerminalDataBufferer((id, data) => {
-		// 	const ev: IPtyHostProcessDataEvent = {
-		// 		type: 'data',
-		// 		data: data
-		// 	};
-		// 	this._events.fire(ev);
-		// });
+		this._bufferer = new TerminalDataBufferer((id, data) => this._onBufferData.fire(data));
 
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
@@ -255,10 +251,11 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
-		// this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
+		this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
+
 		this._register(this._terminalProcess.onProcessData(e => this._recorder.recordData(e)));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			// this._bufferer.stopBuffering(this._persistentTerminalId);
+			this._bufferer.stopBuffering(this._persistentTerminalId);
 		}));
 	}
 

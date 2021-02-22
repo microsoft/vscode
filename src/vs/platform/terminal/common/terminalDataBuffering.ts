@@ -31,7 +31,6 @@ export class TerminalDataBufferer implements IDisposable {
 			let buffer = this._terminalBufferMap.get(id);
 			if (buffer) {
 				buffer.data.push(data);
-
 				return;
 			}
 
