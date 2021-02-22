@@ -218,45 +218,59 @@ async function installExtensionsFromServer(
 	requestService: IRequestService,
 	fileService: IFileService
 ): Promise<void> {
-	if (!process.env.GITPOD_RESOLVED_EXTENSIONS) {
-		return;
-	}
-	let resolvedPlugins: ResolvedPlugins = {};
-	try {
-		resolvedPlugins = JSON.parse(process.env.GITPOD_RESOLVED_EXTENSIONS);
-	} catch (e) {
-		console.error('Faild to parse process.env.GITPOD_RESOLVED_EXTENSIONS:', e);
-	}
 	const pending: Promise<void>[] = [];
-	for (const pluginId in resolvedPlugins) {
-		const resolvedPlugin = resolvedPlugins[pluginId];
-		if (!resolvedPlugin) {
-			continue;
+	if (process.env.GITPOD_RESOLVED_EXTENSIONS) {
+		let resolvedPlugins: ResolvedPlugins = {};
+		try {
+			resolvedPlugins = JSON.parse(process.env.GITPOD_RESOLVED_EXTENSIONS);
+		} catch (e) {
+			console.error('code server: failed to parse process.env.GITPOD_RESOLVED_EXTENSIONS:', e);
 		}
-		const { fullPluginName, url, kind } = resolvedPlugin;
-		if (kind === 'builtin' || kind === 'user') {
-			// ignore built-in extensions configured for Theia, we default to VS Code built-in extensions
-			// ignore user extensions installed in Theia, since we switched to the sync storage for them
-			continue;
-		}
-		pending.push((async () => {
-			try {
-				const context = await requestService.request({ type: 'GET', url }, CancellationToken.None);
-				if (context.res.statusCode !== 200) {
-					const message = await asText(context);
-					console.error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
-					return;
-				}
-				const downloadedLocation = path.join(os.tmpdir(), generateUuid());
-				const target = URI.file(downloadedLocation);
-				await fileService.writeFile(target, context.stream);
-				await extensionManagementService.install(target);
-			} catch (e) {
-				console.error(`Failed to install '${fullPluginName}' extension from '${url}':`, e);
+		for (const pluginId in resolvedPlugins) {
+			const resolvedPlugin = resolvedPlugins[pluginId];
+			if (resolvedPlugin?.kind !== 'workspace') {
+				// ignore built-in extensions configured for Theia, we default to VS Code built-in extensions
+				// ignore user extensions installed in Theia, since we switched to the sync storage for them
+				continue;
 			}
-		})());
+			pending.push(installExtensionFromConfig(resolvedPlugin.url, extensionManagementService, requestService, fileService));
+		}
+	}
+	if (process.env.GITPOD_EXTERNAL_EXTENSIONS) {
+		let external: string[] = [];
+		try {
+			external = JSON.parse(process.env.GITPOD_EXTERNAL_EXTENSIONS);
+		} catch (e) {
+			console.error('code server: failed to parse process.env.GITPOD_EXTERNAL_EXTENSIONS:', e);
+		}
+		for (const url of external) {
+			pending.push(installExtensionFromConfig(url, extensionManagementService, requestService, fileService));
+		}
 	}
 	await Promise.all(pending);
+}
+async function installExtensionFromConfig(
+	url: string,
+	extensionManagementService: IExtensionManagementService,
+	requestService: IRequestService,
+	fileService: IFileService
+): Promise<void> {
+	try {
+		const context = await requestService.request({ type: 'GET', url }, CancellationToken.None);
+		if (context.res.statusCode !== 200) {
+			const message = await asText(context);
+			throw new Error(`expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
+		}
+		const downloadedLocation = path.join(os.tmpdir(), generateUuid());
+		const target = URI.file(downloadedLocation);
+		await fileService.writeFile(target, context.stream);
+		await extensionManagementService.install(target, {
+			isMachineScoped: true,
+			isBuiltin: false
+		});
+	} catch (e) {
+		console.error(`code server: failed to install configured extension from '${url}':`, e);
+	}
 }
 
 async function main(): Promise<void> {
