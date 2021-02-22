@@ -501,7 +501,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const selectionsLeft = [];
-		this._viewModel!.selectionHandles.forEach(handle => {
+		this.getSelectedElements().map(el => el.handle).forEach(handle => {
 			if (this._viewModel!.hasCell(handle)) {
 				selectionsLeft.push(handle);
 			}
@@ -579,10 +579,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	selectElement(cell: ICellViewModel) {
-		if (this._viewModel) {
-			this._viewModel.selectionHandles = [cell.handle];
-		}
-
 		const index = this._getViewIndexUpperBound(cell);
 		if (index >= 0) {
 			this.setSelection([index]);

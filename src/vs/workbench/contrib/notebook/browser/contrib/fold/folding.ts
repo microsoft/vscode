@@ -134,6 +134,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			}
 
 			this.setFoldingStateUp(modelIndex, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed, 1);
+			this._notebookEditor.focusElement(cellViewModel);
 		}
 
 		return;
