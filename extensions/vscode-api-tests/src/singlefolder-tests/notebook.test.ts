@@ -1241,7 +1241,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
 	});
 
-	test.only('Two outputs instead of 1', async function () {
+	test.only('#117273, Add multiple outputs', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		const document = await vscode.notebook.openNotebookDocument(resource);
 
