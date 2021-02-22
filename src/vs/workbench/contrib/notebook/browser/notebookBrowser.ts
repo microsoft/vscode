@@ -324,6 +324,8 @@ export interface INotebookEditorCreationOptions {
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
 	uri: URI;
+	// selection is never undefined when the editor is attached to a document.
+	getSelection(): ICellRange;
 }
 
 export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
@@ -358,7 +360,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	getDomNode(): HTMLElement;
 	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
-	getSelectionHandles(): number[];
 	getSelectionViewModels(): ICellViewModel[];
 
 	/**
@@ -375,7 +376,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	/**
 	 * Select & focus cell
 	 */
-	selectElement(cell: ICellViewModel): void;
+	focusElement(cell: ICellViewModel): void;
 
 	/**
 	 * Layout info for the notebook editor
@@ -642,6 +643,7 @@ export interface INotebookCellList {
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];
+	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInViewAtTop(element: ICellViewModel): void;

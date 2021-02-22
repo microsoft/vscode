@@ -96,7 +96,7 @@ class DocumentAndEditorState {
 		return {
 			id: add.getId(),
 			documentUri: add.uri!,
-			selections: add.getSelectionHandles(),
+			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges
 		};
 	}
@@ -244,8 +244,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				}));
 
 				disposableStore.add(editor.onDidChangeSelection(() => {
-					const selectionHandles = editor.getSelectionHandles();
-					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: selectionHandles } });
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: editor.getSelections() } });
 				}));
 
 				this._editorEventListenersMapping.set(editor.getId(), disposableStore);
@@ -689,7 +688,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			if (notebookEditor.viewModel && options.selection && notebookEditor.viewModel.viewCells[options.selection.start]) {
 				const focusedCell = notebookEditor.viewModel.viewCells[options.selection.start];
 				notebookEditor.revealInCenterIfOutsideViewport(focusedCell);
-				notebookEditor.selectElement(focusedCell);
+				notebookEditor.focusElement(focusedCell);
 			}
 			return notebookEditor.getId();
 		} else {

@@ -31,7 +31,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, INotebookDecorationRenderOptions, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, RENDERER_NOT_AVAILABLE, SelectionStateType, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -534,7 +534,10 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 						source: cell.getValue(),
 						language: cell.language,
 						cellKind: cell.cellKind,
-						outputs: cell.outputs.map(output => ({ ...output, /* paste should generate new outputId */ outputId: UUID.generateUuid() })),
+						outputs: cell.outputs.map(output => ({
+							outputs: output.outputs,
+							/* paste should generate new outputId */ outputId: UUID.generateUuid()
+						})),
 						metadata: cloneMetadata(cell)
 					};
 				};
@@ -600,14 +603,17 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 				clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
 				const selectionIndexes = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]);
 				const edits: ICellEditOperation[] = selectionIndexes.map(value => ({ editType: CellEditType.Replace, index: value[1], count: 1, cells: [] }));
+				const firstSelectIndex = selectionIndexes[0][1];
+				const newFocusedCellHandle = firstSelectIndex < viewModel.notebookDocument.cells.length
+					? viewModel.notebookDocument.cells[firstSelectIndex].handle
+					: viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle;
 
-				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, editor.getSelectionHandles(), () => {
-					const firstSelectIndex = selectionIndexes[0][1];
-					if (firstSelectIndex < viewModel.notebookDocument.cells.length) {
-						return [viewModel.notebookDocument.cells[firstSelectIndex].handle];
-					} else {
-						return [viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle];
-					}
+				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, { kind: SelectionStateType.Index, selections: viewModel.getSelections() }, () => {
+					return {
+						kind: SelectionStateType.Handle,
+						primary: newFocusedCellHandle,
+						selections: [newFocusedCellHandle]
+					};
 				}, undefined, true);
 				notebookService.setToCopy(selectedCells.map(cell => cell.model), false);
 
