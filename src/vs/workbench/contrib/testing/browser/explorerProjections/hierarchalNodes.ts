@@ -17,7 +17,7 @@ export class HierarchicalElement implements ITestTreeElement {
 	public readonly depth: number = this.parentItem.depth + 1;
 
 	public get treeId() {
-		return `hitest:${this.test.id}`;
+		return `hitest:${this.test.item.extId}`;
 	}
 
 	public get label() {
@@ -30,13 +30,13 @@ export class HierarchicalElement implements ITestTreeElement {
 
 	public get runnable(): Iterable<TestIdWithProvider> {
 		return this.test.item.runnable
-			? [{ providerId: this.test.providerId, testId: this.test.id }]
+			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 
 	public get debuggable() {
 		return this.test.item.debuggable
-			? [{ providerId: this.test.providerId, testId: this.test.id }]
+			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 

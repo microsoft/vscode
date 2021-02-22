@@ -117,7 +117,7 @@ const newCommands: ApiCommand[] = [
 	// -- selection range
 	new ApiCommand(
 		'vscode.executeSelectionRangeProvider', '_executeSelectionRangeProvider', 'Execute selection range provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
+		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A position in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
 		new ApiCommandResult<IRange[][], types.SelectionRange[]>('A promise that resolves to an array of ranges.', result => {
 			return result.map(ranges => {
 				let node: types.SelectionRange | undefined;
@@ -369,7 +369,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- open'ish commands
 	new ApiCommand(
-		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
+		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or an http(s) URL. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
 		[
 			ApiCommandArgument.Uri,
 			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
@@ -396,7 +396,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.diff', '_workbench.diff', 'Opens the provided resources in the diff editor to compare their contents.',
 		[
 			ApiCommandArgument.Uri.with('left', 'Left-hand side resource of the diff editor'),
-			ApiCommandArgument.Uri.with('right', 'Rigth-hand side resource of the diff editor'),
+			ApiCommandArgument.Uri.with('right', 'Right-hand side resource of the diff editor'),
 			ApiCommandArgument.String.with('title', 'Human readable title for the diff editor').optional(),
 			new ApiCommandArgument<typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'object',

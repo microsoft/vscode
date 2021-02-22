@@ -194,6 +194,8 @@ export class ExperimentService implements ITASExperimentService {
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		const startSetup = Date.now();
+
 		if (!this.tasClient) {
 			return undefined;
 		}
@@ -202,7 +204,23 @@ export class ExperimentService implements ITASExperimentService {
 			return undefined;
 		}
 
-		return (await this.tasClient).getTreatmentVariable<T>('vscode', name);
+		const result = (await this.tasClient).getTreatmentVariable<T>('vscode', name);
+
+		type TAASClientReadTreatmentData = {
+			treatmentName: string;
+			treatmentValue: string;
+			readTime: number;
+		};
+
+		type TAASClientReadTreatmentCalssification = {
+			treatmentValue: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
+			treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
+			readTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+		};
+		this.telemetryService.publicLog2<TAASClientReadTreatmentData, TAASClientReadTreatmentCalssification>('tasClientReadTreatmentComplete',
+			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result) });
+
+		return result;
 	}
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {
@@ -220,6 +238,7 @@ export class ExperimentService implements ITASExperimentService {
 	}
 
 	private async setupTASClient(): Promise<TASClient> {
+		const startSetup = Date.now();
 		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
 		const targetPopulation = telemetryInfo.msftInternal ? TargetPopulation.Internal : (product.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders);
 		const machineId = telemetryInfo.machineId;
@@ -249,9 +268,13 @@ export class ExperimentService implements ITASExperimentService {
 		});
 
 		await tasClient.initializePromise;
+
+		type TAASClientSetupData = { setupTime: number; };
+		type TAASClientSetupCalssification = { setupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' }; };
+		this.telemetryService.publicLog2<TAASClientSetupData, TAASClientSetupCalssification>('tasClientSetupComplete', { setupTime: Date.now() - startSetup });
+
 		return tasClient;
 	}
 }
 
 registerSingleton(ITASExperimentService, ExperimentService, false);
-

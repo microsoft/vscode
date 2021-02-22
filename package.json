@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.54.0",
-  "distro": "1e046e28c1c46d188d71cf517fdbd55338116ae2",
+  "distro": "15d06a28bcd9dc439ef80df6851d875624b6ff0f",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -37,6 +37,7 @@
     "smoketest": "cd test/smoke && yarn compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
+    "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "valid-layers-check": "node build/lib/layersChecker.js",
@@ -189,7 +190,7 @@
     "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
-    "tsec": "0.1.3",
+    "tsec": "0.1.4",
     "typescript": "^4.3.0-dev.20210216",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",

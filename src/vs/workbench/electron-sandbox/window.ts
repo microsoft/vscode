@@ -334,7 +334,7 @@ export class NativeWindow extends Disposable {
 	private onWindowResize(e: UIEvent, retry: boolean): void {
 		if (e.target === window) {
 			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@bpasero this is an electron issue on macOS when simple fullscreen is enabled
+				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
 				// where for some reason the window clientWidth is reported as 0 when switching
 				// between simple fullscreen and normal screen. In that case we schedule the layout
 				// call at the next animation frame once, in the hope that the dimensions are

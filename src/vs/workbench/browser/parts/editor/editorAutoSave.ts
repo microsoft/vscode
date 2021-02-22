@@ -39,7 +39,9 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this.onAutoSaveConfigurationChange(filesConfigurationService.getAutoSaveConfiguration(), false);
 
 		// Fill in initial dirty working copies
-		this.workingCopyService.dirtyWorkingCopies.forEach(workingCopy => this.onDidRegister(workingCopy));
+		for (const dirtyWorkingCopy of this.workingCopyService.dirtyWorkingCopies) {
+			this.onDidRegister(dirtyWorkingCopy);
+		}
 
 		this.registerListeners();
 	}

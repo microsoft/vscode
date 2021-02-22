@@ -73,7 +73,6 @@ export interface ITestItem {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
-	id: string;
 	providerId: string;
 	parent: string | null;
 	item: ITestItem;
@@ -197,27 +196,27 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 		for (const op of diff) {
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
-					const item = op[1];
-					if (!item.parent) {
-						this.roots.add(item.id);
-						const created = this.createItem(item);
-						this.items.set(item.id, created);
+					const internalTest = op[1];
+					if (!internalTest.parent) {
+						this.roots.add(internalTest.item.extId);
+						const created = this.createItem(internalTest);
+						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
-					} else if (this.items.has(item.parent)) {
-						const parent = this.items.get(item.parent)!;
-						parent.children.add(item.id);
-						const created = this.createItem(item, parent);
-						this.items.set(item.id, created);
+					} else if (this.items.has(internalTest.parent)) {
+						const parent = this.items.get(internalTest.parent)!;
+						parent.children.add(internalTest.item.extId);
+						const created = this.createItem(internalTest, parent);
+						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
 					}
 					break;
 				}
 
 				case TestDiffOpType.Update: {
-					const item = op[1];
-					const existing = this.items.get(item.id);
+					const internalTest = op[1];
+					const existing = this.items.get(internalTest.item.extId);
 					if (existing) {
-						Object.assign(existing.item, item.item);
+						Object.assign(existing.item, internalTest.item);
 						changes.update(existing);
 					}
 					break;
@@ -231,9 +230,9 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 
 					if (toRemove.parent) {
 						const parent = this.items.get(toRemove.parent)!;
-						parent.children.delete(toRemove.id);
+						parent.children.delete(toRemove.item.extId);
 					} else {
-						this.roots.delete(toRemove.id);
+						this.roots.delete(toRemove.item.extId);
 					}
 
 					const queue: Iterable<string>[] = [[op[1]]];

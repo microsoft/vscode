@@ -1362,6 +1362,14 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	},
 	when: TunnelCloseableContextKey
 }));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '2_view',
+	order: 0,
+	command: {
+		id: ForwardPortAction.INLINE_ID,
+		title: ForwardPortAction.LABEL,
+	},
+}));
 
 
 MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
