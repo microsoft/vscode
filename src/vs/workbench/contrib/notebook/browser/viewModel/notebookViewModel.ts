@@ -386,13 +386,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	updateSelectionsFromView(primary: number | null, selections: number[]) {
 		const primaryIndex = primary !== null ? this.getCellIndexByHandle(primary) : null;
 		const selectionIndexes = selections.map(sel => this.getCellIndexByHandle(sel));
-		this._selectionCollection.setState2(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true);
+		this._selectionCollection.setState2(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), false);
 	}
 
 	updateSelectionsFromEdits(state: ISelectionState) {
 		if (this._focused) {
 			if (state.kind === SelectionStateType.Handle) {
-				this._selectionCollection.setState(state.primary, state.selections);
+				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
+				const selectionIndexes = state.selections.map(sel => this.getCellIndexByHandle(sel));
+				this._selectionCollection.setState2(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true);
 			} else {
 				this._selectionCollection.setState2(state.selections[0] ?? null, state.selections, true);
 			}
@@ -728,7 +730,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				cells: []
 			}],
 			synchronous,
-			{ kind: SelectionStateType.Handle, primary: this.primarySelectionHandle, selections: this.selectionHandles },
+			{ kind: SelectionStateType.Index, selections: this.getSelections() },
 			() => ({ kind: SelectionStateType.Handle, primary: endPrimarySelection, selections: endSelections }),
 			undefined,
 			pushUndoStop
