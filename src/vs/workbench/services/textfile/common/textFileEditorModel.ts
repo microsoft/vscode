@@ -948,6 +948,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
+	joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void> {
+		return this.saveSequentializer.pending ?? Promise.resolve();
+	}
+
 	getMode(this: IResolvedTextFileEditorModel): string;
 	getMode(): string | undefined;
 	getMode(): string | undefined {

@@ -18,7 +18,7 @@ export class BrowserTextFileService extends AbstractTextFileService {
 
 	private onBeforeShutdown(): boolean {
 		if (this.files.models.some(model => model.hasState(TextFileEditorModelState.PENDING_SAVE))) {
-			return true; // files are pending to be saved: veto
+			return true; // files are pending to be saved: veto (as there is no support for long running operations on shutdown)
 		}
 
 		return false;
