@@ -532,7 +532,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						source: cell.getValue(),
 						language: cell.language,
 						cellKind: cell.cellKind,
-						outputs: cell.outputs.map(output => ({ ...output, /* paste should generate new outputId */ outputId: UUID.generateUuid() })),
+						outputs: cell.outputs.map(output => ({
+							outputs: output.outputs,
+							/* paste should generate new outputId */ outputId: UUID.generateUuid()
+						})),
 						metadata: cloneMetadata(cell)
 					};
 				};
