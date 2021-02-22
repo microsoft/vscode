@@ -1269,6 +1269,10 @@ suite('Notebook API tests', function () {
 		// 	...document.cells[0].outputs,
 		// 	new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stderr' })], { outputType: 'stream', streamName: 'stderr' })
 		// ]);
+		// This wasn't working, i had to revert to using `replaceNotebookCellOutput` (could be because we had two output in the cell).
+		// edit2.appendNotebookCellOutputItems(document.uri, 0, document.cells[0].outputs[1].id, [
+		// 	new vscode.NotebookCellOutputItem('hello', 'Append to existing stderr when we have two outputs (one for stdout & one for stderr)', { outputType: 'stream', streamName: 'stderr' })
+		// ]);
 		await vscode.workspace.applyEdit(edit);
 
 
