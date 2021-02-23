@@ -225,12 +225,12 @@ export class GettingStartedPage extends EditorPane {
 				node.style.height = ``;
 				node.setAttribute('aria-expanded', 'false');
 			});
-			taskElement.style.height = `${taskElement.scrollHeight}px`;
 			setTimeout(() => (taskElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
 			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
 				this.editorInput.selectedTask = undefined;
 				return;
 			}
+			taskElement.style.height = `${taskElement.scrollHeight}px`;
 			if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
 				throw Error('cannot expand task for category of non items type' + this.currentCategory?.id);
 			}
