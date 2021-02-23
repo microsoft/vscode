@@ -1138,10 +1138,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	getBounds(): Rectangle {
-		const pos = this._win.getPosition();
-		const dimension = this._win.getSize();
+		const [x, y] = this._win.getPosition();
+		const [width, height] = this._win.getSize();
 
-		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
+		return { x, y, width, height };
 	}
 
 	toggleFullScreen(): void {

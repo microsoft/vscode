@@ -986,43 +986,43 @@ declare module 'vscode' {
 
 	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
 
-	export namespace window {
+	/**
+	 * Options to configure the status bar item.
+	 */
+	export interface StatusBarItemOptions {
 
 		/**
-		 * Options to configure the status bar item.
+		 * A unique identifier of the status bar item. The identifier
+		 * is for example used to allow a user to show or hide the
+		 * status bar item in the UI.
 		 */
-		export interface StatusBarItemOptions {
+		id: string;
 
-			/**
-			 * A unique identifier of the status bar item. The identifier
-			 * is for example used to allow a user to show or hide the
-			 * status bar item in the UI.
-			 */
-			id: string;
+		/**
+		 * A human readable name of the status bar item. The name is
+		 * for example used as a label in the UI to show or hide the
+		 * status bar item.
+		 */
+		name: string;
 
-			/**
-			 * A human readable name of the status bar item. The name is
-			 * for example used as a label in the UI to show or hide the
-			 * status bar item.
-			 */
-			name: string;
+		/**
+		 * Accessibility information used when screen reader interacts with this status bar item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
 
-			/**
-			 * Accessibility information used when screen reader interacts with this status bar item.
-			 */
-			accessibilityInformation?: AccessibilityInformation;
+		/**
+		 * The alignment of the status bar item.
+		 */
+		alignment?: StatusBarAlignment;
 
-			/**
-			 * The alignment of the status bar item.
-			 */
-			alignment?: StatusBarAlignment;
+		/**
+		 * The priority of the status bar item. Higher value means the item should
+		 * be shown more to the left.
+		 */
+		priority?: number;
+	}
 
-			/**
-			 * The priority of the status bar item. Higher value means the item should
-			 * be shown more to the left.
-			 */
-			priority?: number;
-		}
+	export namespace window {
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
