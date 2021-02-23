@@ -12378,7 +12378,6 @@ declare module 'vscode' {
 		 * these permissions, otherwise all sessions should be returned.
 		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
 		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
@@ -12386,14 +12385,12 @@ declare module 'vscode' {
 		 * @param scopes A list of scopes, permissions, that the new session should be created with.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
 		createSession(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
 		 * @param sessionId The id of the session to remove.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
 		removeSession(sessionId: string): Thenable<void>;
 	}
 
