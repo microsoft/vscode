@@ -102,12 +102,12 @@ export class WebviewResourceRequestManager extends Disposable {
 		this._register(toDisposable(() => this._webviewManagerService.unregisterWebview(this.id)));
 
 		const loadResourceChannel = `vscode:loadWebviewResource-${id}`;
-		const loadResourceListener = async (_event: any, requestId: number, resource: UriComponents) => {
+		const loadResourceListener = async (_event: any, requestId: number, resource: UriComponents, ifNoneMatch: string | undefined) => {
 			const uri = URI.revive(resource);
 			try {
 				this._logService.debug(`WebviewResourceRequestManager(${this.id}): starting resource load. uri: ${uri}`);
 
-				const response = await loadLocalResource(uri, undefined, {
+				const response = await loadLocalResource(uri, ifNoneMatch, {
 					extensionLocation: this.extension?.location,
 					roots: this._localResourceRoots,
 					remoteConnectionData: remoteConnectionData,
@@ -121,7 +121,7 @@ export class WebviewResourceRequestManager extends Disposable {
 					case WebviewResourceResponse.Type.Success:
 						{
 							const buffer = await streamToBuffer(response.stream);
-							return this._webviewManagerService.didLoadResource(requestId, { buffer, etag: response.etag });
+							return this._webviewManagerService.didLoadResource(requestId, buffer, { etag: response.etag });
 						}
 					case WebviewResourceResponse.Type.NotModified:
 						return this._webviewManagerService.didLoadResource(requestId, 'not-modified');

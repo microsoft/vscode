@@ -108,7 +108,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Remove, 'id-a'],
 			]);
-			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['id-b', 'id-root']);
+			assert.deepStrictEqual([...owned.idToInternal].map(n => n.item.extId).sort(), ['id-b', 'id-root']);
 			assert.strictEqual(single.itemToInternal.size, 2);
 		});
 
@@ -124,7 +124,7 @@ suite('ExtHost Testing', () => {
 				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-a', item: convert.TestItem.from(child) }],
 			]);
 			assert.deepStrictEqual(
-				[...owned.idToInternal.keys()].sort(),
+				[...owned.idToInternal].map(n => n.item.extId).sort(),
 				['id-a', 'id-aa', 'id-ab', 'id-ac', 'id-b', 'id-root'],
 			);
 			assert.strictEqual(single.itemToInternal.size, 6);
@@ -139,7 +139,7 @@ suite('ExtHost Testing', () => {
 			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			m.apply(single.collectDiff());
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
@@ -151,7 +151,7 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
@@ -163,7 +163,7 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
@@ -175,7 +175,7 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 		});
 
 		suite('MirroredChangeCollector', () => {

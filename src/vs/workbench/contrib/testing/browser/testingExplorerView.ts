@@ -64,7 +64,7 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DebugAction, RunAction } from './testExplorerActions';
+import { DebugAction, HideOrShowTestAction, RunAction } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -326,6 +326,8 @@ export class TestingExplorerViewModel extends Disposable {
 		this._register(Event.any(
 			filterState.text.onDidChange,
 			filterState.stateFilter.onDidChange,
+			filterState.showExcludedTests.onDidChange,
+			testService.excludeTests.onDidChange,
 		)(this.tree.refilter, this.tree));
 
 		this._register(this.tree);
@@ -634,7 +636,10 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 	private filters: [include: boolean, value: string][] | undefined;
 	private _filterToUri: string | undefined;
 
-	constructor(@ITestExplorerFilterState private readonly state: ITestExplorerFilterState) { }
+	constructor(
+		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
+		@ITestService private readonly testService: ITestService,
+	) { }
 
 	/**
 	 * Parses and updates the tree filter. Supports lists of patterns that can be !negated.
@@ -668,6 +673,14 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 	public filter(element: ITestTreeElement): TreeFilterResult<void> {
 		if (this.state.text.value !== this.lastText) {
 			this.setFilter(this.state.text.value);
+		}
+
+		if (
+			element.test
+			&& !this.state.showExcludedTests.value
+			&& this.testService.excludeTests.value.has(element.test.item.extId)
+		) {
+			return TreeVisibility.Hidden;
 		}
 
 		switch (Math.min(this.testFilterText(element), this.testLocation(element), this.testState(element))) {
@@ -801,6 +814,7 @@ class IdentityProvider implements IIdentityProvider<ITestTreeElement> {
 interface TestTemplateData {
 	label: IResourceLabel;
 	icon: HTMLElement;
+	wrapper: HTMLElement;
 	actionBar: ActionBar;
 	elementDisposable: IDisposable[];
 	templateDisposable: IDisposable[];
@@ -813,7 +827,8 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		private labels: ResourceLabels,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITestService private readonly testService: ITestService
 	) {
 		super();
 	}
@@ -842,7 +857,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 					: undefined
 		});
 
-		return { label, actionBar, icon, elementDisposable: [], templateDisposable: [label, actionBar] };
+		return { wrapper, label, actionBar, icon, elementDisposable: [], templateDisposable: [label, actionBar] };
 	}
 
 	/**
@@ -852,6 +867,9 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const label: IResourceLabelProps = { name: element.label };
 		const options: IResourceLabelOptions = {};
 		data.actionBar.clear();
+
+		const testHidden = !!element.test && this.testService.excludeTests.value.has(element.test.item.extId);
+		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
 		const icon = testingStatesToIcons.get(element.state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
@@ -873,6 +891,10 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 			options.title = title;
 			options.fileKind = FileKind.FILE;
 			label.description = element.description;
+			if (testHidden) {
+				const hidden = localize('testHidden', 'hidden');
+				label.description = label.description ? `${label.description} (${hidden})` : hidden;
+			}
 		} else {
 			options.fileKind = FileKind.ROOT_FOLDER;
 		}
@@ -905,7 +927,12 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 	}
 }
 
-const getTestItemActions = (instantionService: IInstantiationService, contextKeyService: IContextKeyService, menuService: IMenuService, element: ITestTreeElement) => {
+const getTestItemActions = (
+	instantionService: IInstantiationService,
+	contextKeyService: IContextKeyService,
+	menuService: IMenuService,
+	element: ITestTreeElement,
+) => {
 	const contextOverlay = contextKeyService.createOverlay([
 		['view', Testing.ExplorerViewId],
 		[TestingContextKeys.testItemExtId.key, element.test?.item.extId]
@@ -924,6 +951,10 @@ const getTestItemActions = (instantionService: IInstantiationService, contextKey
 		}
 
 		const secondary: IAction[] = [];
+		if (element.test) {
+			secondary.push(instantionService.createInstance(HideOrShowTestAction, element.test.item.extId));
+		}
+
 		const result = { primary, secondary };
 		const actionsDisposable = createAndFillInActionBarActions(menu, {
 			arg: element.test?.item.extId,

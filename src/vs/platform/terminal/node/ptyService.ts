@@ -12,9 +12,7 @@ import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
-import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
-// TODO: On disconnect/restart, this will overwrite the older terminals
 let currentPtyId = 0;
 
 type WorkspaceId = string;
@@ -73,9 +71,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const ipcHandlePath = createRandomIPCHandle();
-		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
-		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, ipcHandlePath, this._logService);
+		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, this._logService);
 		process.onProcessExit(() => {
 			persistentTerminalProcess.dispose();
 			this._ptys.delete(id);
@@ -92,7 +88,7 @@ export class PtyService extends Disposable implements IPtyService {
 		this._logService.trace(`Persistent terminal "${id}": Attach`);
 	}
 
-	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | undefined> {
 		return this._throwIfNoPty(id).start();
 	}
 	async shutdown(id: number, immediate: boolean): Promise<void> {
@@ -221,8 +217,6 @@ export class PersistentTerminalProcess extends Disposable {
 		public readonly workspaceName: string,
 		public readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
-		// TODO: This needs to get used?
-		ipcHandlePath: string,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -262,10 +256,9 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 	}
 
-	async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
-		let result;
+	async start(): Promise<ITerminalLaunchError | undefined> {
 		if (!this._isStarted) {
-			result = await this._terminalProcess.start();
+			const result = await this._terminalProcess.start();
 			if (result) {
 				// it's a terminal launch error
 				return result;
@@ -276,7 +269,7 @@ export class PersistentTerminalProcess extends Disposable {
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 			this.triggerReplay();
 		}
-		return { persistentTerminalId: this._persistentTerminalId };
+		return undefined;
 	}
 	shutdown(immediate: boolean): void {
 		return this._terminalProcess.shutdown(immediate);

@@ -19,6 +19,7 @@ export interface TestIdWithProvider {
  */
 export interface RunTestsRequest {
 	tests: TestIdWithProvider[];
+	exclude?: string[];
 	debug: boolean;
 	isAutoRun?: boolean;
 }
@@ -28,6 +29,7 @@ export interface RunTestsRequest {
  */
 export interface RunTestForProviderRequest {
 	runId: string;
+	excludeExtIds: string[];
 	providerId: string;
 	ids: string[];
 	debug: boolean;

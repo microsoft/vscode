@@ -12,7 +12,10 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
+import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -44,11 +47,49 @@ export class TestService extends Disposable implements ITestService {
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
 	private rootProviderCount = 0;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService, @ITestResultService private readonly testResults: ITestResultService) {
+	public readonly excludeTests = ObservableValue.stored(new StoredValue<ReadonlySet<string>>({
+		key: 'excludedTestItes',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.USER,
+		serialization: {
+			deserialize: v => new Set(JSON.parse(v)),
+			serialize: v => JSON.stringify([...v])
+		},
+	}, this.storageService), new Set());
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITestResultService private readonly testResults: ITestResultService,
+	) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
 		this.hasDebuggable = TestingContextKeys.hasDebuggableTests.bindTo(contextKeyService);
 		this.hasRunnable = TestingContextKeys.hasRunnableTests.bindTo(contextKeyService);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public clearExcludedTests() {
+		this.excludeTests.value = new Set();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public setTestExcluded(testId: string, exclude = !this.excludeTests.value.has(testId)) {
+		const newSet = new Set(this.excludeTests.value);
+		if (exclude) {
+			newSet.add(testId);
+		} else {
+			newSet.delete(testId);
+		}
+
+		if (newSet.size !== this.excludeTests.value.size) {
+			this.excludeTests.value = newSet;
+		}
 	}
 
 	/**
@@ -125,6 +166,10 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
+		if (!req.exclude) {
+			req.exclude = [...this.excludeTests.value];
+		}
+
 		const subscriptions = [...this.testSubscriptions.values()]
 			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
 			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri));
@@ -139,7 +184,13 @@ export class TestService extends Disposable implements ITestService {
 				const providerId = group[0].providerId;
 				const controller = this.testControllers.get(providerId);
 				return controller?.runTests(
-					{ runId: result.id, providerId, debug: req.debug, ids: group.map(t => t.testId) },
+					{
+						runId: result.id,
+						providerId,
+						debug: req.debug,
+						excludeExtIds: req.exclude ?? [],
+						ids: group.map(t => t.testId),
+					},
 					cancelSource.token,
 				).catch(err => {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));

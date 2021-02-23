@@ -698,9 +698,17 @@ export class CustomMenubarControl extends MenubarControl {
 					const title = typeof action.item.title === 'string'
 						? action.item.title
 						: action.item.title.mnemonicTitle ?? action.item.title.value;
-					webNavigationActions.push(new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id)));
+					webNavigationActions.push(new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, async (event?: any) => {
+						this.commandService.executeCommand(action.id, event);
+					}));
 				}
 			}
+
+			webNavigationActions.push(new Separator());
+		}
+
+		if (webNavigationActions.length) {
+			webNavigationActions.pop();
 		}
 
 		return webNavigationActions;
@@ -719,21 +727,7 @@ export class CustomMenubarControl extends MenubarControl {
 					return []; // only for web
 				}
 
-				const webNavigationActions: IAction[] = [];
-				const href = this.environmentService.options?.homeIndicator?.href;
-				if (href) {
-					webNavigationActions.push(new Action('goHome', localize('goHome', "Go Home"), undefined, true,
-						async (event?: MouseEvent) => {
-							if ((!isMacintosh && event?.ctrlKey) || (isMacintosh && event?.metaKey)) {
-								window.open(href, '_blank');
-							} else {
-								window.location.href = href;
-							}
-						}));
-				}
-
-				webNavigationActions.push(...this.getWebNavigationActions());
-				return webNavigationActions;
+				return this.getWebNavigationActions();
 			}
 		};
 	}

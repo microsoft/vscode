@@ -52,6 +52,7 @@ import { ITASExperimentService } from 'vs/workbench/services/experiment/common/e
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 export const DEFAULT_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
@@ -114,6 +115,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		this.tasExperimentService = tasExperimentService;
@@ -124,16 +127,38 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 
 	private async manageDefaultValuesForGettingStartedExperiment() {
+		if (this.configurationService.getValue('workbench.gettingStartedTreatmentOverride')) {
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
+		}
+
+		let someValueReturned = false;
+		type GettingStartedTreatmentData = { value: string; };
+		type GettingStartedTreatmentClassification = { value: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' }; };
+
 		const tasUseGettingStartedAsDefault = this.tasExperimentService?.getTreatment<boolean>('StartupGettingStarted')
+			.then(result => {
+				this.logService.info('StartupGettingStarted:', result);
+				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: '' + !!result });
+				someValueReturned = true;
+				return result;
+			})
 			.catch(error => {
-				console.error('Recieved error when consulting experiment service for getting started experiment', error);
+				this.logService.error('Recieved error when consulting experiment service for getting started experiment', error);
+				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: 'err' });
+				someValueReturned = true;
 				return false;
 			});
 
-		const fallback = new Promise<false>(c => setTimeout(() => c(false), 5000));
+		const fallback = new Promise<false>(c => setTimeout(() => c(false), 2000)).then(
+			() => {
+				if (!someValueReturned) { this.logService.info('Unable to read getting started treatment data in time, falling back to welcome'); }
+				someValueReturned = true;
+			}
+		);
 
-		const useGettingStartedAsDefault = await Promise.race([tasUseGettingStartedAsDefault, fallback]);
-
+		const useGettingStartedAsDefault = !!await Promise.race([tasUseGettingStartedAsDefault, fallback]);
 		if (useGettingStartedAsDefault) {
 			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
 			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);

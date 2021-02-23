@@ -6,7 +6,8 @@ const path = require('path');
 
 module.exports = {
 	entry: {
-		extension: './notebook/extension.ts',
+		katex: './notebook/katex.ts',
+		emoji: './notebook/emoji.ts',
 	},
 	module: {
 		rules: [
