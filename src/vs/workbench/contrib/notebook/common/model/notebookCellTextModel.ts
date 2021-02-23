@@ -153,6 +153,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
+		const runnable = this.metadata?.runnable ??
+			documentMetadata.cellRunnable;
+
 		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
 			documentMetadata.cellHasExecutionOrder;
 
@@ -160,6 +163,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			...(this.metadata || {}),
 			...{
 				editable,
+				runnable,
 				hasExecutionOrder
 			}
 		};

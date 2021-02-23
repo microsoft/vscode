@@ -453,6 +453,9 @@ export abstract class BaseCellViewModel extends Disposable {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
+		const runnable = (this.metadata?.runnable ??
+			documentMetadata.cellRunnable) && !!documentMetadata.trusted;
+
 		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
 			documentMetadata.cellHasExecutionOrder;
 
@@ -460,6 +463,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			...(this.metadata || {}),
 			...{
 				editable,
+				runnable,
 				hasExecutionOrder
 			}
 		};

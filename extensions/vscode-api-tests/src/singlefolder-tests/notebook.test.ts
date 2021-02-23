@@ -48,6 +48,12 @@ async function saveAllFilesAndCloseAll(resource: vscode.Uri | undefined) {
 	await documentClosed;
 }
 
+async function updateCellMetadata(uri: vscode.Uri, cell: vscode.NotebookCell, newMetadata: vscode.NotebookCellMetadata) {
+	const edit = new vscode.WorkspaceEdit();
+	edit.replaceNotebookCellMetadata(uri, cell.index, newMetadata);
+	await vscode.workspace.applyEdit(edit);
+}
+
 async function updateNotebookMetadata(uri: vscode.Uri, newMetadata: vscode.NotebookDocumentMetadata) {
 	const edit = new vscode.WorkspaceEdit();
 	edit.replaceNotebookMetadata(uri, newMetadata);
@@ -483,7 +489,7 @@ suite('Notebook API tests', function () {
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ breakpointMargin: false }));
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ runnable: false }));
 		});
 
 		await cellsChangeEvent;
@@ -501,18 +507,18 @@ suite('Notebook API tests', function () {
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ breakpointMargin: false }));
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ runnable: false }));
 		});
 
 		await cellsChangeEvent;
 		await cellMetadataChangeEvent;
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells.length, 3);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.breakpointMargin, false);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.runnable, false);
 		assert.strictEqual(version + 1, vscode.window.activeNotebookEditor!.document.version);
 
 		await vscode.commands.executeCommand('undo');
 		assert.strictEqual(version + 2, vscode.window.activeNotebookEditor!.document.version);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.breakpointMargin, undefined);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.runnable, undefined);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells.length, 2);
 
 		await saveAllFilesAndCloseAll(resource);
@@ -678,6 +684,35 @@ suite('Notebook API tests', function () {
 		assert.deepStrictEqual(activeCell, newActiveCell);
 
 		await saveFileAndCloseAll(resource);
+	});
+
+
+	test('cell runnable metadata is respected', async () => {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
+		const editor = vscode.window.activeNotebookEditor!;
+
+		await vscode.commands.executeCommand('notebook.focusTop');
+		const cell = editor.document.cells[0];
+		assert.strictEqual(cell.outputs.length, 0);
+
+		let metadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
+		await updateCellMetadata(resource, cell, cell.metadata.with({ runnable: false }));
+		await metadataChangeEvent;
+
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
+
+		metadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
+		await updateCellMetadata(resource, cell, cell.metadata.with({ runnable: true }));
+		await metadataChangeEvent;
+
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
 	test('document runnable metadata is respected', async () => {

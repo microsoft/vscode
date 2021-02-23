@@ -4,27 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { normalize } from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
+import { Emitter, Event } from 'vs/base/common/event';
 import { URI as uri } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorType } from 'vs/editor/common/editorCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { TestQuickInputService } from 'vs/platform/quickinput/test/testQuickInputService';
-import { IWorkspace, IWorkspaceFolder, Workspace } from 'vs/platform/workspace/common/workspace';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { Workspace, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TestEditorService, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IQuickInputService, IQuickPickItem, QuickPickInput, IPickOptions, Omit, IInputOptions, IQuickInputButton, IQuickPick, IInputBox, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import * as Types from 'vs/base/common/types';
+import { EditorType } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
@@ -64,13 +66,13 @@ suite('Configuration Resolver Service', () => {
 	let editorService: TestEditorServiceWithActiveEditor;
 	let containingWorkspace: Workspace;
 	let workspace: IWorkspaceFolder;
-	let quickInputService: TestQuickInputService;
+	let quickInputService: MockQuickInputService;
 	let labelService: MockLabelService;
 
 	setup(() => {
 		mockCommandService = new MockCommandService();
 		editorService = new TestEditorServiceWithActiveEditor();
-		quickInputService = new TestQuickInputService();
+		quickInputService = new MockQuickInputService();
 		environmentService = new MockWorkbenchEnvironmentService(envVariables);
 		labelService = new MockLabelService();
 		containingWorkspace = testWorkspace(uri.parse('file:///VSCode/workspaceLocation'));
@@ -643,6 +645,63 @@ class MockCommandService implements ICommandService {
 		}
 
 		return Promise.resolve(result);
+	}
+}
+
+class MockQuickInputService implements IQuickInputService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onShow = Event.None;
+	readonly onHide = Event.None;
+
+	readonly quickAccess = undefined!;
+
+	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
+	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
+	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
+		if (Types.isArray(picks)) {
+			return Promise.resolve(<any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' });
+		} else {
+			return Promise.resolve(undefined);
+		}
+	}
+
+	public input(options?: IInputOptions, token?: CancellationToken): Promise<string> {
+		return Promise.resolve(options ? 'resolved' + options.prompt : 'resolved');
+	}
+
+	backButton!: IQuickInputButton;
+
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
+		throw new Error('not implemented.');
+	}
+
+	createInputBox(): IInputBox {
+		throw new Error('not implemented.');
+	}
+
+	focus(): void {
+		throw new Error('not implemented.');
+	}
+
+	toggle(): void {
+		throw new Error('not implemented.');
+	}
+
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void {
+		throw new Error('not implemented.');
+	}
+
+	accept(): Promise<void> {
+		throw new Error('not implemented.');
+	}
+
+	back(): Promise<void> {
+		throw new Error('not implemented.');
+	}
+
+	cancel(): Promise<void> {
+		throw new Error('not implemented.');
 	}
 }
 

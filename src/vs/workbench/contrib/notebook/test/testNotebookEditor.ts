@@ -456,8 +456,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-// TODO await all usages
-export async function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
+export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const textModelService = instantiationService.get(ITextModelService);
 
 	const viewType = 'notebook';
@@ -475,7 +474,7 @@ export async function withTestNotebook(instantiationService: TestInstantiationSe
 	const eventDispatcher = new NotebookEventDispatcher();
 	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
 
-	await callback(editor, viewModel, notebook);
+	callback(editor, viewModel, notebook);
 
 	viewModel.dispose();
 	return;

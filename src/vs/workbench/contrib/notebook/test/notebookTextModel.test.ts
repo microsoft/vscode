@@ -17,8 +17,8 @@ suite('NotebookTextModel', () => {
 	const undoRedoService = instantiationService.stub(IUndoRedoService, () => { });
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
-	test('insert', async function () {
-		await withTestNotebook(
+	test('insert', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -42,8 +42,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('multiple inserts at same position', async function () {
-		await withTestNotebook(
+	test('multiple inserts at same position', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -67,8 +67,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('delete', async function () {
-		await withTestNotebook(
+	test('delete', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -90,8 +90,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('delete + insert', async function () {
-		await withTestNotebook(
+	test('delete + insert', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -115,8 +115,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('delete + insert at same position', async function () {
-		await withTestNotebook(
+	test('delete + insert at same position', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -140,8 +140,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('(replace) delete + insert at same position', async function () {
-		await withTestNotebook(
+	test('(replace) delete + insert at same position', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -164,8 +164,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('output', async function () {
-		await withTestNotebook(
+	test('output', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -239,8 +239,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('metadata', async function () {
-		await withTestNotebook(
+	test('metadata', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -279,8 +279,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('multiple inserts in one edit', async function () {
-		await withTestNotebook(
+	test('multiple inserts in one edit', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,
@@ -316,8 +316,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('insert and metadata change in one edit', async function () {
-		await withTestNotebook(
+	test('insert and metadata change in one edit', function () {
+		withTestNotebook(
 			instantiationService,
 			blukEditService,
 			undoRedoService,

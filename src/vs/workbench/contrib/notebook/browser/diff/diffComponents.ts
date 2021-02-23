@@ -394,6 +394,7 @@ abstract class AbstractElementRenderer extends Disposable {
 					case 'hasExecutionOrder':
 					case 'inputCollapsed':
 					case 'outputCollapsed':
+					case 'runnable':
 						// boolean
 						if (typeof newMetadataObj[key] === 'boolean') {
 							result[key] = newMetadataObj[key];
