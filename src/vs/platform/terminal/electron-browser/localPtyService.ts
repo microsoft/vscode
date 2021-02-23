@@ -132,7 +132,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
 		const result = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
 		clearTimeout(timeout);
-		console.log('new term combined id', this._getCombinedId(currentPtyHostId, result));
 		return this._getCombinedId(currentPtyHostId, result);
 	}
 
@@ -227,7 +226,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	 */
 	private _getTerminalIdOrThrow(combinedId: number) {
 		if (currentPtyHostId !== this._getPtyHostId(combinedId)) {
-			console.log('ids', combinedId);
 			throw new Error(`Persistent terminal "${this._getRawTerminalId(combinedId)}": Pty host "${this._getPtyHostId(combinedId)}" is no longer active`);
 		}
 		return this._getRawTerminalId(combinedId);
