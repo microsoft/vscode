@@ -11,13 +11,13 @@ import * as pfs from 'vs/base/node/pfs';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkspacesManagementMainService, IStoredWorkspace, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { extUriBiasedIgnorePathCase, joinPath } from 'vs/base/common/resources';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
@@ -384,23 +384,8 @@ suite('WorkspacesManagementMainService', () => {
 		untitled = service.getUntitledWorkspacesSync();
 		assert.strictEqual(1, untitled.length);
 		assert.strictEqual(untitledOne.id, untitled[0].workspace.id);
-		assert.ok(fs.existsSync(untitledOne.configPath.fsPath), `Unexpected missing untitled workspace: ${untitledOne.configPath.fsPath} does not exist anymore?`);
-
-		const untitledTwo = await createUntitledWorkspace([tmpDir, cwd]);
-		assert.ok(fs.existsSync(untitledTwo.configPath.fsPath));
-
-		const beforeGettingUntitledWorkspaces = fs.readdirSync(environmentMainService.untitledWorkspacesHome.fsPath).map(folder => fs.readFileSync(joinPath(environmentMainService.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME).fsPath, 'utf8'));
-
-		untitled = service.getUntitledWorkspacesSync();
-		assert.ok(fs.existsSync(untitledOne.configPath.fsPath), `Unexpected missing untitled workspace: ${untitledOne.configPath.fsPath} does not exist anymore?`);
-		assert.ok(fs.existsSync(untitledTwo.configPath.fsPath), `Unexpected missing untitled workspace: ${untitledTwo.configPath.fsPath} does not exist anymore?`);
-		assert.strictEqual(2, untitled.length, `Unexpected workspaces count (expected 2), all workspaces:\n ${fs.readdirSync(environmentMainService.untitledWorkspacesHome.fsPath).map(folder => fs.readFileSync(joinPath(environmentMainService.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME).fsPath, 'utf8'))}, before getUntitledWorkspacesSync: ${beforeGettingUntitledWorkspaces}`);
 
 		service.deleteUntitledWorkspaceSync(untitledOne);
-		untitled = service.getUntitledWorkspacesSync();
-		assert.strictEqual(1, untitled.length);
-
-		service.deleteUntitledWorkspaceSync(untitledTwo);
 		untitled = service.getUntitledWorkspacesSync();
 		assert.strictEqual(0, untitled.length);
 	});
