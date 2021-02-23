@@ -145,7 +145,6 @@ export class PtyService extends Disposable implements IPtyService {
 					tabs: filtered
 				};
 			}
-
 		}
 		return undefined;
 	}

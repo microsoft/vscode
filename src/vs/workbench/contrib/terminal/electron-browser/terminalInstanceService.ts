@@ -157,10 +157,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return getMainProcessParentEnv();
 	}
 
-	public setTerminalLayoutInfo(layoutInfo: ITerminalsLayoutInfoById): void {
+	public setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): void {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo.tabs
+			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
 		this._localPtyService.setTerminalLayoutInfo(args);
 	}

@@ -49,7 +49,7 @@ export interface ITerminalInstanceService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess>;
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
 	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
