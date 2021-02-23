@@ -658,7 +658,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								lineSegments = [];
 								lineDecorations.set(line, lineSegments);
 							}
-							lineSegments.push(new InlineSegment(range.startColumn, text));
+							lineSegments.push(new InlineSegment(iv.range.startColumn, text));
 						}
 					}
 				}
