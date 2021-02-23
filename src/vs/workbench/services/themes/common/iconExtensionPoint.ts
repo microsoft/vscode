@@ -29,7 +29,7 @@ interface IIconFontExtensionPoint {
 const iconRegistry: IIconRegistry = Registry.as<IIconRegistry>(IconRegistryExtensions.IconContribution);
 
 const iconReferenceSchema = iconRegistry.getIconReferenceSchema();
-const iconIdPattern = `^${CSSIcon.iconNameExpression}$`;
+const iconIdPattern = `^${CSSIcon.iconNameSegment}-(${CSSIcon.iconNameSegment})+`;
 
 const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconExtensionPoint[]>({
 	extensionPoint: 'icons',
@@ -43,7 +43,7 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 					type: 'string',
 					description: nls.localize('contributes.icon.id', 'The identifier of the themable icon'),
 					pattern: iconIdPattern,
-					patternErrorMessage: nls.localize('contributes.icon.id.format', 'Identifiers must only contain letters, digits and minus.'),
+					patternErrorMessage: nls.localize('contributes.icon.id.format', 'Identifiers can only contain letters, digits and minuses and need to consist of at least two segments in the form `component-iconname`.'),
 				},
 				description: {
 					type: 'string',
@@ -139,7 +139,7 @@ export class IconExtensionPoint {
 						return;
 					}
 					if (!iconContribution.id.match(iconIdPattern)) {
-						collector.error(nls.localize('invalid.icons.id.format', "'configuration.icons.id' must only contain letters, digits and minuses"));
+						collector.error(nls.localize('invalid.icons.id.format', "'configuration.icons.id' can only contain letter, digits and minuses and need to consist of at least two segments in the form `component-iconname`."));
 						return;
 					}
 					if (typeof iconContribution.description !== 'string' || iconContribution.id.length === 0) {
