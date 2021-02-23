@@ -27,7 +27,11 @@ steps:
     displayName: Merge distro
 
   - script: |
-      pushd build && yarn && tsc azure-pipelines/common/createAsset.ts && popd
+      pushd build \
+      && yarn \
+      && npm install -g typescript \
+      && tsc azure-pipelines/common/createAsset.ts \
+      && popd
     displayName: Restore modules for just build folder and compile it
 
   - download: current
