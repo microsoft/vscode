@@ -60,6 +60,8 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 						languageIdFromType = 'javascript';
 					} else if (/["']text\/typescript["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'typescript';
+					} else if (/["']text\/html["']/.test(scanner.getTokenText())) {
+						languageIdFromType = 'html';
 					} else {
 						languageIdFromType = undefined;
 					}
