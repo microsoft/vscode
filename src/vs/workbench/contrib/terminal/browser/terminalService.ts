@@ -126,7 +126,7 @@ export class TerminalService implements ITerminalService {
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
-		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(), 'veto.terminal'));
+		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
@@ -300,13 +300,13 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority] = { promise, resolve };
 	}
 
-	private _onBeforeShutdown(): boolean | Promise<boolean> {
+	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
 		}
 
-		if (this.configHelper.config.confirmOnExit) {
+		if (reason !== ShutdownReason.RELOAD && this.configHelper.config.confirmOnExit) {
 			return this._onBeforeShutdownAsync();
 		}
 
