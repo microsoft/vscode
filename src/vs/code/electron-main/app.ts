@@ -933,19 +933,27 @@ export class CodeApplication extends Disposable {
 
 		// Observe shared process for errors
 		const telemetryService = accessor.get(ITelemetryService);
-		this._register(sharedProcess.onDidError(e => {
+		this._register(sharedProcess.onDidError(({ type, details }) => {
 
 			// Logging
-			onUnexpectedError(new Error(e.message));
+			let message: string;
+			if (typeof details === 'string') {
+				message = details;
+			} else {
+				message = `SharedProcess: crashed (detail: ${details.reason})`;
+			}
+			onUnexpectedError(new Error(message));
 
 			// Telemetry
 			type SharedProcessErrorClassification = {
 				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;
+				reason: string | undefined;
 			};
-			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type: e.type });
+			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type, reason: typeof details !== 'string' ? details.reason : undefined });
 		}));
 
 		// Windows: install mutex
