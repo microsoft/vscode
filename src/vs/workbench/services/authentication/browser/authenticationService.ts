@@ -455,9 +455,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const allowed = choice === 0;
 		if (!cancelled) {
 			this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
+			this.removeAccessRequest(providerId, extensionId);
 		}
 
-		this.removeAccessRequest(providerId, extensionId);
 		return allowed;
 	}
 
