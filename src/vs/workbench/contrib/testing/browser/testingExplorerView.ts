@@ -211,7 +211,7 @@ class EmptyTestsWidget extends Disposable {
 export class TestingExplorerViewModel extends Disposable {
 	public tree: ObjectTree<ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
-	public projection!: ITestTreeProjection;
+	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly emptyTestsWidget: EmptyTestsWidget;
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
@@ -305,7 +305,7 @@ export class TestingExplorerViewModel extends Disposable {
 		this._register(filterState.currentDocumentOnly.onDidChange(() => {
 			if (!filterState.currentDocumentOnly.value) {
 				this.filter.filterToUri(undefined);
-			} else if (editorService.activeEditor?.resource && this.projection.hasTestInDocument(editorService.activeEditor.resource)) {
+			} else if (editorService.activeEditor?.resource && this.projection.value?.hasTestInDocument(editorService.activeEditor.resource)) {
 				this.filter.filterToUri(editorService.activeEditor.resource);
 			}
 
@@ -316,7 +316,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this._register(editorService.onDidActiveEditorChange(() => {
 			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
-				if (this.projection.hasTestInDocument(editorService.activeEditor.resource)) {
+				if (this.projection.value?.hasTestInDocument(editorService.activeEditor.resource)) {
 					this.filter.filterToUri(editorService.activeEditor.resource);
 					this.tree.refilter();
 				}
@@ -428,7 +428,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const item = testExtId && this.projection?.getElementByTestId(testExtId);
+		const item = testExtId && this.projection.value?.getElementByTestId(testExtId);
 		if (!item) {
 			this.hasPendingReveal = true;
 			return;
@@ -531,20 +531,20 @@ export class TestingExplorerViewModel extends Disposable {
 	}
 
 	private updatePreferredProjection() {
-		this.projection?.dispose();
+		this.projection.clear();
 		if (!this.listener) {
 			this.tree.setChildren(null, []);
 			return;
 		}
 
 		if (this._viewMode.get() === TestExplorerViewMode.List) {
-			this.projection = this.instantiationService.createInstance(HierarchicalByNameProjection, this.listener);
+			this.projection.value = this.instantiationService.createInstance(HierarchicalByNameProjection, this.listener);
 		} else {
-			this.projection = this.instantiationService.createInstance(HierarchicalByLocationProjection, this.listener);
+			this.projection.value = this.instantiationService.createInstance(HierarchicalByLocationProjection, this.listener);
 		}
 
 		const scheduler = new RunOnceScheduler(() => this.applyProjectionChanges(), 200);
-		this.projection.onUpdate(() => {
+		this.projection.value.onUpdate(() => {
 			if (!scheduler.isScheduled()) {
 				scheduler.schedule();
 			}
@@ -555,7 +555,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 	private applyProjectionChanges() {
 		this.emptyTestsWidget.setVisible(this.shouldShowEmptyPlaceholder());
-		this.projection.applyTo(this.tree);
+		this.projection.value?.applyTo(this.tree);
 
 		if (this.hasPendingReveal) {
 			this.revealByExtId(this.filterState.reveal.value);
@@ -598,7 +598,7 @@ class CodeEditorTracker {
 					return;
 				}
 
-				const test = this.model.projection.getTestAtPosition(uri, evt.position);
+				const test = this.model.projection.value?.getTestAtPosition(uri, evt.position);
 				if (test && test !== this.lastRevealed) {
 					this.model.revealItem(test);
 					this.lastRevealed = test;
