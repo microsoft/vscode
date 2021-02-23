@@ -86,6 +86,7 @@
         "emmet.extensionsPath": {
           "type": [
             "string",
+            "array",
             "null"
           ],
           "default": null,

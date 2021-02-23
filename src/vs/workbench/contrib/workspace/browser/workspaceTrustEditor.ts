@@ -163,8 +163,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private onDidChangeSetting(change: IWorkspaceTrustSettingChangeEvent) {
 		if (this.workspaceTrustEditorModel) {
 			if (isArray(change.value)) {
-				console.log(change.key);
-				console.log(change.value);
 				if (change.key === 'trustedFolders') {
 					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value.map(item => URI.file(item)));
 				}

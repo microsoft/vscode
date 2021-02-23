@@ -107,7 +107,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 	private _inReplay = false;
 
 	constructor(
-		private readonly _terminalId: number,
+		readonly id: number,
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
 		private readonly _activeWorkspaceRootUri: URI | undefined,
 		private readonly _cols: number,
@@ -130,7 +130,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		}
 	}
 
-	public async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
+	public async start(): Promise<ITerminalLaunchError | undefined> {
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {
@@ -149,7 +149,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 				env: this._shellLaunchConfig.env
 			};
 
-			this._logService.trace('Spawning remote agent process', { terminalId: this._terminalId, shellLaunchConfigDto });
+			this._logService.trace('Spawning remote agent process', { terminalId: this.id, shellLaunchConfigDto });
 
 			const result = await this._remoteTerminalChannel.createTerminalProcess(
 				shellLaunchConfigDto,
@@ -181,7 +181,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		}
 
 		this._startBarrier.open();
-		return { persistentTerminalId: this._persistentTerminalId };
+		return undefined;
 	}
 
 	public shutdown(immediate: boolean): void {

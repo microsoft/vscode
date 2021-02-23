@@ -481,7 +481,6 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public resizePanes(relativeSizes: number[]): void {
-		//TODO@meganrogge make sure this doesn't break remote case
 		if (!this._splitPaneContainer) {
 			this._initialRelativeSizes = relativeSizes;
 			return;

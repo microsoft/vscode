@@ -496,6 +496,16 @@
         "category": "Git"
       },
       {
+        "command": "git.timeline.selectForCompare",
+        "title": "%command.timelineSelectForCompare%",
+        "category": "Git"
+      },
+      {
+        "command": "git.timeline.compareWithSelected",
+        "title": "%command.timelineCompareWithSelected%",
+        "category": "Git"
+      },
+      {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git"
@@ -873,6 +883,18 @@
         },
         {
           "command": "git.timeline.copyCommitMessage",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.selectForCompare",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.compareWithSelected",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.compareSelected",
           "when": "false"
         }
       ],
@@ -1349,17 +1371,27 @@
         {
           "command": "git.timeline.openDiff",
           "group": "1_actions",
-          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/"
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.compareWithSelected",
+          "group": "3_compare@1",
+          "when": "config.git.enabled && !git.missing && git.timeline.selectedForCompare && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.selectForCompare",
+          "group": "3_compare@2",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
         },
         {
           "command": "git.timeline.copyCommitId",
           "group": "5_copy@1",
-          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         },
         {
           "command": "git.timeline.copyCommitMessage",
           "group": "5_copy@2",
-          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         }
       ],
       "git.commit": [

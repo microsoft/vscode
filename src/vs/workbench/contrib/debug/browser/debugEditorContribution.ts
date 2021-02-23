@@ -605,7 +605,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 
-			const ctx = { stoppedLocation: new Range(1, 1, stackFrame.range.startLineNumber, stackFrame.range.startColumn) };
+			const ctx = { stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1) };
 			const token = new CancellationTokenSource().token;
 
 			const providers = InlineValuesProviderRegistry.ordered(model).reverse();

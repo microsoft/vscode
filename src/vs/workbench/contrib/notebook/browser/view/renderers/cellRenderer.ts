@@ -52,7 +52,6 @@ import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSepar
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
-import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 
 const $ = DOM.$;
 
@@ -313,7 +312,7 @@ abstract class AbstractCellRenderer {
 	protected commonRenderTemplate(templateData: BaseCellRenderTemplate): void {
 		templateData.disposables.add(DOM.addDisposableListener(templateData.container, DOM.EventType.FOCUS, () => {
 			if (templateData.currentRenderedCell) {
-				this.notebookEditor.selectElement(templateData.currentRenderedCell);
+				this.notebookEditor.focusElement(templateData.currentRenderedCell);
 			}
 		}, true));
 
@@ -540,8 +539,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			if (e.cellIsHoveredChanged) {
 				this.updateForHover(element, templateData);
 			}
-			if (e.foldingStateChanged) {
-				this.updateForFolding(element);
+
+			if (e.metadataChanged) {
+				this.updateCollapsedState(element);
 			}
 		}));
 
@@ -579,8 +579,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.container.classList.toggle('markdown-cell-hover', element.cellIsHovered);
 	}
 
-	private updateForFolding(element: MarkdownCellViewModel) {
-		if (element.foldingState === CellFoldingState.Collapsed) {
+	private updateCollapsedState(element: MarkdownCellViewModel) {
+		if (element.metadata?.inputCollapsed) {
 			this.notebookEditor.hideMarkdownPreview(element);
 		} else {
 			this.notebookEditor.unhideMarkdownPreview(element);

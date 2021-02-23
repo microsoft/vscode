@@ -60,7 +60,7 @@ export class UntitledHintContribution implements IEditorContribution {
 			if (untitledHintMode === 'button') {
 				this.button = new FloatingClickWidget(this.editor, localize('selectALanguage', "Select a Language"), ChangeModeAction.ID, this.keybindingService, this.themeService);
 				this.toDispose.push(this.button.onClick(async () => {
-					await this.commandService.executeCommand(ChangeModeAction.ID);
+					await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'button' });
 					this.editor.focus();
 				}));
 				this.button.render();
@@ -132,7 +132,7 @@ class UntitledHintContentWidget implements IContentWidget {
 
 			this.toDispose.push(dom.addDisposableListener(language, 'click', async e => {
 				e.stopPropagation();
-				await this.commandService.executeCommand(ChangeModeAction.ID);
+				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
 				this.editor.focus();
 			}));
 

@@ -1545,10 +1545,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
-		if (!this.workbenchGrid) {
-			return false;
-		}
-
 		return this.state.editor.hidden;
 	}
 

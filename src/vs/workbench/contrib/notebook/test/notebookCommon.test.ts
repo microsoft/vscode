@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri, cellRangesToIndexes, cellIndexesToRanges } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -353,5 +353,26 @@ suite('CellUri', function () {
 		assert.ok(Boolean(actual));
 		assert.equal(actual?.handle, id);
 		assert.equal(actual?.notebook.toString(), nb.toString());
+	});
+});
+
+
+suite('CellRange', function () {
+
+	test('Cell range to index', function () {
+		assert.deepStrictEqual(cellRangesToIndexes([]), []);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 0 }]), []);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 1 }]), [0]);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }]), [0, 1]);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }, { start: 2, end: 3 }]), [0, 1, 2]);
+		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }, { start: 3, end: 4 }]), [0, 1, 3]);
+	});
+
+	test('Cell index to range', function () {
+		assert.deepStrictEqual(cellIndexesToRanges([]), []);
+		assert.deepStrictEqual(cellIndexesToRanges([0]), [{ start: 0, end: 1 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([0, 1]), [{ start: 0, end: 2 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 2]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 3]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
 	});
 });

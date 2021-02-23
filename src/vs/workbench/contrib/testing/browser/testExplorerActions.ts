@@ -49,6 +49,26 @@ const enum ActionOrder {
 	Refresh,
 }
 
+export class HideOrShowTestAction extends Action {
+	constructor(
+		private readonly testId: string,
+		@ITestService private readonly testService: ITestService,
+	) {
+		super(
+			'testing.hideOrShowTest',
+			testService.excludeTests.value.has(testId) ? localize('unhideTest', 'Unhide Test') : localize('hideTest', 'Hide Test'),
+		);
+	}
+
+	/**
+	 * @override
+	 */
+	public run() {
+		this.testService.setTestExcluded(this.testId);
+		return Promise.resolve();
+	}
+}
+
 export class DebugAction extends Action {
 	constructor(
 		private readonly tests: Iterable<TestIdWithProvider>,

@@ -46,6 +46,10 @@
 	opacity: 0.7;
 }
 
+.test-explorer .test-is-hidden {
+	opacity: 0.8;
+}
+
 .test-explorer .test-explorer-messages {
 	padding: 0 12px 8px;
 }

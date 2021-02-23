@@ -20,7 +20,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -110,6 +110,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
+		this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => {
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+				this.toggleRequestBadge(false);
+			}
+		}));
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKSPACE_TRUST_ENABLED)) {
 				const isEnabled = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED);
@@ -135,10 +141,13 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContribution {
 	private static readonly ID = 'status.workspaceTrust';
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
+	private pendingRequestContextKey = WorkspaceTrustContext.PendingRequest.key;
+	private contextKeys = new Set([this.pendingRequestContextKey]);
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -148,6 +157,13 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 			const entry = this.getStatusbarEntry(this.workspaceTrustService.getWorkspaceTrustState());
 			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, WorkspaceTrustStatusbarItem.ID, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 			this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => this.updateStatusbarEntry(trustState)));
+			this._register(this.contextKeyService.onDidChangeContext((contextChange) => {
+				if (contextChange.affectsSome(this.contextKeys)) {
+					this.updateVisibility(this.workspaceTrustService.getWorkspaceTrustState());
+				}
+			}));
+
+			this.updateVisibility(this.workspaceTrustService.getWorkspaceTrustState());
 		}
 	}
 
@@ -167,9 +183,14 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 		};
 	}
 
-	private updateStatusbarEntry(trustState: WorkspaceTrustStateChangeEvent): void {
-		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(trustState.currentTrustState));
-		this.statusbarService.updateEntryVisibility(WorkspaceTrustStatusbarItem.ID, trustState.currentTrustState !== WorkspaceTrustState.Unknown);
+	private updateVisibility(trustState: WorkspaceTrustState): void {
+		const pendingRequest = this.contextKeyService.getContextKeyValue(this.pendingRequestContextKey) === true;
+		this.statusbarService.updateEntryVisibility(WorkspaceTrustStatusbarItem.ID, trustState === WorkspaceTrustState.Untrusted || pendingRequest);
+	}
+
+	private updateStatusbarEntry(trustStateChange: WorkspaceTrustStateChangeEvent): void {
+		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(trustStateChange.currentTrustState));
+		this.updateVisibility(trustStateChange.currentTrustState);
 	}
 }
 

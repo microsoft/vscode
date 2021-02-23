@@ -279,11 +279,17 @@ export class DebugService implements IDebugService {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
 			if (!options?.parentSession) {
-				await this.editorService.saveAll();
-				const activeEditor = this.editorService.activeEditorPane;
-				if (activeEditor) {
-					// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
-					await this.editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+				const saveBeforeStartConfig: string = this.configurationService.getValue('debug.saveBeforeStart');
+
+				if (saveBeforeStartConfig !== 'none') {
+					await this.editorService.saveAll();
+					if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
+						const activeEditor = this.editorService.activeEditorPane;
+						if (activeEditor) {
+							// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
+							await this.editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+						}
+					}
 				}
 			}
 			await this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined);
