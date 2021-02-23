@@ -72,7 +72,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 
 	readonly input = {
 		name: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
-		label: '',
+		label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
 		icon: forwardPortIcon,
 		tunnelType: TunnelType.Add,
 		remoteHost: '',
@@ -162,6 +162,8 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 		if (row instanceof TunnelItem && !isAdd) {
 			tooltip = `${row.processDescription ? nls.localize('tunnel.iconColumn.running', "Port has running process.") :
 				nls.localize('tunnel.iconColumn.notRunning', "No running process.")} ${row.tooltipPostfix}`;
+		} else if (isAdd) {
+			tooltip = row.label;
 		} else {
 			tooltip = '';
 		}
