@@ -42,7 +42,7 @@ function resolveIndentUnit(options: vscode.TextEditorOptions): string {
 function assertTypeInstructionsEqual(startingLine: string, instructions: string, endingLines: string[]) {
 	return withRandomFileEditor(startingLine + CURSOR, 'js', async (editor, document) => {
 		const indentUnit = resolveIndentUnit(editor.options);
-		await type(document, instructions);
+		await type(document, instructions.replace(/\t/g, indentUnit));
 		assert.strictEqual(document.getText(), joinLines(...endingLines).replace(/\t/g, indentUnit));
 	});
 }
