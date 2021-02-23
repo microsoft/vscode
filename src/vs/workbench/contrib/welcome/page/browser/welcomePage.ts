@@ -127,6 +127,12 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 
 	private async manageDefaultValuesForGettingStartedExperiment() {
+		if (this.configurationService.getValue('workbench.gettingStartedTreatmentOverride')) {
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
+		}
+
 		let someValueReturned = false;
 		type GettingStartedTreatmentData = { value: string; };
 		type GettingStartedTreatmentClassification = { value: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' }; };
