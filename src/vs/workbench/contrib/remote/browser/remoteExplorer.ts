@@ -219,6 +219,7 @@ class OnAutoForwardedAction extends Disposable {
 	private static NOTIFY_COOL_DOWN = 5000; // milliseconds
 	private lastNotification: INotificationHandle | undefined;
 	private lastShownPort: number | undefined;
+	private doActionTunnels: RemoteTunnel[] | undefined;
 
 	constructor(private readonly notificationService: INotificationService,
 		private readonly remoteExplorerService: IRemoteExplorerService,
@@ -233,7 +234,8 @@ class OnAutoForwardedAction extends Disposable {
 	}
 
 	public async doAction(tunnels: RemoteTunnel[]): Promise<void> {
-		const tunnel = await this.portNumberHeuristicDelay(tunnels);
+		this.doActionTunnels = tunnels;
+		const tunnel = await this.portNumberHeuristicDelay();
 		if (tunnel) {
 			switch (this.portsAttributes.getAttributes(tunnel.tunnelRemotePort)?.onAutoForward) {
 				case OnPortForward.OpenBrowser: {
@@ -262,12 +264,12 @@ class OnAutoForwardedAction extends Disposable {
 	}
 
 	private newerTunnel: RemoteTunnel | undefined;
-	private async portNumberHeuristicDelay(tunnels: RemoteTunnel[]): Promise<RemoteTunnel | undefined> {
-		if (tunnels.length === 0) {
+	private async portNumberHeuristicDelay(): Promise<RemoteTunnel | undefined> {
+		if (!this.doActionTunnels || this.doActionTunnels.length === 0) {
 			return;
 		}
-		tunnels = tunnels.sort((a, b) => a.tunnelRemotePort - b.tunnelRemotePort);
-		const firstTunnel = tunnels.shift()!;
+		this.doActionTunnels = this.doActionTunnels.sort((a, b) => a.tunnelRemotePort - b.tunnelRemotePort);
+		const firstTunnel = this.doActionTunnels.shift()!;
 		// Heuristic.
 		if (firstTunnel.tunnelRemotePort % 1000 === 0) {
 			this.newerTunnel = firstTunnel;
@@ -283,8 +285,10 @@ class OnAutoForwardedAction extends Disposable {
 			setTimeout(() => {
 				if (this.newerTunnel) {
 					resolve(undefined);
-				} else {
+				} else if (this.doActionTunnels?.includes(firstTunnel)) {
 					resolve(firstTunnel);
+				} else {
+					resolve(undefined);
 				}
 			}, 3000);
 		});
@@ -556,9 +560,11 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 	private async handleCandidateUpdate(removed: Map<string, { host: string, port: number }>) {
 		const removedPorts: number[] = [];
-		removed.forEach((value, key) => {
+		for (const removedPort of removed) {
+			const key = removedPort[0];
+			const value = removedPort[1];
 			if (this.autoForwarded.has(key)) {
-				this.remoteExplorerService.close(value);
+				await this.remoteExplorerService.close(value);
 				this.autoForwarded.delete(key);
 				removedPorts.push(value.port);
 			} else if (this.notifiedOnly.has(key)) {
@@ -567,7 +573,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 			} else if (this.initialCandidates.has(key)) {
 				this.initialCandidates.delete(key);
 			}
-		});
+		}
 
 		if (removedPorts.length > 0) {
 			await this.notifier.hide(removedPorts);
