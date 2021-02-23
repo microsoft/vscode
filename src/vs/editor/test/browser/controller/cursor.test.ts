@@ -3201,7 +3201,8 @@ suite('Editor Controller - Indentation Rules', () => {
 		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 		indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
-		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
+		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/,
+		decreaseIndentWithPreviousLinePattern: /^((\s*(else|((else )?if|for|while) *\(.*\)))|(\s*(case\s.+:|default\s*:)))\s*\r?\n\s*;$/ // uses a semicolon purely for demonstration purposes
 	});
 
 	test('Enter honors increaseIndentPattern', () => {
@@ -3318,6 +3319,42 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 
 		model.dispose();
+	});
+
+	test('Type honors decreaseIndentWithPreviousLinePattern', () => {
+		usingCursor({
+			text: [
+				'if (true)',
+				'\t'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: { autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 2, 2, false);
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+
+			viewModel.type(';', 'keyboard');
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+			assert.strictEqual(model.getLineContent(2), ';');
+		});
+	});
+
+	test('decreaseIndentWithPreviousLinePattern does takes the previous line into account', () => {
+		usingCursor({
+			text: [
+				'const someFunction = () => {',
+				'\t'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: { autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+			moveTo(editor, viewModel, 2, 2, false);
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
+
+			viewModel.type(';', 'keyboard');
+			assertCursor(viewModel, new Selection(2, 3, 2, 3));
+			assert.strictEqual(model.getLineContent(2), '\t;');
+		});
 	});
 
 	test('Enter honors intential indent', () => {
