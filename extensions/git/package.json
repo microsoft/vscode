@@ -892,10 +892,6 @@
         {
           "command": "git.timeline.compareWithSelected",
           "when": "false"
-        },
-        {
-          "command": "git.timeline.compareSelected",
-          "when": "false"
         }
       ],
       "scm/title": [
