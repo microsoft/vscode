@@ -88,6 +88,8 @@ class FileServiceBasedConfiguration extends Disposable {
 
 	private readonly resourcesContentMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
+	private disposed: boolean = false;
+
 	constructor(
 		name: string,
 		private readonly settingsResources: URI[],
@@ -105,6 +107,7 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._cache = new ConfigurationModel();
 
 		this._register(Event.debounce(Event.filter(this.fileService.onDidFilesChange, e => this.handleFileEvents(e)), () => undefined, 100)(() => this._onDidChange.fire()));
+		this._register(toDisposable(() => this.disposed = true));
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
@@ -114,9 +117,9 @@ class FileServiceBasedConfiguration extends Disposable {
 					let content = (await this.fileService.readFile(resource)).value.toString();
 
 					// If file is empty and had content before then file would have been truncated by node because of parallel writes and reads
-					// To prevent such case, retry reading the file in 20ms intervals until file has content or max 5 trials.
+					// To prevent such case, retry reading the file in 20ms intervals until file has content or max 5 trials or disposed.
 					// https://github.com/microsoft/vscode/issues/115740
-					for (let trial = 1; !content && this.resourcesContentMap.get(resource) && trial < 5; trial++) {
+					for (let trial = 1; !content && this.resourcesContentMap.get(resource) && !this.disposed && trial <= 5; trial++) {
 						await timeout(20);
 						this.logService.debug(`Retry (${trial}): Reading the configuration file`, resource.toString());
 						content = (await this.fileService.readFile(resource)).value.toString();
