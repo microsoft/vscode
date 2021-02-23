@@ -259,7 +259,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 		disposables.push(extHost.registerDefinitionProvider(defaultExtension, defaultSelector, new class implements vscode.DefinitionProvider {
 			provideDefinition(): any {
-				return new types.Location(model.uri, new types.Range(1, 1, 1, 1));
+				return new types.Location(model.uri, new types.Range(2, 1, 1, 1));
 			}
 		}));
 
