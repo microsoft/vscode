@@ -81,7 +81,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	getWorkspaceId(): string {
 		return '';
 	}
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById, id?: string): Promise<void> {
+	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById, id?: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
