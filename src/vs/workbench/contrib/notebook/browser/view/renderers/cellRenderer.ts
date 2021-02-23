@@ -763,6 +763,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {});
 
+		disposables.add(editor);
 		disposables.add(this.editorOptions.onDidChange(newValue => editor.updateOptions(newValue)));
 		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
 
