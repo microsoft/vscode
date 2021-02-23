@@ -79,6 +79,11 @@ export class TunnelViewModel implements ITunnelViewModel {
 		remotePort: 0,
 		processDescription: '',
 		tooltipPostfix: '',
+		iconTooltip: '',
+		portTooltip: '',
+		processTooltip: '',
+		originTooltip: '',
+		privacyTooltip: '',
 		source: ''
 	};
 
@@ -158,14 +163,9 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelType', row.tunnelType],
 				['tunnelCloseable', row.closeable]
 			];
-		let tooltip: string;
+		let tooltip: string = '';
 		if (row instanceof TunnelItem && !isAdd) {
-			tooltip = `${row.processDescription ? nls.localize('tunnel.iconColumn.running', "Port has running process.") :
-				nls.localize('tunnel.iconColumn.notRunning', "No running process.")} ${row.tooltipPostfix}`;
-		} else if (isAdd) {
-			tooltip = row.label;
-		} else {
-			tooltip = '';
+			tooltip = `${row.iconTooltip} ${row.tooltipPostfix}`;
 		}
 		return {
 			label: '', icon, tunnel: row, context, editId: TunnelEditId.None, tooltip
@@ -187,11 +187,9 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelType', row.tunnelType],
 				['tunnelCloseable', row.closeable]
 			];
-		let tooltip: string;
+		let tooltip: string = '';
 		if (row instanceof TunnelItem && !isAdd) {
-			tooltip = `${row.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", row.name) : ''} ${row.tooltipPostfix}`;
-		} else {
-			tooltip = label;
+			tooltip = `${row.portTooltip} ${row.tooltipPostfix}`;
 		}
 		return {
 			label, tunnel: row, context, menuId: MenuId.TunnelPortInline,
@@ -230,7 +228,7 @@ class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const label = row.processDescription ?? '';
-		return { label, tunnel: row, context: [], editId: TunnelEditId.None, tooltip: label };
+		return { label, tunnel: row, context: [], editId: TunnelEditId.None, tooltip: row instanceof TunnelItem ? row.processTooltip : '' };
 	}
 }
 
@@ -247,7 +245,7 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		const label = row.source;
-		const tooltip = `${label}. ${row instanceof TunnelItem ? row.tooltipPostfix : ''}`;
+		const tooltip = `${row instanceof TunnelItem ? row.originTooltip : ''}. ${row instanceof TunnelItem ? row.tooltipPostfix : ''}`;
 		return { label, context, menuId: MenuId.TunnelOriginInline, tunnel: row, editId: TunnelEditId.None, tooltip };
 	}
 }
@@ -265,12 +263,9 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		const label = row.privacy === TunnelPrivacy.Public ? nls.localize('tunnel.privacyPublic', "Public") : nls.localize('tunnel.privacyPrivate', "Private");
-		let tooltip: string;
+		let tooltip: string = '';
 		if (row instanceof TunnelItem) {
-			tooltip = `${row.privacy === TunnelPrivacy.Public ? nls.localize('remote.tunnel.tooltipPublic', "Accessible publicly. ") :
-				nls.localize('remote.tunnel.tooltipPrivate', "Only accessible from this machine. ")} ${row.tooltipPostfix}`;
-		} else {
-			tooltip = label;
+			tooltip = `${row.privacyTooltip} ${row.tooltipPostfix}`;
 		}
 		return { label, context, tunnel: row, icon: row.icon, editId: TunnelEditId.None, tooltip };
 	}
@@ -461,12 +456,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 }
 
-interface ITunnelGroup {
-	tunnelType: TunnelType;
-	label: string;
-	items?: ITunnelItem[] | Promise<ITunnelItem[]>;
-}
-
 class TunnelItem implements ITunnelItem {
 	static createFromTunnel(remoteExplorerService: IRemoteExplorerService, tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
 		return new TunnelItem(type,
@@ -545,6 +534,38 @@ class TunnelItem implements ITunnelItem {
 		}
 
 		return information;
+	}
+
+	get iconTooltip(): string {
+		const isAdd = this.tunnelType === TunnelType.Add;
+		if (!isAdd) {
+			return `${this.processDescription ? nls.localize('tunnel.iconColumn.running', "Port has running process.") :
+				nls.localize('tunnel.iconColumn.notRunning', "No running process.")}`;
+		} else {
+			return this.label;
+		}
+	}
+
+	get portTooltip(): string {
+		const isAdd = this.tunnelType === TunnelType.Add;
+		if (!isAdd) {
+			return `${this.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", this.name) : ''}`;
+		} else {
+			return '';
+		}
+	}
+
+	get processTooltip(): string {
+		return this.processDescription ?? '';
+	}
+
+	get originTooltip(): string {
+		return this.source;
+	}
+
+	get privacyTooltip(): string {
+		return `${this.privacy === TunnelPrivacy.Public ? nls.localize('remote.tunnel.tooltipPublic', "Accessible publicly. ") :
+			nls.localize('remote.tunnel.tooltipPrivate', "Only accessible from this machine. ")}`;
 	}
 }
 
@@ -640,15 +661,15 @@ export class TunnelPanel extends ViewPane {
 			[new StringRenderer(), actionBarRenderer],
 			{
 				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (item: ITunnelItem | ITunnelGroup) => {
+					getKeyboardNavigationLabel: (item: ITunnelItem) => {
 						return item.label;
 					}
 				},
 				multipleSelectionSupport: false,
 				accessibilityProvider: {
-					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
+					getAriaLabel: (item: ITunnelItem) => {
 						if (item instanceof TunnelItem) {
-							return item.tooltipPostfix;
+							return `${item.tooltipPostfix} ${item.portTooltip} ${item.iconTooltip} ${item.processTooltip} ${item.originTooltip} ${this.tunnelService.canMakePublic ? item.privacyTooltip : ''}`;
 						} else {
 							return item.label;
 						}
