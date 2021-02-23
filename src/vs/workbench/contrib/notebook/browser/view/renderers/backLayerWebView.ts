@@ -852,7 +852,11 @@ var requirejs = (function() {
 					}
 				case 'toggleMarkdownPreview':
 					{
-						this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
+						}
 						break;
 					}
 				case 'mouseEnterMarkdownPreview':
