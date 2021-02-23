@@ -2240,21 +2240,20 @@ declare module 'vscode' {
 	 */
 	export interface TestHierarchy<T extends TestItem> {
 		/**
-		 * Root node for tests. The `testRoot` instance must not be replaced over
+		 * Root node for tests. The root instance must not be replaced over
 		 * the lifespan of the TestHierarchy, since you will need to reference it
-		 * in `onDidChangeTest` when a test is added or removed.
+		 * in {@link onDidChangeTest} when a test is added or removed.
 		 */
 		readonly root: T;
 
 		/**
-		 * An event that fires when an existing test under the `root` changes.
-		 * This can be a result of a state change in a test run, a property update,
-		 * or an update to its children. Changes made to tests will not be visible
-		 * to {@link TestObserver} instances until this event is fired.
+		 * An event that fires when an existing test `root` changes.  This can be
+		 * a result of a property update, or an update to its children. Changes
+		 * made to tests will not be visible to {@link TestObserver} instances until this event is fired.
 		 *
-		 * This will signal a change recursively to all children of the given node.
-		 * For example, firing the event with the {@link testRoot} will refresh
-		 * all tests.
+		 * When a change is signalled, VS Code will check for any new or removed
+		 * direct children of the changed ite, For example, firing the event with
+		 * the {@link testRoot} will detect any new children in `root.children`.
 		 */
 		readonly onDidChangeTest: Event<T>;
 
@@ -2267,7 +2266,7 @@ declare module 'vscode' {
 
 		/**
 		 * An event that fires when a test becomes outdated, as a result of
-		 * file changes, for example. In "watch" mode, tests that are outdated
+		 * file changes, for example. In "auto run" mode, tests that are outdated
 		 * will be automatically re-run after a short delay. Firing a test
 		 * with children will mark the entire subtree as outdated.
 		 */
@@ -2281,10 +2280,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Discovers and provides tests. It's expected that the TestProvider will
-	 * ambiently listen to {@link vscode.window.onDidChangeVisibleTextEditors} to
-	 * provide test information about the open files for use in code lenses and
-	 * other file-specific UI.
+	 * Discovers and provides tests.
 	 *
 	 * Additionally, the UI may request it to discover tests for the workspace
 	 * via `addWorkspaceTests`.
@@ -2294,19 +2290,31 @@ declare module 'vscode' {
 	export interface TestProvider<T extends TestItem = TestItem> {
 		/**
 		 * Requests that tests be provided for the given workspace. This will
-		 * generally be called when tests need to be enumerated for the
-		 * workspace.
+		 * be called when tests need to be enumerated for the workspace, such as
+		 * when the user opens the test explorer.
 		 *
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher for the given workspace folder.
+		 *
+		 * @param workspace The workspace in which to observe tests
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
-		 * Requests that tests be provided for the given document. This will
-		 * be called when tests need to be enumerated for a single open file,
-		 * for instance by code lens UI.
+		 * Requests that tests be provided for the given document. This will be
+		 * called when tests need to be enumerated for a single open file, for
+		 * instance by code lens UI.
+		 *
+		 * It's suggested that the provider listen to change events for the text
+		 * document to provide information for test that might not yet be
+		 * saved, if possible.
+		 *
+		 * If the test system is not able to provide or estimate for tests on a
+		 * per-file basis, this method may not be implemented. In that case, VS
+		 * Code will request and use the information from the workspace hierarchy.
+		 *
+		 * @param document The document in which to observe tests
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
@@ -2315,13 +2323,15 @@ declare module 'vscode' {
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run.
 		 * @todo this will eventually need to be able to return a summary report, coverage for example.
+		 * @param options Options for this test run
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		runTests?(options: TestRun<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 
 	/**
-	 * Options given to {@link test.runTests}
+	 * Options given to {@link test.runTests}.
 	 */
 	export interface TestRunOptions<T extends TestItem = TestItem> {
 		/**
@@ -2331,8 +2341,9 @@ declare module 'vscode' {
 		tests: T[];
 
 		/**
-		 * Array of tests the user wishes has marked as excluded in VS Code.
-		 * May be omitted if no exclusions are present.
+		 * An array of tests the user has marked as excluded in VS Code. May be
+		 * omitted if no exclusions were requested. Test providers should not run
+		 * excluded tests or any children of excluded tests.
 		 */
 		exclude?: T[];
 
@@ -2349,6 +2360,12 @@ declare module 'vscode' {
 		/**
 		 * Updates the state of the test in the run. By default, all tests involved
 		 * in the run will have a "queued" state until they are updated by this method.
+		 *
+		 * Calling with method with nodes outside the {@link tests} or in the
+		 * {@link exclude} array will no-op.
+		 *
+		 * @param test The test to update
+		 * @param state The state to assign to the test
 		 */
 		setState(test: T, state: TestState): void;
 	}
@@ -2361,7 +2378,8 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This must not change for the lifetime of a test item.
+		 * (test explorer). This must not change for the
+		 * lifetime of a test instance.
 		 */
 		readonly id: string;
 
@@ -2385,12 +2403,14 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
-		 * Whether this test item can be debugged. Defaults to `false` if not provided.
+		 * Whether this test item can be debugged.
+		 * Defaults to `false` if not provided.
 		 */
 		debuggable?: boolean;
 
 		/**
-		 * VS Code location.
+		 * Location of the test in the workspace. This is used to show line
+		 * decorations and code lenses for the test.
 		 */
 		location?: Location;
 
@@ -2409,6 +2429,9 @@ declare module 'vscode' {
 		: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
 	};
 
+	/**
+	 * Possible states of tests in a test run.
+	 */
 	export enum TestRunState {
 		// Initial state
 		Unset = 0,
@@ -2427,10 +2450,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * TestState includes a test and its run state. This is included in the
-	 * {@link TestItem} and is immutable; it should be replaced in th TestItem
-	 * in order to update it. This allows consumers to quickly and easily check
-	 * for changes via object identity.
+	 * TestState associated with a test in its results.
 	 */
 	export interface TestState {
 		/**
