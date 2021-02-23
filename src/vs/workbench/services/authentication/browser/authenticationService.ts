@@ -122,6 +122,7 @@ export interface IAuthenticationService {
 
 	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>;
 
+	// TODO @RMacfarlane completely remove this property
 	declaredProviders: AuthenticationProviderInformation[];
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
 
@@ -661,11 +662,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 	getLabel(id: string): string {
-		const authProvider = this.declaredProviders.find(provider => provider.id === id);
+		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return authProvider.label;
 		} else {
-			throw new Error(`No authentication provider '${id}' has been declared.`);
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
