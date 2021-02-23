@@ -27,13 +27,8 @@ steps:
     displayName: Merge distro
 
   - script: |
-      pushd build && yarn && yarn compile && popd
+      pushd build && yarn && tsc azure-pipelines/common/createAsset.ts && popd
     displayName: Restore modules for just build folder and compile it
-
-  - script: |
-      set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
 
   - download: current
     artifact: vscode-darwin-$(VSCODE_ARCH)
@@ -42,13 +37,8 @@ steps:
   - script: |
       set -e
       unzip $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      rm $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip
-    displayName: Unzip
-
-  - script: |
-      set -e
-      pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
-    displayName: Archive build
+      mv $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip
+    displayName: Unzip & move
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
@@ -133,11 +123,3 @@ steps:
         "VSCode-$ASSET_ID.zip" \
         ../VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Publish Clients
-
-  - script: |
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-      VSCODE_ARCH="$(VSCODE_ARCH)" \
-      yarn gulp upload-vscode-configuration
-    displayName: Upload configuration (for Bing settings search)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-    continueOnError: true
