@@ -752,14 +752,14 @@ export class TunnelPanel extends ViewPane {
 	}
 
 	private onContextMenu(event: ITableContextMenuEvent<ITunnelItem>, actionRunner: ActionRunner): void {
-		if ((event.element !== null) && !(event.element instanceof TunnelItem)) {
+		if ((event.element !== undefined) && !(event.element instanceof TunnelItem)) {
 			return;
 		}
 
 		event.browserEvent.preventDefault();
 		event.browserEvent.stopPropagation();
 
-		const node: ITunnelItem | null = event.element;
+		const node: ITunnelItem | undefined = event.element;
 
 		if (node) {
 			this.table.setFocus([this.table.indexOf(node)]);
