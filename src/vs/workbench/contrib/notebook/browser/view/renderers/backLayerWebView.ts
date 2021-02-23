@@ -611,7 +611,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding)}</script>
+				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding, 8)}</script>
 				${markdownRenderersSrc}
 			</body>
 		</html>`;

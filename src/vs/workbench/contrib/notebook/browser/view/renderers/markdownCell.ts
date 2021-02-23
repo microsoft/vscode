@@ -133,6 +133,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this._useRenderer = !!(this.configurationSerivce.getValue<string>('notebook.experimental.useMarkdownRenderer'));
 		if (this._useRenderer) {
+			this.templateData.container.classList.toggle('webview-backed-markdown-cell', true);
 			this._renderStrategy = new WebviewMarkdownRenderer(this.notebookEditor, this.viewCell);
 		} else {
 			this._renderStrategy = new BuiltinMarkdownRenderer(this.notebookEditor, this.viewCell, this.templateData.container, this.markdownContainer, this);
