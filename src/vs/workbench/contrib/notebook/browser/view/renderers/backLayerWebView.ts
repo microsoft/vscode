@@ -407,6 +407,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-ms-user-select: text;
 						white-space: initial;
 						padding-left: 0px !important;
+						cursor: grab;
 					}
 
 					/* markdown */
