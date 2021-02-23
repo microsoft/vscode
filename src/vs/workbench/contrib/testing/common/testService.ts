@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
@@ -118,8 +118,7 @@ export interface ITestService {
 	 */
 	clearExcludedTests(): void;
 
-	registerTestController(id: string, controller: MainTestController): void;
-	unregisterTestController(id: string): void;
+	registerTestController(id: string, controller: MainTestController): IDisposable;
 	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
 	cancelTestRun(req: RunTestsRequest): void;
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;

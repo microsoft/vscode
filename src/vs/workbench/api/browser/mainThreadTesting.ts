@@ -30,6 +30,7 @@ const reviveDiff = (diff: TestsDiff) => {
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly testSubscriptions = new Map<string, IDisposable>();
+	private readonly testProviderRegistrations = new Map<string, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -101,17 +102,20 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $registerTestProvider(id: string) {
-		this.testService.registerTestController(id, {
+		const disposable = this.testService.registerTestController(id, {
 			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
 			lookupTest: test => this.proxy.$lookupTest(test),
 		});
+
+		this.testProviderRegistrations.set(id, disposable);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	public $unregisterTestProvider(id: string) {
-		this.testService.unregisterTestController(id);
+		this.testProviderRegistrations.get(id)?.dispose();
+		this.testProviderRegistrations.delete(id);
 	}
 
 	/**
@@ -147,6 +151,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	}
 
 	public dispose() {
+		super.dispose();
 		this.testService.updateRootProviderCount(-1);
 		for (const subscription of this.testSubscriptions.values()) {
 			subscription.dispose();

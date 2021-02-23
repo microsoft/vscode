@@ -7,7 +7,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -284,19 +284,17 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public registerTestController(id: string, controller: MainTestController): void {
+	public registerTestController(id: string, controller: MainTestController): IDisposable {
 		this.testControllers.set(id, controller);
 		this.providerCount.set(this.testControllers.size);
 		this.changeProvidersEmitter.fire({ delta: 1 });
-	}
 
-	/**
-	 * @inheritdoc
-	 */
-	public unregisterTestController(id: string): void {
-		this.testControllers.delete(id);
-		this.providerCount.set(this.testControllers.size);
-		this.changeProvidersEmitter.fire({ delta: -1 });
+		return toDisposable(() => {
+			if (this.testControllers.delete(id)) {
+				this.providerCount.set(this.testControllers.size);
+				this.changeProvidersEmitter.fire({ delta: -1 });
+			}
+		});
 	}
 
 	private findTest(predicate: (t: InternalTestItem) => boolean): InternalTestItem | undefined {
