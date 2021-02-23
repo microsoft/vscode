@@ -285,11 +285,11 @@ export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 5000, // 5 seconds
+	ReconnectionGraceTime = 30000, // 30 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
-	ReconnectionShortGraceTime = 1000, // 1 second
+	ReconnectionShortGraceTime = 6000, // 6 seconds
 }
 
 export const enum FlowControlConstants {
