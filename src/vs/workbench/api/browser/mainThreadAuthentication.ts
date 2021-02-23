@@ -242,7 +242,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 		} else {
 			if (!silent) {
-				const isAllowed = await this.loginPrompt(providerId, extensionName);
+				const providerName = await this.authenticationService.getLabel(providerId);
+				const isAllowed = await this.loginPrompt(providerName, extensionName);
 				if (!isAllowed) {
 					throw new Error('User did not consent to login.');
 				}
