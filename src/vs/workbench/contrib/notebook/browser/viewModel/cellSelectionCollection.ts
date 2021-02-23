@@ -32,7 +32,7 @@ export class NotebookCellSelectionCollection extends Disposable {
 
 	private _primary: ICellRange | null = null;
 
-	private _selections: ICellRange[] = [];
+	private _selections: ICellRange[] = [{ start: 0, end: 0 }];
 
 	get selections(): ICellRange[] {
 		return this._selections;
