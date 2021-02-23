@@ -51,7 +51,7 @@ suite('NotebookEditorKernelManager', () => {
 			async (viewModel) => {
 				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { viewModel, loadKernelPreloads });
 
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, []);
+				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
 			});
 	});
@@ -63,7 +63,7 @@ suite('NotebookEditorKernelManager', () => {
 				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { viewModel, loadKernelPreloads });
 				kernelManager.activeKernel = new TestNotebookKernel({ languages: ['testlang'] });
 
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, []);
+				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
 			});
 	});
@@ -78,7 +78,7 @@ suite('NotebookEditorKernelManager', () => {
 				kernel.executeNotebookCell = executeSpy;
 				kernelManager.activeKernel = kernel;
 
-				const cell = viewModel.createCell(0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, []);
+				const cell = viewModel.createCell(0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				await kernelManager.executeNotebookCell(cell);
 				assert.strictEqual(executeSpy.calledOnce, true);
 			});
