@@ -1213,7 +1213,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const element = this.viewModel.viewCells[focus];
 				if (element) {
 					const itemDOM = this._list.domElementOfElement(element);
-					const editorFocused = !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
+					const editorFocused = element.editState === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
 
 					state.editorFocused = editorFocused;
 					state.focus = focus;
