@@ -11,21 +11,21 @@ suite('NotebookSelection', () => {
 		const selectionCollection = new NotebookCellSelectionCollection();
 		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 0 }]);
 
-		selectionCollection.setState(null, [], true);
+		selectionCollection.setState(null, [], true, 'edit');
 		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 0 }]);
 	});
 
 	test('selections[0] is primary selection', function () {
 		const selectionCollection = new NotebookCellSelectionCollection();
-		selectionCollection.setState(null, [{ start: 0, end: 1 }, { start: 3, end: 5 }], true);
+		selectionCollection.setState(null, [{ start: 0, end: 1 }, { start: 3, end: 5 }], true, 'edit');
 		assert.deepStrictEqual(selectionCollection.selection, { start: 0, end: 1 });
 		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 1 }, { start: 3, end: 5 }]);
 
-		selectionCollection.setState({ start: 0, end: 1 }, [{ start: 3, end: 5 }], true);
+		selectionCollection.setState({ start: 0, end: 1 }, [{ start: 3, end: 5 }], true, 'edit');
 		assert.deepStrictEqual(selectionCollection.selection, { start: 0, end: 1 });
 		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 1 }, { start: 3, end: 5 }]);
 
-		selectionCollection.setState({ start: 0, end: 1 }, [], true);
+		selectionCollection.setState({ start: 0, end: 1 }, [], true, 'edit');
 		assert.deepStrictEqual(selectionCollection.selection, { start: 0, end: 1 });
 		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 1 }]);
 
