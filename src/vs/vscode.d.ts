@@ -12349,17 +12349,17 @@ declare module 'vscode' {
 		/**
 		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been added.
 		*/
-		readonly added: ReadonlyArray<AuthenticationSession>;
+		readonly added?: ReadonlyArray<AuthenticationSession>;
 
 		/**
 		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been removed.
 		 */
-		readonly removed: ReadonlyArray<AuthenticationSession>;
+		readonly removed?: ReadonlyArray<AuthenticationSession>;
 
 		/**
 		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been changed.
 		 */
-		readonly changed: ReadonlyArray<AuthenticationSession>;
+		readonly changed?: ReadonlyArray<AuthenticationSession>;
 	}
 
 	/**
