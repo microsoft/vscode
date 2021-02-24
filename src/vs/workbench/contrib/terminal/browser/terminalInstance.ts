@@ -827,6 +827,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		super.dispose();
 	}
 
+	public detachFromProcess(): void {
+		this._processManager.detachFromProcess();
+	}
+
 	public forceRedraw(): void {
 		if (!this._xterm) {
 			return;

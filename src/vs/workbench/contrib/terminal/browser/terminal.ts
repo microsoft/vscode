@@ -399,6 +399,11 @@ export interface ITerminalInstance {
 	dispose(immediate?: boolean): void;
 
 	/**
+	 * Inform the process that the terminal is now detached.
+	 */
+	detachFromProcess(): void;
+
+	/**
 	 * Forces the terminal to redraw its viewport.
 	 */
 	forceRedraw(): void;
