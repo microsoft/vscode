@@ -376,8 +376,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
@@ -560,7 +560,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
 		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors);
-		elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
+		const cellEditorOptions = new CellEditorOptions(this.configurationService, 'markdown');
+		elementDisposables.add(cellEditorOptions);
+		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
 		elementDisposables.add(markdownCell);
 
 		templateData.statusBar.update(toolbarContext);
@@ -712,13 +714,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		dndController: CellDragAndDropController,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'python', dndController);
+		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'plaintext', dndController);
 	}
 
 	get templateId() {
@@ -764,7 +766,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}, {});
 
 		disposables.add(editor);
-		disposables.add(this.editorOptions.onDidChange(newValue => editor.updateOptions(newValue)));
 		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
 
 		const progressBar = new ProgressBar(editorPart);
@@ -843,7 +844,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 	}
 
-	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, editorOptions: CellEditorOptions): void {
 		if (!this.notebookEditor.hasModel()) {
 			return;
 		}
@@ -868,7 +869,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		if (typeof metadata.breakpointMargin === 'boolean') {
-			this.editorOptions.setGlyphMargin(metadata.breakpointMargin);
+			editorOptions.setGlyphMargin(metadata.breakpointMargin);
 		}
 
 		if (metadata.runState === NotebookCellRunState.Running) {
@@ -953,6 +954,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 
+		const cellEditorOptions = new CellEditorOptions(this.configurationService, element.language);
+		elementDisposables.add(cellEditorOptions);
+		elementDisposables.add(cellEditorOptions.onDidChange(newValue => templateData.editor.updateOptions(newValue)));
+		templateData.editor.updateOptions(cellEditorOptions.value);
+
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
 
 		this.updateForLayout(element, templateData);
@@ -961,11 +967,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 
 		templateData.cellRunState.clear();
-		this.updateForMetadata(element, templateData);
+		this.updateForMetadata(element, templateData, cellEditorOptions);
 		this.updateForHover(element, templateData);
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged) {
-				this.updateForMetadata(element, templateData);
+				this.updateForMetadata(element, templateData, cellEditorOptions);
 			}
 
 			if (e.outputIsHoveredChanged) {
@@ -974,7 +980,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}));
 		elementDisposables.add(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {
 			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
-				this.updateForMetadata(element, templateData);
+				this.updateForMetadata(element, templateData, cellEditorOptions);
 			}
 		}));
 
