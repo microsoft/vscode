@@ -273,7 +273,7 @@ export class ExplorerService implements IExplorerService {
 			if (parents.length) {
 
 				// Add the new file to its parent (Model)
-				parents.forEach(async p => {
+				await Promise.all(parents.map(async p => {
 					// We have to check if the parent is resolved #29177
 					const resolveMetadata = this.sortOrder === `modified`;
 					if (!p.isDirectoryResolved) {
@@ -290,7 +290,7 @@ export class ExplorerService implements IExplorerService {
 					p.addChild(childElement);
 					// Refresh the Parent (View)
 					await this.view?.refresh(false, p);
-				});
+				}));
 			}
 		}
 
@@ -318,12 +318,12 @@ export class ExplorerService implements IExplorerService {
 
 				if (newParents.length && modelElements.length) {
 					// Move in Model
-					modelElements.forEach(async (modelElement, index) => {
+					await Promise.all(modelElements.map(async (modelElement, index) => {
 						const oldParent = modelElement.parent;
 						modelElement.move(newParents[index]);
 						await this.view?.refresh(false, oldParent);
 						await this.view?.refresh(false, newParents[index]);
-					});
+					}));
 				}
 			}
 		}
@@ -331,7 +331,7 @@ export class ExplorerService implements IExplorerService {
 		// Delete
 		else if (e.isOperation(FileOperation.DELETE)) {
 			const modelElements = this.model.findAll(e.resource);
-			modelElements.forEach(async element => {
+			await Promise.all(modelElements.map(async element => {
 				if (element.parent) {
 					const parent = element.parent;
 					// Remove Element from Parent (Model)
@@ -340,7 +340,7 @@ export class ExplorerService implements IExplorerService {
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}
-			});
+			}));
 		}
 	}
 

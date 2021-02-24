@@ -204,7 +204,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			// without causing the animation in the opened editors view to kick in and change scroll position.
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (delegate, group, editor, options): Promise<IEditorPane | null> => {
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (group, delegate): Promise<IEditorPane | undefined> => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {
 					let delay = 0;
@@ -221,9 +221,9 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 				}
 
 				try {
-					return await delegate(group, editor, options);
+					return await delegate();
 				} catch (error) {
-					return null; // ignore
+					return undefined; // ignore
 				} finally {
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);

@@ -89,8 +89,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
-	private _persistentTerminalId: number | undefined;
-	public get persistentTerminalId(): number | undefined { return this._persistentTerminalId; }
+	public get persistentTerminalId(): number | undefined { return this._process?.id; }
+	public get shouldPersist(): boolean { return this._process?.shouldPersist || false; }
 
 	public get hasWrittenData(): boolean {
 		return this._hasWrittenData;
@@ -134,6 +134,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._process = null;
 		}
 		super.dispose();
+	}
+
+	public detachFromProcess(): void {
+		if (this._process?.detach) {
+			this._process.detach();
+		}
 	}
 
 	public async createProcess(
@@ -242,9 +248,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}, LAUNCHING_DURATION);
 
 		const result = await this._process.start();
-		if (result && 'persistentTerminalId' in result) {
-			this._persistentTerminalId = result.persistentTerminalId;
-		} else if (result) {
+		if (result) {
 			// Error
 			return result;
 		}
@@ -321,8 +325,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const env = await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
+		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
+
 		this._terminalInstanceService.onPtyHostUnresponsive(() => this._onPtyDisconnect.fire());
-		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);
+		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}
 
 	public setDimensions(cols: number, rows: number): void {

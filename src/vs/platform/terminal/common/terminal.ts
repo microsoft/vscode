@@ -91,12 +91,14 @@ export interface IPtyService {
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean,
+		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
+	detachFromProcess(id: number): Promise<void>;
 
-	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined>;
+	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
@@ -243,6 +245,18 @@ export interface ITerminalLaunchError {
  * child_process.ChildProcess node.js interface.
  */
 export interface ITerminalChildProcess {
+	/**
+	 * A unique identifier for the terminal process. Note that the uniqueness only applies to a
+	 * given pty service connection, IDs will be duplicated for remote and local terminals for
+	 * example. The ID will be 0 if it does not support reconnection.
+	 */
+	id: number;
+
+	/**
+	 * Whether the process should be persisted across reloads.
+	 */
+	shouldPersist?: boolean;
+
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;
@@ -256,7 +270,12 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined>;
+	start(): Promise<ITerminalLaunchError | undefined>;
+
+	/**
+	 * Detach the process from the UI and await reconnect.
+	 */
+	detach?(): void;
 
 	/**
 	 * Shutdown the terminal process.
@@ -285,11 +304,11 @@ export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 5000, // 5 seconds
+	ReconnectionGraceTime = 30000, // 30 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
-	ReconnectionShortGraceTime = 1000, // 1 second
+	ReconnectionShortGraceTime = 6000, // 6 seconds
 }
 
 export const enum FlowControlConstants {

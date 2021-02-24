@@ -60,8 +60,9 @@ import { assertNoRpc } from '../utils';
 		test('echo works in the default shell', async () => {
 			const terminal = await new Promise<Terminal>(r => {
 				disposables.push(window.onDidOpenTerminal(t => {
-					strictEqual(terminal, t);
-					r(terminal);
+					if (t === terminal) {
+						r(terminal);
+					}
 				}));
 				// Use a single character to avoid winpty/conpty issues with injected sequences
 				const terminal = window.createTerminal({
@@ -73,10 +74,11 @@ import { assertNoRpc } from '../utils';
 			let data = '';
 			await new Promise<void>(r => {
 				disposables.push(window.onDidWriteTerminalData(e => {
-					strictEqual(terminal, e.terminal);
-					data += e.data;
-					if (data.indexOf('`') !== 0) {
-						r();
+					if (e.terminal === terminal) {
+						data += e.data;
+						if (data.indexOf('`') !== 0) {
+							r();
+						}
 					}
 				}));
 				// Print an environment variable value so the echo statement doesn't get matched

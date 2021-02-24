@@ -112,9 +112,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return new WindowsShellHelper(shellProcessId, xterm);
 	}
 
-	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): Promise<ITerminalChildProcess> {
-		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty, this._getWorkspaceId(), this._getWorkspaceName());
-		return this._instantiationService.createInstance(LocalPty, id);
+	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
+		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
+		return this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 	}
 
 	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
@@ -123,8 +123,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			return this._instantiationService.createInstance(LocalPty, id);
 		} catch (e) {
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
-			return undefined;
 		}
+			return undefined;
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

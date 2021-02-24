@@ -13,5 +13,5 @@ export function formatRule(c: Codicon) {
 	while (def instanceof Codicon) {
 		def = def.definition;
 	}
-	return `.codicon-${c.id}:before { content: '${def.character}'; }`;
+	return `.codicon-${c.id}:before { content: '${def.fontCharacter}'; }`;
 }

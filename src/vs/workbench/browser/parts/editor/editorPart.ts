@@ -93,11 +93,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidActiveGroupChange = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
+	private readonly _onDidChangeActiveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
 
-	private readonly _onDidGroupIndexChange = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidGroupIndexChange = this._onDidGroupIndexChange.event;
+	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeGroupIndex = this._onDidChangeGroupIndex.event;
 
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
@@ -113,11 +113,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 
-	private readonly _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange = Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event);
+	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = Event.any(this.onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
 
-	private readonly _onDidEditorPartOptionsChange = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
-	readonly onDidEditorPartOptionsChange = this._onDidEditorPartOptionsChange.event;
+	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
+	readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
 
 	//#endregion
 
@@ -177,7 +177,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this._partOptions = newPartOptions;
 
-		this._onDidEditorPartOptionsChange.fire({ oldPartOptions, newPartOptions });
+		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions });
 	}
 
 	//#region IEditorGroupsService
@@ -550,7 +550,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 					this.updateContainer();
 					break;
 				case GroupChangeKind.GROUP_INDEX:
-					this._onDidGroupIndexChange.fire(groupView);
+					this._onDidChangeGroupIndex.fire(groupView);
 					break;
 			}
 		}));
@@ -588,7 +588,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doRestoreGroup(group);
 
 		// Event
-		this._onDidActiveGroupChange.fire(group);
+		this._onDidChangeActiveGroup.fire(group);
 	}
 
 	private doRestoreGroup(group: IEditorGroupView): void {
@@ -1046,7 +1046,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.gridWidget.boundarySashes = boundarySashes;
 		this.gridWidgetView.gridWidget = gridWidget;
 
-		this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
+		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 
 		this.onDidSetGridWidget.fire(undefined);
 	}

@@ -1,5 +1,5 @@
 {
-  "name": "markdown-notebook-math",
+  "name": "notebook-markdown-extensions",
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
@@ -18,8 +18,13 @@
     "notebookMarkdownRenderer": [
       {
         "id": "markdownItRenderer-katex",
-        "displayName": "Markdown it renderer",
-        "entrypoint": "./notebook-out/extension.js"
+        "displayName": "Markdown it katex renderer",
+        "entrypoint": "./notebook-out/katex.js"
+      },
+      {
+        "id": "markdownItRenderer-emoji",
+        "displayName": "Markdown it emoji renderer",
+        "entrypoint": "./notebook-out/emoji.js"
       }
     ]
   },
@@ -29,7 +34,8 @@
     "build-notebook": "npx webpack-cli --config webpack.notebook.js --mode production"
   },
   "dependencies": {
-    "@iktakahiro/markdown-it-katex": "^4.0.1"
+    "@iktakahiro/markdown-it-katex": "^4.0.1",
+    "markdown-it-emoji": "^2.0.0"
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",

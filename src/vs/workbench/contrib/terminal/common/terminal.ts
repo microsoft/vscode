@@ -247,6 +247,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	readonly persistentTerminalId: number | undefined;
+	readonly shouldPersist: boolean;
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
 
@@ -261,6 +262,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
+	detachFromProcess(): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;

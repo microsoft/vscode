@@ -407,6 +407,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-ms-user-select: text;
 						white-space: initial;
 						padding-left: 0px !important;
+						cursor: grab;
 					}
 
 					/* markdown */
@@ -610,7 +611,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding)}</script>
+				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding, 8)}</script>
 				${markdownRenderersSrc}
 			</body>
 		</html>`;
@@ -852,7 +853,11 @@ var requirejs = (function() {
 					}
 				case 'toggleMarkdownPreview':
 					{
-						this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
+						}
 						break;
 					}
 				case 'mouseEnterMarkdownPreview':

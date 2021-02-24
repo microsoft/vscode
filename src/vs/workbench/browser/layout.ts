@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -99,26 +99,29 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#region Events
 
-	private readonly _onZenModeChange = this._register(new Emitter<boolean>());
-	readonly onZenModeChange = this._onZenModeChange.event;
+	private readonly _onDidChangeZenMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeZenMode = this._onDidChangeZenMode.event;
 
-	private readonly _onFullscreenChange = this._register(new Emitter<boolean>());
-	readonly onFullscreenChange = this._onFullscreenChange.event;
+	private readonly _onDidChangeFullscreen = this._register(new Emitter<boolean>());
+	readonly onDidChangeFullscreen = this._onDidChangeFullscreen.event;
 
-	private readonly _onCenteredLayoutChange = this._register(new Emitter<boolean>());
-	readonly onCenteredLayoutChange = this._onCenteredLayoutChange.event;
+	private readonly _onDidChangeCenteredLayout = this._register(new Emitter<boolean>());
+	readonly onDidChangeCenteredLayout = this._onDidChangeCenteredLayout.event;
 
-	private readonly _onMaximizeChange = this._register(new Emitter<boolean>());
-	readonly onMaximizeChange = this._onMaximizeChange.event;
+	private readonly _onDidChangeWindowMaximized = this._register(new Emitter<boolean>());
+	readonly onDidChangeWindowMaximized = this._onDidChangeWindowMaximized.event;
 
-	private readonly _onPanelPositionChange = this._register(new Emitter<string>());
-	readonly onPanelPositionChange = this._onPanelPositionChange.event;
+	private readonly _onDidChangePanelPosition = this._register(new Emitter<string>());
+	readonly onDidChangePanelPosition = this._onDidChangePanelPosition.event;
 
-	private readonly _onPartVisibilityChange = this._register(new Emitter<void>());
-	readonly onPartVisibilityChange = this._onPartVisibilityChange.event;
+	private readonly _onDidChangePartVisibility = this._register(new Emitter<void>());
+	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
 
-	private readonly _onLayout = this._register(new Emitter<IDimension>());
-	readonly onLayout = this._onLayout.event;
+	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
+
+	private readonly _onDidLayout = this._register(new Emitter<IDimension>());
+	readonly onDidLayout = this._onDidLayout.event;
 
 	//#endregion
 
@@ -365,7 +368,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.layout(); // handle title bar when fullscreen changes
 		}
 
-		this._onFullscreenChange.fire(this.state.fullscreen);
+		this._onDidChangeFullscreen.fire(this.state.fullscreen);
 	}
 
 	private onWindowFocusChanged(hasFocus: boolean): void {
@@ -573,7 +576,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		if (!storageService.isNew(StorageScope.WORKSPACE)) {
+		if (!defaultLayout.force && !storageService.isNew(StorageScope.WORKSPACE)) {
 			return;
 		}
 
@@ -633,7 +636,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && this.storageService.isNew(StorageScope.WORKSPACE)) {
+		if (defaultLayout?.editors?.length && (defaultLayout.force || this.storageService.isNew(StorageScope.WORKSPACE))) {
 			this._openedDefaultEditors = true;
 
 			return {
@@ -813,6 +816,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		return part;
+	}
+
+	registerNotifications(delegate: { onDidChangeNotificationsVisibility: Event<boolean> }): void {
+		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
 	}
 
 	isRestored(): boolean {
@@ -1090,7 +1097,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Event
-		this._onZenModeChange.fire(this.state.zenMode.active);
+		this._onDidChangeZenMode.fire(this.state.zenMode.active);
 
 		// State
 		if (this.state.zenMode.active) {
@@ -1169,7 +1176,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				} else if (part === editorPart) {
 					this.setEditorHidden(!visible, true);
 				}
-				this._onPartVisibilityChange.fire();
+				this._onDidChangePartVisibility.fire();
 			}));
 		}
 
@@ -1211,7 +1218,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
 
 			// Emit as event
-			this._onLayout.fire(this._dimension);
+			this._onDidLayout.fire(this._dimension);
 		}
 	}
 
@@ -1249,7 +1256,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		this._onCenteredLayoutChange.fire(this.state.editor.centered);
+		this._onDidChangeCenteredLayout.fire(this.state.editor.centered);
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
@@ -1636,7 +1643,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Reset sidebar to original size before shifting the panel
 		this.workbenchGrid.resizeView(this.sideBarPartView, sideBarSize);
 
-		this._onPanelPositionChange.fire(newPositionValue);
+		this._onDidChangePanelPosition.fire(newPositionValue);
 	}
 
 	isWindowMaximized() {
@@ -1651,7 +1658,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.maximized = maximized;
 
 		this.updateWindowBorder();
-		this._onMaximizeChange.fire(maximized);
+		this._onDidChangeWindowMaximized.fire(maximized);
 	}
 
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined {

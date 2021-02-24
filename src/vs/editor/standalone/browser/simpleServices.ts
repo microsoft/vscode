@@ -766,7 +766,7 @@ export class SimpleUriLabelService implements ILabelService {
 export class SimpleLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
 
-	public onLayout = Event.None;
+	public onDidLayout = Event.None;
 
 	private _dimension?: dom.IDimension;
 	get dimension(): dom.IDimension {

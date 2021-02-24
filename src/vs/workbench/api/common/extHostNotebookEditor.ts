@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, ICellRange, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
 
@@ -85,9 +85,8 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 }
 
 export class ExtHostNotebookEditor {
-
-	//TODO@rebornix noop setter?
-	selection?: vscode.NotebookCell;
+	private _selection?: vscode.NotebookCell;
+	private _selections: vscode.NotebookCellRange[] = [];
 
 	private _visibleRanges: extHostTypes.NotebookCellRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
@@ -123,7 +122,10 @@ export class ExtHostNotebookEditor {
 					return that.notebookData.notebookDocument;
 				},
 				get selection() {
-					return that.selection;
+					return that._selection;
+				},
+				get selections() {
+					return that._selections;
 				},
 				get visibleRanges() {
 					return that._visibleRanges;
@@ -171,6 +173,12 @@ export class ExtHostNotebookEditor {
 
 	_acceptVisibleRanges(value: extHostTypes.NotebookCellRange[]): void {
 		this._visibleRanges = value;
+	}
+
+	_acceptSelections(selections: ICellRange[]): void {
+		const primarySelection = selections[0];
+		this._selection = primarySelection ? this.notebookData.getCellFromIndex(primarySelection.start)?.cell : undefined;
+		this._selections = selections.map(val => new extHostTypes.NotebookCellRange(val.start, val.end));
 	}
 
 	get active(): boolean {

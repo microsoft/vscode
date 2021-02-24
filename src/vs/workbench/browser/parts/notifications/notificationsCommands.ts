@@ -18,7 +18,7 @@ export const HIDE_NOTIFICATIONS_CENTER = 'notifications.hideList';
 const TOGGLE_NOTIFICATIONS_CENTER = 'notifications.toggleList';
 
 // Toasts
-const HIDE_NOTIFICATION_TOAST = 'notifications.hideToasts';
+export const HIDE_NOTIFICATION_TOAST = 'notifications.hideToasts';
 const FOCUS_NOTIFICATION_TOAST = 'notifications.focusToasts';
 const FOCUS_NEXT_NOTIFICATION_TOAST = 'notifications.focusNextToast';
 const FOCUS_PREVIOUS_NOTIFICATION_TOAST = 'notifications.focusPreviousToast';

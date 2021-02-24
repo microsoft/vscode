@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -47,6 +46,26 @@ const enum ActionOrder {
 	DisplayMode,
 	Sort,
 	Refresh,
+}
+
+export class HideOrShowTestAction extends Action {
+	constructor(
+		private readonly testId: string,
+		@ITestService private readonly testService: ITestService,
+	) {
+		super(
+			'testing.hideOrShowTest',
+			testService.excludeTests.value.has(testId) ? localize('unhideTest', 'Unhide Test') : localize('hideTest', 'Hide Test'),
+		);
+	}
+
+	/**
+	 * @override
+	 */
+	public run() {
+		this.testService.setTestExcluded(this.testId);
+		return Promise.resolve();
+	}
 }
 
 export class DebugAction extends Action {
@@ -499,19 +518,22 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 	}
 }
 
-export class ToggleAutoRun extends Action2 {
-	constructor() {
+abstract class ToggleAutoRun extends Action2 {
+	constructor(title: string, whenToggleIs: boolean) {
 		super({
 			id: 'testing.toggleautoRun',
-			title: localize('testing.toggleautoRun', "Toggle Auto Run"),
+			title,
 			f1: true,
-			toggled: TestingContextKeys.autoRun.isEqualTo(true),
 			icon: icons.testingAutorunIcon,
+			toggled: whenToggleIs === true ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.AutoRun,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyAndExpr.create([
+					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+					TestingContextKeys.autoRun.isEqualTo(whenToggleIs)
+				])
 			}
 		});
 	}
@@ -523,6 +545,19 @@ export class ToggleAutoRun extends Action2 {
 		accessor.get(ITestingAutoRun).toggle();
 	}
 }
+
+export class AutoRunOnAction extends ToggleAutoRun {
+	constructor() {
+		super(localize('testing.turnOnAutoRun', "Turn On Auto Run"), false);
+	}
+}
+
+export class AutoRunOffAction extends ToggleAutoRun {
+	constructor() {
+		super(localize('testing.turnOffAutoRun', "Turn Off Auto Run"), true);
+	}
+}
+
 
 abstract class RunOrDebugAtCursor extends Action2 {
 	/**

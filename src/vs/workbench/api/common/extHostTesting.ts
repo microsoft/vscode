@@ -20,7 +20,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { TestItem, TestResults, TestState } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
+import { OwnedTestCollection, SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
 import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
@@ -89,14 +89,15 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Implements vscode.test.runTests
 	 */
 	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>, token = CancellationToken.None) {
-		await this.proxy.$runTests({
-			tests: req.tests
-				// Find workspace items first, then owned tests, then document tests.
-				// If a test instance exists in both the workspace and document, prefer
-				// the workspace because it's less ephemeral.
+		const testListToProviders = (tests: ReadonlyArray<vscode.TestItem>) =>
+			tests
 				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
-				.map(t => ({ providerId: t.providerId, testId: t.item.extId })),
+				.map(t => ({ providerId: t.providerId, testId: t.item.extId }));
+
+		await this.proxy.$runTests({
+			exclude: req.exclude ? testListToProviders(req.exclude).map(t => t.testId) : undefined,
+			tests: testListToProviders(req.tests),
 			debug: req.debug
 		}, token);
 	}
@@ -242,23 +243,36 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const tests = req.ids.map(id => this.ownedTests.getTestById(id)?.actual)
+		const includeTests = req.ids.map(id => this.ownedTests.getTestById(id)?.[1]).filter(isDefined);
+		const excludeTests = req.excludeExtIds
+			.map(id => this.ownedTests.getTestById(id))
 			.filter(isDefined)
-			// Only send the actual TestItem's to the user to run.
-			.map(t => t instanceof TestItemFilteredWrapper ? t.actual : t);
-		if (!tests.length) {
+			.filter(([tree, exclude]) =>
+				includeTests.some(include => tree.comparePositions(include, exclude) === TestPosition.IsChild),
+			);
+
+		if (!includeTests.length) {
 			return;
 		}
 
 		try {
 			await provider.runTests({
 				setState: (test, state) => {
-					const internal = this.getInternalTestForReference(test);
-					if (internal) {
-						this.flushCollectionDiffs();
-						this.proxy.$updateTestStateInRun(req.runId, internal.item.extId, TestState.from(state));
+					// for test providers that don't support excluding natively,
+					// make sure not to report excluded result otherwise summaries will be off.
+					for (const [tree, exclude] of excludeTests) {
+						const e = tree.comparePositions(exclude, test.id);
+						if (e === TestPosition.IsChild || e === TestPosition.IsSame) {
+							return;
+						}
 					}
-				}, tests, debug: req.debug
+
+					this.flushCollectionDiffs();
+					this.proxy.$updateTestStateInRun(req.runId, test.id, TestState.from(state));
+				},
+				tests: includeTests.map(t => TestItemFilteredWrapper.unwrap(t.actual)),
+				exclude: excludeTests.map(([, t]) => TestItemFilteredWrapper.unwrap(t.actual)),
+				debug: req.debug,
 			}, cancellation);
 
 			for (const { collection } of this.testSubscriptions.values()) {
@@ -278,7 +292,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return Promise.resolve(undefined);
 		}
 
-		const { actual, previousChildren, previousEquals, ...item } = owned;
+		const { actual, previousChildren, previousEquals, ...item } = owned[1];
 		return Promise.resolve(item);
 	}
 
@@ -313,6 +327,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		if (!workspaceHierarchy) {
 			return;
 		}
+
+		const onDidInvalidateTest = new Emitter<vscode.TestItem>();
+		workspaceHierarchy.onDidInvalidateTest?.(node => {
+			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
+			if (wrapper.hasNodeMatchingFilter) {
+				onDidInvalidateTest.fire(wrapper);
+			}
+		});
 
 		const onDidChangeTest = new Emitter<vscode.TestItem>();
 		workspaceHierarchy.onDidChangeTest(node => {
@@ -356,6 +378,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				onDidChangeTest.dispose();
 				TestItemFilteredWrapper.removeFilter(document);
 			},
+			discoveredInitialTests: workspaceHierarchy.discoveredInitialTests,
+			onDidInvalidateTest: onDidInvalidateTest.event,
 			onDidChangeTest: onDidChangeTest.event
 		};
 	}
@@ -387,6 +411,10 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		const w = new TestItemFilteredWrapper(item, filterDocument, parent);
 		innerMap.set(item, w);
 		return w;
+	}
+
+	public static unwrap(item: vscode.TestItem) {
+		return item instanceof TestItemFilteredWrapper ? item.actual : item;
 	}
 
 	public get id() {

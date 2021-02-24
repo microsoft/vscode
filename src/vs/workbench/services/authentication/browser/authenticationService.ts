@@ -111,9 +111,9 @@ export interface IAuthenticationService {
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined;
 	updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void>;
 	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
-	selectSession(providerId: string, extensionId: string, extensionName: string, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, possibleSessions: readonly AuthenticationSession[]): void;
-	completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string): Promise<void>
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
+	completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string, scopes: string[]): Promise<void>
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
 	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
 
@@ -122,6 +122,7 @@ export interface IAuthenticationService {
 
 	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>;
 
+	// TODO @RMacfarlane completely remove this property
 	declaredProviders: AuthenticationProviderInformation[];
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
 
@@ -455,13 +456,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const allowed = choice === 0;
 		if (!cancelled) {
 			this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, allowed);
+			this.removeAccessRequest(providerId, extensionId);
 		}
 
-		this.removeAccessRequest(providerId, extensionId);
 		return allowed;
 	}
 
-	async selectSession(providerId: string, extensionId: string, extensionName: string, availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
+	async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
 		return new Promise((resolve, reject) => {
 			// This function should be used only when there are sessions to disambiguate.
 			if (!availableSessions.length) {
@@ -496,7 +497,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
 
 			quickPick.onDidAccept(async _ => {
-				const session = quickPick.selectedItems[0].session ?? await this.createSession(providerId, availableSessions[0].scopes as string[]);
+				const session = quickPick.selectedItems[0].session ?? await this.createSession(providerId, scopes);
 				const accountName = session.account.label;
 
 				this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
@@ -520,7 +521,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		});
 	}
 
-	async completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string): Promise<void> {
+	async completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string, scopes: string[]): Promise<void> {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
 		const existingRequest = providerRequests[extensionId];
 		if (!existingRequest) {
@@ -533,7 +534,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		let session: AuthenticationSession | undefined;
 		if (supportsMultipleAccounts) {
 			try {
-				session = await this.selectSession(providerId, extensionId, extensionName, possibleSessions);
+				session = await this.selectSession(providerId, extensionId, extensionName, scopes, possibleSessions);
 			} catch (_) {
 				// ignore cancel
 			}
@@ -551,7 +552,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, possibleSessions: AuthenticationSession[]): void {
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: AuthenticationSession[]): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
 		const hasExistingRequest = providerRequests[extensionId];
 		if (hasExistingRequest) {
@@ -574,7 +575,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			id: `${providerId}${extensionId}Access`,
 			handler: async (accessor) => {
 				const authenticationService = accessor.get(IAuthenticationService);
-				authenticationService.completeSessionAccessRequest(providerId, extensionId, extensionName);
+				authenticationService.completeSessionAccessRequest(providerId, extensionId, extensionName, scopes);
 			}
 		});
 
@@ -661,11 +662,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 	getLabel(id: string): string {
-		const authProvider = this.declaredProviders.find(provider => provider.id === id);
+		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return authProvider.label;
 		} else {
-			throw new Error(`No authentication provider '${id}' has been declared.`);
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 

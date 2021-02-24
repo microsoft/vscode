@@ -101,19 +101,6 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return this.doResolveWorkspace(uri, contents);
 	}
 
-	/* TODO@bpasero remove me */ _test_resolveLocalWorkspaceSync(uri: URI): IResolvedWorkspace {
-		if (!this.isWorkspacePath(uri)) {
-			throw new Error('!this.isWorkspacePath(uri)'); // does not look like a valid workspace config file
-		}
-
-		if (uri.scheme !== Schemas.file) {
-			throw new Error('uri.scheme !== Schemas.file');
-		}
-
-		return this._test_doResolveWorkspace(uri, readFileSync(uri.fsPath, 'utf8'));
-	}
-
-
 	private isWorkspacePath(uri: URI): boolean {
 		return isUntitledWorkspace(uri, this.environmentMainService) || hasWorkspaceFileExtension(uri);
 	}
@@ -135,18 +122,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return null;
 	}
 
-	/* TODO@bpasero remove me */ _test_doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace {
-		const workspace = this.doParseStoredWorkspace(path, contents);
-		const workspaceIdentifier = getWorkspaceIdentifier(path);
-		return {
-			id: workspaceIdentifier.id,
-			configPath: workspaceIdentifier.configPath,
-			folders: toWorkspaceFolders(workspace.folders, workspaceIdentifier.configPath, extUriBiasedIgnorePathCase),
-			remoteAuthority: workspace.remoteAuthority
-		};
-	}
-
-	/* TODO@bpasero make private again */ doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
+	private doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 		// Parse workspace file
 		const storedWorkspace: IStoredWorkspace = parse(contents); // use fault tolerant parser
@@ -264,21 +240,6 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 			if (error.code !== 'ENOENT') {
 				this.logService.warn(`Unable to read folders in ${this.untitledWorkspacesHome} (${error}).`);
 			}
-		}
-
-		return untitledWorkspaces;
-	}
-
-	/* TODO@bpasero remove me */_test_getUntitledWorkspacesSync(expected: number): IUntitledWorkspaceInfo[] {
-		const untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
-		const untitledWorkspacePaths = readdirSync(this.untitledWorkspacesHome.fsPath).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
-		if (untitledWorkspacePaths.length !== expected) {
-			throw new Error(`Missing workspaces, expected ${expected} but found ${untitledWorkspacePaths.length}`);
-		}
-		for (const untitledWorkspacePath of untitledWorkspacePaths) {
-			const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
-			const resolvedWorkspace = this._test_resolveLocalWorkspaceSync(untitledWorkspacePath);
-			untitledWorkspaces.push({ workspace, remoteAuthority: resolvedWorkspace.remoteAuthority });
 		}
 
 		return untitledWorkspaces;

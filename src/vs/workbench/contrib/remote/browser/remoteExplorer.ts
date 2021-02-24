@@ -6,7 +6,7 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PortsAttributes, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PortsAttributes, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -31,6 +31,7 @@ import { portsViewIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { Event } from 'vs/base/common/event';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -198,10 +199,12 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		}
 
 		remoteAgentService.getEnvironment().then(environment => {
-			if (environment?.os === OperatingSystem.Windows) {
+			if (environment?.os !== OperatingSystem.Linux) {
+				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+					.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
 					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, false));
-			} else if (environment?.os === OperatingSystem.Linux) {
+			} else {
 				const useProc = (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 				if (useProc) {
 					this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService,
@@ -219,6 +222,7 @@ class OnAutoForwardedAction extends Disposable {
 	private static NOTIFY_COOL_DOWN = 5000; // milliseconds
 	private lastNotification: INotificationHandle | undefined;
 	private lastShownPort: number | undefined;
+	private doActionTunnels: RemoteTunnel[] | undefined;
 
 	constructor(private readonly notificationService: INotificationService,
 		private readonly remoteExplorerService: IRemoteExplorerService,
@@ -233,7 +237,8 @@ class OnAutoForwardedAction extends Disposable {
 	}
 
 	public async doAction(tunnels: RemoteTunnel[]): Promise<void> {
-		const tunnel = await this.portNumberHeuristicDelay(tunnels);
+		this.doActionTunnels = tunnels;
+		const tunnel = await this.portNumberHeuristicDelay();
 		if (tunnel) {
 			switch (this.portsAttributes.getAttributes(tunnel.tunnelRemotePort)?.onAutoForward) {
 				case OnPortForward.OpenBrowser: {
@@ -255,19 +260,22 @@ class OnAutoForwardedAction extends Disposable {
 		}
 	}
 
-	public async hide(removedPorts: number[]) {
+	public hide(removedPorts: number[]) {
+		if (this.doActionTunnels) {
+			this.doActionTunnels = this.doActionTunnels.filter(value => !removedPorts.includes(value.tunnelRemotePort));
+		}
 		if (this.lastShownPort && removedPorts.indexOf(this.lastShownPort) >= 0) {
 			this.lastNotification?.close();
 		}
 	}
 
 	private newerTunnel: RemoteTunnel | undefined;
-	private async portNumberHeuristicDelay(tunnels: RemoteTunnel[]): Promise<RemoteTunnel | undefined> {
-		if (tunnels.length === 0) {
+	private async portNumberHeuristicDelay(): Promise<RemoteTunnel | undefined> {
+		if (!this.doActionTunnels || this.doActionTunnels.length === 0) {
 			return;
 		}
-		tunnels = tunnels.sort((a, b) => a.tunnelRemotePort - b.tunnelRemotePort);
-		const firstTunnel = tunnels.shift()!;
+		this.doActionTunnels = this.doActionTunnels.sort((a, b) => a.tunnelRemotePort - b.tunnelRemotePort);
+		const firstTunnel = this.doActionTunnels.shift()!;
 		// Heuristic.
 		if (firstTunnel.tunnelRemotePort % 1000 === 0) {
 			this.newerTunnel = firstTunnel;
@@ -283,8 +291,10 @@ class OnAutoForwardedAction extends Disposable {
 			setTimeout(() => {
 				if (this.newerTunnel) {
 					resolve(undefined);
-				} else {
+				} else if (this.doActionTunnels?.includes(firstTunnel)) {
 					resolve(firstTunnel);
+				} else {
+					resolve(undefined);
 				}
 			}, 3000);
 		});
@@ -556,9 +566,11 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 	private async handleCandidateUpdate(removed: Map<string, { host: string, port: number }>) {
 		const removedPorts: number[] = [];
-		removed.forEach((value, key) => {
+		for (const removedPort of removed) {
+			const key = removedPort[0];
+			const value = removedPort[1];
 			if (this.autoForwarded.has(key)) {
-				this.remoteExplorerService.close(value);
+				await this.remoteExplorerService.close(value);
 				this.autoForwarded.delete(key);
 				removedPorts.push(value.port);
 			} else if (this.notifiedOnly.has(key)) {
@@ -567,7 +579,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 			} else if (this.initialCandidates.has(key)) {
 				this.initialCandidates.delete(key);
 			}
-		});
+		}
 
 		if (removedPorts.length > 0) {
 			await this.notifier.hide(removedPorts);

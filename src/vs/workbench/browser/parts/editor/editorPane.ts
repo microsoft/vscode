@@ -51,7 +51,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
 	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
-	readonly onDidSizeConstraintsChange = Event.None;
+	readonly onDidChangeSizeConstraints = Event.None;
 
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }

@@ -348,4 +348,44 @@ suite('Notebook Document', function () {
 		assert.strictEqual(opened.uri.toString(), first.uri.toString());
 		assert.strictEqual(opened === closed, true);
 	});
+
+
+	test('#117273, Add multiple outputs', async function () {
+
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput(
+				[new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stdout' })],
+				{ outputType: 'stream', streamName: 'stdout' }
+			)
+		]);
+		let success = await vscode.workspace.applyEdit(edit);
+
+		assert.ok(success);
+		assert.strictEqual(document.cells[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+
+		const edit2 = new vscode.WorkspaceEdit();
+		edit2.appendNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput(
+				[new vscode.NotebookCellOutputItem('hello', '1', { outputType: 'stream', streamName: 'stderr' })],
+				{ outputType: 'stream', streamName: 'stderr' }
+			)
+		]);
+		success = await vscode.workspace.applyEdit(edit2);
+		assert.ok(success);
+
+		assert.strictEqual(document.cells[0].outputs.length, 2);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[1].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].metadata, { outputType: 'stream', streamName: 'stderr' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].outputs[0].metadata, { outputType: 'stream', streamName: 'stderr' });
+	});
 });

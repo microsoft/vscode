@@ -443,10 +443,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
 
-		if (this.focusedItem === startIndex) {
-			this.focusedItem = undefined;
-		}
-
 		this.updateFocus();
 		return true;
 	}
@@ -472,10 +468,6 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item = this.viewItems[this.focusedItem];
 		} while (this.focusedItem !== startIndex && this.options.focusOnlyEnabledItems && !item.isEnabled());
 
-
-		if (this.focusedItem === startIndex) {
-			this.focusedItem = undefined;
-		}
 
 		this.updateFocus(true);
 		return true;

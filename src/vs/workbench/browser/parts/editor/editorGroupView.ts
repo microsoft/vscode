@@ -199,7 +199,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Editor control
 			this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
-			this._onDidChange.input = this.editorControl.onDidSizeConstraintsChange;
+			this._onDidChange.input = this.editorControl.onDidChangeSizeConstraints;
 
 			// Track Focus
 			this.doTrackFocus();
@@ -489,7 +489,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this._group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
 
 		// Option Changes
-		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
+		this._register(this.accessor.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 
 		// Visibility
 		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
@@ -616,7 +616,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private onDidEditorPartOptionsChange(event: IEditorPartOptionsChangeEvent): void {
+	private onDidChangeEditorPartOptions(event: IEditorPartOptionsChangeEvent): void {
 
 		// Title container
 		this.updateTitleContainer();

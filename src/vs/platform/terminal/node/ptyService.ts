@@ -13,9 +13,6 @@ import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 
-// TODO: On disconnect/restart, this will overwrite the older terminals
-let currentPtyId = 0;
-
 type WorkspaceId = string;
 
 export class PtyService extends Disposable implements IPtyService {
@@ -41,7 +38,9 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+
 	constructor(
+		private _lastPtyId: number,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -58,11 +57,22 @@ export class PtyService extends Disposable implements IPtyService {
 		this.dispose();
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		env: IProcessEnvironment,
+		executableEnv: IProcessEnvironment,
+		windowsEnableConpty: boolean,
+		shouldPersist: boolean,
+		workspaceId: string,
+		workspaceName: string
+	): Promise<number> {
 		if (shellLaunchConfig.attachPersistentTerminal) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
-		const id = ++currentPtyId;
+		const id = ++this._lastPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
@@ -72,7 +82,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, this._logService);
+		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService);
 		process.onProcessExit(() => {
 			persistentTerminalProcess.dispose();
 			this._ptys.delete(id);
@@ -93,7 +103,11 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
+	async detachFromProcess(id: number): Promise<void> {
+		this._throwIfNoPty(id).detach();
+	}
+
+	async start(id: number): Promise<ITerminalLaunchError | undefined> {
 		return this._throwIfNoPty(id).start();
 	}
 	async shutdown(id: number, immediate: boolean): Promise<void> {
@@ -267,10 +281,21 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 	}
 
-	async start(): Promise<ITerminalLaunchError | { persistentTerminalId: number } | undefined> {
-		let result;
+	attach(): void {
+		this._disconnectRunner1.cancel();
+	}
+
+	async detach(): Promise<void> {
+		if (this.shouldPersistTerminal) {
+			this._disconnectRunner1.schedule();
+		} else {
+			this.shutdown(true);
+		}
+	}
+
+	async start(): Promise<ITerminalLaunchError | undefined> {
 		if (!this._isStarted) {
-			result = await this._terminalProcess.start();
+			const result = await this._terminalProcess.start();
 			if (result) {
 				// it's a terminal launch error
 				return result;
@@ -281,7 +306,7 @@ export class PersistentTerminalProcess extends Disposable {
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 			this.triggerReplay();
 		}
-		return { persistentTerminalId: this._persistentTerminalId };
+		return undefined;
 	}
 	shutdown(immediate: boolean): void {
 		return this._terminalProcess.shutdown(immediate);

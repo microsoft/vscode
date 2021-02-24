@@ -557,6 +557,7 @@ export interface IViewsService {
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
 	closeView(id: string): void;
 	getActiveViewWithId<T extends IView>(id: string): T | null;
+	getViewWithId<T extends IView>(id: string): T | null;
 	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 

@@ -153,6 +153,7 @@ const makeParents = (
 const makeNodeAndChildren = (
 	collection: IMainThreadTestCollection,
 	test: IncrementalTestCollectionItem,
+	excluded: ReadonlySet<string>,
 	byExtId: Map<string, TestResultItem>,
 	isExecutedDirectly = true,
 ): TestResultItem => {
@@ -168,8 +169,8 @@ const makeNodeAndChildren = (
 
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
-		if (child) {
-			makeNodeAndChildren(collection, child, byExtId, false);
+		if (child && !excluded.has(childId)) {
+			makeNodeAndChildren(collection, child, excluded, byExtId, false);
 		}
 	}
 
@@ -190,6 +191,7 @@ export class LiveTestResult implements ITestResult {
 		req: RunTestsRequest,
 	) {
 		const testByExtId = new Map<string, TestResultItem>();
+		const excludeSet = new Set<string>(req.exclude);
 		for (const test of req.tests) {
 			for (const collection of collections) {
 				const node = collection.getNodeById(test.testId);
@@ -197,12 +199,12 @@ export class LiveTestResult implements ITestResult {
 					continue;
 				}
 
-				makeNodeAndChildren(collection, node, testByExtId);
+				makeNodeAndChildren(collection, node, excludeSet, testByExtId);
 				makeParents(collection, node, testByExtId);
 			}
 		}
 
-		return new LiveTestResult(collections, testByExtId, !!req.isAutoRun);
+		return new LiveTestResult(collections, testByExtId, excludeSet, !!req.isAutoRun);
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
@@ -270,6 +272,7 @@ export class LiveTestResult implements ITestResult {
 	constructor(
 		private readonly collections: ReadonlyArray<IMainThreadTestCollection>,
 		private readonly testById: Map<string, TestResultItem>,
+		private readonly excluded: ReadonlySet<string>,
 		public readonly isAutoRun: boolean,
 	) {
 		this.counts[TestRunState.Unset] = testById.size;
@@ -362,7 +365,7 @@ export class LiveTestResult implements ITestResult {
 			if (test) {
 				const originalSize = this.testById.size;
 				makeParents(collection, test, this.testById);
-				const node = makeNodeAndChildren(collection, test, this.testById);
+				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById);
 				this.counts[TestRunState.Unset] += this.testById.size - originalSize;
 				return node;
 			}

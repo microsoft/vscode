@@ -15,14 +15,17 @@ import { InternalTestItem, TestDiffOpType, TestsDiff, TestsDiffOp } from 'vs/wor
  * @private
  */
 export class OwnedTestCollection {
-	protected readonly testIdsToInternal = new Set<Map<string, OwnedCollectionTestItem>>();
+	protected readonly testIdsToInternal = new Set<TestTree<OwnedCollectionTestItem>>();
 
 	/**
 	 * Gets test information by ID, if it was defined and still exists in this
 	 * extension host.
 	 */
 	public getTestById(id: string) {
-		return mapFind(this.testIdsToInternal, m => m.get(id));
+		return mapFind(this.testIdsToInternal, t => {
+			const owned = t.get(id);
+			return owned && [t, owned] as const;
+		});
 	}
 
 	/**
@@ -33,10 +36,10 @@ export class OwnedTestCollection {
 		return new SingleUseTestCollection(this.createIdMap(), publishDiff);
 	}
 
-	protected createIdMap(): IReference<Map<string, OwnedCollectionTestItem>> {
-		const map = new Map<string, OwnedCollectionTestItem>();
-		this.testIdsToInternal.add(map);
-		return { object: map, dispose: () => this.testIdsToInternal.delete(map) };
+	protected createIdMap(): IReference<TestTree<OwnedCollectionTestItem>> {
+		const tree = new TestTree<OwnedCollectionTestItem>();
+		this.testIdsToInternal.add(tree);
+		return { object: tree, dispose: () => this.testIdsToInternal.delete(tree) };
 	}
 }
 /**
@@ -48,6 +51,117 @@ export interface OwnedCollectionTestItem extends InternalTestItem {
 	previousEquals: (v: ApiTestItem) => boolean;
 }
 
+/**
+ * Enum for describing relative positions of tests. Similar to
+ * `node.compareDocumentPosition` in the DOM.
+ */
+export const enum TestPosition {
+	/** Neither a nor b are a child of one another. They may share a common parent, though. */
+	Disconnected,
+	/** b is a child of a */
+	IsChild,
+	/** b is a parent of a */
+	IsParent,
+	/** a === b */
+	IsSame,
+}
+
+/**
+ * Test tree is (or will be after debt week 2020-03) the standard collection
+ * for test trees. Internally it indexes tests by their extension ID in
+ * a map.
+ */
+export class TestTree<T extends InternalTestItem> {
+	private readonly map = new Map<string, T>();
+	private readonly _roots = new Set<T>();
+	public readonly roots: ReadonlySet<T> = this._roots;
+
+	/**
+	 * Gets the size of the tree.
+	 */
+	public get size() {
+		return this.map.size;
+	}
+
+	/**
+	 * Adds a new test to the tree if it doesn't exist.
+	 * @throws if a duplicate item is inserted
+	 */
+	public add(test: T) {
+		if (this.map.has(test.item.extId)) {
+			throw new Error(`Attempted to insert a duplicate test item ID ${test.item.extId}`);
+		}
+
+		this.map.set(test.item.extId, test);
+		if (!test.parent) {
+			this._roots.add(test);
+		}
+	}
+
+	/**
+	 * Gets whether the test exists in the tree.
+	 */
+	public has(testId: string) {
+		return this.map.has(testId);
+	}
+
+	/**
+	 * Removes a test ID from the tree. This is NOT recursive.
+	 */
+	public delete(testId: string) {
+		const existing = this.map.get(testId);
+		if (!existing) {
+			return false;
+		}
+
+		this.map.delete(testId);
+		this._roots.delete(existing);
+		return true;
+	}
+
+	/**
+	 * Gets a test item by ID from the tree.
+	 */
+	public get(testId: string) {
+		return this.map.get(testId);
+	}
+
+	/**
+ * Compares the positions of the two items in the test tree.
+	 */
+	public comparePositions(aOrId: T | string, bOrId: T | string) {
+		const a = typeof aOrId === 'string' ? this.map.get(aOrId) : aOrId;
+		const b = typeof bOrId === 'string' ? this.map.get(bOrId) : bOrId;
+		if (!a || !b) {
+			return TestPosition.Disconnected;
+		}
+
+		if (a === b) {
+			return TestPosition.IsSame;
+		}
+
+		for (let p = this.map.get(b.parent!); p; p = this.map.get(p.parent!)) {
+			if (p === a) {
+				return TestPosition.IsChild;
+			}
+		}
+
+		for (let p = this.map.get(a.parent!); p; p = this.map.get(p.parent!)) {
+			if (p === b) {
+				return TestPosition.IsParent;
+			}
+		}
+
+		return TestPosition.Disconnected;
+	}
+
+	/**
+	 * Iterates over all test in the tree.
+	 */
+	[Symbol.iterator]() {
+		return this.map.values();
+	}
+}
 
 /**
  * Maintains tests created and registered for a single set of hierarchies
@@ -67,7 +181,7 @@ export class SingleUseTestCollection implements IDisposable {
 	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
 
 	constructor(
-		private readonly testIdToInternal: IReference<Map<string, OwnedCollectionTestItem>>,
+		private readonly testIdToInternal: IReference<TestTree<OwnedCollectionTestItem>>,
 		private readonly publishDiff: (diff: TestsDiff) => void,
 	) { }
 
@@ -142,8 +256,8 @@ export class SingleUseTestCollection implements IDisposable {
 				previousEquals: itemEqualityComparator(actual),
 			};
 
+			this.testIdToInternal.object.add(internal);
 			this.testItemToInternal.set(actual, internal);
-			this.testIdToInternal.object.set(actual.id, internal);
 			this.diff.push([TestDiffOpType.Add, { parent, providerId, item: internal.item }]);
 		} else if (!internal.previousEquals(actual)) {
 			internal.item = TestItem.from(actual);
@@ -157,6 +271,13 @@ export class SingleUseTestCollection implements IDisposable {
 			const deletedChildren = internal.previousChildren;
 			const currentChildren = new Set<string>();
 			for (const child of actual.children) {
+				// If a child was recreated, delete the old object before calling
+				// addItem() anew.
+				const previous = this.testIdToInternal.object.get(child.id);
+				if (previous && previous.actual !== child) {
+					this.removeItembyId(child.id);
+				}
+
 				const c = this.addItem(child, providerId, internal.item.extId);
 				deletedChildren.delete(c.item.extId);
 				currentChildren.add(c.item.extId);
