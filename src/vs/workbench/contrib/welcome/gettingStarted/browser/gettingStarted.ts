@@ -5,7 +5,7 @@
 
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -29,6 +29,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IGettingStartedCategoryDescriptor } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -91,6 +92,7 @@ export class GettingStartedPage extends EditorPane {
 	private container: HTMLElement;
 
 	private contextService: IContextKeyService;
+	private tasExperimentService?: ITASExperimentService;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -103,6 +105,7 @@ export class GettingStartedPage extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextService: IContextKeyService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
@@ -152,7 +155,7 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.remove('animationReady');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
-		this.buildCategoriesSlide();
+		await this.buildCategoriesSlide();
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
 	}
 
@@ -315,7 +318,7 @@ export class GettingStartedPage extends EditorPane {
 		parent.appendChild(this.container);
 	}
 
-	buildCategoriesSlide() {
+	private async buildCategoriesSlide() {
 		const categoryElements = this.gettingStartedCategories.map(
 			category => {
 				const categoryDescriptionElement =
@@ -381,7 +384,6 @@ export class GettingStartedPage extends EditorPane {
 		assertIsDefined(this.container.querySelector('.product-name')).textContent = this.productService.nameLong;
 		this.registerDispatchListeners();
 
-		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
 
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
@@ -390,14 +392,26 @@ export class GettingStartedPage extends EditorPane {
 			}
 			this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
 			this.setSlide('details');
-		} else if (!someItemsComplete) {
-			this.currentCategory = assertIsDefined(this.gettingStartedCategories.find(category => category.content.type === 'items'));
-			this.editorInput.selectedCategory = this.currentCategory?.id;
-			this.buildCategorySlide(this.editorInput.selectedCategory);
-			this.setSlide('details');
-		} else {
-			this.setSlide('categories');
+			return;
 		}
+
+		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
+		if (!someItemsComplete) {
+			const fistContentBehaviour = await Promise.race([
+				this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
+				new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
+			]);
+
+			if (fistContentBehaviour === 'openToFirstCategory') {
+				this.currentCategory = assertIsDefined(this.gettingStartedCategories.find(category => category.content.type === 'items'));
+				this.editorInput.selectedCategory = this.currentCategory?.id;
+				this.buildCategorySlide(this.editorInput.selectedCategory);
+				this.setSlide('details');
+				return;
+			}
+		}
+
+		this.setSlide('categories');
 	}
 
 	layout() {
