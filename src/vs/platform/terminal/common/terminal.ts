@@ -91,6 +91,7 @@ export interface IPtyService {
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean,
+		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string
 	): Promise<number>;

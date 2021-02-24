@@ -57,7 +57,18 @@ export class PtyService extends Disposable implements IPtyService {
 		this.dispose();
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		env: IProcessEnvironment,
+		executableEnv: IProcessEnvironment,
+		windowsEnableConpty: boolean,
+		shouldPersist: boolean,
+		workspaceId: string,
+		workspaceName: string
+	): Promise<number> {
 		if (shellLaunchConfig.attachPersistentTerminal) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
@@ -71,7 +82,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, true, cols, rows, this._logService);
+		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService);
 		process.onProcessExit(() => {
 			persistentTerminalProcess.dispose();
 			this._ptys.delete(id);
