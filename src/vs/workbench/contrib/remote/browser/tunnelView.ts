@@ -339,26 +339,25 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		// reset
 		templateData.actionBar.clear();
 		templateData.icon.className = 'ports-view-actionbar-cell-icon';
-		templateData.icon.hidden = true;
+		templateData.icon.style.display = 'none';
 		templateData.label.setLabel('');
+		templateData.label.element.style.display = 'none';
 
 		let editableData: IEditableData | undefined;
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
-			templateData.label.element.style.display = 'none';
 			this.renderInputBox(templateData.container, editableData);
 		} else {
 			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
 			if (editableData) {
-				templateData.label.element.style.display = 'none';
 				this.renderInputBox(templateData.container, editableData);
 			} else {
-				templateData.label.element.style.display = 'flex';
 				this.renderActionBarItem(element, templateData);
 			}
 		}
 	}
 
 	renderActionBarItem(element: ActionBarCell, templateData: IActionBarTemplateData): void {
+		templateData.label.element.style.display = 'flex';
 		templateData.label.setLabel(element.label, undefined, { title: element.tooltip });
 		templateData.actionBar.context = element.tunnel;
 		const contextKeyService = this.contextKeyService.createOverlay(element.context);
@@ -378,11 +377,12 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		if (element.icon) {
 			templateData.icon.className = `ports-view-actionbar-cell-icon ${ThemeIcon.asClassName(element.icon)}`;
 			templateData.icon.title = element.tooltip;
-			templateData.icon.hidden = false;
+			templateData.icon.style.display = 'inline';
 		}
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
+		container.parentElement!.style.paddingLeft = '0px';
 		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
 		if (this.inputDone) {
 			this.inputDone(false, false);
@@ -414,6 +414,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
 
 		const done = once((success: boolean, finishEditing: boolean) => {
+			container.parentElement!.style.paddingLeft = '10px';
 			if (this.inputDone) {
 				this.inputDone = undefined;
 			}
