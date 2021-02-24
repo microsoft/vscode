@@ -122,7 +122,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return new CustomEditorInfoCollection(
 			coalesce(rawAssociations
 				.filter(association => CustomEditorInfo.selectorMatches(association, resource))
-				.map(association => this._contributedEditors.get(association.editorType))));
+				.map(association => this._contributedEditors.get((association as { editorType: string }).editorType ?? (association as { viewType: string }).viewType))));
 	}
 
 	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {

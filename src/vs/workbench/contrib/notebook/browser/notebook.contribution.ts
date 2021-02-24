@@ -314,7 +314,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		return coalesce(rawAssociations
 			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
-			.map(association => this.notebookService.getContributedNotebookProvider(association.editorType)));
+			.map(association => this.notebookService.getContributedNotebookProvider((association as { editorType: string }).editorType ?? (association as { viewType: string }).viewType)));
 	}
 
 	getContributedEditors(resource: URI) {
@@ -431,7 +431,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			}
 
 			const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
-			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.editorType));
+			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider((association as { editorType: string }).editorType ?? (association as { viewType: string }).viewType));
 
 			if (userAssociatedEditors.length && !notebookEditor.length) {
 				// user pick a non-notebook editor for this resource
@@ -494,7 +494,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
-		const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.editorType));
+		const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider((association as { editorType: string }).editorType ?? (association as { viewType: string }).viewType));
 
 		if (userAssociatedEditors.length && !notebookEditor.length) {
 			// user pick a non-notebook editor for this resource

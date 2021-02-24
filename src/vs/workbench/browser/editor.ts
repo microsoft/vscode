@@ -212,6 +212,10 @@ export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
 export type EditorAssociation = {
 	readonly editorType: string;
 	readonly filenamePattern?: string;
+} | {
+	// deprecated
+	readonly viewType: string;
+	readonly filenamePattern?: string;
 };
 
 export type EditorsAssociations = readonly EditorAssociation[];
