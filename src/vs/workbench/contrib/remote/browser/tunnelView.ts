@@ -382,6 +382,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
+		const oldPadding = container.parentElement!.style.paddingLeft;
 		container.parentElement!.style.paddingLeft = '0px';
 		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
 		if (this.inputDone) {
@@ -414,7 +415,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
 
 		const done = once((success: boolean, finishEditing: boolean) => {
-			container.parentElement!.style.paddingLeft = '10px';
+			container.parentElement!.style.paddingLeft = oldPadding;
 			if (this.inputDone) {
 				this.inputDone = undefined;
 			}
