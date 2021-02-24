@@ -363,7 +363,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		}));
 
-		this._viewModelStore.add(model.onDidChangeSelection(() => {
+		this._viewModelStore.add(model.onDidChangeSelection((e) => {
+			if (e === 'view') {
+				return;
+			}
+
 			// convert model selections to view selections
 			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
@@ -606,7 +610,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		} else {
 			if (this._viewModel) {
 				const focusedElementHandle = this.element(indexes[0]).handle;
-				this._viewModel.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+				this._viewModel.updateSelectionsFromView(focusedElementHandle, this.getSelection());
 			}
 		}
 

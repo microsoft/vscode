@@ -183,8 +183,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._layoutInfo;
 	}
 
-	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
-	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
+	private readonly _onDidChangeSelection = this._register(new Emitter<string>());
+	get onDidChangeSelection(): Event<string> { return this._onDidChangeSelection.event; }
 
 	private _selectionCollection = new NotebookCellSelectionCollection();
 
@@ -202,7 +202,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private set selectionHandles(selectionHandles: number[]) {
 		const indexes = selectionHandles.map(handle => this._viewCells.findIndex(cell => cell.handle === handle));
-		this._selectionCollection.setSelections(cellIndexesToRanges(indexes), true);
+		this._selectionCollection.setSelections(cellIndexesToRanges(indexes), true, 'edit');
 	}
 
 	private _decorationsTree = new DecorationsTree();
@@ -367,7 +367,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	updateSelectionsFromView(primary: number | null, selections: number[]) {
 		const primaryIndex = primary !== null ? this.getCellIndexByHandle(primary) : null;
 		const selectionIndexes = selections.map(sel => this.getCellIndexByHandle(sel));
-		this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), false);
+		this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), false, 'view');
 	}
 
 	updateSelectionsFromEdits(state: ISelectionState) {
@@ -375,9 +375,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (state.kind === SelectionStateType.Handle) {
 				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
 				const selectionIndexes = state.selections.map(sel => this.getCellIndexByHandle(sel));
-				this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true);
+				this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true, 'edit');
 			} else {
-				this._selectionCollection.setState(state.selections[0] ?? null, state.selections, true);
+				this._selectionCollection.setState(state.selections[0] ?? null, state.selections, true, 'edit');
 			}
 		}
 	}
