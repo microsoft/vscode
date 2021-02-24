@@ -12,11 +12,10 @@ declare const extendMarkdownIt: undefined | (
 
 (function () {
 	const katex = require('@iktakahiro/markdown-it-katex');
-
 	if (typeof extendMarkdownIt !== 'undefined') {
+
 		extendMarkdownIt((md: markdownIt.MarkdownIt) => {
 			md.use(katex);
 		});
 	}
 }());
-

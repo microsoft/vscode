@@ -25,6 +25,8 @@ const WRITE_MAX_CHUNK_SIZE = 50;
 const WRITE_INTERVAL_MS = 5;
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
+	readonly id = 0;
+
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;

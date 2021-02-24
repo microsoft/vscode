@@ -658,7 +658,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								lineSegments = [];
 								lineDecorations.set(line, lineSegments);
 							}
-							lineSegments.push(new InlineSegment(range.startColumn, text));
+							if (!lineSegments.some(iv => iv.text === text)) {	// de-dupe
+								lineSegments.push(new InlineSegment(iv.range.startColumn, text));
+							}
 						}
 					}
 				}

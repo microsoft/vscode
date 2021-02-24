@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -225,12 +225,12 @@ export class GettingStartedPage extends EditorPane {
 				node.style.height = ``;
 				node.setAttribute('aria-expanded', 'false');
 			});
-			taskElement.style.height = `${taskElement.scrollHeight}px`;
 			setTimeout(() => (taskElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
 			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
 				this.editorInput.selectedTask = undefined;
 				return;
 			}
+			taskElement.style.height = `${taskElement.scrollHeight}px`;
 			if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
 				throw Error('cannot expand task for category of non items type' + this.currentCategory?.id);
 			}
@@ -663,7 +663,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.emphasis { background: ${emphasisButtonBackground}; }`);
 	}
 
-	const pendingItemColor = theme.getColor(buttonSecondaryBackground);
+	const pendingItemColor = theme.getColor(descriptionForeground);
 	if (pendingItemColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon { color: ${pendingItemColor} } `);
 	}

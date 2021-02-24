@@ -34,8 +34,13 @@
 }
 
 .ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox {
-	line-height: normal;
+	line-height: 19px;
+	height: 22px;
 	flex: 1;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox input {
+	margin-top: -40px;
 }
 
 .ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {

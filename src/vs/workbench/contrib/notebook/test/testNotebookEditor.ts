@@ -65,6 +65,12 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getSelection(): ICellRange | undefined {
+		throw new Error('Method not implemented.');
+	}
+	getSelections(): ICellRange[] {
+		throw new Error('Method not implemented.');
+	}
 	getSelectionViewModels(): ICellViewModel[] {
 		throw new Error('Method not implemented.');
 	}
@@ -111,11 +117,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	removeEditorDecorations(key: string): void {
 		// throw new Error('Method not implemented.');
 	}
-	getSelectionHandles(): number[] {
-		return [];
-	}
-
-
 	setOptions(options: NotebookEditorOptions | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -227,7 +228,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	selectElement(cell: CellViewModel): void {
+	focusElement(cell: CellViewModel): void {
 		throw new Error('Method not implemented.');
 	}
 

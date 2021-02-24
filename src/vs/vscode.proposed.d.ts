@@ -33,87 +33,7 @@ declare module 'vscode' {
 		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
 	}
 
-	/**
-	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
-	*/
-	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
-		/**
-		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been added.
-		*/
-		readonly added: ReadonlyArray<AuthenticationSession>;
-
-		/**
-		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been removed.
-		 */
-		readonly removed: ReadonlyArray<AuthenticationSession>;
-
-		/**
-		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been changed.
-		 */
-		readonly changed: ReadonlyArray<AuthenticationSession>;
-	}
-
-	/**
-	 * A provider for performing authentication to a service.
-	 */
-	export interface AuthenticationProvider {
-		/**
-		 * An [event](#Event) which fires when the array of sessions has changed, or data
-		 * within a session has changed.
-		 */
-		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
-
-		/**
-		 * Get a list of sessions.
-		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
-		 * these permissions, otherwise all sessions should be returned.
-		 * @returns A promise that resolves to an array of authentication sessions.
-		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
-
-		/**
-		 * Prompts a user to login.
-		 * @param scopes A list of scopes, permissions, that the new session should be created with.
-		 * @returns A promise that resolves to an authentication session.
-		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		createSession(scopes: string[]): Thenable<AuthenticationSession>;
-
-		/**
-		 * Removes the session corresponding to session id.
-		 * @param sessionId The id of the session to remove.
-		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		removeSession(sessionId: string): Thenable<void>;
-	}
-
-	/**
-	 * Options for creating an [AuthenticationProvider](#AuthentcationProvider).
-	 */
-	export interface AuthenticationProviderOptions {
-		/**
-		 * Whether it is possible to be signed into multiple accounts at once with this provider.
-		 * If not specified, will default to false.
-		*/
-		readonly supportsMultipleAccounts?: boolean;
-	}
-
 	export namespace authentication {
-		/**
-		 * Register an authentication provider.
-		 *
-		 * There can only be one provider per id and an error is being thrown when an id
-		 * has already been used by another provider. Ids are case-sensitive.
-		 *
-		 * @param id The unique identifier of the provider.
-		 * @param label The human-readable name of the provider.
-		 * @param provider The authentication provider provider.
-		 * @params options Additional options for the provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
-
 		/**
 		 * @deprecated - getSession should now trigger extension activation.
 		 * Fires with the provider id that was registered or unregistered.
@@ -121,16 +41,18 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
+		 * @deprecated
 		 * An array of the information of authentication providers that are currently registered.
 		 */
 		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
-		* Logout of a specific session.
-		* @param providerId The id of the provider to use
-		* @param sessionId The session id to remove
-		* provider
-		*/
+		 * @deprecated
+		 * Logout of a specific session.
+		 * @param providerId The id of the provider to use
+		 * @param sessionId The session id to remove
+		 * provider
+		 */
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
 	}
 
@@ -1064,43 +986,43 @@ declare module 'vscode' {
 
 	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
 
-	export namespace window {
+	/**
+	 * Options to configure the status bar item.
+	 */
+	export interface StatusBarItemOptions {
 
 		/**
-		 * Options to configure the status bar item.
+		 * A unique identifier of the status bar item. The identifier
+		 * is for example used to allow a user to show or hide the
+		 * status bar item in the UI.
 		 */
-		export interface StatusBarItemOptions {
+		id: string;
 
-			/**
-			 * A unique identifier of the status bar item. The identifier
-			 * is for example used to allow a user to show or hide the
-			 * status bar item in the UI.
-			 */
-			id: string;
+		/**
+		 * A human readable name of the status bar item. The name is
+		 * for example used as a label in the UI to show or hide the
+		 * status bar item.
+		 */
+		name: string;
 
-			/**
-			 * A human readable name of the status bar item. The name is
-			 * for example used as a label in the UI to show or hide the
-			 * status bar item.
-			 */
-			name: string;
+		/**
+		 * Accessibility information used when screen reader interacts with this status bar item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
 
-			/**
-			 * Accessibility information used when screen reader interacts with this status bar item.
-			 */
-			accessibilityInformation?: AccessibilityInformation;
+		/**
+		 * The alignment of the status bar item.
+		 */
+		alignment?: StatusBarAlignment;
 
-			/**
-			 * The alignment of the status bar item.
-			 */
-			alignment?: StatusBarAlignment;
+		/**
+		 * The priority of the status bar item. Higher value means the item should
+		 * be shown more to the left.
+		 */
+		priority?: number;
+	}
 
-			/**
-			 * The priority of the status bar item. Higher value means the item should
-			 * be shown more to the left.
-			 */
-			priority?: number;
-		}
+	export namespace window {
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -1342,11 +1264,13 @@ declare module 'vscode' {
 		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
 
-		// @rebornix
-		// todo@API should replace selection
-		// never empty!
-		// primary/secondary selections
-		// readonly selections: NotebookCellRange[];
+		/**
+		 * todo@API should replace selection
+		 * The selections on this notebook editor.
+		 *
+		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
+		 */
+		readonly selections: NotebookCellRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
@@ -2316,21 +2240,20 @@ declare module 'vscode' {
 	 */
 	export interface TestHierarchy<T extends TestItem> {
 		/**
-		 * Root node for tests. The `testRoot` instance must not be replaced over
+		 * Root node for tests. The root instance must not be replaced over
 		 * the lifespan of the TestHierarchy, since you will need to reference it
-		 * in `onDidChangeTest` when a test is added or removed.
+		 * in {@link onDidChangeTest} when a test is added or removed.
 		 */
 		readonly root: T;
 
 		/**
-		 * An event that fires when an existing test under the `root` changes.
-		 * This can be a result of a state change in a test run, a property update,
-		 * or an update to its children. Changes made to tests will not be visible
-		 * to {@link TestObserver} instances until this event is fired.
+		 * An event that fires when an existing test `root` changes.  This can be
+		 * a result of a property update, or an update to its children. Changes
+		 * made to tests will not be visible to {@link TestObserver} instances until this event is fired.
 		 *
-		 * This will signal a change recursively to all children of the given node.
-		 * For example, firing the event with the {@link testRoot} will refresh
-		 * all tests.
+		 * When a change is signalled, VS Code will check for any new or removed
+		 * direct children of the changed ite, For example, firing the event with
+		 * the {@link testRoot} will detect any new children in `root.children`.
 		 */
 		readonly onDidChangeTest: Event<T>;
 
@@ -2343,7 +2266,7 @@ declare module 'vscode' {
 
 		/**
 		 * An event that fires when a test becomes outdated, as a result of
-		 * file changes, for example. In "watch" mode, tests that are outdated
+		 * file changes, for example. In "auto run" mode, tests that are outdated
 		 * will be automatically re-run after a short delay. Firing a test
 		 * with children will mark the entire subtree as outdated.
 		 */
@@ -2357,10 +2280,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Discovers and provides tests. It's expected that the TestProvider will
-	 * ambiently listen to {@link vscode.window.onDidChangeVisibleTextEditors} to
-	 * provide test information about the open files for use in code lenses and
-	 * other file-specific UI.
+	 * Discovers and provides tests.
 	 *
 	 * Additionally, the UI may request it to discover tests for the workspace
 	 * via `addWorkspaceTests`.
@@ -2370,19 +2290,31 @@ declare module 'vscode' {
 	export interface TestProvider<T extends TestItem = TestItem> {
 		/**
 		 * Requests that tests be provided for the given workspace. This will
-		 * generally be called when tests need to be enumerated for the
-		 * workspace.
+		 * be called when tests need to be enumerated for the workspace, such as
+		 * when the user opens the test explorer.
 		 *
 		 * It's guaranteed that this method will not be called again while
 		 * there is a previous undisposed watcher for the given workspace folder.
+		 *
+		 * @param workspace The workspace in which to observe tests
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
-		 * Requests that tests be provided for the given document. This will
-		 * be called when tests need to be enumerated for a single open file,
-		 * for instance by code lens UI.
+		 * Requests that tests be provided for the given document. This will be
+		 * called when tests need to be enumerated for a single open file, for
+		 * instance by code lens UI.
+		 *
+		 * It's suggested that the provider listen to change events for the text
+		 * document to provide information for test that might not yet be
+		 * saved, if possible.
+		 *
+		 * If the test system is not able to provide or estimate for tests on a
+		 * per-file basis, this method may not be implemented. In that case, VS
+		 * Code will request and use the information from the workspace hierarchy.
+		 *
+		 * @param document The document in which to observe tests
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
@@ -2391,13 +2323,15 @@ declare module 'vscode' {
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run.
 		 * @todo this will eventually need to be able to return a summary report, coverage for example.
+		 * @param options Options for this test run
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
 		runTests?(options: TestRun<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 
 	/**
-	 * Options given to {@link test.runTests}
+	 * Options given to {@link test.runTests}.
 	 */
 	export interface TestRunOptions<T extends TestItem = TestItem> {
 		/**
@@ -2405,6 +2339,13 @@ declare module 'vscode' {
 		 * be provided as an indication to run all tests.
 		 */
 		tests: T[];
+
+		/**
+		 * An array of tests the user has marked as excluded in VS Code. May be
+		 * omitted if no exclusions were requested. Test providers should not run
+		 * excluded tests or any children of excluded tests.
+		 */
+		exclude?: T[];
 
 		/**
 		 * Whether or not tests in this run should be debugged.
@@ -2419,6 +2360,12 @@ declare module 'vscode' {
 		/**
 		 * Updates the state of the test in the run. By default, all tests involved
 		 * in the run will have a "queued" state until they are updated by this method.
+		 *
+		 * Calling with method with nodes outside the {@link tests} or in the
+		 * {@link exclude} array will no-op.
+		 *
+		 * @param test The test to update
+		 * @param state The state to assign to the test
 		 */
 		setState(test: T, state: TestState): void;
 	}
@@ -2431,7 +2378,8 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This must not change for the lifetime of a test item.
+		 * (test explorer). This must not change for the
+		 * lifetime of a test instance.
 		 */
 		readonly id: string;
 
@@ -2455,12 +2403,14 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
-		 * Whether this test item can be debugged. Defaults to `false` if not provided.
+		 * Whether this test item can be debugged.
+		 * Defaults to `false` if not provided.
 		 */
 		debuggable?: boolean;
 
 		/**
-		 * VS Code location.
+		 * Location of the test in the workspace. This is used to show line
+		 * decorations and code lenses for the test.
 		 */
 		location?: Location;
 
@@ -2479,6 +2429,9 @@ declare module 'vscode' {
 		: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
 	};
 
+	/**
+	 * Possible states of tests in a test run.
+	 */
 	export enum TestRunState {
 		// Initial state
 		Unset = 0,
@@ -2497,10 +2450,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * TestState includes a test and its run state. This is included in the
-	 * {@link TestItem} and is immutable; it should be replaced in th TestItem
-	 * in order to update it. This allows consumers to quickly and easily check
-	 * for changes via object identity.
+	 * TestState associated with a test in its results.
 	 */
 	export interface TestState {
 		/**

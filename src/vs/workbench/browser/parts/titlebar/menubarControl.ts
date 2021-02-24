@@ -786,7 +786,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 		// Mnemonics require fullscreen in web
 		if (isWeb) {
-			this._register(this.layoutService.onFullscreenChange(e => this.updateMenubar()));
+			this._register(this.layoutService.onDidChangeFullscreen(e => this.updateMenubar()));
 			this._register(this.webNavigationMenu.onDidChange(() => this.updateMenubar()));
 		}
 	}

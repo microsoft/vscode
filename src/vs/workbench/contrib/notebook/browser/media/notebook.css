@@ -287,7 +287,7 @@
 	position: absolute;
 	width: 1px;
 	height: 100%;
-	z-index: 1;
+	z-index: 10;
 }
 
 /* top border */

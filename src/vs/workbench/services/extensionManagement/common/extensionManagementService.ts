@@ -230,9 +230,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const servers: IExtensionManagementServer[] = [];
 
-		// Update Language pack on all servers
+		// Update Language pack on local and remote servers
 		if (isLanguagePackExtension(extension.manifest)) {
-			servers.push(...this.servers);
+			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
 		} else {
 			servers.push(server);
 		}
@@ -257,9 +257,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const servers: IExtensionManagementServer[] = [];
 
-		// Install Language pack on all servers
+		// Install Language pack on local and remote servers
 		if (isLanguagePackExtension(manifest)) {
-			servers.push(...this.servers);
+			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
 		} else {
 			const server = this.getExtensionManagementServerToInstall(manifest);
 			if (server) {

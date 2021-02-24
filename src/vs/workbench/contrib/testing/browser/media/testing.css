@@ -42,8 +42,13 @@
 	margin-right: 0.25em;
 }
 
-.test-explorer .computed-state.retired {
-	opacity: 0.7;
+.test-explorer .computed-state.retired,
+.testing-run-glyph.retired {
+	opacity: 0.7  !important;
+}
+
+.test-explorer .test-is-hidden {
+	opacity: 0.8;
 }
 
 .test-explorer .test-explorer-messages {
@@ -100,10 +105,6 @@
 .monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget {
 	border-top-width: 2px;
 	border-bottom-width: 2px;
-}
-
-.monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget .peekview-title .filename {
-	max-height: 29px;
 }
 
 /** -- filter  */

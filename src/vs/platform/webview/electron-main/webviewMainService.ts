@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
-import { IWebviewManagerService, RegisterWebviewMetadata, WebviewManagerDidLoadResourceResponse, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { IWebviewManagerService, RegisterWebviewMetadata, WebviewManagerDidLoadResourceResponse, WebviewManagerDidLoadResourceResponseDetails, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewPortMappingProvider } from 'vs/platform/webview/electron-main/webviewPortMappingProvider';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -108,7 +108,11 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
-	public async didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse): Promise<void> {
-		this.protocolProvider.didLoadResource(requestId, response);
+	public async didLoadResource(
+		requestId: number,
+		response: WebviewManagerDidLoadResourceResponse,
+		responseDetails?: WebviewManagerDidLoadResourceResponseDetails,
+	): Promise<void> {
+		this.protocolProvider.didLoadResource(requestId, response, responseDetails);
 	}
 }

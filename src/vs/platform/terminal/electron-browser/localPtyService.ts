@@ -18,6 +18,12 @@ enum Constants {
 	MaxRestarts = 5
 }
 
+/**
+ * Tracks the last terminal ID from the pty host so we can give it to the new pty host if it's
+ * restarted and avoid ID conflicts.
+ */
+let lastPtyId = 0;
+
 export class LocalPtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
@@ -70,6 +76,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 				serverName: 'Pty Host',
 				args: ['--type=ptyHost'],
 				env: {
+					VSCODE_LAST_PTY_ID: lastPtyId,
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
@@ -121,16 +128,17 @@ export class LocalPtyService extends Disposable implements IPtyService {
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
-		const result = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
+		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
 		clearTimeout(timeout);
-		return result;
+		lastPtyId = Math.max(lastPtyId, id);
+		return id;
 	}
 
 	attachToProcess(id: number): Promise<void> {
 		return this._proxy.attachToProcess(id);
 	}
 
-	start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
@@ -157,8 +165,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
-	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		return this._proxy.getTerminalLayoutInfo(args);
+	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 
 	async restartPtyHost(): Promise<void> {

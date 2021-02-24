@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -399,7 +399,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Crashes & Unrsponsive & Failed to load
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details.reason));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.onWindowError(WindowError.LOAD, errorDescription));
 
 		// Window close
@@ -545,19 +545,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: string): Promise<void>;
+	private async onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): Promise<void>;
 	private async onWindowError(error: WindowError.LOAD, details: string): Promise<void>;
-	private async onWindowError(type: WindowError, details?: string): Promise<void> {
+	private async onWindowError(type: WindowError, details?: string | RenderProcessGoneDetails): Promise<void> {
 
 		switch (type) {
 			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (detail: ${details})`);
+				this.logService.error(`CodeWindow: renderer process crashed (detail: ${typeof details === 'string' ? details : details?.reason})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
 				break;
 			case WindowError.LOAD:
-				this.logService.error(`CodeWindow: failed to load workbench window: ${details}`);
+				this.logService.error(`CodeWindow: failed to load workbench window: ${typeof details === 'string' ? details : details?.reason}`);
 				break;
 		}
 
@@ -572,11 +572,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
+			reason: string | undefined;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: (details && typeof details !== 'string') ? details.reason : undefined });
 
 		// Unresponsive
 		if (type === WindowError.UNRESPONSIVE) {
@@ -615,10 +617,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Crashed
 		else if (type === WindowError.CRASHED) {
 			let message: string;
-			if (details && details !== 'crashed') {
-				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details);
+			if (typeof details === 'string' || !details) {
+				message = localize('appCrashed', "The window has crashed");
 			} else {
-				message = localize('appCrashed', "The window has crashed", details);
+				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details.reason);
 			}
 
 			const result = await this.dialogMainService.showMessageBox({
@@ -1138,10 +1140,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	getBounds(): Rectangle {
-		const pos = this._win.getPosition();
-		const dimension = this._win.getSize();
+		const [x, y] = this._win.getPosition();
+		const [width, height] = this._win.getSize();
 
-		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
+		return { x, y, width, height };
 	}
 
 	toggleFullScreen(): void {

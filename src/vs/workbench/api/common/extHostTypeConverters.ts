@@ -6,7 +6,7 @@
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import type * as vscode from 'vscode';
@@ -1344,7 +1344,7 @@ export namespace TextEditorOpenOptions {
 				inactive: options.background,
 				preserveFocus: options.preserveFocus,
 				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
-				override: typeof options.override === 'boolean' ? false : undefined
+				override: typeof options.override === 'boolean' ? EditorOverride.DISABLED : undefined
 			};
 		}
 

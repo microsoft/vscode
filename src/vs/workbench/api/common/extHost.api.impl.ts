@@ -218,7 +218,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostAuthentication.onDidChangeSessions;
 			},
 			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
-				checkProposedApiEnabled(extension);
 				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
 			},
 			get onDidChangeAuthenticationProviders(): Event<vscode.AuthenticationProvidersChangeEvent> {
@@ -577,7 +576,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			showSaveDialog(options) {
 				return extHostDialogs.showSaveDialog(options);
 			},
-			createStatusBarItem(alignmentOrOptions?: vscode.StatusBarAlignment | vscode.window.StatusBarItemOptions, priority?: number): vscode.StatusBarItem {
+			createStatusBarItem(alignmentOrOptions?: vscode.StatusBarAlignment | vscode.StatusBarItemOptions, priority?: number): vscode.StatusBarItem {
 				let id: string;
 				let name: string;
 				let alignment: number | undefined;

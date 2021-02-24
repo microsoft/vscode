@@ -28,6 +28,7 @@ declare class ResizeObserver {
 
 declare const __outputNodePadding__: number;
 declare const __outputNodeLeftPadding__: number;
+declare const __previewNodePadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -143,11 +144,14 @@ function webviewPreloads() {
 
 				if (entry.target.id === id && entry.contentRect) {
 					if (entry.contentRect.height !== 0) {
-						entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
+						const padding = output ? __outputNodePadding__ : __previewNodePadding__;
+						const paddingLeft = output ? __outputNodeLeftPadding__ : 0;
+
+						entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${paddingLeft}px`;
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
-								height: entry.contentRect.height + __outputNodePadding__ * 2
+								height: entry.contentRect.height + padding * 2
 							},
 							isOutput: output
 						});
@@ -773,4 +777,8 @@ function webviewPreloads() {
 	}
 }
 
-export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`).replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`);
+export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number, previewNodePadding: number) =>
+	`(${webviewPreloads})()`
+		.replace(/__outputNodePadding__/g, `${outputNodePadding}`)
+		.replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`)
+		.replace(/__previewNodePadding__/g, `${previewNodePadding}`);

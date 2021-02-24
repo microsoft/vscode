@@ -43,7 +43,7 @@ suite('NotebookViewModel', () => {
 				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
 				assert.equal(viewModel.viewCells[1].metadata?.editable, false);
 
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, []);
+				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getCellIndex(cell), 1);
