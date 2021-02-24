@@ -12,6 +12,7 @@
 	z-index: 40;
 	overflow: hidden;
 	max-width: 700px;
+	box-shadow: rgba(0, 0, 0, 0.36) 0px 0px 8px 2px;
 }
 
 .monaco-workbench .workbench-hover a {
