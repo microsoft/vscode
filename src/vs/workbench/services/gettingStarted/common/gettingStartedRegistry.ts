@@ -141,7 +141,7 @@ content.forEach(category => {
 		const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
-				: FileAccess.asFileUri('vs/workbench/services/gettingStarted/common/media/' + path, require);
+				: FileAccess.asBrowserUri('vs/workbench/services/gettingStarted/common/media/' + path, require);
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
 				return { hc: converted, dark: converted, light: converted };
