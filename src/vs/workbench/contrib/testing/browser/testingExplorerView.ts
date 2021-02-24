@@ -354,7 +354,7 @@ export class TestingExplorerViewModel extends Disposable {
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
 		this._register(this.tree.onDidChangeSelection(evt => {
 			const selected = evt.elements[0];
-			if (selected && evt.browserEvent) {
+			if (selected && evt.browserEvent && !selected.children.size) {
 				this.openEditorForItem(selected);
 			}
 		}));
