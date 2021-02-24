@@ -139,7 +139,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 		const tasUseGettingStartedAsDefault = this.tasExperimentService?.getTreatment<boolean>('StartupGettingStarted')
 			.then(result => {
-				this.logService.info('StartupGettingStarted:', result);
+				this.logService.trace('StartupGettingStarted:', result);
 				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: '' + !!result });
 				someValueReturned = true;
 				return result;
@@ -153,7 +153,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 		const fallback = new Promise<false>(c => setTimeout(() => c(false), 2000)).then(
 			() => {
-				if (!someValueReturned) { this.logService.info('Unable to read getting started treatment data in time, falling back to welcome'); }
+				if (!someValueReturned) { this.logService.trace('Unable to read getting started treatment data in time, falling back to welcome'); }
 				someValueReturned = true;
 			}
 		);
