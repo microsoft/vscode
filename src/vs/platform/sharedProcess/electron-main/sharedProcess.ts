@@ -7,7 +7,7 @@ import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMai
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { FileAccess } from 'vs/base/common/network';
 import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
@@ -21,7 +21,7 @@ import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
-	private readonly afterWindowOpenBarrier = new Barrier();
+	private readonly firstWindowConnectionBarrier = new Barrier();
 
 	private window: BrowserWindow | undefined = undefined;
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
@@ -49,13 +49,15 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		// Shared process connections from workbench windows
 		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => this.onWindowConnection(e, nonce));
-
-		// Release barrier to create shared process after first window opens
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.afterWindowOpenBarrier.open());
 	}
 
 	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
 		this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+
+		// release barrier if this is the first window connection
+		if (!this.firstWindowConnectionBarrier.isOpen()) {
+			this.firstWindowConnectionBarrier.open();
+		}
 
 		// await the shared process to be overall ready
 		// we do not just wait for IPC ready because the
@@ -132,7 +134,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			this._whenIpcReady = (async () => {
 
 				// Always wait for first window asking for connection
-				await this.afterWindowOpenBarrier.wait();
+				await this.firstWindowConnectionBarrier.wait();
 
 				// Resolve shell environment
 				this.userEnv = { ...this.userEnv, ...(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env)) };
