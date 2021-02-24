@@ -573,6 +573,7 @@ export class TestViewsService implements IViewsService {
 	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
 	isViewVisible(id: string): boolean { return true; }
 	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
+	getViewWithId<T extends IView>(id: string): T | null { return null; }
 	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
