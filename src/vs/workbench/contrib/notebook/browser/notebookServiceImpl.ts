@@ -603,16 +603,15 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 				clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
 				const selectionIndexes = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]);
 				const edits: ICellEditOperation[] = selectionIndexes.map(value => ({ editType: CellEditType.Replace, index: value[1], count: 1, cells: [] }));
-				const firstSelectIndex = selectionIndexes[0][1];
-				const newFocusedCellHandle = firstSelectIndex < viewModel.notebookDocument.cells.length
-					? viewModel.notebookDocument.cells[firstSelectIndex].handle
-					: viewModel.notebookDocument.cells[viewModel.notebookDocument.cells.length - 1].handle;
+				const firstSelectIndex = selectionIndexes.sort((a, b) => a[1] - b[1])[0][1];
+				const newFocusedCellIndex = firstSelectIndex < viewModel.notebookDocument.cells.length
+					? firstSelectIndex
+					: viewModel.notebookDocument.cells.length - 1;
 
 				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, { kind: SelectionStateType.Index, selections: viewModel.getSelections() }, () => {
 					return {
-						kind: SelectionStateType.Handle,
-						primary: newFocusedCellHandle,
-						selections: [newFocusedCellHandle]
+						kind: SelectionStateType.Index,
+						selections: [{ start: newFocusedCellIndex, end: newFocusedCellIndex + 1 }]
 					};
 				}, undefined, true);
 				notebookService.setToCopy(selectedCells.map(cell => cell.model), false);
