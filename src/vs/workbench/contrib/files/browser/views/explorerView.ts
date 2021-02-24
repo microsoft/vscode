@@ -656,23 +656,23 @@ export class ExplorerView extends ViewPane {
 		}
 
 		const previousInput = this.tree.getInput();
-		const promise = this.tree.setInput(input, viewState).then(() => {
+		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
 				if (!viewState || previousInput instanceof ExplorerItem) {
 					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
-					input.forEach(async item => {
+					await Promise.all(input.map(async item => {
 						try {
 							await this.tree.expand(item);
 						} catch (e) { }
-					});
+					}));
 				}
 				if (Array.isArray(previousInput) && previousInput.length < input.length) {
 					// Roots added to the explorer -> expand them.
-					input.slice(previousInput.length).forEach(async item => {
+					await Promise.all(input.slice(previousInput.length).map(async item => {
 						try {
 							await this.tree.expand(item);
 						} catch (e) { }
-					});
+					}));
 				}
 			}
 			if (initialInputSetup) {
