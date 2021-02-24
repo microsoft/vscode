@@ -13,8 +13,6 @@ import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 
-let currentPtyId = 0;
-
 type WorkspaceId = string;
 
 export class PtyService extends Disposable implements IPtyService {
@@ -40,7 +38,9 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+
 	constructor(
+		private _lastPtyId: number,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -61,7 +61,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (shellLaunchConfig.attachPersistentTerminal) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
-		const id = ++currentPtyId;
+		const id = ++this._lastPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));

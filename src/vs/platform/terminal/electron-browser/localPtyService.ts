@@ -15,16 +15,14 @@ import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 enum Constants {
-	MaxRestarts = 5,
-	PtyHostIdMask = 0xFFFF0000,
-	RawTerminalIdMask = 0x0000FFFF,
-	PtyHostIdShift = 16
+	MaxRestarts = 5
 }
 
-// Tracks the ID of the pty host, when a pty host gets restarted the new one is incremented in order
-// to differentiate the nth terminal from pty host #1 and #2. Since the pty host ID is encoded in
-// the regular ID, we can continue to share IPtyService's interface.
-let currentPtyHostId = 0;
+/**
+ * Tracks the last terminal ID from the pty host so we can give it to the new pty host if it's
+ * restarted and avoid ID conflicts.
+ */
+let lastPtyId = 0;
 
 export class LocalPtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
@@ -72,13 +70,13 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [Client, IPtyService] {
-		++currentPtyHostId;
 		const client = this._register(new Client(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'Pty Host',
 				args: ['--type=ptyHost'],
 				env: {
+					VSCODE_LAST_PTY_ID: lastPtyId,
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
@@ -112,13 +110,13 @@ export class LocalPtyService extends Disposable implements IPtyService {
 
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
-		this._register(proxy.onProcessData(e => this._onProcessData.fire(this._convertEventToCombinedId(e))));
-		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(this._convertEventToCombinedId(e))));
-		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(this._convertEventToCombinedId(e))));
-		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(this._convertEventToCombinedId(e))));
-		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(this._convertEventToCombinedId(e))));
-		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(this._convertEventToCombinedId(e))));
-		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(this._convertEventToCombinedId(e))));
+		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
+		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
+		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
+		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
+		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
+		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
+		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
 
 		return [client, proxy];
 	}
@@ -130,66 +128,45 @@ export class LocalPtyService extends Disposable implements IPtyService {
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, workspaceId: string, workspaceName: string): Promise<number> {
 		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
-		const result = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
+		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, workspaceId, workspaceName);
 		clearTimeout(timeout);
-		return this._getCombinedId(currentPtyHostId, result);
+		lastPtyId = Math.max(lastPtyId, id);
+		return id;
 	}
 
-	attachToProcess(combinedId: number): Promise<void> {
-		return this._proxy.attachToProcess(this._getTerminalIdOrThrow(combinedId));
+	attachToProcess(id: number): Promise<void> {
+		return this._proxy.attachToProcess(id);
 	}
 
-	start(combinedId: number): Promise<ITerminalLaunchError | undefined> {
-		return this._proxy.start(this._getTerminalIdOrThrow(combinedId));
+	start(id: number): Promise<ITerminalLaunchError | undefined> {
+		return this._proxy.start(id);
 	}
-	shutdown(combinedId: number, immediate: boolean): Promise<void> {
-		return this._proxy.shutdown(this._getTerminalIdOrThrow(combinedId), immediate);
+	shutdown(id: number, immediate: boolean): Promise<void> {
+		return this._proxy.shutdown(id, immediate);
 	}
-	input(combinedId: number, data: string): Promise<void> {
-		return this._proxy.input(this._getTerminalIdOrThrow(combinedId), data);
+	input(id: number, data: string): Promise<void> {
+		return this._proxy.input(id, data);
 	}
-	resize(combinedId: number, cols: number, rows: number): Promise<void> {
-		return this._proxy.resize(this._getTerminalIdOrThrow(combinedId), cols, rows);
+	resize(id: number, cols: number, rows: number): Promise<void> {
+		return this._proxy.resize(id, cols, rows);
 	}
-	acknowledgeDataEvent(combinedId: number, charCount: number): Promise<void> {
-		return this._proxy.acknowledgeDataEvent(this._getTerminalIdOrThrow(combinedId), charCount);
+	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
+		return this._proxy.acknowledgeDataEvent(id, charCount);
 	}
-	getInitialCwd(combinedId: number): Promise<string> {
-		return this._proxy.getInitialCwd(this._getTerminalIdOrThrow(combinedId));
+	getInitialCwd(id: number): Promise<string> {
+		return this._proxy.getInitialCwd(id);
 	}
-	getCwd(combinedId: number): Promise<string> {
-		return this._proxy.getCwd(this._getTerminalIdOrThrow(combinedId));
+	getCwd(id: number): Promise<string> {
+		return this._proxy.getCwd(id);
 	}
-	getLatency(combinedId: number): Promise<number> {
-		return this._proxy.getLatency(this._getTerminalIdOrThrow(combinedId));
+	getLatency(id: number): Promise<number> {
+		return this._proxy.getLatency(id);
 	}
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
-		for (const t of args.tabs) {
-			if (t.activePersistentTerminalId) {
-				t.activePersistentTerminalId = this._getRawTerminalId(t.activePersistentTerminalId);
-			}
-			for (const instance of t.terminals) {
-				instance.terminal = this._getRawTerminalId(instance.terminal);
-			}
-		}
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		const result = await this._proxy.getTerminalLayoutInfo(args);
-		if (!result) {
-			return undefined;
-		}
-		for (const t of result.tabs) {
-			if (t.activePersistentTerminalId) {
-				t.activePersistentTerminalId = this._getCombinedId(currentPtyHostId, t.activePersistentTerminalId);
-			}
-			for (const instance of t.terminals) {
-				if (instance.terminal) {
-					instance.terminal.id = this._getCombinedId(currentPtyHostId, instance.terminal.id);
-				}
-			}
-		}
-		return result;
+		return await this._proxy.getTerminalLayoutInfo(args);
 	}
 
 	async restartPtyHost(): Promise<void> {
@@ -202,33 +179,6 @@ export class LocalPtyService extends Disposable implements IPtyService {
 			this._proxy.shutdownAll();
 		}
 		this._client.dispose();
-	}
-
-	private _getRawTerminalId(combinedId: number): number {
-		return combinedId & Constants.RawTerminalIdMask;
-	}
-
-	private _getPtyHostId(combinedId: number): number {
-		return (combinedId & Constants.PtyHostIdMask) >> Constants.PtyHostIdShift;
-	}
-
-	private _getCombinedId(ptyHostId: number, rawTerminalId: number): number {
-		return ((ptyHostId << Constants.PtyHostIdShift) | rawTerminalId) >>> 0/*force unsigned*/;
-	}
-
-	private _convertEventToCombinedId<T extends { id: number, event: any }>(e: T): T {
-		e.id = this._getCombinedId(currentPtyHostId, e.id);
-		return e;
-	}
-
-	/**
-	 * Verifies that the terminal's pty host ID is active and returns the raw terminal ID if so.
-	 */
-	private _getTerminalIdOrThrow(combinedId: number) {
-		if (currentPtyHostId !== this._getPtyHostId(combinedId)) {
-			throw new Error(`Persistent terminal "${this._getRawTerminalId(combinedId)}": Pty host "${this._getPtyHostId(combinedId)}" is no longer active`);
-		}
-		return this._getRawTerminalId(combinedId);
 	}
 
 	private _handleHeartbeat() {
