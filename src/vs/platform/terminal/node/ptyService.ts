@@ -234,7 +234,15 @@ export class PersistentTerminalProcess extends Disposable {
 			this._logService.info(`Persistent terminal "${this._persistentTerminalId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the process (pid=${this._pid}) will be shutdown.`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
-		this.onLastListenerRemove(() => this._disconnectRunner1.schedule());
+
+		this.onLastListenerRemove(() => {
+			if (this.shouldPersistTerminal) {
+				this._disconnectRunner1.schedule();
+			} else {
+				this.shutdown(true);
+			}
+		});
+
 		// TODO: Bring back bufferer
 		// this._bufferer = new TerminalDataBufferer((id, data) => {
 		// 	const ev: IPtyHostProcessDataEvent = {
