@@ -374,6 +374,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public get persistentTerminalId(): number | undefined { return this._processManager.persistentTerminalId; }
+	public get shouldPersist(): boolean { return this._processManager.shouldPersist; }
 
 	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (xtermConstructor) {

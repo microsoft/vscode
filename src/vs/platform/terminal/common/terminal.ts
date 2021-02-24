@@ -252,6 +252,11 @@ export interface ITerminalChildProcess {
 	 */
 	id: number;
 
+	/**
+	 * Whether the process should be persisted across reloads.
+	 */
+	shouldPersist?: boolean;
+
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<{ pid: number, cwd: string }>;

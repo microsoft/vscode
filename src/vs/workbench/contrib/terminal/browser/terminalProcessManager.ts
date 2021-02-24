@@ -90,6 +90,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
 	public get persistentTerminalId(): number | undefined { return this._process?.id; }
+	public get shouldPersist(): boolean { return this._process?.shouldPersist || false; }
 
 	public get hasWrittenData(): boolean {
 		return this._hasWrittenData;

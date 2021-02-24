@@ -33,6 +33,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 	constructor(
 		readonly id: number,
+		readonly shouldPersist: boolean,
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();

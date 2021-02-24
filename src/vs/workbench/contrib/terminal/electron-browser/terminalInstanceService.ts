@@ -114,12 +114,12 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		return this._instantiationService.createInstance(LocalPty, id);
+		return this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 	}
 
 	public async attachToProcess(id: number): Promise<ITerminalChildProcess> {
 		await this._localPtyService.attachToProcess(id);
-		return this._instantiationService.createInstance(LocalPty, id);
+		return this._instantiationService.createInstance(LocalPty, id, true);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

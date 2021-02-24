@@ -283,6 +283,11 @@ export interface ITerminalInstance {
 	readonly persistentTerminalId: number | undefined;
 
 	/**
+	 * Whether the process should be persisted across reloads.
+	 */
+	readonly shouldPersist: boolean;
+
+	/**
 	 * An event that fires when the terminal instance's title changes.
 	 */
 	onTitleChanged: Event<ITerminalInstance>;
