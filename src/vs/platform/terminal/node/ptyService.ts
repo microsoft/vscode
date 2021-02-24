@@ -88,6 +88,10 @@ export class PtyService extends Disposable implements IPtyService {
 		this._logService.trace(`Persistent terminal "${id}": Attach`);
 	}
 
+	async detachFromProcess(id: number): Promise<void> {
+		this._throwIfNoPty(id).detach();
+	}
+
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {
 		return this._throwIfNoPty(id).start();
 	}
@@ -201,8 +205,6 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onLastListenerRemove = this._register(new Emitter<any>());
-	readonly onLastListenerRemove = this._onLastListenerRemove.event;
 
 	private _inReplay = false;
 
@@ -234,14 +236,6 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
-		this.onLastListenerRemove(() => {
-			if (this.shouldPersistTerminal) {
-				this._disconnectRunner1.schedule();
-			} else {
-				this.shutdown(true);
-			}
-		});
-
 		// TODO: Bring back bufferer
 		// this._bufferer = new TerminalDataBufferer((id, data) => {
 		// 	const ev: IPtyHostProcessDataEvent = {
@@ -264,6 +258,14 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
 			// this._bufferer.stopBuffering(this._persistentTerminalId);
 		}));
+	}
+
+	async detach(): Promise<void> {
+		if (this.shouldPersistTerminal) {
+			this._disconnectRunner1.schedule();
+		} else {
+			this.shutdown(true);
+		}
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {

@@ -133,9 +133,11 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		lastPtyId = Math.max(lastPtyId, id);
 		return id;
 	}
-
 	attachToProcess(id: number): Promise<void> {
 		return this._proxy.attachToProcess(id);
+	}
+	detachFromProcess(id: number): Promise<void> {
+		return this._proxy.detachFromProcess(id);
 	}
 
 	start(id: number): Promise<ITerminalLaunchError | undefined> {

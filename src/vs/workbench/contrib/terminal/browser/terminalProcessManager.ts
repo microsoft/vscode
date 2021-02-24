@@ -135,6 +135,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		super.dispose();
 	}
 
+	public detachFromProcess(): void {
+		if (this._process?.detach) {
+			this._process.detach();
+		}
+	}
+
 	public async createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,

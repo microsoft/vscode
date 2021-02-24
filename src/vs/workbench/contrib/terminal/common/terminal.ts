@@ -261,6 +261,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
+	detachFromProcess(): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;

@@ -95,6 +95,7 @@ export interface IPtyService {
 		workspaceName: string
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
+	detachFromProcess(id: number): Promise<void>;
 
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
@@ -264,6 +265,11 @@ export interface ITerminalChildProcess {
 	 * information on what went wrong.
 	 */
 	start(): Promise<ITerminalLaunchError | undefined>;
+
+	/**
+	 * Detach the process from the UI and await reconnect.
+	 */
+	detach?(): void;
 
 	/**
 	 * Shutdown the terminal process.
