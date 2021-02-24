@@ -247,12 +247,17 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 			hoverMessage.appendMarkdown(`[${localize('failedPeekAction', 'Peek Error')}](command:vscode.peekTestError?${args})`);
 		}
 
+		let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+		if (stateItem?.retired) {
+			glyphMarginClassName += ' retired';
+		}
+
 		this.editorDecoration = {
 			range: firstLineRange(this.location.range),
 			options: {
 				isWholeLine: true,
 				hoverMessage,
-				glyphMarginClassName: ThemeIcon.asClassName(icon) + ' testing-run-glyph',
+				glyphMarginClassName,
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				glyphMarginHoverMessage: new MarkdownString().appendText(localize('testing.clickToRun', 'Click to run tests, right click for more options')),
 			}
