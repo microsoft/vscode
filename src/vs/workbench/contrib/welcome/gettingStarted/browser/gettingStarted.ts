@@ -28,11 +28,14 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IGettingStartedCategoryDescriptor } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
+
+export const inGettingStartedContext = new RawContextKey('inGettingStarted', false);
 
 export class GettingStartedInput extends EditorInput {
 
@@ -87,6 +90,8 @@ export class GettingStartedPage extends EditorPane {
 
 	private container: HTMLElement;
 
+	private contextService: IContextKeyService;
+
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
@@ -97,11 +102,15 @@ export class GettingStartedPage extends EditorPane {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IContextKeyService contextService: IContextKeyService,
 	) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
 
 		this.container = $('.gettingStartedContainer');
+
+		this.contextService = this._register(contextService.createScoped(this.container));
+		inGettingStartedContext.bindTo(this.contextService).set(true);
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
