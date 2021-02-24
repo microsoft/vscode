@@ -495,9 +495,9 @@ export class GettingStartedPage extends EditorPane {
 								: []),
 						...(
 							arr[i + 1]
-								? [$('button.task-next', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
+								? [$('button.task-next.button-link', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
 								: nextCategory
-									? [$('button.task-next', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
+									? [$('button.task-next.button-link', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
 									: []
 						))
 				)));
