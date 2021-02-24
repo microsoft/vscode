@@ -117,15 +117,15 @@ export class BareFontInfo {
 	 */
 	public getMassagedFontFamily(): string {
 		return this.fontFamily
-		    	.split(/ *, */)
-				.filter(name => name !== '')
-				.map(name =>
-					// Change double quotes to single quotes so that rich text can be coped properly.
-					/["']/.test(name) ? name.replace(/"/g, "'") :
+			.split(/ *, */)
+			.filter(name => name !== '')
+			.map(name =>
+				// Change double quotes to single quotes so that rich text can be coped properly.
+				/["']/.test(name) ? name.replace(/"/g, '\'') :
 					// Quotes are required around font-family names when they are not valid CSS identifiers.
 					/[^a-zA-Z\d\xa0-\uffff_-]/.test(name) ? `'${name}'` : name
-				)
-				.join(', ');
+			)
+			.join(', ');
 	}
 }
 
