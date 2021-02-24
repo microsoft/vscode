@@ -351,4 +351,41 @@ suite('NotebookTextModel', () => {
 			}
 		);
 	});
+
+
+	test('Updating appending/updating output in Notebooks does not work as expected #117273', function () {
+		withTestNotebook(instantiationService, blukEditService, undoRedoService, [
+			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }]
+		], (_editor, _view, model) => {
+
+			assert.strictEqual(model.cells.length, 1);
+			assert.strictEqual(model.cells[0].outputs.length, 0);
+
+			const success1 = model.applyEdits(
+				model.versionId,
+				[{
+					editType: CellEditType.Output, index: 0, outputs: [
+						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', value: 1 }] }
+					],
+					append: false
+				}], true, undefined, () => undefined, undefined, false
+			);
+
+			assert.ok(success1);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+
+			const success2 = model.applyEdits(
+				model.versionId,
+				[{
+					editType: CellEditType.Output, index: 0, outputs: [
+						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', value: 1 }] }
+					],
+					append: true
+				}], true, undefined, () => undefined, undefined, false
+			);
+
+			assert.ok(success2);
+			assert.strictEqual(model.cells[0].outputs.length, 2);
+		});
+	});
 });
