@@ -434,6 +434,14 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
+		// reveal the test if it's hidden, #117481
+		for (let n: ITestTreeElement | null = item; n; n = n.parentItem) {
+			if (n.test && this.testService.excludeTests.value.has(n.test.item.extId)) {
+				this.filterState.showExcludedTests.value = true;
+				break;
+			}
+		}
+
 		setTimeout(() => this.revealItem(item, true), 1);
 		this.filterState.reveal.value = undefined;
 		this.hasPendingReveal = false;
