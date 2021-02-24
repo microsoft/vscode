@@ -348,4 +348,58 @@ suite('Notebook Document', function () {
 		assert.strictEqual(opened.uri.toString(), first.uri.toString());
 		assert.strictEqual(opened === closed, true);
 	});
+
+
+	test('#117273, Add multiple outputs', async function () {
+		this.skip();
+
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput(
+				[new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stdout' })],
+				{ outputType: 'stream', streamName: 'stdout' }
+			)
+		]);
+		let success = await vscode.workspace.applyEdit(edit);
+
+		assert.ok(success);
+		assert.strictEqual(document.cells[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+
+		const edit2 = new vscode.WorkspaceEdit();
+		// All of the following edit operations fail.
+		edit2.appendNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput(
+				[new vscode.NotebookCellOutputItem('hello', '1', { outputType: 'stream', streamName: 'stderr' })],
+				{ outputType: 'stream', streamName: 'stderr' }
+			)
+		]);
+		// edit2.replaceNotebookCellOutput(document.uri, 0, [
+		// 	...document.cells[0].outputs,
+		// 	new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('hello', '1', { outputType: 'stream', streamName: 'stderr' })], { outputType: 'stream', streamName: 'stderr' })
+		// ]);
+		// edit2.replaceNotebookCellOutput(document.uri, 0, [
+		// 	...document.cells[0].outputs,
+		// 	new vscode.NotebookCellOutput([new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stderr' })], { outputType: 'stream', streamName: 'stderr' })
+		// ]);
+		// This wasn't working, i had to revert to using `replaceNotebookCellOutput` (could be because we had two output in the cell).
+		// edit2.appendNotebookCellOutputItems(document.uri, 0, document.cells[0].outputs[1].id, [
+		// 	new vscode.NotebookCellOutputItem('hello', 'Append to existing stderr when we have two outputs (one for stdout & one for stderr)', { outputType: 'stream', streamName: 'stderr' })
+		// ]);
+		success = await vscode.workspace.applyEdit(edit);
+		assert.ok(success);
+
+		assert.strictEqual(document.cells[0].outputs.length, 2);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[1].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].metadata, { outputType: 'stream', streamName: 'stderr' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].outputs[0].metadata, { outputType: 'stream', streamName: 'stderr' });
+	});
 });
