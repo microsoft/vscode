@@ -306,7 +306,8 @@ export class TerminalService implements ITerminalService {
 			return false;
 		}
 
-		if (reason !== ShutdownReason.RELOAD && this.configHelper.config.confirmOnExit) {
+		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
+		if (this.configHelper.config.confirmOnExit && !shouldPersistTerminals) {
 			return this._onBeforeShutdownAsync();
 		}
 
@@ -326,7 +327,8 @@ export class TerminalService implements ITerminalService {
 
 	private _onWillShutdown(e: WillShutdownEvent): void {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
-		if (e.reason === ShutdownReason.RELOAD) {
+		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
+		if (shouldPersistTerminals) {
 			return;
 		}
 
