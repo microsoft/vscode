@@ -109,14 +109,11 @@ class UntitledHintContentWidget implements IContentWidget {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
-			const select = $('span');
-			select.innerText = localize('select', "Select a  ");
-			this.domNode.appendChild(select);
 			const language = $('span.language-mode.detected-link-active');
 			const keybinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
 			const keybindingLabel = keybinding?.getLabel();
 			const keybindingWithBrackets = keybindingLabel ? `(${keybindingLabel})` : '';
-			language.innerText = localize('language', "language {0}", keybindingWithBrackets);
+			language.innerText = localize('selectAlanguage', "Select a language {0}", keybindingWithBrackets);
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
