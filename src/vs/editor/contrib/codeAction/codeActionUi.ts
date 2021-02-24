@@ -24,6 +24,8 @@ export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
+	#disposed = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		quickFixActionId: string,
@@ -50,6 +52,11 @@ export class CodeActionUi extends Disposable {
 		});
 	}
 
+	dispose() {
+		this.#disposed = true;
+		super.dispose();
+	}
+
 	public async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
 			this._lightBulbWidget.rawValue?.hide();
@@ -61,6 +68,10 @@ export class CodeActionUi extends Disposable {
 			actions = await newState.actions;
 		} catch (e) {
 			onUnexpectedError(e);
+			return;
+		}
+
+		if (this.#disposed) {
 			return;
 		}
 
