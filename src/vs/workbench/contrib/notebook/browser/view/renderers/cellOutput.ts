@@ -106,7 +106,13 @@ export class CellOutputElement extends Disposable {
 		}
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel);
-		if (mimeTypes.length > 1) {
+
+		if (!mimeTypes.find(mimeType => mimeType.isTrusted)) {
+			this.viewCell.updateOutputHeight(index, 0);
+			return;
+		}
+
+		if (mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1) {
 			this.attachMimetypeSwitcher(this.domNode, notebookTextModel, mimeTypes);
 		}
 
@@ -215,14 +221,19 @@ export class CellOutputElement extends Disposable {
 	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel);
 
-		const items = mimeTypes.filter(mimeType => mimeType.isTrusted).map((mimeType, index): IMimeTypeRenderer => ({
-			label: mimeType.mimeType,
-			id: mimeType.mimeType,
-			index: index,
-			picked: index === currIndex,
-			detail: this.generateRendererInfo(mimeType.rendererId),
-			description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
-		}));
+		let items: IMimeTypeRenderer[] = [];
+		mimeTypes.forEach((mimeType, index) => {
+			if (mimeType.isTrusted) {
+				items.push({
+					label: mimeType.mimeType,
+					id: mimeType.mimeType,
+					index: index,
+					picked: index === currIndex,
+					detail: this.generateRendererInfo(mimeType.rendererId),
+					description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
+				});
+			}
+		});
 
 		const picker = this.quickInputService.createQuickPick();
 		picker.items = items;
