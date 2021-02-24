@@ -95,7 +95,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async attachToProcess(id: number): Promise<void> {
-		this._throwIfNoPty(id);
+		this._throwIfNoPty(id).attach();
 		this._logService.trace(`Persistent terminal "${id}": Attach`);
 	}
 
@@ -269,6 +269,10 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
 			// this._bufferer.stopBuffering(this._persistentTerminalId);
 		}));
+	}
+
+	attach(): void {
+		this._disconnectRunner1.cancel();
 	}
 
 	async detach(): Promise<void> {
