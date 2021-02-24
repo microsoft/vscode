@@ -834,7 +834,7 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 
 namespace LabelTunnelAction {
 	export const ID = 'remote.tunnel.label';
-	export const LABEL = nls.localize('remote.tunnel.label', "Set Label");
+	export const LABEL = nls.localize('remote.tunnel.label', "Set Port Label");
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg): Promise<{ port: number, label: string } | undefined> => {
@@ -1144,7 +1144,7 @@ namespace CopyAddressAction {
 
 namespace ChangeLocalPortAction {
 	export const ID = 'remote.tunnel.changeLocalPort';
-	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Port");
+	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Address Port");
 
 	function validateInput(value: string, canElevate: boolean): { content: string, severity: Severity } | null {
 		if (!value.match(/^[0-9]+$/)) {
