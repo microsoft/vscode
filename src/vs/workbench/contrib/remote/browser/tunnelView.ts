@@ -852,7 +852,7 @@ namespace LabelTunnelAction {
 						},
 						validationMessage: () => null,
 						placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
-						startingValue: context.name
+						startingValue: context.name ? context.name : `${context.remotePort}`
 					});
 				});
 			}
