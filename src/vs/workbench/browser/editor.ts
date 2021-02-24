@@ -210,10 +210,6 @@ export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
 };
 
 export type EditorAssociation = {
-	readonly editorType: string;
-	readonly filenamePattern?: string;
-} | {
-	// deprecated
 	readonly viewType: string;
 	readonly filenamePattern?: string;
 };
@@ -318,7 +314,7 @@ class EditorAssociationsRegistry implements IEditorAssociationsRegistry {
 
 		for (const { id, providerDisplayName } of editorTypes) {
 			enumValues.push(id);
-			enumDescriptions.push(localize('editorAssociations.editorType.sourceDescription', "Source: {0}", providerDisplayName));
+			enumDescriptions.push(localize('editorAssociations.viewType.sourceDescription', "Source: {0}", providerDisplayName));
 		}
 
 		editorTypeSchemaAddition.enum = enumValues;

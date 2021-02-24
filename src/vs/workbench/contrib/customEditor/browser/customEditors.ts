@@ -122,7 +122,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		return new CustomEditorInfoCollection(
 			coalesce(rawAssociations
 				.filter(association => CustomEditorInfo.selectorMatches(association, resource))
-				.map(association => this._contributedEditors.get((association as { editorType: string }).editorType ?? (association as { viewType: string }).viewType))));
+				.map(association => this._contributedEditors.get(association.viewType))));
 	}
 
 	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
@@ -188,7 +188,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 				// And persist the setting
 				if (pick) {
-					const newAssociation: EditorAssociation = { editorType: pick, filenamePattern: '*' + resourceExt };
+					const newAssociation: EditorAssociation = { viewType: pick, filenamePattern: '*' + resourceExt };
 					const currentAssociations = [...this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId)];
 
 					// First try updating existing association

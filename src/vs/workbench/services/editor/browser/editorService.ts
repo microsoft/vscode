@@ -752,7 +752,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Persist setting
 				if (resource && e.item && e.item.id) {
-					const newAssociation: EditorAssociation = { editorType: e.item.id, filenamePattern: `*${extname(resource)}` };
+					const newAssociation: EditorAssociation = { viewType: e.item.id, filenamePattern: `*${extname(resource)}` };
 					const currentAssociations = [...this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId)];
 
 					// First try updating existing association
