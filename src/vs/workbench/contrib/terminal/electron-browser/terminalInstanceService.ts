@@ -122,7 +122,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			await this._localPtyService.attachToProcess(id);
 			return this._instantiationService.createInstance(LocalPty, id);
 		} catch (e) {
-			this._logService.trace(`Couldn't attach to process in terminal instance service ${e.message}`);
+			this._logService.trace(`Couldn't attach to process ${e.message}`);
 			return undefined;
 		}
 	}
