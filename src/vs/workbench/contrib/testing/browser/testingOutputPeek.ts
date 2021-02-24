@@ -372,7 +372,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 
 		this.test = test;
 		this.show(message.location.range, hintDiffPeekHeight(message));
-		this.setTitle(message.message.toString(), test.label);
+		this.setTitle(message.message.toString().split('\n')[0], test.label);
 
 		const [original, modified] = await Promise.all([
 			this.modelService.createModelReference(expectedUri),
