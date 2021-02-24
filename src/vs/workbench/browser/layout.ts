@@ -576,7 +576,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		if (!storageService.isNew(StorageScope.WORKSPACE)) {
+		if (!defaultLayout.force && !storageService.isNew(StorageScope.WORKSPACE)) {
 			return;
 		}
 
@@ -636,7 +636,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && this.storageService.isNew(StorageScope.WORKSPACE)) {
+		if (defaultLayout?.editors?.length && (defaultLayout.force || this.storageService.isNew(StorageScope.WORKSPACE))) {
 			this._openedDefaultEditors = true;
 
 			return {
