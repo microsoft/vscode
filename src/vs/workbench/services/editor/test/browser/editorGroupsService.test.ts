@@ -42,7 +42,7 @@ suite('EditorGroupsService', () => {
 		const [part] = createPart(instantiationService);
 
 		let activeGroupChangeCounter = 0;
-		const activeGroupChangeListener = part.onDidActiveGroupChange(() => {
+		const activeGroupChangeListener = part.onDidChangeActiveGroup(() => {
 			activeGroupChangeCounter++;
 		});
 
@@ -227,7 +227,7 @@ suite('EditorGroupsService', () => {
 		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
 
 		let groupIndexChangedCounter = 0;
-		const groupIndexChangedListener = part.onDidGroupIndexChange(() => {
+		const groupIndexChangedListener = part.onDidChangeGroupIndex(() => {
 			groupIndexChangedCounter++;
 		});
 
@@ -329,7 +329,7 @@ suite('EditorGroupsService', () => {
 
 		let oldOptions!: IEditorPartOptions;
 		let newOptions!: IEditorPartOptions;
-		part.onDidEditorPartOptionsChange(event => {
+		part.onDidChangeEditorPartOptions(event => {
 			oldOptions = event.oldPartOptions;
 			newOptions = event.newPartOptions;
 		});

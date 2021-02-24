@@ -697,7 +697,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}
 
 			binaryEditors.forEach(editor => {
-				this.activeEditorListeners.add(editor.onMetadataChanged(metadata => {
+				this.activeEditorListeners.add(editor.onDidChangeMetadata(metadata => {
 					this.onMetadataChange(activeEditorPane);
 				}));
 

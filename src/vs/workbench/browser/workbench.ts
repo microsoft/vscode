@@ -394,7 +394,7 @@ export class Workbench extends Layout {
 
 		// Register with Layout
 		this.registerNotifications({
-			onNotificationsVisibilityChange: Event.map(Event.any(notificationsToasts.onDidChangeVisibility, notificationsCenter.onDidChangeVisibility), () => notificationsToasts.isVisible || notificationsCenter.isVisible)
+			onDidChangeNotificationsVisibility: Event.map(Event.any(notificationsToasts.onDidChangeVisibility, notificationsCenter.onDidChangeVisibility), () => notificationsToasts.isVisible || notificationsCenter.isVisible)
 		});
 	}
 

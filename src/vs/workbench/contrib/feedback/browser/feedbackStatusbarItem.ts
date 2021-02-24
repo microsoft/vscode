@@ -95,7 +95,7 @@ export class FeedbackStatusbarConribution extends Disposable implements IWorkben
 	private registerListeners(): void {
 
 		// Hide feedback widget whenever notifications appear
-		this._register(this.layoutService.onNotificationsVisibilityChange(visible => {
+		this._register(this.layoutService.onDidChangeNotificationsVisibility(visible => {
 			if (visible) {
 				this.widget?.hide();
 			}
