@@ -152,7 +152,8 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = '';
 	readonly tooltip: string = '';
 	readonly weight: number = 1;
-	readonly maximumWidth: number = 40;
+	readonly minimumWidth = 40;
+	readonly maximumWidth = 40;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const isAdd = row.tunnelType === TunnelType.Add;
