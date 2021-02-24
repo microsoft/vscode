@@ -117,9 +117,14 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return this._instantiationService.createInstance(LocalPty, id);
 	}
 
-	public async attachToProcess(id: number): Promise<ITerminalChildProcess> {
-		await this._localPtyService.attachToProcess(id);
-		return this._instantiationService.createInstance(LocalPty, id);
+	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		try {
+			await this._localPtyService.attachToProcess(id);
+			return this._instantiationService.createInstance(LocalPty, id);
+		} catch (e) {
+			this._logService.trace(`Couldn't attach to process in terminal instance service ${e.message}`);
+			return undefined;
+		}
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

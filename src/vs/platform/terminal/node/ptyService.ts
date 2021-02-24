@@ -85,8 +85,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async attachToProcess(id: number): Promise<void> {
-		this._throwIfNoPty(id);
-		this._logService.trace(`Persistent terminal "${id}": Attach`);
+		try {
+			this._throwIfNoPty(id);
+		} catch (e) {
+			this._logService.trace(`Persistent terminal reconnection failed`, e.message);
+		}
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | { persistentTerminalId: number; } | undefined> {
@@ -122,7 +125,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		if (args) {
+		try {
 			const layout = this._workspaceLayoutInfos.get(args.workspaceId);
 			if (layout) {
 				const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
@@ -131,6 +134,8 @@ export class PtyService extends Disposable implements IPtyService {
 					tabs: filtered
 				};
 			}
+		} catch (e) {
+			this._logService.trace(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
 		}
 		return undefined;
 	}
