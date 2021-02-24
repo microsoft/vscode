@@ -124,10 +124,12 @@ export class GettingStartedPage extends EditorPane {
 				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-task-id="${task.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (task.done) {
+						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
 						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 					}
 					else {
+						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
 						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 					}
@@ -476,9 +478,10 @@ export class GettingStartedPage extends EditorPane {
 					'x-dispatch': 'selectTask:' + task.id,
 					'data-task-id': task.id,
 					'aria-expanded': 'false',
+					'aria-checked': '' + task.done,
 					'role': 'listitem',
 				},
-				$('.codicon' + (task.done ? '.complete.codicon-pass-filled' : '.codicon-circle-large-outline'), { 'data-done-task-id': task.id }),
+				$('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)), { 'data-done-task-id': task.id }),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
