@@ -116,16 +116,16 @@ export class BareFontInfo {
 	 * @internal
 	 */
 	public getMassagedFontFamily(): string {
-		if (/[,"']/.test(this.fontFamily)) {
-			// Looks like the font family might be already escaped
-			return this.fontFamily;
-		}
-		if (/[+ ]/.test(this.fontFamily)) {
-			// Wrap a font family using + or <space> with quotes
-			return `"${this.fontFamily}"`;
-		}
-
-		return this.fontFamily;
+		return this.fontFamily
+		    	.split(/ *, */)
+				.filter(name => name !== '')
+				.map(name =>
+					// Change double quotes to single quotes so that rich text can be coped properly.
+					/["']/.test(name) ? name.replace(/"/g, "'") :
+					// Quotes are required around font-family names when they are not valid CSS identifiers.
+					/[^a-zA-Z\d\xa0-\uffff_-]/.test(name) ? `'${name}'` : name
+				)
+				.join(', ');
 	}
 }
 
