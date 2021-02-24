@@ -13,6 +13,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { mark } from 'vs/base/common/performance';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { timeout } from 'vs/base/common/async';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 
@@ -22,7 +25,8 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -31,6 +35,17 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 	private async connect(): Promise<MessagePortClient> {
 		this.logService.trace('Renderer->SharedProcess#connect');
+
+		// Our performance tests show that a connection to the shared
+		// process can have significant overhead to the startup time
+		// of the window because the shared process could be created
+		// as a result. As such, make sure we await the `Restored`
+		// phase before making a connection attempt, but also add a
+		// timeout to be safe against possible deadlocks.
+		// TODO@bpasero revisit this when the shared process connection
+		// is more cruicial.
+		await Promise.race([this.lifecycleService.when(LifecyclePhase.Restored), timeout(2000)]);
+
 		mark('code/willConnectSharedProcess');
 
 		// Ask to create message channel inside the window
@@ -58,3 +73,5 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		this.withSharedProcessConnection.then(connection => connection.registerChannel(channelName, channel));
 	}
 }
+
+registerSingleton(ISharedProcessService, SharedProcessService, true);
