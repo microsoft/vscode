@@ -844,17 +844,19 @@ namespace LabelTunnelAction {
 			if (context instanceof TunnelItem) {
 				return new Promise(resolve => {
 					const remoteExplorerService = accessor.get(IRemoteExplorerService);
+					const startingValue = context.name ? context.name : `${context.remotePort}`;
 					remoteExplorerService.setEditable(context, TunnelEditId.Label, {
 						onFinish: async (value, success) => {
 							remoteExplorerService.setEditable(context, TunnelEditId.Label, null);
-							if (success) {
+							const changed = success && (value !== startingValue);
+							if (changed) {
 								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 							}
-							resolve(success ? { port: context.remotePort, label: value } : undefined);
+							resolve(changed ? { port: context.remotePort, label: value } : undefined);
 						},
 						validationMessage: () => null,
 						placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
-						startingValue: context.name ? context.name : `${context.remotePort}`
+						startingValue
 					});
 				});
 			}
