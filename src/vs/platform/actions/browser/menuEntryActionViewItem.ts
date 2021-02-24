@@ -16,7 +16,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
@@ -194,7 +194,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
 				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
-				title += `\n${PREFIX}Alt${SUFFIX} `;
+				title += `\n${PREFIX}${isMacintosh ? 'Option' : 'Alt'}${SUFFIX} `;
 				title += altKeybindingLabel
 					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
 					: altTooltip;
