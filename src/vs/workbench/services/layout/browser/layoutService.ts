@@ -107,6 +107,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onPartVisibilityChange: Event<void>;
 
 	/**
+	 * Emit when notifications (toasts or center) visibility changes.
+	 */
+	readonly onNotificationsVisibilityChange: Event<boolean>;
+
+	/**
 	 * Run a layout of the workbench.
 	 */
 	layout(): void;

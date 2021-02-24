@@ -470,9 +470,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onPanelPositionChange: Event<string> = Event.None;
 	onPartVisibilityChange: Event<void> = Event.None;
 	onLayout = Event.None;
-
-	private readonly _onMenubarVisibilityChange = new Emitter<Dimension>();
-	get onMenubarVisibilityChange(): Event<Dimension> { return this._onMenubarVisibilityChange.event; }
+	onMenubarVisibilityChange = Event.None;
+	onNotificationsVisibilityChange = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -116,6 +116,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private readonly _onPartVisibilityChange = this._register(new Emitter<void>());
 	readonly onPartVisibilityChange = this._onPartVisibilityChange.event;
+
+	private readonly _onNotificationsVisibilityChange = this._register(new Emitter<boolean>());
+	readonly onNotificationsVisibilityChange = this._onNotificationsVisibilityChange.event;
 
 	private readonly _onLayout = this._register(new Emitter<IDimension>());
 	readonly onLayout = this._onLayout.event;
@@ -813,6 +816,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		return part;
+	}
+
+	registerNotifications(delegate: { onNotificationsVisibilityChange: Event<boolean> }): void {
+		this._register(delegate.onNotificationsVisibilityChange(visible => this._onNotificationsVisibilityChange.fire(visible)));
 	}
 
 	isRestored(): boolean {
