@@ -449,8 +449,8 @@ export class ExtensionEditor extends EditorPane {
 				this.instantiationService.createInstance(InstallAnotherVersionAction),
 			]),
 			this.instantiationService.createInstance(ToggleSyncExtensionAction),
-			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ExtensionEditorManageExtensionAction),
+			systemDisabledWarningAction,
 			this.instantiationService.createInstance(ExtensionToolTipAction, systemDisabledWarningAction, reloadAction),
 			this.instantiationService.createInstance(MaliciousStatusLabelAction, true),
 		];
