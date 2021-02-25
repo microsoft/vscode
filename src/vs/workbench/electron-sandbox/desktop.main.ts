@@ -16,7 +16,7 @@ import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } fro
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { NativeStorageService2 } from 'vs/platform/storage/electron-sandbox/storageService2';
+import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -116,14 +116,14 @@ class DesktopMain extends Disposable {
 		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
-	private registerListeners(workbench: Workbench, storageService: NativeStorageService2): void {
+	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Workbench Lifecycle
 		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
 		this._register(workbench.onShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService2 }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -294,8 +294,8 @@ class DesktopMain extends Disposable {
 		return new SimpleWorkspaceService();
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService2> {
-		const storageService = new NativeStorageService2(payload, mainProcessService, this.environmentService);
+	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+		const storageService = new NativeStorageService(payload, mainProcessService, this.environmentService);
 
 		try {
 			await storageService.initialize();

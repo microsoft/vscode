@@ -14,7 +14,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
 import { joinPath } from 'vs/base/common/resources';
 
-export class NativeStorageService2 extends AbstractStorageService {
+export class NativeStorageService extends AbstractStorageService {
 
 	// Global Storage is readonly and shared across windows
 	private readonly globalStorage: IStorage;
