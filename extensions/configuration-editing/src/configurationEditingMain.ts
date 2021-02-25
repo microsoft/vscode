@@ -150,6 +150,7 @@ function registerContextKeyCompletions(): vscode.Disposable {
 		[{ language: 'json', pattern: '**/package.json' }, [
 			['contributes', 'menus', '*', '*', 'when'],
 			['contributes', 'views', '*', '*', 'when'],
+			['contributes', 'viewsWelcome', '*', 'when'],
 			['contributes', 'keybindings', '*', 'when'],
 			['contributes', 'keybindings', 'when'],
 		]]
