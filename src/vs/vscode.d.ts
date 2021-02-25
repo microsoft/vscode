@@ -12358,6 +12358,8 @@ declare module 'vscode' {
 
 		/**
 		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been changed.
+		 * A session changes when its data excluding the id are updated. An example of this is a session refresh that results in a new
+		 * access token being set for the session.
 		 */
 		readonly changed?: ReadonlyArray<AuthenticationSession>;
 	}
@@ -12382,6 +12384,12 @@ declare module 'vscode' {
 
 		/**
 		 * Prompts a user to login.
+		 *
+		 * If login is successful, the onDidChangeSessions event should be fired.
+		 *
+		 * If the provider has specified that it does not support multiple accounts,
+		 * then this should never be called if there is already an existing session matching these
+		 * scopes.
 		 * @param scopes A list of scopes, permissions, that the new session should be created with.
 		 * @returns A promise that resolves to an authentication session.
 		 */
@@ -12389,6 +12397,10 @@ declare module 'vscode' {
 
 		/**
 		 * Removes the session corresponding to session id.
+		 *
+		 * If the removal is successful, the onDidChangeSessions event should be fired.
+		 *
+		 * If a session cannot be removed, the provider should reject with an error message.
 		 * @param sessionId The id of the session to remove.
 		 */
 		removeSession(sessionId: string): Thenable<void>;
