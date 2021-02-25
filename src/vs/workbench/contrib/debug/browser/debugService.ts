@@ -314,7 +314,7 @@ export class DebugService implements IDebugService {
 						"Compound must have \"configurations\" attribute set in order to start multiple configurations."));
 				}
 				if (compound.preLaunchTask) {
-					const taskResult = await this.taskRunner.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask, (msg, actions) => this.showError(msg, actions));
+					const taskResult = await this.taskRunner.runTaskAndCheckErrors(launch?.workspace || this.contextService.getWorkspace(), compound.preLaunchTask);
 					if (taskResult === TaskRunResult.Failure) {
 						this.endInitializingState();
 						return false;
@@ -423,7 +423,7 @@ export class DebugService implements IDebugService {
 				}
 
 				const workspace = launch?.workspace || this.contextService.getWorkspace();
-				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
+				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask);
 				if (taskResult === TaskRunResult.Failure) {
 					return false;
 				}
@@ -647,12 +647,12 @@ export class DebugService implements IDebugService {
 			await this.taskRunner.runTask(root, session.configuration.preRestartTask);
 			await this.taskRunner.runTask(root, session.configuration.postDebugTask);
 
-			const taskResult1 = await this.taskRunner.runTaskAndCheckErrors(root, session.configuration.preLaunchTask, (msg, actions) => this.showError(msg, actions));
+			const taskResult1 = await this.taskRunner.runTaskAndCheckErrors(root, session.configuration.preLaunchTask);
 			if (taskResult1 !== TaskRunResult.Success) {
 				return taskResult1;
 			}
 
-			return this.taskRunner.runTaskAndCheckErrors(root, session.configuration.postRestartTask, (msg, actions) => this.showError(msg, actions));
+			return this.taskRunner.runTaskAndCheckErrors(root, session.configuration.postRestartTask);
 		};
 
 		const extensionDebugSession = getExtensionHostDebugSession(session);
