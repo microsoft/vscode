@@ -213,7 +213,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		);
 
 		// Apply extension environment variable collections to the environment
-		if (!shellLaunchConfig.strictEnv) {
+		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
 			const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
 			mergedCollection.applyToProcessEnvironment(env, variableResolver);
 		}
