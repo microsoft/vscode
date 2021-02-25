@@ -232,14 +232,19 @@ flakySuite('PFS', function () {
 			assert.ok(!symbolicLink2);
 		}
 
-		// Copy ignores dangling symlinks
+		// Copy does not fail over dangling symlinks
 
 		await rimraf(copyTarget);
 		await rimraf(symbolicLinkTarget);
 
 		await copy(symLink, copyTarget, { preserveSymlinks: true }); // this should not throw
 
-		assert.ok(!fs.existsSync(copyTarget));
+		if (!isWindows) {
+			const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
+			assert.ok(symbolicLink?.dangling);
+		} else {
+			assert.ok(!fs.existsSync(copyTarget));
+		}
 	});
 
 	test('copy handles symbolic links when the reference is inside source', async () => {

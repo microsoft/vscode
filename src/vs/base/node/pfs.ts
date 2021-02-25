@@ -607,9 +607,6 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 
 	// Symlink
 	if (symbolicLink) {
-		if (symbolicLink.dangling) {
-			return; // do not copy dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
-		}
 
 		// Try to re-create the symlink unless `preserveSymlinks: false`
 		if (payload.options.preserveSymlinks) {
@@ -619,6 +616,10 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 				// in any case of an error fallback to normal copy via dereferencing
 				console.warn('[node.js fs] copy of symlink failed: ', error);
 			}
+		}
+
+		if (symbolicLink.dangling) {
+			return; // skip dangling symbolic links from here on (https://github.com/microsoft/vscode/issues/111621)
 		}
 	}
 
