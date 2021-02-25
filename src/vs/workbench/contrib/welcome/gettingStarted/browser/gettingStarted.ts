@@ -257,7 +257,12 @@ export class GettingStartedPage extends EditorPane {
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path);
 			this.taskDisposables.add(addDisposableListener(mediaElement, 'load', () => mediaElement.width = mediaElement.naturalWidth * 2 / 3));
-			this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
+			if (taskToExpand.button.link) {
+				this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
+				mediaElement.classList.add('clickable');
+			} else {
+				mediaElement.classList.remove('clickable');
+			}
 			this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path)));
 			taskElement.classList.add('expanded');
 			taskElement.setAttribute('aria-expanded', 'true');
