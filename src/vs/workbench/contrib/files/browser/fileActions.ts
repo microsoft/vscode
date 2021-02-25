@@ -711,8 +711,12 @@ export function validateFileName(item: ExplorerItem, name: string): { content: s
 	return null;
 }
 
-function escapeMarkdown(text: string) {
-	let unescaped = text.replace(/\\(\*|_|`|~|\\)/g, '$1');
+function escapeMarkdown(filename: string): string {
+	if (!filename) {
+		return filename;
+	}
+
+	let unescaped = filename.replace(/\\(\*|_|`|~|\\)/g, '$1');
 	let escaped = unescaped.replace(/(\*|_|`|~|\\)/g, '\\$1');
 	return escaped;
 }
