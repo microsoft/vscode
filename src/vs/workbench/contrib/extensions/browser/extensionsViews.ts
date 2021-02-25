@@ -36,7 +36,7 @@ import { IExperimentService, IExperiment, ExperimentActionType } from 'vs/workbe
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IAction, Action, Separator } from 'vs/base/common/actions';
+import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
 import { ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -100,6 +100,8 @@ export class ExtensionsListView extends ViewPane {
 	private queryRequest: { query: string, request: CancelablePromise<IPagedModel<IExtension>> } | null = null;
 	private queryResult: IQueryResult | undefined;
 
+	private readonly contextMenuActionRunner = this._register(new ActionRunner());
+
 	constructor(
 		protected readonly options: ExtensionsListViewOptions,
 		viewletViewOptions: IViewletViewOptions,
@@ -133,6 +135,7 @@ export class ExtensionsListView extends ViewPane {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
 		}
 
+		this._register(this.contextMenuActionRunner.onDidRun(({ error }) => error && this.notificationService.error(error)));
 		this.registerActions();
 	}
 
@@ -284,7 +287,8 @@ export class ExtensionsListView extends ViewPane {
 			actions.pop();
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => actions
+				getActions: () => actions,
+				actionRunner: this.contextMenuActionRunner,
 			});
 		}
 	}
