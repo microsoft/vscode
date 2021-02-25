@@ -115,7 +115,9 @@ export class MouseHandler extends ViewEventHandler {
 			const e = new StandardWheelEvent(browserEvent);
 			const doMouseWheelZoom = (
 				platform.isMacintosh
-					? (browserEvent.metaKey && !browserEvent.ctrlKey && !browserEvent.shiftKey && !browserEvent.altKey)
+					// on macOS we support cmd + two fingers scroll (`metaKey` set)
+					// and also the two fingers pinch gesture (`ctrKey` set)
+					? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
 					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
 			);
 			if (doMouseWheelZoom) {
