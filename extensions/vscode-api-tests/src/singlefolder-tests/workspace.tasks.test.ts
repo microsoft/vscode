@@ -45,6 +45,7 @@ import { assertNoRpc } from '../utils';
 			let testOrder = TestOrder.Start;
 
 			disposables.push(window.onDidOpenTerminal(term => {
+				console.log('open name: ' + term.name);
 				try {
 					assert.equal(testOrder, TestOrder.Start);
 				} catch (e) {
@@ -59,8 +60,10 @@ import { assertNoRpc } from '../utils';
 					testOrder = TestOrder.TerminalWritten;
 					assert.notEqual(terminal, undefined);
 					assert.equal(e.data, 'testing\r\n');
-				} catch (e) {
-					done(e);
+				} catch (ex) {
+					console.log('bad data: ' + e.data);
+					console.log('bad name: ' + e.terminal.name);
+					done(ex);
 				}
 
 				if (terminal) {
