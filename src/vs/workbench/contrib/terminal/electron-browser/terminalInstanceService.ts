@@ -39,6 +39,8 @@ let WebglAddon: typeof XTermWebglAddon;
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
 
+	private readonly _ptys: Map<number, LocalPty> = new Map();
+
 	private readonly _onPtyHostExit = this._register(new Emitter<void>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
 	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
@@ -57,6 +59,23 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		@INotificationService notificationService: INotificationService
 	) {
 		super();
+
+		// Attach process listeners
+		this._localPtyService.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+		this._localPtyService.onProcessExit(e => {
+			const pty = this._ptys.get(e.id);
+			if (pty) {
+				pty.handleExit(e.event);
+				this._ptys.delete(e.id);
+			}
+		});
+		this._localPtyService.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
+		this._localPtyService.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
+		this._localPtyService.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
+		this._localPtyService.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
+		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+
+		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
 			this._localPtyService.onPtyHostExit(e => {
 				this._onPtyHostExit.fire();
@@ -114,13 +133,17 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, process.env as IProcessEnvironment, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		return this._instantiationService.createInstance(LocalPty, id, shouldPersist);
+		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
+		this._ptys.set(id, pty);
+		return pty;
 	}
 
 	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
 			await this._localPtyService.attachToProcess(id);
-			return this._instantiationService.createInstance(LocalPty, id, true);
+			const pty = this._instantiationService.createInstance(LocalPty, id, true);
+			this._ptys.set(id, pty);
+			return pty;
 		} catch (e) {
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
 		}

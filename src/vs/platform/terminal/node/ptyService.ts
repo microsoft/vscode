@@ -131,9 +131,6 @@ export class PtyService extends Disposable implements IPtyService {
 	async getLatency(id: number): Promise<number> {
 		return 0;
 	}
-	async triggerReplay(id: number): Promise<void> {
-		return this._throwIfNoPty(id).triggerReplay();
-	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
