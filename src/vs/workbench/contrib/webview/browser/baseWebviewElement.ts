@@ -326,11 +326,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	protected handleFocusChange(isFocused: boolean): void {
-		if (isFocused && this.element === document.activeElement) {
-			this._focused = true;
+		this._focused = isFocused;
+		if (isFocused) {
 			this._onDidFocus.fire();
 		} else {
-			this._focused = false;
 			this._onDidBlur.fire();
 		}
 	}
