@@ -973,11 +973,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const nativeSelection = window.getSelection();
-		if (nativeSelection) {
-			await clipboardService.writeText(nativeSelection.toString());
+		const selectedText = nativeSelection?.toString();
+		if (selectedText && selectedText.length > 0) {
+			await clipboardService.writeText(selectedText);
+		} else if (element) {
+			await clipboardService.writeText(element.toString());
 		}
 	}
 });
