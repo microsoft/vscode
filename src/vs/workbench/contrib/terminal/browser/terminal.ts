@@ -46,10 +46,10 @@ export interface ITerminalInstanceService {
 	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
 	createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
-	attachToProcess(id: number): Promise<ITerminalChildProcess>;
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
 	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }

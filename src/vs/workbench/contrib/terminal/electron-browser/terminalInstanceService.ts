@@ -117,9 +117,14 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 	}
 
-	public async attachToProcess(id: number): Promise<ITerminalChildProcess> {
-		await this._localPtyService.attachToProcess(id);
-		return this._instantiationService.createInstance(LocalPty, id, true);
+	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
+		try {
+			await this._localPtyService.attachToProcess(id);
+			return this._instantiationService.createInstance(LocalPty, id, true);
+		} catch (e) {
+			this._logService.trace(`Couldn't attach to process ${e.message}`);
+		}
+		return undefined;
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {
@@ -157,10 +162,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return getMainProcessParentEnv();
 	}
 
-	public setTerminalLayoutInfo(layoutInfo: ITerminalsLayoutInfoById): void {
+	public setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): void {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo.tabs
+			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
 		this._localPtyService.setTerminalLayoutInfo(args);
 	}

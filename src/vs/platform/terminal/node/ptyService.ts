@@ -95,8 +95,12 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async attachToProcess(id: number): Promise<void> {
-		this._throwIfNoPty(id).attach();
-		this._logService.trace(`Persistent terminal "${id}": Attach`);
+		try {
+			this._throwIfNoPty(id);
+			this._logService.trace(`Persistent terminal reconnection "${id}"`);
+		} catch (e) {
+			this._logService.trace(`Persistent terminal reconnection "${id}" failed`, e.message);
+		}
 	}
 
 	async detachFromProcess(id: number): Promise<void> {
@@ -136,16 +140,13 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		if (args) {
-			const layout = this._workspaceLayoutInfos.get(args.workspaceId);
-			if (layout) {
-				const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
-				const filtered = expandedTabs.filter(t => t.terminals.length > 0);
-				return {
-					tabs: filtered
-				};
-			}
-
+		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
+		if (layout) {
+			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
+			const filtered = expandedTabs.filter(t => t.terminals.length > 0);
+			return {
+				tabs: filtered
+			};
 		}
 		return undefined;
 	}
@@ -161,12 +162,21 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
-		const persistentTerminalProcess = this._throwIfNoPty(t.terminal);
-		const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
-		return {
-			terminal: termDto ?? null,
-			relativeSize: t.relativeSize
-		};
+		try {
+			const persistentTerminalProcess = this._throwIfNoPty(t.terminal);
+			const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
+			return {
+				terminal: termDto ?? null,
+				relativeSize: t.relativeSize
+			};
+		} catch (e) {
+			this._logService.trace(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
+			// this will be filtered out and not reconnected
+			return {
+				terminal: null,
+				relativeSize: t.relativeSize
+			};
+		}
 	}
 
 	private async _terminalToDto(id: number, persistentTerminalProcess: PersistentTerminalProcess): Promise<IPtyHostDescriptionDto> {

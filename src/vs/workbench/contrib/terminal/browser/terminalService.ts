@@ -182,7 +182,7 @@ export class TerminalService implements ITerminalService {
 	private async _reconnectToLocalTerminals(): Promise<void> {
 		// Reattach to all local terminals
 		const layoutInfo = await this._terminalInstanceService.getTerminalLayoutInfo();
-		if (layoutInfo) {
+		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			this._recreateTerminalTabs(layoutInfo);
 			// now that terminals have been restored,
 			// attach listeners to update local state when terminals are changed
@@ -335,6 +335,7 @@ export class TerminalService implements ITerminalService {
 
 		// Force dispose of all terminal instances
 		this.terminalInstances.forEach(instance => instance.dispose(true));
+		this._terminalInstanceService.setTerminalLayoutInfo(undefined);
 	}
 
 	public getTabLabels(): string[] {
