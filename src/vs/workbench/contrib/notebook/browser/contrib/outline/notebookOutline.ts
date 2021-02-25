@@ -368,6 +368,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	dispose(): void {
+		this._onDidChange.dispose();
 		this._dispoables.dispose();
 		this._entriesDisposables.dispose();
 	}

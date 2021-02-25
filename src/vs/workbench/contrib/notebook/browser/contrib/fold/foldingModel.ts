@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegion, FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
@@ -15,24 +15,26 @@ type RegionFilter = (r: FoldingRegion) => boolean;
 type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
 
 
-export class FoldingModel extends Disposable {
+export class FoldingModel {
 	private _viewModel: NotebookViewModel | null = null;
-	private _viewModelStore = new DisposableStore();
+	private readonly _viewModelStore = new DisposableStore();
 	private _regions: FoldingRegions;
 	get regions() {
 		return this._regions;
 	}
 
-	private _onDidFoldingRegionChanges = new Emitter<void>();
-	onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
+	private readonly _onDidFoldingRegionChanges = new Emitter<void>();
+	readonly onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
 
 	private _foldingRangeDecorationIds: string[] = [];
 
-	constructor(
-		// private readonly _notebookEditor: INotebookEditor
-	) {
-		super();
+	constructor() {
 		this._regions = new FoldingRegions(new Uint32Array(0), new Uint32Array(0));
+	}
+
+	dispose() {
+		this._onDidFoldingRegionChanges.dispose();
+		this._viewModelStore.dispose();
 	}
 
 	detachViewModel() {
