@@ -513,6 +513,7 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 
 	private readonly layoutChangeListener = this._register(new MutableDisposable());
 	private readonly _factory: BrowserKeyboardMapperFactory;
+	private _keyboardLayoutMode: string;
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -525,6 +526,7 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 		super();
 		const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
 		const layout = keyboardConfig.layout;
+		this._keyboardLayoutMode = layout ?? 'autodetect';
 		this._factory = new BrowserKeyboardMapperFactory(notificationService, storageService, commandService);
 
 		this.registerKeyboardListener();
@@ -538,6 +540,7 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 			if (e.affectedKeys.indexOf('keyboard.layout') >= 0) {
 				const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
 				const layout = keyboardConfig.layout;
+				this._keyboardLayoutMode = layout;
 
 				if (layout === 'autodetect') {
 					this.registerKeyboardListener();
@@ -614,6 +617,10 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 	}
 
 	public validateCurrentKeyboardMapping(keyboardEvent: IKeyboardEvent): void {
+		if (this._keyboardLayoutMode !== 'autodetect') {
+			return;
+		}
+
 		this._factory.validateCurrentKeyboardMapping(keyboardEvent);
 	}
 }
