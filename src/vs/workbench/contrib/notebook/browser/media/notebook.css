@@ -340,7 +340,7 @@
 	display: inline-flex;
 	position: absolute;
 	height: 26px;
-	top: -16px;
+	top: -14px;
 	/* this lines up the bottom toolbar border with the current line when on line 01 */
 	z-index: 30;
 }
