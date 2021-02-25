@@ -155,7 +155,6 @@ export class TerminalService implements ITerminalService {
 			this._connectionState = TerminalConnectionState.Connecting;
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
-			this.attachProcessLayoutListeners(true);
 		}
 	}
 
@@ -576,7 +575,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => {
 			this._onInstanceDimensionsChanged.fire(instance);
-			this._updateRemoteState();
+			!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
