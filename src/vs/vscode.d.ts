@@ -12387,6 +12387,8 @@ declare module 'vscode' {
 		 *
 		 * If login is successful, the onDidChangeSessions event should be fired.
 		 *
+		 * If login fails, a rejected promise should be returned.
+		 *
 		 * If the provider has specified that it does not support multiple accounts,
 		 * then this should never be called if there is already an existing session matching these
 		 * scopes.
