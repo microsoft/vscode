@@ -575,7 +575,9 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => {
 			this._onInstanceDimensionsChanged.fire(instance);
-			!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
+			if (this.configHelper.config.enablePersistentSessions) {
+				!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
+			}
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
