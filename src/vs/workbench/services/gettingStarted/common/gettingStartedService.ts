@@ -24,8 +24,8 @@ import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensio
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
-type TaskProgress = { done: boolean; };
-export interface IGettingStartedTaskWithProgress extends IGettingStartedTask, TaskProgress { }
+type TaskProgress = { done?: boolean; };
+export interface IGettingStartedTaskWithProgress extends IGettingStartedTask, Required<TaskProgress> { }
 
 export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStartedCategory, 'content'> {
 	content:
@@ -236,6 +236,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private getTaskProgress(task: IGettingStartedTask): IGettingStartedTaskWithProgress {
 		return {
 			...task,
+			done: false,
 			...this.taskProgress[task.id]
 		};
 	}
