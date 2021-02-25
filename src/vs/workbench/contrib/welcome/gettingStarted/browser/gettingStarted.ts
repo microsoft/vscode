@@ -111,6 +111,7 @@ export class GettingStartedPage extends EditorPane {
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
 
 		this.container = $('.gettingStartedContainer');
+		this.tasExperimentService = tasExperimentService;
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inGettingStartedContext.bindTo(this.contextService).set(true);
