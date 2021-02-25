@@ -870,8 +870,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			release: release()
 		};
 
-		windowConfiguration.enableExperimentalMainProcessWorkspaceStorage = !!(windowConfig?.enableExperimentalMainProcessWorkspaceStorage);
-
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);
 		const config = Object.assign(environment, windowConfiguration) as unknown as { [key: string]: unknown };

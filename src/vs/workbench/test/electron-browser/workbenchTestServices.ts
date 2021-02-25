@@ -55,7 +55,6 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release() },
-	enableExperimentalMainProcessWorkspaceStorage: false,
 	...parseArgs(process.argv, OPTIONS)
 };
 
