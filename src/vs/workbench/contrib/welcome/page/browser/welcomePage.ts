@@ -127,6 +127,12 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 
 	private async manageDefaultValuesForGettingStartedExperiment() {
+		const config = this.configurationService.inspect(configurationKey);
+
+		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || config.value !== config.defaultValue) {
+			return;
+		}
+
 		if (this.configurationService.getValue('workbench.gettingStartedTreatmentOverride')) {
 			await new Promise(resolve => setTimeout(resolve, 1000));
 			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
