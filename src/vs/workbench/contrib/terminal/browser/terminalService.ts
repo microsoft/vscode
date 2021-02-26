@@ -9,7 +9,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,20 +17,19 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalService, ITerminalTab, TerminalConnectionState, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
+import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -82,8 +80,6 @@ export class TerminalService implements ITerminalService {
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
 	public get onInstanceLinksReady(): Event<ITerminalInstance> { return this._onInstanceLinksReady.event; }
-	private readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
-	public get onInstanceRequestSpawnExtHostProcess(): Event<ISpawnExtHostProcessRequest> { return this._onInstanceRequestSpawnExtHostProcess.event; }
 	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
 	public get onInstanceRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onInstanceRequestStartExtensionTerminal.event; }
 	private readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
@@ -112,7 +108,6 @@ export class TerminalService implements ITerminalService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IExtensionService private _extensionService: IExtensionService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private _quickInputService: IQuickInputService,
 		@IConfigurationService private _configurationService: IConfigurationService,
@@ -144,10 +139,9 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
-		const serverSpawn = this.configHelper.config.serverSpawn;
 
 		//TODO@meganrogge: deal with case where there are both local and remote terminals to reconnect
-		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
+		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
 			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 			this._connectionState = TerminalConnectionState.Connecting;
 		} else if (enableTerminalReconnection) {
@@ -260,18 +254,6 @@ export class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined);
 	}
 
-	public async requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-		// Wait for the remoteAuthority to be ready (and listening for events) before firing
-		// the event to spawn the ext host process
-		const conn = this._remoteAgentService.getConnection();
-		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
-		await this._whenExtHostReady(remoteAuthority);
-		return new Promise<ITerminalLaunchError | undefined>(callback => {
-			this._onInstanceRequestSpawnExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed, callback });
-		});
-	}
-
 	public requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
@@ -282,11 +264,6 @@ export class TerminalService implements ITerminalService {
 	public async extHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
 		this._extHostsReady[remoteAuthority]!.resolve();
-	}
-
-	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
-		this._createExtHostReadyEntry(remoteAuthority);
-		return this._extHostsReady[remoteAuthority]!.promise;
 	}
 
 	private _createExtHostReadyEntry(remoteAuthority: string): void {

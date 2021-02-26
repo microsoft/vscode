@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
@@ -140,7 +139,6 @@ export interface ITerminalConfiguration {
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
-	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
 	flowControl: boolean;
 }
@@ -312,16 +310,6 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
 	onRequestLatency: Event<void>;
-}
-
-export interface ISpawnExtHostProcessRequest {
-	proxy: ITerminalProcessExtHostProxy;
-	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI | undefined;
-	cols: number;
-	rows: number;
-	isWorkspaceShellAllowed: boolean;
-	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IStartExtensionTerminalRequest {

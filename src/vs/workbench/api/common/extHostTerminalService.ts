@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto, ITerminalLinkDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
@@ -322,7 +322,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public abstract createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal;
 	public abstract getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	public abstract getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
-	public abstract $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
 	public abstract $getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	public abstract $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
@@ -771,10 +770,6 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
-		throw new NotSupportedError();
-	}
-
-	public $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
 		throw new NotSupportedError();
 	}
 
