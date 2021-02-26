@@ -54,7 +54,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellToolbarLocKey, ICellRange, INotebookDecorationRenderOptions, INotebookKernel, NotebookCellRunState, NotebookRunState, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, ICellRange, INotebookDecorationRenderOptions, INotebookKernel, NotebookCellRunState, NotebookRunState, SelectionStateType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
@@ -1171,10 +1171,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const focusIdx = typeof viewState?.focus === 'number' ? viewState.focus : 0;
 		if (focusIdx < this._list.length) {
-			this._list.setFocus([focusIdx]);
-			this._list.setSelection([focusIdx]);
+			const element = this._list.element(focusIdx);
+			if (element) {
+				this.viewModel?.updateSelectionsFromEdits({
+					kind: SelectionStateType.Handle,
+					primary: element.handle,
+					selections: [element.handle]
+				});
+			}
 		} else if (this._list.length > 0) {
-			this._list.setFocus([0]);
+			this.viewModel?.updateSelectionsFromEdits({
+				kind: SelectionStateType.Index,
+				selections: [{ start: 0, end: 1 }]
+			});
 		}
 
 		if (viewState?.editorFocused) {
@@ -1295,7 +1304,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#region Editor Features
 
 	focusElement(cell: ICellViewModel) {
-		this._list.focusElement(cell);
+		this.viewModel?.updateSelectionsFromEdits({
+			kind: SelectionStateType.Handle,
+			primary: cell.handle,
+			selections: [cell.handle]
+		});
 	}
 
 	revealCellRangeInView(range: ICellRange) {
