@@ -36,12 +36,12 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 			this._xterm.buffer.active.getLine(startLine)!
 		];
 
-		while (this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
+		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
 			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
 			startLine--;
 		}
 
-		while (this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
 			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
