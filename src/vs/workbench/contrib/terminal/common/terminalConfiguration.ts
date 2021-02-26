@@ -393,11 +393,6 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			]
 		},
-		'terminal.integrated.serverSpawn': {
-			description: localize('terminal.integrated.serverSpawn', "Experimental: spawn remote terminals from the remote agent process instead of the remote extension host"),
-			type: 'boolean',
-			default: true
-		},
 		'terminal.integrated.enablePersistentSessions': {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
 			type: 'boolean',
