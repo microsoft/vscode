@@ -1140,13 +1140,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			});
 		}));
 
-		this._list.attachViewModel(this.viewModel);
 		this._localStore.add(this._list.onDidRemoveOutput(output => {
 			this.removeInset(output);
 		}));
 		this._localStore.add(this._list.onDidHideOutput(output => {
 			this.hideInset(output);
 		}));
+		this._localStore.add(this._list.onDidRemoveCellFromView(cell => {
+			if (cell.cellKind === CellKind.Markdown) {
+				this.removeMarkdownPreview(cell as MarkdownCellViewModel);
+			}
+		}));
+
+		this._list.attachViewModel(this.viewModel);
 
 		if (this._dimension) {
 			this._list.layout(this._dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, this._dimension.width);
