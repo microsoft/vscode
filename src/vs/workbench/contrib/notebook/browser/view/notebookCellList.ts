@@ -577,7 +577,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	focusElement(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index >= 0) {
+		if (index >= 0 && this._viewModel) {
+			// update view model first, which will update both `focus` and `selection` in a single transaction
+			const focusedElementHandle = this.element(index).handle;
+			this._viewModel.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+
+			// update the view as previous model update will not trigger event
 			this.setFocus([index], undefined, false);
 		}
 	}
