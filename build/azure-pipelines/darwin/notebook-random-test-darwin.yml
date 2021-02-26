@@ -5,8 +5,8 @@ steps:
 
 - script: |
     set -e
-    git fetch origin master
-    git merge origin/master
+    git fetch origin main
+    git merge origin/main
     git log -n 1
   displayName: Update branch
 
