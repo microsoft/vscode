@@ -29,7 +29,7 @@ export function setup() {
 		after(async function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard origin/main --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
 		beforeEach(async function () {
