@@ -339,13 +339,13 @@ export abstract class EditorAction extends EditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
-export abstract class MultiEditorAction extends EditorAction {
+export class MultiEditorAction extends EditorAction {
+
 	private readonly _implementations: [number, CommandImplementation][] = [];
 
-	constructor(opts: IActionOptions) {
-		super(opts);
-	}
-
+	/**
+	 * A higher priority gets to be looked at first
+	 */
 	public addImplementation(priority: number, implementation: CommandImplementation): IDisposable {
 		this._implementations.push([priority, implementation]);
 		this._implementations.sort((a, b) => b[0] - a[0]);
@@ -361,19 +361,17 @@ export abstract class MultiEditorAction extends EditorAction {
 		};
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
-		this.reportTelemetry(accessor, editor);
-
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
 		for (const impl of this._implementations) {
-			if (impl[1](accessor, args)) {
-				return;
+			const result = impl[1](accessor, args);
+			if (result) {
+				if (typeof result === 'boolean') {
+					return;
+				}
+				return result;
 			}
 		}
-
-		return this.run(accessor, editor, args || {});
 	}
-
-	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 
 }
 

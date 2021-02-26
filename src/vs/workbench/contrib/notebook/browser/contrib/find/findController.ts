@@ -27,7 +27,7 @@ import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/c
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorStartFindAction, EditorStartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -405,7 +405,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-EditorStartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
+StartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
 	const editorService = accessor.get(IEditorService);
 	const editor = getActiveNotebookEditor(editorService);
 
@@ -418,7 +418,7 @@ EditorStartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: 
 	return true;
 });
 
-EditorStartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
+StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
 	const editorService = accessor.get(IEditorService);
 	const editor = getActiveNotebookEditor(editorService);
 

@@ -40,6 +40,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
 		return createTestCodeEditor({
 			model: model,
+			hasTextFocus: false,
 			serviceCollection: new ServiceCollection(
 				[ICodeEditorService, codeEditorService]
 			)
