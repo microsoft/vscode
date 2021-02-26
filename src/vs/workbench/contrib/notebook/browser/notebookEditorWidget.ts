@@ -1146,7 +1146,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._localStore.add(this._list.onDidHideOutput(output => {
 			this.hideInset(output);
 		}));
-		this._localStore.add(this._list.onDidHideMarkdownPreview(cell => {
+		this._localStore.add(this._list.onDidRemoveCellFromView(cell => {
 			if (cell.cellKind === CellKind.Markdown) {
 				this.removeMarkdownPreview(cell as MarkdownCellViewModel);
 			}

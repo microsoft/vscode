@@ -49,8 +49,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	readonly onDidRemoveOutput: Event<ICellOutputViewModel> = this._onDidRemoveOutput.event;
 	private readonly _onDidHideOutput = new Emitter<ICellOutputViewModel>();
 	readonly onDidHideOutput: Event<ICellOutputViewModel> = this._onDidHideOutput.event;
-	private readonly _onDidHideMarkdownPreview = new Emitter<ICellViewModel>();
-	readonly onDidHideMarkdownPreview: Event<ICellViewModel> = this._onDidHideMarkdownPreview.event;
+	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
+	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
 	private _viewModel: NotebookViewModel | null = null;
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
@@ -386,7 +386,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		newRanges.reverse().forEach(range => {
 			const removedCells = viewCells.splice(range.start, range.end - range.start + 1);
 			removedCells.forEach(cell => {
-				this._onDidHideMarkdownPreview.fire(cell);
+				this._onDidRemoveCellFromView.fire(cell);
 			});
 		});
 
@@ -496,7 +496,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
 			deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
-			removedMarkdownCells.forEach(cell => this._onDidHideMarkdownPreview.fire(cell));
+			removedMarkdownCells.forEach(cell => this._onDidRemoveCellFromView.fire(cell));
 		});
 	}
 

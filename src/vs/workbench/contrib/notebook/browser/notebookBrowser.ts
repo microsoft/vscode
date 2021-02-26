@@ -633,7 +633,7 @@ export interface INotebookCellList {
 	rowsContainer: HTMLElement;
 	readonly onDidRemoveOutput: Event<ICellOutputViewModel>;
 	readonly onDidHideOutput: Event<ICellOutputViewModel>;
-	readonly onDidHideMarkdownPreview: Event<ICellViewModel>;
+	readonly onDidRemoveCellFromView: Event<ICellViewModel>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
