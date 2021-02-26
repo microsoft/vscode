@@ -315,8 +315,8 @@ class SaveModelAsAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		private editorService: IEditorService,
-		private editorGroupService: IEditorGroupsService
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
 	}
