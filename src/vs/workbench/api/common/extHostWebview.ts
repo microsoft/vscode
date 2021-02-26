@@ -208,6 +208,9 @@ export function serializeWebviewOptions(
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,
 		enableForms: options.enableForms,
+		enableWebUSB: options.enableWebUSB,
+		enableWebSerial: options.enableWebSerial,
+		enableWebHid: options.enableWebHid,
 		portMapping: options.portMapping,
 		localResourceRoots: options.localResourceRoots || getDefaultLocalResourceRoots(extension, workspace)
 	};
@@ -218,6 +221,9 @@ export function reviveOptions(options: extHostProtocol.IWebviewContentOptions): 
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,
 		enableForms: options.enableForms,
+		enableWebUSB: options.enableWebUSB,
+		enableWebSerial: options.enableWebSerial,
+		enableWebHid: options.enableWebHid,
 		portMapping: options.portMapping,
 		localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
 	};

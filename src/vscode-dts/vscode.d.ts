@@ -7955,6 +7955,27 @@ declare module 'vscode' {
 		readonly enableForms?: boolean;
 
 		/**
+		 * Controls whether WebUSB is enabled in the webview content or not.
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableWebUSB?: boolean;
+
+		/**
+		 * Controls whether WebSerial is enabled in the webview content or not.
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableWebSerial?: boolean;
+
+		/**
+		 * Controls whether WebHid is enabled in the webview content or not.
+		 *
+		 * Defaults to false.
+		 */
+		readonly enableWebHid?: boolean;
+
+		/**
 		 * Controls whether command uris are enabled in webview content or not.
 		 *
 		 * Defaults to false.

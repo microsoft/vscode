@@ -903,7 +903,10 @@ var requirejs = (function() {
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
-			localResourceRoots: this.localResourceRootsCache,
+			allowWebUSB: true,
+			allowWebSerial: true,
+			allowWebHid: true,
+			localResourceRoots: this.localResourceRootsCache
 		}, undefined);
 
 		webview.html = content;

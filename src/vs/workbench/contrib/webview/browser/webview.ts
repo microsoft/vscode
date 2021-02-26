@@ -114,6 +114,21 @@ export interface WebviewContentOptions {
 	readonly allowForms?: boolean;
 
 	/**
+	 * Should WebUSB be enabled in the webview?
+	 */
+	readonly allowWebUSB?: boolean;
+
+	/**
+	 * Should WebSerial be enabled in the webview?
+	 */
+	readonly allowWebSerial?: boolean;
+
+	/**
+	 * Should WebHid be enabled in the webview?
+	 */
+	readonly allowWebHid?: boolean;
+
+	/**
 	 * Set of root paths from which the webview can load local resources.
 	 */
 	readonly localResourceRoots?: readonly URI[];
@@ -137,6 +152,9 @@ export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: Webvi
 		a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
 		&& a.allowScripts === b.allowScripts
 		&& a.allowForms === b.allowForms
+		&& a.allowWebUSB === b.allowWebUSB
+		&& a.allowWebSerial === b.allowWebSerial
+		&& a.allowWebHid === b.allowWebHid
 		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
 		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
 		&& a.enableCommandUris === b.enableCommandUris

@@ -135,6 +135,9 @@ export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWeb
 	return {
 		allowScripts: webviewOptions.enableScripts,
 		allowForms: webviewOptions.enableForms,
+		allowWebUSB: webviewOptions.enableWebUSB,
+		allowWebSerial: webviewOptions.enableWebSerial,
+		allowWebHid: webviewOptions.enableWebHid,
 		enableCommandUris: webviewOptions.enableCommandUris,
 		localResourceRoots: Array.isArray(webviewOptions.localResourceRoots) ? webviewOptions.localResourceRoots.map(r => URI.revive(r)) : undefined,
 		portMapping: webviewOptions.portMapping,

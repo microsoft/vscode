@@ -423,7 +423,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
 		if (!isFirefox) {
-			element.setAttribute('allow', 'clipboard-read; clipboard-write;');
+			element.setAttribute('allow', 'clipboard-read; clipboard-write; usb; serial; hid;');
 		}
 		element.style.border = 'none';
 		element.style.width = '100%';

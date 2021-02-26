@@ -839,7 +839,20 @@ onDomReady(() => {
 		}
 		newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 		if (!isFirefox) {
-			newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+			const allowedFeatures = [];
+			if (options.allowScripts) {
+				allowedFeatures.push('clipboard-read', 'clipboard-write');
+			}
+			if (options.allowWebUSB) {
+				allowedFeatures.push('usb');
+			}
+			if (options.allowWebSerial) {
+				allowedFeatures.push('serial');
+			}
+			if (options.allowWebHid) {
+				allowedFeatures.push('hid');
+			}
+			newFrame.setAttribute('allow', allowedFeatures.join('; '));
 		}
 		// We should just be able to use srcdoc, but I wasn't
 		// seeing the service worker applying properly.

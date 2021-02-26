@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isFirefox } from 'vs/base/browser/browser';
 import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -121,6 +122,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+		if (!isFirefox) {
+			iframe.setAttribute('allow', 'usb; serial; hid;');
+		}
 		iframe.style.display = 'none';
 
 		const vscodeWebWorkerExtHostId = generateUuid();
