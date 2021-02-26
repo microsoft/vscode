@@ -38,7 +38,6 @@ export interface ICompleteTerminalConfiguration {
 	'terminal.integrated.inheritEnv': boolean;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
-	'terminal.flowControl': boolean;
 }
 
 export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];

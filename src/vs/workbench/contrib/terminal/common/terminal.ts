@@ -142,7 +142,6 @@ export interface ITerminalConfiguration {
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
-	flowControl: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];

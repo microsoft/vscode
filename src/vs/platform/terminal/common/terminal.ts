@@ -224,11 +224,6 @@ export interface IShellLaunchConfig {
 	 * a terminal used to drive some VS Code feature.
 	 */
 	isFeatureTerminal?: boolean;
-
-	/**
-	 * Whether flow control is enabled for this terminal.
-	 */
-	flowControl?: boolean;
 }
 
 export interface ITerminalEnvironment {
