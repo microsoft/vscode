@@ -67,6 +67,30 @@ function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuff
 	};
 }
 
+/**
+ * Generate several `DarwinDocumentType`s with unique names and a shared icon.
+ * @param types A map of file type names to their associated file extensions.
+ * @param icon A darwin icon resource to use. For example, `'HTML'` would refer to `resources/darwin/html.icns`
+ *
+ * Examples:
+ * ```
+ * darwinBundleDocumentTypes({ 'C header file': 'h', 'C source code': 'c' },'c')
+ * darwinBundleDocumentTypes({ 'React source code': ['jsx', 'tsx'] }, 'react')
+ * ```
+ */
+function darwinBundleDocumentTypes(types: { [name: string]: string | string[] }, icon: string): DarwinDocumentType[] {
+	return Object.keys(types).map((name: string): DarwinDocumentType => {
+		const extensions = types[name];
+		return {
+			name: name,
+			role: 'Editor',
+			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
+			extensions: Array.isArray(extensions) ? extensions : [extensions],
+			iconFile: 'resources/darwin/' + icon + '.icns',
+		} as DarwinDocumentType;
+	});
+}
+
 export const config = {
 	version: util.getElectronVersion(),
 	productAppName: product.nameLong,
