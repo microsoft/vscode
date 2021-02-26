@@ -615,7 +615,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		} else {
 			if (this._viewModel) {
 				const focusedElementHandle = this.element(indexes[0]).handle;
-				this._viewModel.updateSelectionsFromView(focusedElementHandle, this.getSelection());
+				this._viewModel.updateSelectionsFromView(focusedElementHandle, this.getSelection().map(selection => this.element(selection).handle));
 			}
 		}
 
