@@ -242,6 +242,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		delete this._groupsByHandle[handle];
 		this.groups.splice(this.groups.elements.indexOf(group), 1);
+		this._onDidChangeResources.fire();
 	}
 
 	async getOriginalResource(uri: URI): Promise<URI | null> {
