@@ -23,6 +23,7 @@ import { addFileToParseCache, removeFileFromParseCache } from './parseDocument';
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	registerCompletionProviders(context);
+	updateEmmetExtensionsPath();
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);
@@ -124,8 +125,6 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('workbench.action.showEmmetCommands', () => {
 		vscode.commands.executeCommand('workbench.action.quickOpen', '>Emmet: ');
 	}));
-
-	updateEmmetExtensionsPath();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
 		if (e.affectsConfiguration('emmet.includeLanguages')) {
