@@ -43,6 +43,13 @@
 	margin-top: -40px;
 }
 
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-button {
+	width: initial;
+	padding: 2px 14px;
+	line-height: 1.4em;
+	margin-top: 4px;
+}
+
 .ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {
 	margin-top: 3px;
 	padding-right: 3px;

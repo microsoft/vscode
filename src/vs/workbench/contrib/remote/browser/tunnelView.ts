@@ -27,7 +27,7 @@ import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelIt
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -45,6 +45,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
 import { ITableColumn, ITableContextMenuEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
+import { Button } from 'vs/base/browser/ui/button/button';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -52,8 +53,10 @@ class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
 	readonly headerRowHeight: number = 22;
 
-	getHeight(): number {
-		return 22;
+	constructor(private readonly remoteExplorerService: IRemoteExplorerService) { }
+
+	getHeight(row: ITunnelItem): number {
+		return (row.tunnelType === TunnelType.Add && !this.remoteExplorerService.getEditableData(undefined)) ? 30 : 22;
 	}
 }
 
@@ -71,7 +74,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 	private _candidates: Map<string, CandidatePort> = new Map();
 
 	readonly input = {
-		name: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
+		name: nls.localize('remote.tunnelsView.addPort', "Add Port"),
 		label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
 		icon: forwardPortIcon,
 		tunnelType: TunnelType.Add,
@@ -157,7 +160,7 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const isAdd = row.tunnelType === TunnelType.Add;
-		const icon = isAdd ? row.icon : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
+		const icon = isAdd ? undefined : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
@@ -181,7 +184,7 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
 		const isAdd = row.tunnelType === TunnelType.Add;
-		const label = isAdd ? '' : (row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`);
+		const label = isAdd ? row.name! : (row.name ? `${row.name} (${row.remotePort})` : `${row.remotePort}`);
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
@@ -191,6 +194,8 @@ class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 		let tooltip: string = '';
 		if (row instanceof TunnelItem && !isAdd) {
 			tooltip = `${row.portTooltip} ${row.tooltipPostfix}`;
+		} else {
+			tooltip = label;
 		}
 		return {
 			label, tunnel: row, context, menuId: MenuId.TunnelPortInline,
@@ -293,6 +298,7 @@ interface IActionBarTemplateData {
 	elementDisposable: IDisposable;
 	container: HTMLElement;
 	label: IconLabel;
+	button?: Button;
 	icon: HTMLElement;
 	actionBar: ActionBar;
 }
@@ -318,7 +324,8 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@ICommandService private readonly commandService: ICommandService
 	) { super(); }
 
 	set actionRunner(actionRunner: ActionRunner) {
@@ -343,6 +350,10 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		templateData.icon.style.display = 'none';
 		templateData.label.setLabel('');
 		templateData.label.element.style.display = 'none';
+		if (templateData.button) {
+			templateData.button.element.style.display = 'none';
+			templateData.button.dispose();
+		}
 
 		let editableData: IEditableData | undefined;
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
@@ -351,10 +362,22 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
 			if (editableData) {
 				this.renderInputBox(templateData.container, editableData);
+			} else if ((element.tunnel.tunnelType === TunnelType.Add) && (element.menuId === MenuId.TunnelPortInline)) {
+				this.renderButton(element, templateData);
 			} else {
 				this.renderActionBarItem(element, templateData);
 			}
 		}
+	}
+
+	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
+		templateData.button = this._register(new Button(templateData.container));
+		templateData.button.label = element.label;
+		templateData.button.element.title = element.tooltip;
+		this._register(attachButtonStyler(templateData.button, this.themeService));
+		this._register(templateData.button.onDidClick(() => {
+			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
+		}));
 	}
 
 	renderActionBarItem(element: ActionBarCell, templateData: IActionBarTemplateData): void {
@@ -649,7 +672,7 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
-			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService);
+			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canMakePublic) {
 			columns.push(new PrivacyColumn());
@@ -659,7 +682,7 @@ export class TunnelPanel extends ViewPane {
 		this.table = this.instantiationService.createInstance(WorkbenchTable,
 			'RemoteTunnels',
 			widgetContainer,
-			new TunnelTreeVirtualDelegate(),
+			new TunnelTreeVirtualDelegate(this.remoteExplorerService),
 			columns,
 			[new StringRenderer(), actionBarRenderer],
 			{
