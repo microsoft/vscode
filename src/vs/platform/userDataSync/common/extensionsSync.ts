@@ -5,7 +5,7 @@
 
 import {
 	IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncResourceEnablementService,
-	IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData, Change, ISyncExtensionWithVersion
+	IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData, Change, ISyncExtensionWithVersion, IUserData
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -507,6 +507,24 @@ export class ExtensionsInitializer extends AbstractInitializer {
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 	) {
 		super(SyncResource.Extensions, environmentService, logService, fileService);
+	}
+
+	async initialize({ ref, content }: IUserData): Promise<void> {
+		if (!content) {
+			this.logService.info('Remote content does not exist.', this.resource);
+			return;
+		}
+
+		const syncData = this['parseSyncData'](content);
+		if (!syncData) {
+			return;
+		}
+
+		try {
+			await this.doInitialize({ ref, syncData });
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {

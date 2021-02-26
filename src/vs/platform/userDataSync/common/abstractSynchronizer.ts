@@ -832,7 +832,7 @@ export abstract class AbstractInitializer implements IUserDataInitializer {
 
 		const isPreviouslySynced = await this.fileService.exists(this.lastSyncResource);
 		if (isPreviouslySynced) {
-			this.logService.info('Remote content does not exist.', this.resource);
+			this.logService.info('Remote content is already synched.', this.resource);
 			return;
 		}
 
