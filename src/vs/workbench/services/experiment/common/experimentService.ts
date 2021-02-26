@@ -271,6 +271,7 @@ export class ExperimentService implements ITASExperimentService {
 		});
 
 		await tasClient.initializePromise;
+		await tasClient.getTreatmentVariableAsync('vscode', 'initialize');
 
 		type TAASClientSetupData = { setupTime: number; };
 		type TAASClientSetupCalssification = { setupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true }; };
