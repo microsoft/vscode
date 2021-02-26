@@ -146,7 +146,6 @@ export class TerminalService implements ITerminalService {
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 		const serverSpawn = this.configHelper.config.serverSpawn;
 
-		//TODO@meganrogge: deal with case where there are both local and remote terminals to reconnect
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
 			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 			this._connectionState = TerminalConnectionState.Connecting;

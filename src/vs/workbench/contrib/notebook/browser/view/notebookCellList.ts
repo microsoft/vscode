@@ -595,11 +595,25 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
-		this._focusNextPreviousDelegate.onFocusNext(() => super.focusNext(n, loop, browserEvent, filter));
+		this._focusNextPreviousDelegate.onFocusNext(() => {
+			super.focusNext(n, loop, browserEvent, filter);
+			const focus = this.getFocus();
+			if (focus.length) {
+				const focusedElementHandle = this.element(focus[0]).handle;
+				this._viewModel?.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+			}
+		});
 	}
 
 	focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
-		this._focusNextPreviousDelegate.onFocusPrevious(() => super.focusPrevious(n, loop, browserEvent, filter));
+		this._focusNextPreviousDelegate.onFocusPrevious(() => {
+			super.focusPrevious(n, loop, browserEvent, filter);
+			const focus = this.getFocus();
+			if (focus.length) {
+				const focusedElementHandle = this.element(focus[0]).handle;
+				this._viewModel?.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+			}
+		});
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
