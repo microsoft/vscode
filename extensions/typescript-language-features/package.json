@@ -17,7 +17,6 @@
   ],
   "dependencies": {
     "jsonc-parser": "^2.2.1",
-    "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "typescript-vscode-sh-plugin": "^0.6.14",
     "vscode-extension-telemetry": "0.1.1",
@@ -601,6 +600,18 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "javascript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+          "scope": "resource"
+        },
+        "typescript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
           "scope": "resource"
         },
         "typescript.locale": {

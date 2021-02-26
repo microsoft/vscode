@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as os from 'os';
 import * as vscode from 'vscode';
-import { closeAllEditors, delay, disposeAll } from '../utils';
+import { assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 const webviewId = 'myWebview';
 
@@ -26,8 +26,8 @@ suite.skip('vscode API - webview', () => {
 	}
 
 	teardown(async () => {
+		assertNoRpc();
 		await closeAllEditors();
-
 		disposeAll(disposables);
 	});
 

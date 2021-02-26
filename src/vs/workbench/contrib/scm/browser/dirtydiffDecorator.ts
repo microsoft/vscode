@@ -169,7 +169,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private index: number = 0;
 	private change: IChange | undefined;
 	private height: number | undefined = undefined;
-	private contextKeyService: IContextKeyService;
 
 	constructor(
 		editor: ICodeEditor,
@@ -177,16 +176,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		this.contextKeyService = contextKeyService.createScoped();
-		this.contextKeyService.createKey('originalResourceScheme', this.model.original!.uri.scheme);
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
+		const contextKeyService = _contextKeyService.createOverlay([
+			['originalResourceScheme', this.model.original!.uri.scheme]
+		]);
+		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
 
 		this.create();
 		if (editor.hasModel()) {

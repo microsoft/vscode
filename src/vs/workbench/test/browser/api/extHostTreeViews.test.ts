@@ -26,7 +26,7 @@ suite('ExtHostTreeView', function () {
 
 		onRefresh = new Emitter<{ [treeItemHandle: string]: ITreeItem }>();
 
-		$registerTreeViewDataProvider(treeViewId: string): void {
+		async $registerTreeViewDataProvider(treeViewId: string): Promise<void> {
 		}
 
 		$refresh(viewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
@@ -196,6 +196,7 @@ suite('ExtHostTreeView', function () {
 			'aa': {},
 			'ba': {}
 		};
+		let caughtExpectedError = false;
 		target.onRefresh.event(() => {
 			testObject.$getChildren('testNodeWithIdTreeProvider')
 				.then(elements => {
@@ -204,7 +205,8 @@ suite('ExtHostTreeView', function () {
 					return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
 						.then(() => testObject.$getChildren('testNodeWithIdTreeProvider', '1/b'))
 						.then(() => assert.fail('Should fail with duplicate id'))
-						.finally(done);
+						.catch(() => caughtExpectedError = true)
+						.finally(() => caughtExpectedError ? done() : assert.fail('Expected duplicate id error not thrown.'));
 				});
 		});
 		onDidChangeTreeNode.fire(undefined);
@@ -602,7 +604,7 @@ suite('ExtHostTreeView', function () {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
 		return loadCompleteTree('treeDataProvider')
 			.then(() => {
-				runWithEventMerging((resolve) => {
+				return runWithEventMerging((resolve) => {
 					tree = {
 						'a': {
 							'aa': {},
@@ -631,9 +633,9 @@ suite('ExtHostTreeView', function () {
 						.then(() => {
 							assert.ok(revealTarget.calledOnce);
 							assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-							assert.deepStrictEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1]));
-							assert.deepStrictEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][2]).map(arg => removeUnsetKeys(arg)));
-							assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][3]);
+							assert.deepStrictEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1].item));
+							assert.deepStrictEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][1].parentChain).map(arg => removeUnsetKeys(arg)));
+							assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
 						});
 				});
 			});

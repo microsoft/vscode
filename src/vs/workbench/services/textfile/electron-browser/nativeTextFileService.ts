@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { localize } from 'vs/nls';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileService, ByteSize } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { stat, chmod, MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
+import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join } from 'vs/base/common/path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
@@ -30,6 +31,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -54,6 +56,25 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@ILogService logService: ILogService
 	) {
 		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService);
+	}
+
+	protected registerListeners(): void {
+		super.registerListeners();
+
+		// Lifecycle
+		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.textFiles'));
+	}
+
+	private async onWillShutdown(): Promise<void> {
+		let modelsPendingToSave: ITextFileEditorModel[];
+
+		// As long as models are pending to be saved, we prolong the shutdown
+		// until that has happened to ensure we are not shutting down in the
+		// middle of writing to the file
+		// (https://github.com/microsoft/vscode/issues/116600)
+		while ((modelsPendingToSave = this.files.models.filter(model => model.hasState(TextFileEditorModelState.PENDING_SAVE))).length > 0) {
+			await Promises.settled(modelsPendingToSave.map(model => model.joinState(TextFileEditorModelState.PENDING_SAVE)));
+		}
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
@@ -108,11 +129,11 @@ export class NativeTextFileService extends AbstractTextFileService {
 
 		// check for overwriteReadonly property (only supported for local file://)
 		try {
-			if (options?.overwriteReadonly && resource.scheme === Schemas.file && await this.fileService.exists(resource)) {
-				const fileStat = await stat(resource.fsPath);
+			if (options?.overwriteReadonly && resource.scheme === Schemas.file) {
+				const fileStat = await promises.stat(resource.fsPath);
 
 				// try to change mode to writeable
-				await chmod(resource.fsPath, fileStat.mode | 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */);
+				await promises.chmod(resource.fsPath, fileStat.mode | 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */);
 			}
 		} catch (error) {
 			// ignore and simply retry the operation
@@ -131,7 +152,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED) {
 				let isReadonly = false;
 				try {
-					const fileStat = await stat(resource.fsPath);
+					const fileStat = await promises.stat(resource.fsPath);
 					if (!(fileStat.mode & 0o200 /* File mode indicating writable by owner (fs.constants.S_IWUSR) */)) {
 						isReadonly = true;
 					}

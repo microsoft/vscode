@@ -20,9 +20,15 @@ export const enum TestExplorerViewMode {
 	Tree = 'true'
 }
 
-export const enum TestExplorerViewGrouping {
+export const enum TestExplorerViewSorting {
 	ByLocation = 'location',
-	ByStatus = 'status',
+	ByName = 'name',
+}
+
+export const enum TestExplorerStateFilter {
+	OnlyFailed = 'failed',
+	OnlyExecuted = 'excuted',
+	All = 'all',
 }
 
 export const testStateNames: { [K in TestRunState]: string } = {

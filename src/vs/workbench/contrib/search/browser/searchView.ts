@@ -678,12 +678,18 @@ export class SearchView extends ViewPane {
 	private clearMessage(): HTMLElement {
 		this.searchWithoutFolderMessageElement = undefined;
 
+		const wasHidden = this.messagesElement.style.display === 'none';
 		dom.clearNode(this.messagesElement);
 		dom.show(this.messagesElement);
 		dispose(this.messageDisposables);
 		this.messageDisposables = [];
 
-		return dom.append(this.messagesElement, $('.message'));
+		const newMessage = dom.append(this.messagesElement, $('.message'));
+		if (wasHidden) {
+			this.reLayout();
+		}
+
+		return newMessage;
 	}
 
 	private createSearchResultsView(container: HTMLElement): void {
@@ -1032,17 +1038,7 @@ export class SearchView extends ViewPane {
 		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
 
-		const messagesSize = this.messagesElement.style.display === 'none' ?
-			0 :
-			dom.getTotalHeight(this.messagesElement);
-
-		const searchResultContainerHeight = this.size.height -
-			messagesSize -
-			dom.getTotalHeight(this.searchWidgetsContainerElement);
-
-		this.resultsElement.style.height = searchResultContainerHeight + 'px';
-
-		this.tree.layout(searchResultContainerHeight, this.size.width);
+		this.tree.layout(); // The tree will measure its container
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -1085,6 +1081,7 @@ export class SearchView extends ViewPane {
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
 		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
+		this.reLayout();
 	}
 
 	clearFilePatternFields(): void {
@@ -1105,7 +1102,7 @@ export class SearchView extends ViewPane {
 			this.tree.domFocus();
 			const selection = this.tree.getSelection();
 			if (selection.length === 0) {
-				this.tree.focusNext();
+				this.tree.focusNext(undefined, undefined, getSelectionKeyboardEvent());
 			}
 		}
 	}

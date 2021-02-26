@@ -359,7 +359,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			iconChanged = true;
 		}
 
-		const keybindingId = this.viewContainer.commandActionDescriptor === false ? this.activeViewDescriptors.find(v => v.commandActionDescriptor)?.commandActionDescriptor?.id : (this.viewContainer.commandActionDescriptor?.id ?? this.viewContainer.id);
+		const keybindingId = this.viewContainer.openCommandActionDescriptor?.id ?? this.activeViewDescriptors.find(v => v.openCommandActionDescriptor)?.openCommandActionDescriptor?.id;
 		let keybindingIdChanged: boolean = false;
 		if (this._keybindingId !== keybindingId) {
 			this._keybindingId = keybindingId;

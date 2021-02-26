@@ -12,19 +12,15 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { Event } from 'vs/base/common/event';
-import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 export abstract class Viewlet extends PaneComposite implements IViewlet {
 
 	constructor(id: string,
-		viewPaneContainer: ViewPaneContainer,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -35,14 +31,7 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
-		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-		// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
-		if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
-			this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
-				// Update title area since there is no better way to update secondary actions
-				this.updateTitleArea();
-			}));
-		}
+		super(id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 	}
 }
 

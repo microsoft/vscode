@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 // @ts-ignore: interface is implemented via proxy
@@ -14,7 +14,7 @@ export class MenubarService implements IMenubarService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createChannelSender<IMenubarService>(mainProcessService.getChannel('menubar'));
+		return ProxyChannel.toService<IMenubarService>(mainProcessService.getChannel('menubar'));
 	}
 }
 

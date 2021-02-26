@@ -275,6 +275,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 	static QUERY_PARAM_PAYLOAD = 'payload';
 
+	readonly trusted = true;
+
 	constructor(
 		public readonly workspace: IWorkspace,
 		public readonly payload: object

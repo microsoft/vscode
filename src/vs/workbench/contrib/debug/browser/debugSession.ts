@@ -88,7 +88,7 @@ export class DebugSession implements IDebugSession {
 	) {
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
-			this.repl = new ReplModel();
+			this.repl = new ReplModel(this.configurationService);
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
@@ -840,7 +840,8 @@ export class DebugSession implements IDebugSession {
 				await promises.topCallStack;
 				focus();
 				await promises.wholeCallStack;
-				if (!this.debugService.getViewModel().focusedStackFrame) {
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize') {
 					// The top stack frame can be deemphesized so try to focus again #68616
 					focus();
 				}

@@ -11,7 +11,7 @@ export function setup() {
 		after(function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
 		it('searches for body & checks for correct result number', async function () {
@@ -46,6 +46,7 @@ export function setup() {
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
+			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
 			await app.workbench.search.replaceFileMatch('app.js');
 			await app.workbench.search.waitForResultText('12 results in 4 files');

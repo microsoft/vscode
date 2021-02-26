@@ -49,7 +49,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 	get wacherCount() { return this._watcherCount; }
 
 	private pollingInterval?: number;
-	private usePolling?: boolean;
+	private usePolling?: boolean | string[];
 	private verboseLogging: boolean | undefined;
 
 	private spamCheckStartTime: number | undefined;
@@ -101,7 +101,11 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 
 	private watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
 		const pollingInterval = this.pollingInterval || 5000;
-		const usePolling = this.usePolling;
+		let usePolling = this.usePolling; // boolean or a list of path patterns
+		if (Array.isArray(usePolling)) {
+			// switch to polling if one of the paths matches with a watched path
+			usePolling = usePolling.some(pattern => requests.some(r => glob.match(pattern, r.path)));
+		}
 
 		const watcherOpts: chokidar.WatchOptions = {
 			ignoreInitial: true,
@@ -142,9 +146,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		if (this.verboseLogging) {
-			this.log(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
-		}
+		this.debug(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
@@ -295,6 +297,10 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 
 	private log(message: string) {
 		this._onDidLogMessage.fire({ type: 'trace', message: `[File Watcher (chokidar)] ` + message });
+	}
+
+	private debug(message: string) {
+		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (chokidar)] ` + message });
 	}
 
 	private warn(message: string) {

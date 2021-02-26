@@ -65,6 +65,9 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	text-align: right;
+	/*Use direction so the source shows elipses on the left*/
+	direction: rtl;
+	max-width: 400px;
 }
 
 .monaco-workbench .repl .repl-tree .output.expression > .value,

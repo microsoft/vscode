@@ -28,12 +28,11 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IStateService } from 'vs/platform/state/node/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { ILogService, getLogLevel, LogLevel, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ILogService, getLogLevel, LogLevel, ConsoleLogger, MultiplexLogService, ILogger } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -46,6 +45,7 @@ import { LocalizationsService } from 'vs/platform/localizations/node/localizatio
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 class CliMain extends Disposable {
 
@@ -73,6 +73,7 @@ class CliMain extends Disposable {
 
 		return instantiationService.invokeFunction(async accessor => {
 			const logService = accessor.get(ILogService);
+			const fileService = accessor.get(IFileService);
 			const environmentService = accessor.get(INativeEnvironmentService);
 			const extensionManagementCLIService = accessor.get(IExtensionManagementCLIService);
 
@@ -83,7 +84,7 @@ class CliMain extends Disposable {
 			this.registerErrorHandler(logService);
 
 			// Run based on argv
-			await this.doRun(environmentService, extensionManagementCLIService);
+			await this.doRun(environmentService, extensionManagementCLIService, fileService);
 
 			// Flush the remaining data in AI adapter (with 1s timeout)
 			return raceTimeout(combinedAppender(...appenders).flush(), 1000);
@@ -99,14 +100,14 @@ class CliMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
-		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? mkdirp(path) : undefined));
+		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? fs.promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Log
 		const logLevel = getLogLevel(environmentService);
-		const loggers: ILogService[] = [];
-		loggers.push(new SpdLogService('cli', environmentService.logsPath, logLevel));
+		const loggers: ILogger[] = [];
+		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, logLevel));
 		if (logLevel === LogLevel.Trace) {
-			loggers.push(new ConsoleLogService(logLevel));
+			loggers.push(new ConsoleLogger(logLevel));
 		}
 
 		const logService = this._register(new MultiplexLogService(loggers));
@@ -182,11 +183,11 @@ class CliMain extends Disposable {
 		});
 	}
 
-	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService): Promise<void> {
+	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService, fileService: IFileService): Promise<void> {
 
 		// Install Source
 		if (this.argv['install-source']) {
-			return this.setInstallSource(environmentService, this.argv['install-source']);
+			return this.setInstallSource(environmentService, fileService, this.argv['install-source']);
 		}
 
 		// List Extensions
@@ -219,8 +220,8 @@ class CliMain extends Disposable {
 		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(process.cwd(), input)) : input);
 	}
 
-	private setInstallSource(environmentService: INativeEnvironmentService, installSource: string): Promise<void> {
-		return writeFile(environmentService.installSourcePath, installSource.slice(0, 30));
+	private async setInstallSource(environmentService: INativeEnvironmentService, fileService: IFileService, installSource: string): Promise<void> {
+		await fileService.writeFile(URI.file(environmentService.installSourcePath), VSBuffer.fromString(installSource.slice(0, 30)));
 	}
 }
 

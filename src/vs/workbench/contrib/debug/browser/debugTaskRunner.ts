@@ -12,11 +12,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { createErrorWithActions } from 'vs/base/common/errors';
 import { IViewsService } from 'vs/workbench/common/views';
 
 function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
@@ -109,8 +109,9 @@ export class DebugTaskRunner {
 			await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
 			return Promise.resolve(TaskRunResult.Failure);
 		} catch (err) {
-			await onError(err.message, [this.taskService.configureAction()]);
-			return TaskRunResult.Failure;
+			let debugAnyway = false;
+			await onError(err.message, [new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, async () => { debugAnyway = true; }), this.taskService.configureAction()]);
+			return debugAnyway ? TaskRunResult.Success : TaskRunResult.Failure;
 		}
 	}
 
@@ -184,8 +185,8 @@ export class DebugTaskRunner {
 			setTimeout(() => {
 				if (!taskStarted) {
 					const errorMessage = typeof taskId === 'string'
-						? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked.")
-						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", JSON.stringify(taskId));
+						? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
+						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
 					e({ severity: severity.Error, message: errorMessage });
 				}
 			}, 10000);

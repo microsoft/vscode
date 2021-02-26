@@ -11,8 +11,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
+import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
@@ -26,6 +25,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -60,7 +60,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), { name, shellPath, shellArgs }, name);
 		this._terminals.push(terminal);
 		terminal.create(shellPath, shellArgs);
-		return terminal;
+		return terminal.value;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal {
@@ -75,7 +75,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			withNullAsUndefined(options.strictEnv),
 			withNullAsUndefined(options.hideFromUser),
 			withNullAsUndefined(isFeatureTerminal));
-		return terminal;
+		return terminal.value;
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
@@ -201,10 +201,11 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
+		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver);
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
 			envFromConfig,
-			terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver),
+			variableResolver,
 			isWorkspaceShellAllowed,
 			this._extHostInitDataService.version,
 			terminalConfig.get<'auto' | 'off' | 'on'>('detectLocale', 'auto'),
@@ -214,7 +215,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Apply extension environment variable collections to the environment
 		if (!shellLaunchConfig.strictEnv) {
 			const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
-			mergedCollection.applyToProcessEnvironment(env);
+			mergedCollection.applyToProcessEnvironment(env, variableResolver);
 		}
 
 		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);

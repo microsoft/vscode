@@ -95,7 +95,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(this.dispose, this);
+		this.lifecycleService.onShutdown(() => this.dispose);
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {

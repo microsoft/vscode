@@ -14,7 +14,6 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten, mergeSort } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -48,7 +47,7 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 	}
 }
 
-type CommandActionDescriptor = {
+type OpenCommandActionDescriptor = {
 	readonly id: string;
 	readonly title?: string;
 	readonly mnemonicTitle?: string;
@@ -89,9 +88,12 @@ export interface IViewContainerDescriptor {
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
 	/**
-	 * Command action descriptor to be registered
+	 * Descriptor for open view container command
+	 * If not provided, view container info (id, title) is used.
+	 *
+	 * Note: To prevent registering open command, use `donotRegisterOpenCommand` flag while registering the view container
 	 */
-	readonly commandActionDescriptor?: CommandActionDescriptor | false;
+	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 
 	/**
 	 * Storage id to use to store the view container state.
@@ -143,7 +145,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, isDefault?: boolean): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -180,6 +182,11 @@ interface ViewOrderDelegate {
 
 export interface ViewContainer extends IViewContainerDescriptor { }
 
+interface RelaxedViewContainer extends ViewContainer {
+
+	openCommandActionDescriptor?: OpenCommandActionDescriptor;
+}
+
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
 
 	private readonly _onDidRegister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
@@ -195,16 +202,17 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return flatten([...this.viewContainers.values()]);
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, isDefault?: boolean): ViewContainer {
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer {
 		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
 		}
 
-		const viewContainer: ViewContainer = viewContainerDescriptor;
+		const viewContainer: RelaxedViewContainer = viewContainerDescriptor;
+		viewContainer.openCommandActionDescriptor = options?.donotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
-		if (isDefault) {
+		if (options?.isDefault) {
 			this.defaultViewContainers.push(viewContainer);
 		}
 		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
@@ -283,7 +291,7 @@ export interface IViewDescriptor {
 
 	readonly remoteAuthority?: string | string[];
 
-	readonly commandActionDescriptor?: CommandActionDescriptor
+	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
 }
 
 export interface IViewDescriptorRef {
@@ -549,13 +557,14 @@ export interface IViewsService {
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
 	closeView(id: string): void;
 	getActiveViewWithId<T extends IView>(id: string): T | null;
+	getViewWithId<T extends IView>(id: string): T | null;
 	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 /**
  * View Contexts
  */
-export const FocusedViewContext = new RawContextKey<string>('focusedView', '');
+export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
 export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
@@ -805,9 +814,6 @@ export interface IViewPaneContainer {
 	setVisible(visible: boolean): void;
 	isVisible(): boolean;
 	focus(): void;
-	getActions(): IAction[];
-	getSecondaryActions(): IAction[];
-	getActionViewItem(action: IAction): IActionViewItem | undefined;
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;

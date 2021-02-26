@@ -88,7 +88,7 @@ export interface IEditorGroupsAccessor {
 	readonly activeGroup: IEditorGroupView;
 
 	readonly partOptions: IEditorPartOptions;
-	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	readonly onDidVisibilityChange: Event<boolean>;
 
@@ -109,12 +109,12 @@ export interface IEditorGroupsAccessor {
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
 }
 
-export interface IEditorGroupTitleDimensions {
+export interface IEditorGroupTitleHeight {
 
 	/**
 	 * The overall height of the editor group title control.
 	 */
-	height: number;
+	total: number;
 
 	/**
 	 * The height offset to e.g. use when drawing drop overlays.
@@ -137,7 +137,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly group: EditorGroup;
 	readonly whenRestored: Promise<void>;
 
-	readonly titleDimensions: IEditorGroupTitleDimensions;
+	readonly titleHeight: IEditorGroupTitleHeight;
 
 	readonly isEmpty: boolean;
 	readonly isMinimized: boolean;

@@ -13,7 +13,7 @@ import { Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
+import { domEvent, stopEvent } from 'vs/base/browser/event';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
 import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider, IListViewOptionsUpdate } from './listView';
 import { Color } from 'vs/base/common/color';
@@ -761,6 +761,11 @@ export class DefaultStyleController implements IStyleController {
 			`);
 		}
 
+		if (styles.listInactiveFocusForeground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused { color:  ${styles.listInactiveFocusForeground}; }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { color:  ${styles.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
+		}
+
 		if (styles.listInactiveFocusBackground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
@@ -776,7 +781,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listHoverBackground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-list-row:hover:not(.selected):not(.focused) { background-color:  ${styles.listHoverBackground}; }`);
+			content.push(`.monaco-list${suffix}:not(.drop-target) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
 		}
 
 		if (styles.listHoverForeground) {
@@ -826,6 +831,14 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
 		}
 
+		if (styles.tableColumnsBorder) {
+			content.push(`
+				.monaco-table:hover > .monaco-split-view2,
+				.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+					border-color: ${styles.tableColumnsBorder};
+			}`);
+		}
+
 		this.styleElement.textContent = content.join('\n');
 	}
 }
@@ -854,6 +867,7 @@ export interface IListOptions<T> {
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
+	readonly alwaysConsumeMouseWheel?: boolean;
 }
 
 export interface IListStyles {
@@ -866,6 +880,7 @@ export interface IListStyles {
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
 	listInactiveSelectionForeground?: Color;
+	listInactiveFocusForeground?: Color;
 	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
 	listHoverForeground?: Color;
@@ -879,6 +894,7 @@ export interface IListStyles {
 	listFilterWidgetNoMatchesOutline?: Color;
 	listMatchesShadow?: Color;
 	treeIndentGuidesStroke?: Color;
+	tableColumnsBorder?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -890,7 +906,8 @@ const defaultStyles: IListStyles = {
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
 	listDropBackground: Color.fromHex('#383B3D'),
-	treeIndentGuidesStroke: Color.fromHex('#a9a9a9')
+	treeIndentGuidesStroke: Color.fromHex('#a9a9a9'),
+	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2)
 };
 
 const DefaultOptions: IListOptions<any> = {
@@ -1148,35 +1165,26 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	get onTouchStart(): Event<IListTouchEvent<T>> { return this.view.onTouchStart; }
 	get onTap(): Event<IListGestureEvent<T>> { return this.view.onTap; }
 
-	private didJustPressContextMenuKey: boolean = false;
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		const fromKeydown = Event.chain(domEvent(this.view.domNode, 'keydown'))
+		const fromKeyboard = Event.chain(domEvent(this.view.domNode, 'keyup'))
 			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => this.didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.filter(e => { e.preventDefault(); e.stopPropagation(); return false; })
-			.event as Event<any>;
-
-		const fromKeyup = Event.chain(domEvent(this.view.domNode, 'keyup'))
-			.filter(() => {
-				const didJustPressContextMenuKey = this.didJustPressContextMenuKey;
-				this.didJustPressContextMenuKey = false;
-				return didJustPressContextMenuKey;
-			})
-			.filter(() => this.getFocus().length > 0 && !!this.view.domElement(this.getFocus()[0]))
-			.map(browserEvent => {
-				const index = this.getFocus()[0];
-				const element = this.view.element(index);
-				const anchor = this.view.domElement(index) as HTMLElement;
+			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
+			.map(stopEvent)
+			.map(({ browserEvent }) => {
+				const focus = this.getFocus();
+				const index = focus.length ? focus[0] : undefined;
+				const element = typeof index !== 'undefined' ? this.view.element(index) : undefined;
+				const anchor = typeof index !== 'undefined' ? this.view.domElement(index) as HTMLElement : this.view.domNode;
 				return { index, element, anchor, browserEvent };
 			})
 			.event;
 
 		const fromMouse = Event.chain(this.view.onContextMenu)
-			.filter(() => !this.didJustPressContextMenuKey)
+			.filter(e => !(e.browserEvent.button === 0 && e.browserEvent.buttons === 0 && !e.browserEvent.ctrlKey && !e.browserEvent.altKey && !e.browserEvent.metaKey))
 			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY }, browserEvent }))
 			.event;
 
-		return Event.any<IListContextMenuEvent<T>>(fromKeydown, fromKeyup, fromMouse);
+		return Event.any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
 	}
 
 	get onKeyDown(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keydown'); }
@@ -1380,7 +1388,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	}
 
 	domFocus(): void {
-		this.view.domNode.focus();
+		this.view.domNode.focus({ preventScroll: true });
 	}
 
 	layout(height?: number, width?: number): void {

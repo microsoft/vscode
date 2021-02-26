@@ -11,8 +11,8 @@ import { attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'v
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -21,8 +21,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId, Action2, IAction2Options, IMenuService } from 'vs/platform/actions/common/actions';
@@ -80,16 +80,12 @@ class ViewWelcomeController {
 		return visibleItems.map(v => v.descriptor);
 	}
 
-	private contextKeyService: IContextKeyService;
 	private disposables = new DisposableStore();
 
 	constructor(
 		private id: string,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
-		this.contextKeyService = contextKeyService.createScoped();
-		this.disposables.add(this.contextKeyService);
-
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
 		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
 		this.onDidChangeViewWelcomeContent();
@@ -142,6 +138,7 @@ class ViewWelcomeController {
 
 class ViewMenuActions extends CompositeMenuActions {
 	constructor(
+		element: HTMLElement,
 		viewId: string,
 		menuId: MenuId,
 		contextMenuId: MenuId,
@@ -149,7 +146,7 @@ class ViewMenuActions extends CompositeMenuActions {
 		@IMenuService menuService: IMenuService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 	) {
-		const scopedContextKeyService = contextKeyService.createScoped();
+		const scopedContextKeyService = contextKeyService.createScoped(element);
 		scopedContextKeyService.createKey('view', viewId);
 		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
 		super(menuId, contextMenuId, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
@@ -178,8 +175,6 @@ export abstract class ViewPane extends Pane implements IView {
 	protected _onDidChangeViewWelcomeState = this._register(new Emitter<void>());
 	readonly onDidChangeViewWelcomeState: Event<void> = this._onDidChangeViewWelcomeState.event;
 
-	private focusedViewContextKey: IContextKey<string>;
-
 	private _isVisible: boolean = false;
 	readonly id: string;
 
@@ -193,7 +188,8 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	private readonly menuActions: ViewMenuActions;
+	readonly menuActions: ViewMenuActions;
+
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
 
@@ -228,9 +224,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
 		this.showActionsAlways = !!options.showActionsAlways;
-		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
-		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
+		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
@@ -280,17 +275,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const focusTracker = trackFocus(this.element);
 		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => {
-			this.focusedViewContextKey.set(this.id);
-			this._onDidFocus.fire();
-		}));
-		this._register(focusTracker.onDidBlur(() => {
-			if (this.focusedViewContextKey.get() === this.id) {
-				this.focusedViewContextKey.reset();
-			}
-
-			this._onDidBlur.fire();
-		}));
+		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -453,6 +439,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected layoutBody(height: number, width: number): void {
 		this.viewWelcomeContainer.style.height = `${height}px`;
 		this.viewWelcomeContainer.style.width = `${width}px`;
+		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
 		this.scrollableElement.scanDomNode();
 	}
 
@@ -489,7 +476,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()));
+			this.toolbar.setActions(prepareActions(this.menuActions.getPrimaryActions()), prepareActions(this.menuActions.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
@@ -505,18 +492,6 @@ export abstract class ViewPane extends Pane implements IView {
 	protected updateActions(): void {
 		this.setActions();
 		this._onDidChangeTitleArea.fire();
-	}
-
-	getActions(): IAction[] {
-		return this.menuActions.getPrimaryActions();
-	}
-
-	getSecondaryActions(): IAction[] {
-		return this.menuActions.getSecondaryActions();
-	}
-
-	getContextMenuActions(): IAction[] {
-		return this.menuActions.getContextMenuActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -572,7 +547,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
-					const button = new Button(this.viewWelcomeContainer, { title: node.title, supportIcons: true });
+					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });

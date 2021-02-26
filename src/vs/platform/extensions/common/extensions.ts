@@ -113,6 +113,15 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
+export interface IGettingStartedContent {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly button: { title: string } & ({ command?: never, link: string } | { command: string, link?: never }),
+	readonly media: { path: string | { hc: string, light: string, dark: string }, altText: string },
+	readonly when?: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -132,9 +141,12 @@ export interface IExtensionContributions {
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
+	gettingStarted?: IGettingStartedContent[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
+
+export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -190,6 +202,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
+	readonly requiresWorkspaceTrust?: ExtensionWorkspaceTrustRequirement;
 }
 
 export const enum ExtensionType {

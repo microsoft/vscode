@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITerminalProcessExtHostProxy, IShellLaunchConfig, ITerminalChildProcess, ITerminalConfigHelper, ITerminalDimensions, ITerminalLaunchError, ITerminalDimensionsOverride } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessExtHostProxy, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import * as nls from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 
 let hasReceivedResponseFromRemoteExtHost: boolean = false;
 
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
+	readonly id = 0;
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public readonly onProcessData: Event<string> = this._onProcessData.event;

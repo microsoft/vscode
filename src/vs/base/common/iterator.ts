@@ -39,6 +39,18 @@ export namespace Iterable {
 		return false;
 	}
 
+	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): T | undefined;
+	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined;
+	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined {
+		for (const element of iterable) {
+			if (predicate(element)) {
+				return element;
+			}
+		}
+
+		return undefined;
+	}
+
 	export function filter<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): Iterable<R>;
 	export function filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T>;
 	export function* filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T> {
@@ -71,22 +83,30 @@ export namespace Iterable {
 		}
 	}
 
+	export function reduce<T, R>(iterable: Iterable<T>, reducer: (previousValue: R, currentValue: T) => R, initialValue: R): R {
+		let value = initialValue;
+		for (const element of iterable) {
+			value = reducer(value, element);
+		}
+		return value;
+	}
+
 	/**
 	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
 	 */
-	export function* slice<T>(iterable: ReadonlyArray<T>, from: number, to = iterable.length): Iterable<T> {
+	export function* slice<T>(arr: ReadonlyArray<T>, from: number, to = arr.length): Iterable<T> {
 		if (from < 0) {
-			from += iterable.length;
+			from += arr.length;
 		}
 
 		if (to < 0) {
-			to += iterable.length;
-		} else if (to > iterable.length) {
-			to = iterable.length;
+			to += arr.length;
+		} else if (to > arr.length) {
+			to = arr.length;
 		}
 
 		for (; from < to; from++) {
-			yield iterable[from];
+			yield arr[from];
 		}
 	}
 
@@ -114,5 +134,26 @@ export namespace Iterable {
 		}
 
 		return [consumed, { [Symbol.iterator]() { return iterator; } }];
+	}
+
+	/**
+	 * Returns whether the iterables are the same length and all items are
+	 * equal using the comparator function.
+	 */
+	export function equals<T>(a: Iterable<T>, b: Iterable<T>, comparator = (at: T, bt: T) => at === bt) {
+		const ai = a[Symbol.iterator]();
+		const bi = b[Symbol.iterator]();
+		while (true) {
+			const an = ai.next();
+			const bn = bi.next();
+
+			if (an.done !== bn.done) {
+				return false;
+			} else if (an.done) {
+				return true;
+			} else if (!comparator(an.value, bn.value)) {
+				return false;
+			}
+		}
 	}
 }

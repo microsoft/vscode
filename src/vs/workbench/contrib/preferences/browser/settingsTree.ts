@@ -86,6 +86,10 @@ function areAllPropertiesDefined(properties: string[], itemsToDisplay: IObjectDa
 }
 
 function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
+	if (schema.anyOf) {
+		return arrays.flatten(schema.anyOf.map(getEnumOptionsFromSchema));
+	}
+
 	const enumDescriptions = schema.enumDescriptions ?? [];
 
 	return (schema.enum ?? []).map((value, idx) => {
@@ -98,6 +102,14 @@ function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 }
 
 function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
+	if (schema.anyOf) {
+		const subTypes = schema.anyOf.map(getObjectValueType);
+		if (subTypes.some(type => type === 'enum')) {
+			return 'enum';
+		}
+		return 'string';
+	}
+
 	if (schema.type === 'boolean') {
 		return 'boolean';
 	} else if (schema.type === 'string' && isDefined(schema.enum) && schema.enum.length > 0) {
@@ -1816,7 +1828,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 	}
 }
 
-class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
+export class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 	isCollapsible(element: T): boolean {
 		return false;
 	}
@@ -1934,10 +1946,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 
 			const focusedRowBorderColor = theme.getColor(focusedRowBorder);
 			if (focusedRowBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents::before,
-					.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents::after { border-top: 1px solid ${focusedRowBorderColor} }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label::before,
-					.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label::after { border-top: 1px solid ${focusedRowBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents { outline: 1px solid ${focusedRowBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label { outline: 1px solid ${focusedRowBorderColor} }`);
 			}
 
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);

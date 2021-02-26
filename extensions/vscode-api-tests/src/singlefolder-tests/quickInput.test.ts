@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { window, commands } from 'vscode';
-import { closeAllEditors } from '../utils';
+import { assertNoRpc, closeAllEditors } from '../utils';
 
 interface QuickPickExpected {
 	events: string[];
@@ -20,7 +20,10 @@ interface QuickPickExpected {
 
 suite('vscode API - quick input', function () {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	test('createQuickPick, select second', function (_done) {
 		let done = (err?: any) => {

@@ -134,6 +134,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			}
 
 			this.setFoldingStateUp(modelIndex, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed, 1);
+			this._notebookEditor.focusElement(cellViewModel);
 		}
 
 		return;
@@ -225,7 +226,7 @@ registerAction2(class extends Action2 {
 			}
 
 			const viewIndex = editor.viewModel!.getNearestVisibleCellIndexUpwards(index);
-			editor.selectElement(editor.viewModel!.viewCells[viewIndex]);
+			editor.focusElement(editor.viewModel!.viewCells[viewIndex]);
 		}
 	}
 });

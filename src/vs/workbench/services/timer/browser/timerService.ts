@@ -46,6 +46,8 @@ export interface IMemoryInfo {
 		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedSharedProcesConnected" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequiredUserDataInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -216,12 +218,28 @@ export interface IStartupMetrics {
 		readonly ellapsedWorkspaceStorageInit: number;
 
 		/**
+		 * The time it took to init the storage database connection from the workbench.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `code/willInitStorage` and `code/didInitStorage` performance marks.
+		 */
+		readonly ellapsedStorageInit: number;
+
+		/**
 		 * The time it took to initialize the workspace and configuration service.
 		 *
 		 * * Happens in the renderer-process
 		 * * Measured with the `willInitWorkspaceService` and `didInitWorkspaceService` performance marks.
 		 */
 		readonly ellapsedWorkspaceServiceInit: number;
+
+		/**
+		 * The time it took to connect to the shared process.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willConnectSharedProcess` and `didConnectSharedProcess` performance marks.
+		 */
+		readonly ellapsedSharedProcesConnected: number;
 
 		/**
 		 * The time it took to initialize required user data (settings & global state) using settings sync service.
@@ -514,6 +532,8 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedWindowLoadToRequire: this._marks.getDuration('code/willOpenNewWindow', 'code/willLoadWorkbenchMain'),
 				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),
 				ellapsedWaitForShellEnv: this._marks.getDuration('code/willWaitForShellEnv', 'code/didWaitForShellEnv'),
+				ellapsedStorageInit: this._marks.getDuration('code/willInitStorage', 'code/didInitStorage'),
+				ellapsedSharedProcesConnected: this._marks.getDuration('code/willConnectSharedProcess', 'code/didConnectSharedProcess'),
 				ellapsedWorkspaceStorageInit: this._marks.getDuration('code/willInitWorkspaceStorage', 'code/didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: this._marks.getDuration('code/willInitWorkspaceService', 'code/didInitWorkspaceService'),
 				ellapsedRequiredUserDataInit: this._marks.getDuration('code/willInitRequiredUserData', 'code/didInitRequiredUserData'),

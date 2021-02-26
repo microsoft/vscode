@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-table {
+	display: flex;
+	flex-direction: column;
+	position: relative;
+	height: 100%;
+	width: 100%;
+	white-space: nowrap;
+}
+
+.monaco-table > .monaco-split-view2 {
+	border-bottom: 1px solid transparent;
+}
+
+.monaco-table > .monaco-list {
+	flex: 1;
+}
+
+.monaco-table-tr {
+	display: flex;
+}
+
+.monaco-table-th {
+	width: 100%;
+	height: 100%;
+	font-weight: bold;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-table-th,
+.monaco-table-td {
+	box-sizing: border-box;
+	padding-left: 10px;
+	flex-shrink: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-table-th[data-col-index="0"],
+.monaco-table-td[data-col-index="0"] {
+	padding-left: 20px;
+}
+
+.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+	content: "";
+	position: absolute;
+	left: calc(var(--sash-size) / 2);
+	width: 0;
+	border-left: 1px solid transparent;
+}
+
+.monaco-table > .monaco-split-view2,
+.monaco-table > .monaco-split-view2 .monaco-sash.vertical::before {
+	transition: border-color 0.2s ease-out;
+}
+/*
+.monaco-table:hover > .monaco-split-view2,
+.monaco-table:hover > .monaco-split-view2 .monaco-sash.vertical::before {
+	border-color: rgba(204, 204, 204, 0.2);
+} */

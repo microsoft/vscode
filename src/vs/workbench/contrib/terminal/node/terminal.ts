@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
+import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import { readFile, fileExists, stat, lstat } from 'vs/base/node/pfs';
-import { LinuxDistro, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { SymlinkSupport } from 'vs/base/node/pfs';
 import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
+import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { IShellDefinition, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 
 let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
 	const file = '/etc/os-release';
-	fileExists(file).then(async exists => {
+	SymlinkSupport.existsFile(file).then(async exists => {
 		if (!exists) {
 			return;
 		}
-		const buffer = await readFile(file);
+		const buffer = await fs.promises.readFile(file);
 		const contents = buffer.toString();
 		if (/NAME="?Fedora"?/.test(contents)) {
 			detectedDistro = LinuxDistro.Fedora;
@@ -29,15 +30,6 @@ if (platform.isLinux) {
 }
 
 export const linuxDistro = detectedDistro;
-
-export function getWindowsBuildNumber(): number {
-	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-	let buildNumber: number = 0;
-	if (osVersion && osVersion.length === 4) {
-		buildNumber = parseInt(osVersion[3]);
-	}
-	return buildNumber;
-}
 
 export function detectAvailableShells(): Promise<IShellDefinition[]> {
 	return platform.isWindows ? detectAvailableWindowsShells() : detectAvailableUnixShells();
@@ -86,7 +78,7 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 }
 
 async function detectAvailableUnixShells(): Promise<IShellDefinition[]> {
-	const contents = await readFile('/etc/shells', 'utf8');
+	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const shells = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 	return shells.map(e => {
 		return {
@@ -105,7 +97,7 @@ async function validateShellPaths(label: string, potentialPaths: string[]): Prom
 		return validateShellPaths(label, potentialPaths);
 	}
 	try {
-		const result = await stat(normalize(current));
+		const result = await fs.promises.stat(normalize(current));
 		if (result.isFile() || result.isSymbolicLink()) {
 			return {
 				label,
@@ -117,7 +109,7 @@ async function validateShellPaths(label: string, potentialPaths: string[]): Prom
 		// throw 'permission denied' using 'stat' but don't throw
 		// using 'lstat'
 		try {
-			const result = await lstat(normalize(current));
+			const result = await fs.promises.lstat(normalize(current));
 			if (result.isFile() || result.isSymbolicLink()) {
 				return {
 					label,

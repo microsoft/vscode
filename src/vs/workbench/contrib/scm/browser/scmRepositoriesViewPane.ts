@@ -13,7 +13,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,7 +21,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { collectContextMenuActions, StatusBarAction, StatusBarActionViewItem } from 'vs/workbench/contrib/scm/browser/util';
+import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
@@ -63,7 +62,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const listContainer = append(container, $('.scm-view.scm-repositories-view'));
 
 		const delegate = new ListDelegate();
-		const renderer = this.instantiationService.createInstance(RepositoryRenderer, a => this.getActionViewItem(a),);
+		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
@@ -191,13 +190,5 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		if (selection.length > 0) {
 			this.list.setFocus([selection[0]]);
 		}
-	}
-
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action instanceof StatusBarAction) {
-			return new StatusBarActionViewItem(action);
-		}
-
-		return super.getActionViewItem(action);
 	}
 }

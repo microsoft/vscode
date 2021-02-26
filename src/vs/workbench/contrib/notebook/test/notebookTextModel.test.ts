@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CellKind, CellEditType, CellOutputKind, NotebookTextModelChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -196,15 +196,45 @@ suite('NotebookTextModel', () => {
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [{
-						outputKind: CellOutputKind.Rich,
 						outputId: 'someId',
-						data: { 'text/markdown': '_Hello_' }
+						outputs: [{ mime: 'text/markdown', value: '_Hello_' }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 1);
-				assert.equal(textModel.cells[0].outputs.length, 1);
-				assert.equal(textModel.cells[0].outputs[0].outputKind, CellOutputKind.Rich);
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1);
+
+				// append
+				textModel.applyEdits(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Output,
+					append: true,
+					outputs: [{
+						outputId: 'someId2',
+						outputs: [{ mime: 'text/markdown', value: '_Hello2_' }]
+					}]
+				}], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 2);
+				let [first, second] = textModel.cells[0].outputs;
+				assert.strictEqual(first.outputId, 'someId');
+				assert.strictEqual(second.outputId, 'someId2');
+
+				// replace all
+				textModel.applyEdits(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Output,
+					outputs: [{
+						outputId: 'someId3',
+						outputs: [{ mime: 'text/plain', value: 'Last, replaced output' }]
+					}]
+				}], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1);
+				[first] = textModel.cells[0].outputs;
+				assert.strictEqual(first.outputId, 'someId3');
 			}
 		);
 	});
@@ -270,7 +300,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => [0], undefined);
+				], true, undefined, () => ({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.equal(textModel.cells.length, 4);
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
@@ -279,7 +309,7 @@ suite('NotebookTextModel', () => {
 
 				assert.notEqual(changeEvent, undefined);
 				assert.equal(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelections, [0]);
+				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
 				assert.equal(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
@@ -311,14 +341,51 @@ suite('NotebookTextModel', () => {
 						editType: CellEditType.Metadata,
 						metadata: { editable: false },
 					}
-				], true, undefined, () => [0], undefined);
+				], true, undefined, () => ({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.notEqual(changeEvent, undefined);
 				assert.equal(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelections, [0]);
+				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
 				assert.equal(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
 		);
+	});
+
+
+	test('Updating appending/updating output in Notebooks does not work as expected #117273', function () {
+		withTestNotebook(instantiationService, blukEditService, undoRedoService, [
+			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }]
+		], (_editor, _view, model) => {
+
+			assert.strictEqual(model.cells.length, 1);
+			assert.strictEqual(model.cells[0].outputs.length, 0);
+
+			const success1 = model.applyEdits(
+				model.versionId,
+				[{
+					editType: CellEditType.Output, index: 0, outputs: [
+						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', value: 1 }] }
+					],
+					append: false
+				}], true, undefined, () => undefined, undefined, false
+			);
+
+			assert.ok(success1);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+
+			const success2 = model.applyEdits(
+				model.versionId,
+				[{
+					editType: CellEditType.Output, index: 0, outputs: [
+						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', value: 1 }] }
+					],
+					append: true
+				}], true, undefined, () => undefined, undefined, false
+			);
+
+			assert.ok(success2);
+			assert.strictEqual(model.cells[0].outputs.length, 2);
+		});
 	});
 });

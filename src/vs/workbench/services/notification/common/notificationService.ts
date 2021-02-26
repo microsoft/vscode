@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -75,7 +75,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 			const neverShowAgainAction = toDispose.add(new Action(
 				'workbench.notification.neverShowAgain',
-				nls.localize('neverShowAgain', "Don't Show Again"),
+				localize('neverShowAgain', "Don't Show Again"),
 				undefined, true, async () => {
 
 					// Close notification
@@ -123,7 +123,7 @@ export class NotificationService extends Disposable implements INotificationServ
 			}
 
 			const neverShowAgainChoice = {
-				label: nls.localize('neverShowAgain', "Don't Show Again"),
+				label: localize('neverShowAgain', "Don't Show Again"),
 				run: () => this.storageService.store(id, true, scope, StorageTarget.USER),
 				isSecondary: options.neverShowAgain.isSecondary
 			};
