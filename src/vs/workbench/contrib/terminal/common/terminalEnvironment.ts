@@ -233,6 +233,8 @@ function _sanitizeCwd(cwd: string): string {
 }
 
 export function escapeNonWindowsPath(path: string): string {
+	const fs = require('fs');
+	const pathToFile = fs.isFile(path);
 	let newPath = path;
 	if (newPath.indexOf('\\') !== 0) {
 		newPath = newPath.replace(/\\/g, '\\\\');
@@ -241,8 +243,8 @@ export function escapeNonWindowsPath(path: string): string {
 		newPath = newPath.replace(/ /g, '\\ ');
 	}
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
-	newPath = newPath.replace(bannedChars, '');
-	return `'${newPath}'`;
+	newPath = pathToFile ? newPath.replace(bannedChars, '') : newPath;
+	return pathToFile ? `'${newPath}'` : newPath;
 }
 
 export type TerminalShellSetting = (
