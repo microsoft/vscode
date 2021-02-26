@@ -28,25 +28,21 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 		openNotebook: async (resource: vscode.Uri) => {
 			const defaultData = <vscode.NotebookData>{
 				languages: ['typescript'],
-				metadata: {},
+				metadata: new vscode.NotebookDocumentMetadata(),
 				cells: [
 					{
 						source: 'code()',
 						language: 'typescript',
-						cellKind: vscode.CellKind.Code,
+						cellKind: vscode.NotebookCellKind.Code,
 						outputs: [],
-						metadata: {
-							custom: { testCellMetadata: 123 }
-						}
+						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					},
 					{
 						source: 'Markdown Cell',
 						language: 'markdown',
-						cellKind: vscode.CellKind.Markdown,
+						cellKind: vscode.NotebookCellKind.Markdown,
 						outputs: [],
-						metadata: {
-							custom: { testCellMetadata: 123 }
-						}
+						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					}
 				]
 			};
@@ -68,27 +64,12 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 		},
 		saveNotebook: async (document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			const notebookData: vscode.NotebookData = {
-				languages: document.languages,
 				metadata: document.metadata,
 				cells: document.cells.map(docCell => (<vscode.NotebookCellData>{
 					source: docCell.document.getText(),
 					language: docCell.language,
 					cellKind: docCell.cellKind,
-					outputs: docCell.outputs.map(o => {
-						if (o.outputKind === vscode.CellOutputKind.Rich) {
-							return {
-								outputKind: o.outputKind,
-								data: o.data
-							};
-						} else if (o.outputKind === vscode.CellOutputKind.Text) {
-							return {
-								outputKind: o.outputKind,
-								text: o.text
-							};
-						}
-
-						return undefined;
-					}),
+					outputs: docCell.outputs,
 					metadata: docCell.metadata
 				}))
 			};
@@ -115,35 +96,33 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 
 class TestKernel {
 	readonly label = 'notebookRandomTest';
-	async executeAllCells(_document: vscode.NotebookDocument) {
-		for (let i = 0; i < _document.cells.length; i++) {
-			_document.cells[i].outputs = [getRandomOutput()];
+	async executeAllCells(document: vscode.NotebookDocument) {
+		for (let i = 0; i < document.cells.length; i++) {
+			const edit = new vscode.WorkspaceEdit();
+			edit.appendNotebookCellOutput(document.uri, i, [new vscode.NotebookCellOutput([getRandomOutput()])]);
+			vscode.workspace.applyEdit(edit);
 		}
 	}
 
 	async cancelAllCellsExecution() { }
 
-	async executeCell(_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined) {
-		if (!_cell) {
-			_cell = _document.cells[0];
+	async executeCell(document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) {
+		if (!cell) {
+			cell = document.cells[0];
 		}
 
-		_cell.outputs = [getRandomOutput()];
+		const edit = new vscode.WorkspaceEdit();
+		edit.appendNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([getRandomOutput()])]);
+		vscode.workspace.applyEdit(edit);
 		return;
 	}
 
 	async cancelCellExecution() { }
 }
 
-function getRandomOutput(): vscode.CellOutput {
+function getRandomOutput(): vscode.NotebookCellOutputItem {
 	const r = Math.random() > 0.5;
-	return r ? {
-		outputKind: vscode.CellOutputKind.Rich,
-		data: {
-			'text/html': ['<div>html output</div>\n<img src="https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png" />']
-		}
-	} : {
-			outputKind: vscode.CellOutputKind.Text,
-			text: 'text output'
-		};
+	return r ?
+		new vscode.NotebookCellOutputItem('text/html', ['<div>html output</div>\n<img src="https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png" />']) :
+		new vscode.NotebookCellOutputItem('text/plain', ['text output']);
 }
