@@ -924,21 +924,17 @@ export namespace ForwardPortAction {
 			const remoteExplorerService = accessor.get(IRemoteExplorerService);
 			const notificationService = accessor.get(INotificationService);
 			const tunnelService = accessor.get(ITunnelService);
-			if (arg instanceof TunnelItem) {
-				remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }).then(tunnel => error(notificationService, tunnel, arg.remoteHost, arg.remotePort));
-			} else {
-				remoteExplorerService.setEditable(undefined, TunnelEditId.New, {
-					onFinish: async (value, success) => {
-						remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
-						let parsed: { host: string, port: number } | undefined;
-						if (success && (parsed = parseAddress(value))) {
-							remoteExplorerService.forward({ host: parsed.host, port: parsed.port }, undefined, undefined, undefined, true).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
-						}
-					},
-					validationMessage: (value) => validateInput(value, tunnelService.canElevate),
-					placeholder: forwardPrompt
-				});
-			}
+			remoteExplorerService.setEditable(undefined, TunnelEditId.New, {
+				onFinish: async (value, success) => {
+					remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
+					let parsed: { host: string, port: number } | undefined;
+					if (success && (parsed = parseAddress(value))) {
+						remoteExplorerService.forward({ host: parsed.host, port: parsed.port }, undefined, undefined, undefined, true).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
+					}
+				},
+				validationMessage: (value) => validateInput(value, tunnelService.canElevate),
+				placeholder: forwardPrompt
+			});
 		};
 	}
 
