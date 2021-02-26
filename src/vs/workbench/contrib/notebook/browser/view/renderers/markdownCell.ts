@@ -479,7 +479,6 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	dispose() {
-		this.notebookEditor.removeMarkdownPreview(this.viewCell);
 		this.viewCell.detachTextEditor();
 		super.dispose();
 	}
