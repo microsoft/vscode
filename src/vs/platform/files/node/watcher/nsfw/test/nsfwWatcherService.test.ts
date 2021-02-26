@@ -10,7 +10,7 @@ import { IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
 suite('NSFW Watcher Service', async () => {
 
 	// Load `nsfwWatcherService` within the suite to prevent all tests
-	// from failing to start if `vscode-nsfw` was not properly installed
+	// from failing to start if `nsfw` was not properly installed
 	const { NsfwWatcherService } = await import('vs/platform/files/node/watcher/nsfw/nsfwWatcherService');
 
 	class TestNsfwWatcherService extends NsfwWatcherService {
