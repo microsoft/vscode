@@ -202,7 +202,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	private set selectionHandles(selectionHandles: number[]) {
 		const indexes = selectionHandles.map(handle => this._viewCells.findIndex(cell => cell.handle === handle));
-		this._selectionCollection.setSelections(cellIndexesToRanges(indexes), true, 'edit');
+		this._selectionCollection.setSelections(cellIndexesToRanges(indexes), true, 'model');
 	}
 
 	private _decorationsTree = new DecorationsTree();
@@ -319,7 +319,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 
 			if (contentChanges.endSelectionState) {
-				this.updateSelectionsFromEdits(contentChanges.endSelectionState);
+				this.updateSelectionsState(contentChanges.endSelectionState);
 			}
 		}));
 
@@ -364,20 +364,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._focused = focused;
 	}
 
-	updateSelectionsFromView(primary: number | null, selections: number[]) {
-		const primaryIndex = primary !== null ? this.getCellIndexByHandle(primary) : null;
-		const selectionIndexes = selections.map(sel => this.getCellIndexByHandle(sel));
-		this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), false, 'view');
-	}
-
-	updateSelectionsFromEdits(state: ISelectionState) {
+	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction
+	updateSelectionsState(state: ISelectionState, source: 'view' | 'model' = 'model') {
 		if (this._focused) {
 			if (state.kind === SelectionStateType.Handle) {
 				const primaryIndex = state.primary !== null ? this.getCellIndexByHandle(state.primary) : null;
 				const selectionIndexes = state.selections.map(sel => this.getCellIndexByHandle(sel));
-				this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true, 'edit');
+				this._selectionCollection.setState(primaryIndex !== null ? { start: primaryIndex, end: primaryIndex + 1 } : null, cellIndexesToRanges(selectionIndexes), true, source);
 			} else {
-				this._selectionCollection.setState(state.selections[0] ?? null, state.selections, true, 'edit');
+				this._selectionCollection.setState(state.selections[0] ?? null, state.selections, true, source);
 			}
 		}
 	}

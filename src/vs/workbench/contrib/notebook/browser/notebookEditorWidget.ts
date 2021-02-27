@@ -1179,14 +1179,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (focusIdx < this._list.length) {
 			const element = this._list.element(focusIdx);
 			if (element) {
-				this.viewModel?.updateSelectionsFromEdits({
+				this.viewModel?.updateSelectionsState({
 					kind: SelectionStateType.Handle,
 					primary: element.handle,
 					selections: [element.handle]
 				});
 			}
 		} else if (this._list.length > 0) {
-			this.viewModel?.updateSelectionsFromEdits({
+			this.viewModel?.updateSelectionsState({
 				kind: SelectionStateType.Index,
 				selections: [{ start: 0, end: 1 }]
 			});
@@ -1310,7 +1310,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#region Editor Features
 
 	focusElement(cell: ICellViewModel) {
-		this.viewModel?.updateSelectionsFromEdits({
+		this.viewModel?.updateSelectionsState({
 			kind: SelectionStateType.Handle,
 			primary: cell.handle,
 			selections: [cell.handle]

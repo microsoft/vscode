@@ -521,7 +521,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
-			this._viewModel!.updateSelectionsFromEdits({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] });
+			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] });
 		}
 	}
 
@@ -588,7 +588,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (index >= 0 && this._viewModel) {
 			// update view model first, which will update both `focus` and `selection` in a single transaction
 			const focusedElementHandle = this.element(index).handle;
-			this._viewModel.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+			this._viewModel.updateSelectionsState({
+				kind: SelectionStateType.Handle,
+				primary: focusedElementHandle,
+				selections: [focusedElementHandle]
+			}, 'view');
 
 			// update the view as previous model update will not trigger event
 			this.setFocus([index], undefined, false);
@@ -608,7 +612,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocus();
 			if (focus.length) {
 				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+				this._viewModel?.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: focusedElementHandle,
+					selections: [focusedElementHandle]
+				}, 'view');
 			}
 		});
 	}
@@ -619,7 +627,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocus();
 			if (focus.length) {
 				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+				this._viewModel?.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: focusedElementHandle,
+					selections: [focusedElementHandle]
+				}, 'view');
 			}
 		});
 	}
@@ -632,12 +644,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!indexes.length) {
 			if (this._viewModel) {
-				this._viewModel.updateSelectionsFromView(null, []);
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: null,
+					selections: []
+				}, 'view');
 			}
 		} else {
 			if (this._viewModel) {
 				const focusedElementHandle = this.element(indexes[0]).handle;
-				this._viewModel.updateSelectionsFromView(focusedElementHandle, this.getSelection().map(selection => this.element(selection).handle));
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: focusedElementHandle,
+					selections: this.getSelection().map(selection => this.element(selection).handle)
+				}, 'view');
 			}
 		}
 
@@ -652,11 +672,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!indexes.length) {
 			if (this._viewModel) {
-				this._viewModel.updateSelectionsFromView(this.getFocusedElements()[0]?.handle ?? null, []);
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: this.getFocusedElements()[0]?.handle ?? null,
+					selections: []
+				}, 'view');
 			}
 		} else {
 			if (this._viewModel) {
-				this._viewModel.updateSelectionsFromView(this.getFocusedElements()[0]?.handle ?? null, indexes.map(index => this.element(index)).map(cell => cell.handle));
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: this.getFocusedElements()[0]?.handle ?? null,
+					selections: indexes.map(index => this.element(index)).map(cell => cell.handle)
+				}, 'view');
 			}
 		}
 
