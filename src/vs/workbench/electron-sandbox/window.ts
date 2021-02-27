@@ -73,7 +73,7 @@ export class NativeWindow extends Disposable {
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
+	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
 
 	private isDocumentedEdited = false;
 
@@ -274,7 +274,7 @@ export class NativeWindow extends Disposable {
 		}));
 
 		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.configuration.filesToWait;
@@ -322,19 +322,19 @@ export class NativeWindow extends Disposable {
 		this._register(Event.any(
 			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
 			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
-		)(e => this.onDidChangeMaximized(e)));
+		)(e => this.onDidChangeWindowMaximized(e)));
 
-		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+		this.onDidChangeWindowMaximized(this.environmentService.configuration.maximized ?? false);
 
 		// Detect panel position to determine minimum width
-		this._register(this.layoutService.onPanelPositionChange(pos => this.onDidPanelPositionChange(positionFromString(pos))));
-		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
+		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
+		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
 	}
 
 	private onWindowResize(e: UIEvent, retry: boolean): void {
 		if (e.target === window) {
 			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@bpasero this is an electron issue on macOS when simple fullscreen is enabled
+				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
 				// where for some reason the window clientWidth is reported as 0 when switching
 				// between simple fullscreen and normal screen. In that case we schedule the layout
 				// call at the next animation frame once, in the hope that the dimensions are
@@ -357,7 +357,7 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onDidChangeMaximized(maximized: boolean): void {
+	private onDidChangeWindowMaximized(maximized: boolean): void {
 		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
@@ -372,13 +372,13 @@ export class NativeWindow extends Disposable {
 		return WindowMinimumSize.WIDTH;
 	}
 
-	private onDidPanelPositionChange(pos: Position): void {
+	private onDidChangePanelPosition(pos: Position): void {
 		const minWidth = this.getWindowMinimumWidth(pos);
 
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidVisibleEditorsChange(): void {
+	private onDidChangeVisibleEditors(): void {
 
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
@@ -392,7 +392,7 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onAllEditorsClosed(): void {
+	private onDidAllEditorsClose(): void {
 		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
 		if (visibleEditorPanes === 0) {
 			this.nativeHostService.closeWindow();

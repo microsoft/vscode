@@ -19,6 +19,7 @@ export interface TestIdWithProvider {
  */
 export interface RunTestsRequest {
 	tests: TestIdWithProvider[];
+	exclude?: string[];
 	debug: boolean;
 	isAutoRun?: boolean;
 }
@@ -28,6 +29,7 @@ export interface RunTestsRequest {
  */
 export interface RunTestForProviderRequest {
 	runId: string;
+	excludeExtIds: string[];
 	providerId: string;
 	ids: string[];
 	debug: boolean;
@@ -73,18 +75,37 @@ export interface ITestItem {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
-	id: string;
 	providerId: string;
 	parent: string | null;
 	item: ITestItem;
 }
 
-export interface InternalTestItemWithChildren extends InternalTestItem {
-	children: this[];
+/**
+ * Test result item used in the main thread.
+ */
+export interface TestResultItem extends IncrementalTestCollectionItem {
+	/** Current state of this test */
+	state: ITestState;
+	/** Computed state based on children */
+	computedState: TestRunState;
+	/** True if the test is outdated */
+	retired: boolean;
+	/** True if the test was directly requested by the run (is not a child or parent) */
+	direct?: boolean;
 }
 
-export interface InternalTestResults {
-	tests: InternalTestItemWithChildren[];
+export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined };
+
+/**
+ * Test results serialized for transport and storage.
+ */
+export interface ISerializedTestResults {
+	/** ID of these test results */
+	id: string;
+	/** Time the results were compelted */
+	completedAt: number;
+	/** Subset of test result items */
+	items: SerializedTestResultItem[];
 }
 
 export const enum TestDiffOpType {
@@ -177,27 +198,27 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 		for (const op of diff) {
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
-					const item = op[1];
-					if (!item.parent) {
-						this.roots.add(item.id);
-						const created = this.createItem(item);
-						this.items.set(item.id, created);
+					const internalTest = op[1];
+					if (!internalTest.parent) {
+						this.roots.add(internalTest.item.extId);
+						const created = this.createItem(internalTest);
+						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
-					} else if (this.items.has(item.parent)) {
-						const parent = this.items.get(item.parent)!;
-						parent.children.add(item.id);
-						const created = this.createItem(item, parent);
-						this.items.set(item.id, created);
+					} else if (this.items.has(internalTest.parent)) {
+						const parent = this.items.get(internalTest.parent)!;
+						parent.children.add(internalTest.item.extId);
+						const created = this.createItem(internalTest, parent);
+						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
 					}
 					break;
 				}
 
 				case TestDiffOpType.Update: {
-					const item = op[1];
-					const existing = this.items.get(item.id);
+					const internalTest = op[1];
+					const existing = this.items.get(internalTest.item.extId);
 					if (existing) {
-						Object.assign(existing.item, item.item);
+						Object.assign(existing.item, internalTest.item);
 						changes.update(existing);
 					}
 					break;
@@ -211,9 +232,9 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 
 					if (toRemove.parent) {
 						const parent = this.items.get(toRemove.parent)!;
-						parent.children.delete(toRemove.id);
+						parent.children.delete(toRemove.item.extId);
 					} else {
-						this.roots.delete(toRemove.id);
+						this.roots.delete(toRemove.item.extId);
 					}
 
 					const queue: Iterable<string>[] = [[op[1]]];

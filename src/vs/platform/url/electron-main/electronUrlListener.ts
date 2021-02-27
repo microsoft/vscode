@@ -43,7 +43,7 @@ export class ElectronURLListener {
 		initialUrisToHandle: { uri: URI, url: string }[],
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
-		environmentService: IEnvironmentMainService
+		environmentMainService: IEnvironmentMainService
 	) {
 
 		// the initial set of URIs we need to handle once the window is ready
@@ -51,7 +51,7 @@ export class ElectronURLListener {
 
 		// Windows: install as protocol handler
 		if (isWindows) {
-			const windowsParameters = environmentService.isBuilt ? [] : [`"${environmentService.appRoot}"`];
+			const windowsParameters = environmentMainService.isBuilt ? [] : [`"${environmentMainService.appRoot}"`];
 			windowsParameters.push('--open-url', '--');
 			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, windowsParameters);
 		}
@@ -82,7 +82,7 @@ export class ElectronURLListener {
 		if (isWindowReady) {
 			this.flush();
 		} else {
-			Event.once(windowsMainService.onWindowReady)(this.flush, this, this.disposables);
+			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
 		}
 	}
 

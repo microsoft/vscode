@@ -79,9 +79,7 @@ export class FileService extends Disposable implements IFileService {
 		this._onWillActivateFileSystemProvider.fire({
 			scheme,
 			join(promise) {
-				if (promise) {
-					joiners.push(promise);
-				}
+				joiners.push(promise);
 			},
 		});
 
@@ -458,7 +456,7 @@ export class FileService extends Disposable implements IFileService {
 		try {
 
 			// if the etag is provided, we await the result of the validation
-			// due to the likelyhood of hitting a NOT_MODIFIED_SINCE result.
+			// due to the likelihood of hitting a NOT_MODIFIED_SINCE result.
 			// otherwise, we let it run in parallel to the file reading for
 			// optimal startup performance.
 			if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED) {

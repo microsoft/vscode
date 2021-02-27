@@ -28,7 +28,7 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 			urlProtocol: 'code-oss',
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/master/LICENSE.txt',
+			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',

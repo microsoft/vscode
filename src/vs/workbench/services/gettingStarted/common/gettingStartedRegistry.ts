@@ -7,9 +7,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { content } from 'vs/workbench/services/gettingStarted/common/gettingStartedContent';
+import { localize } from 'vs/nls';
 
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
@@ -35,7 +37,9 @@ export interface IGettingStartedCategoryDescriptor {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	icon: ThemeIcon
+	icon:
+	| { type: 'icon', icon: ThemeIcon }
+	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
 	| { type: 'items' }
@@ -46,7 +50,9 @@ export interface IGettingStartedCategory {
 	id: GettingStartedCategory | string
 	title: string
 	description: string
-	icon: ThemeIcon
+	icon:
+	| { type: 'icon', icon: ThemeIcon }
+	| { type: 'image', path: string }
 	when: ContextKeyExpression
 	content:
 	| { type: 'items', items: IGettingStartedTask[] }
@@ -127,6 +133,7 @@ content.forEach(category => {
 
 	registryImpl.registerCategory({
 		...category,
+		icon: { type: 'icon', icon: category.icon },
 		when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true()
 	});
 
@@ -134,7 +141,7 @@ content.forEach(category => {
 		const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
-				: FileAccess.asFileUri('vs/workbench/services/gettingStarted/common/media/' + path, require);
+				: FileAccess.asBrowserUri('vs/workbench/services/gettingStarted/common/media/' + path, require);
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
 				return { hc: converted, dark: converted, light: converted };
@@ -165,3 +172,96 @@ content.forEach(category => {
 
 Registry.add(GettingStartedRegistryID, registryImpl);
 export const GettingStartedRegistry: IGettingStartedRegistry = Registry.as(GettingStartedRegistryID);
+
+ExtensionsRegistry.registerExtensionPoint({
+	extensionPoint: 'gettingStarted',
+	jsonSchema: {
+		doNotSuggest: true,
+		description: localize('gettingStarted', "Contribute items to help users in getting started with your extension. Rendering and progression through these items is managed by core. Experimental, requires proposedApi."),
+		type: 'array',
+		items: {
+			type: 'object',
+			required: ['id', 'title', 'description', 'button', 'media'],
+			properties: {
+				id: {
+					type: 'string',
+					description: localize('gettingStarted.id', "Unique identifier for this item."),
+				},
+				title: {
+					type: 'string',
+					description: localize('gettingStarted.title', "Title of item.")
+				},
+				description: {
+					type: 'string',
+					description: localize('gettingStarted.description', "Description of item.")
+				},
+				button: {
+					description: localize('gettingStarted.button', "The item's button, which can either link to an external resource or run a command"),
+					oneOf: [
+						{
+							type: 'object',
+							required: ['title', 'command'],
+							properties: {
+								title: {
+									type: 'string',
+									description: localize('gettingStarted.button.title', "Title of button.")
+								},
+								command: {
+									type: 'string',
+									description: localize('gettingStarted.button.command', "Command to run when button is clicked. Running this command will mark the item completed.")
+								}
+							}
+						},
+						{
+							type: 'object',
+							required: ['title', 'link'],
+							properties: {
+								title: {
+									type: 'string',
+									description: localize('gettingStarted.button.title', "Title of button.")
+								},
+								link: {
+									type: 'string',
+									description: localize('gettingStarted.button.link', "Link to open when button is clicked. Opening this link will mark the item completed.")
+								}
+							}
+						}
+					]
+				},
+				media: {
+					type: 'object',
+					required: ['path', 'altText'],
+					description: localize('gettingStarted.media', "Image to show alongside this item."),
+					properties: {
+						path: {
+							description: localize('gettingStarted.media.path', "Either a single string path to an image to be used on all color themes, or separate paths for light, dark, and high contrast themes."),
+
+							oneOf: [
+								{
+									type: 'string',
+								},
+								{
+									type: 'object',
+									required: ['hc', 'light', 'dark'],
+									properties: {
+										hc: { type: 'string' },
+										light: { type: 'string' },
+										dark: { type: 'string' },
+									}
+								},
+							]
+						},
+						altText: {
+							type: 'string',
+							description: localize('gettingStarted.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+						}
+					}
+				},
+				when: {
+					type: 'string',
+					description: localize('gettingStarted.when', "Context key expression to control the visibility of this getting started item.")
+				}
+			}
+		}
+	}
+});

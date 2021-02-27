@@ -245,7 +245,7 @@
 	position: relative;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label > .monaco-icon-label-container::after {
 	content: ''; /* enables a linear gradient to overlay the end of the label when tabs overflow */
 	position: absolute;
 	right: 0;
@@ -258,8 +258,12 @@
 	height: calc(100% - 2px);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label > .monaco-icon-label-container::after {
 	opacity: 0; /* when tab has the focus this shade breaks the tab border (fixes https://github.com/microsoft/vscode/issues/57819) */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label.tab-label-has-badge::after {
+	padding-right: 5px; /* with tab sizing shrink and badges, we want a right-padding because the close button is hidden */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky-compact:not(.has-icon) .monaco-icon-label {

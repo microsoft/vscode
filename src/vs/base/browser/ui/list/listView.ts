@@ -436,7 +436,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const removeRange = Range.intersect(previousRenderRange, deleteRange);
 
 		// try to reuse rows, avoid removing them from DOM
-		const rowsToDispose = new Map<string, [IRow, T, number, number][]>();
+		const rowsToDispose = new Map<string, IRow[]>();
 		for (let i = removeRange.start; i < removeRange.end; i++) {
 			const item = this.items[i];
 			item.dragStartDisposable.dispose();
@@ -449,7 +449,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					rowsToDispose.set(item.templateId, rows);
 				}
 
-				rows.push([item.row, item.element, i, item.size]);
+				const renderer = this.renderers.get(item.templateId);
+
+				if (renderer && renderer.disposeElement) {
+					renderer.disposeElement(item.element, i, item.row.templateData, item.size);
+				}
+
+				rows.push(item.row);
 			}
 
 			item.row = null;
@@ -479,8 +485,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (start === 0 && deleteCount >= this.items.length) {
 			this.rangeMap = new RangeMap();
 			this.rangeMap.splice(0, 0, inserted);
+			deleted = this.items;
 			this.items = inserted;
-			deleted = [];
 		} else {
 			this.rangeMap.splice(start, deleteCount, inserted);
 			deleted = this.items.splice(start, deleteCount, ...inserted);
@@ -512,31 +518,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			for (let i = range.start; i < range.end; i++) {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
-				const rowData = rows?.pop();
-
-				if (!rowData) {
-					this.insertItemInDOM(i, beforeElement);
-				} else {
-					const [row, element, index, size] = rowData;
-					const renderer = this.renderers.get(item.templateId);
-
-					if (renderer && renderer.disposeElement) {
-						renderer.disposeElement(element, index, row.templateData, size);
-					}
-
-					this.insertItemInDOM(i, beforeElement, row);
-				}
+				const row = rows?.pop();
+				this.insertItemInDOM(i, beforeElement, row);
 			}
 		}
 
-		for (const [templateId, rows] of rowsToDispose) {
-			for (const [row, element, index, size] of rows) {
-				const renderer = this.renderers.get(templateId);
-
-				if (renderer && renderer.disposeElement) {
-					renderer.disposeElement(element, index, row.templateData, size);
-				}
-
+		for (const rows of rowsToDispose.values()) {
+			for (const row of rows) {
 				this.cache.release(row);
 			}
 		}

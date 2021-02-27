@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -32,9 +31,6 @@ export class ElectronIframeWebview extends IFrameWebview {
 
 	private readonly _resourceRequestManager: WebviewResourceRequestManager;
 	private _messagePromise = Promise.resolve();
-
-	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
-	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
 
 	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
 
@@ -73,15 +69,6 @@ export class ElectronIframeWebview extends IFrameWebview {
 		}));
 	}
 
-	protected createElement(options: WebviewOptions, contentOptions: WebviewContentOptions) {
-		const element = super.createElement(options, contentOptions);
-		this._elementFocusImpl = () => element.contentWindow?.focus();
-		element.focus = () => {
-			this.doFocus();
-		};
-		return element;
-	}
-
 	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		// The extensionId and purpose in the URL are used for filtering in js-debug:
 		this.element!.setAttribute('src', `${Schemas.vscodeWebview}://${this.id}/index.html?id=${this.id}&platform=electron&extensionId=${extension?.id.value ?? ''}&purpose=${options.purpose}`);
@@ -114,52 +101,5 @@ export class ElectronIframeWebview extends IFrameWebview {
 
 	protected preprocessHtml(value: string): string {
 		return rewriteVsCodeResourceUrls(this.id, value);
-	}
-
-	public focus(): void {
-		this.doFocus();
-
-		// Handle focus change programmatically (do not rely on event from <webview>)
-		this.handleFocusChange(true);
-	}
-
-	private doFocus() {
-		if (!this.element) {
-			return;
-		}
-
-		// Clear the existing focus first if not already on the webview.
-		// This is required because the next part where we set the focus is async.
-		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
-			// Don't blur if on the webview because this will also happen async and may unset the focus
-			// after the focus trigger fires below.
-			document.activeElement.blur();
-		}
-
-		// Workaround for https://github.com/microsoft/vscode/issues/75209
-		// Electron's webview.focus is async so for a sequence of actions such as:
-		//
-		// 1. Open webview
-		// 1. Show quick pick from command palette
-		//
-		// We end up focusing the webview after showing the quick pick, which causes
-		// the quick pick to instantly dismiss.
-		//
-		// Workaround this by debouncing the focus and making sure we are not focused on an input
-		// when we try to re-focus.
-		this._focusDelayer.trigger(async () => {
-			if (!this.isFocused || !this.element) {
-				return;
-			}
-			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
-				return;
-			}
-			try {
-				this._elementFocusImpl();
-			} catch {
-				// noop
-			}
-			this._send('focus');
-		});
 	}
 }

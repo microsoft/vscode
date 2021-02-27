@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -20,6 +19,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
@@ -27,81 +27,99 @@ import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface WebviewIntialized {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'initialized'
 }
 
 export interface IDimensionMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'dimension';
 	id: string;
-	init: boolean;
-	data: DOM.Dimension;
-	isOutput: boolean;
+	init?: boolean;
+	data: { height: number };
+	isOutput?: boolean;
 }
 
 export interface IMouseEnterMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'mouseenter';
 	id: string;
 }
 
 export interface IMouseLeaveMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'mouseleave';
 	id: string;
 }
 
 export interface IWheelMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'did-scroll-wheel';
 	payload: any;
 }
 
 
 export interface IScrollAckMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'scroll-ack';
 	data: { top: number };
 	version: number;
 }
 
 export interface IBlurOutputMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'focus-editor';
 	id: string;
 	focusNext?: boolean;
 }
 
 export interface IClickedDataUrlMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'clicked-data-url';
-	data: string;
+	data: string | ArrayBuffer | null;
 	downloadName?: string;
 }
 
+export interface IFocusMarkdownPreviewMessage {
+	readonly __vscode_notebook_message: true;
+	type: 'focusMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseEnterMarkdownPreviewMessage {
+	readonly __vscode_notebook_message: true;
+	type: 'mouseEnterMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseLeaveMarkdownPreviewMessage {
+	readonly __vscode_notebook_message: true;
+	type: 'mouseLeaveMarkdownPreview';
+	cellId: string;
+}
+
 export interface IToggleMarkdownPreviewMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'toggleMarkdownPreview';
 	cellId: string;
 }
 
 export interface ICellDragStartMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'cell-drag-start';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
 export interface ICellDragMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'cell-drag';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
 export interface ICellDragEndMessage {
-	readonly __vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	readonly type: 'cell-drag-end';
 	readonly cellId: string;
 	readonly ctrlKey: boolean
@@ -110,6 +128,10 @@ export interface ICellDragEndMessage {
 		readonly clientX: number;
 		readonly clientY: number;
 	};
+}
+export interface IInitializedMarkdownPreviewMessage {
+	readonly __vscode_notebook_message: true;
+	readonly type: 'initializedMarkdownPreview';
 }
 
 export interface IClearMessage {
@@ -219,7 +241,7 @@ export interface IUpdateDecorationsMessage {
 }
 
 export interface ICustomRendererMessage {
-	__vscode_notebook_message: boolean;
+	readonly __vscode_notebook_message: true;
 	type: 'customRendererMessage';
 	rendererId: string;
 	message: unknown;
@@ -236,9 +258,13 @@ export interface IRemoveMarkdownMessage {
 	id: string;
 }
 
-
 export interface IHideMarkdownMessage {
-	type: 'hideMarkdownPreview',
+	type: 'hideMarkdownPreview';
+	id: string;
+}
+
+export interface IUnhideMarkdownMessage {
+	type: 'unhideMarkdownPreview';
 	id: string;
 }
 
@@ -264,10 +290,14 @@ export type FromWebviewMessage =
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
+	| IFocusMarkdownPreviewMessage
+	| IMouseEnterMarkdownPreviewMessage
+	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
 	| ICellDragEndMessage
+	| IInitializedMarkdownPreviewMessage
 	;
 export type ToWebviewMessage =
 	| IClearMessage
@@ -285,6 +315,7 @@ export type ToWebviewMessage =
 	| IRemoveMarkdownMessage
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
+	| IUnhideMarkdownMessage
 	| IInitializeMarkdownMessage
 	| IViewScrollMarkdownRequestMessage;
 
@@ -376,9 +407,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-ms-user-select: text;
 						white-space: initial;
 						padding-left: 0px !important;
+						cursor: grab;
 					}
 
 					/* markdown */
+					#container > div > div.preview {
+						color: var(--vscode-foreground);
+					}
 
 					#container > div > div.preview img {
 						max-width: 100%;
@@ -412,11 +447,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						line-height: 1.2;
 						border-bottom-width: 1px;
 						border-bottom-style: solid;
-						border-color: rgba(255, 255, 255, 0.18);
-					}
-
-					#container > div > div.preview h1 {
-						border-color: rgba(0, 0, 0, 0.18);
+						border-color: var(--vscode-foreground);
 					}
 
 					#container > div > div.preview h1,
@@ -580,7 +611,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding)}</script>
+				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding, 8)}</script>
 				${markdownRenderersSrc}
 			</body>
 		</html>`;
@@ -719,91 +750,161 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: FromWebviewMessage) => {
+		this._register(this.webview.onMessage((data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined }) => {
 			if (this._disposed) {
 				return;
 			}
 
-			if (data.__vscode_notebook_message) {
-				if (data.type === 'dimension') {
-					if (data.isOutput) {
-						const height = data.data.height;
-						const outputHeight = height;
-
-						const resolvedResult = this.resolveOutputId(data.id);
-						if (resolvedResult) {
-							const { cellInfo, output } = resolvedResult;
-							this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
-						}
-					} else {
-						const cellId = data.id.substr(0, data.id.length - '_preview'.length);
-						this.notebookEditor.updateMarkdownCellHeight(cellId, data.data.height, !!data.init);
-					}
-				} else if (data.type === 'mouseenter') {
-					const resolvedResult = this.resolveOutputId(data.id);
-					if (resolvedResult) {
-						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-						if (latestCell) {
-							latestCell.outputIsHovered = true;
-						}
-					}
-				} else if (data.type === 'mouseleave') {
-					const resolvedResult = this.resolveOutputId(data.id);
-					if (resolvedResult) {
-						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-						if (latestCell) {
-							latestCell.outputIsHovered = false;
-						}
-					}
-				} else if (data.type === 'scroll-ack') {
-					// const date = new Date();
-					// const top = data.data.top;
-					// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-				} else if (data.type === 'did-scroll-wheel') {
-					this.notebookEditor.triggerScroll({
-						...data.payload,
-						preventDefault: () => { },
-						stopPropagation: () => { }
-					});
-				} else if (data.type === 'focus-editor') {
-					const resolvedResult = this.resolveOutputId(data.id);
-					if (resolvedResult) {
-						const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-						if (!latestCell) {
-							return;
-						}
-
-						if (data.focusNext) {
-							this.notebookEditor.focusNextNotebookCell(latestCell, 'editor');
-						} else {
-							this.notebookEditor.focusNotebookCell(latestCell, 'editor');
-						}
-					}
-				} else if (data.type === 'clicked-data-url') {
-					this._onDidClickDataLink(data);
-				} else if (data.type === 'customRendererMessage') {
-					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
-				} else if (data.type === 'toggleMarkdownPreview') {
-					this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
-				} else if (data.type === 'cell-drag-start') {
-					this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
-				} else if (data.type === 'cell-drag') {
-					this.notebookEditor.markdownCellDrag(data.cellId, data.position);
-				} else if (data.type === 'cell-drag-end') {
-					this.notebookEditor.markdownCellDragEnd(data.cellId, {
-						clientY: data.position.clientY,
-						ctrlKey: data.ctrlKey,
-						altKey: data.altKey,
-					});
-				}
+			if (!data.__vscode_notebook_message) {
+				this._onMessage.fire({ message: data });
 				return;
 			}
 
-			this._onMessage.fire({ message: data });
+			switch (data.type) {
+				case 'dimension':
+					{
+						if (data.isOutput) {
+							const height = data.data.height;
+							const outputHeight = height;
+
+							const resolvedResult = this.resolveOutputId(data.id);
+							if (resolvedResult) {
+								const { cellInfo, output } = resolvedResult;
+								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
+							}
+						} else {
+							const cellId = data.id.substr(0, data.id.length - '_preview'.length);
+							this.notebookEditor.updateMarkdownCellHeight(cellId, data.data.height, !!data.init);
+						}
+						break;
+					}
+				case 'mouseenter':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsHovered = true;
+							}
+						}
+						break;
+					}
+				case 'mouseleave':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsHovered = false;
+							}
+						}
+						break;
+					}
+				case 'scroll-ack':
+					{
+						// const date = new Date();
+						// const top = data.data.top;
+						// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+						break;
+					}
+				case 'did-scroll-wheel':
+					{
+						this.notebookEditor.triggerScroll({
+							...data.payload,
+							preventDefault: () => { },
+							stopPropagation: () => { }
+						});
+						break;
+					}
+				case 'focus-editor':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (!latestCell) {
+								return;
+							}
+
+							if (data.focusNext) {
+								this.notebookEditor.focusNextNotebookCell(latestCell, 'editor');
+							} else {
+								this.notebookEditor.focusNotebookCell(latestCell, 'editor');
+							}
+						}
+						break;
+					}
+				case 'clicked-data-url':
+					{
+						this._onDidClickDataLink(data);
+						break;
+					}
+				case 'customRendererMessage':
+					{
+						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+						break;
+					}
+				case 'focusMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+						}
+						break;
+					}
+				case 'toggleMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
+						}
+						break;
+					}
+				case 'mouseEnterMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell instanceof MarkdownCellViewModel) {
+							cell.cellIsHovered = true;
+						}
+						break;
+					}
+				case 'mouseLeaveMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell instanceof MarkdownCellViewModel) {
+							cell.cellIsHovered = false;
+						}
+						break;
+					}
+				case 'cell-drag-start':
+					{
+						this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
+						break;
+					}
+				case 'cell-drag':
+					{
+						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
+						break;
+					}
+				case 'cell-drag-end':
+					{
+						this.notebookEditor.markdownCellDragEnd(data.cellId, {
+							clientY: data.position.clientY,
+							ctrlKey: data.ctrlKey,
+							altKey: data.altKey,
+						});
+						break;
+					}
+			}
+
 		}));
 	}
 
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
+		if (typeof event.data !== 'string') {
+			return;
+		}
+
 		const [splitStart, splitData] = event.data.split(';base64,');
 		if (!splitData || !splitStart) {
 			return;
@@ -971,6 +1072,17 @@ var requirejs = (function() {
 
 		this._sendMessageToWebview({
 			type: 'hideMarkdownPreview',
+			id: cellId
+		});
+	}
+
+	async unhideMarkdownPreview(cellId: string,) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'unhideMarkdownPreview',
 			id: cellId
 		});
 	}

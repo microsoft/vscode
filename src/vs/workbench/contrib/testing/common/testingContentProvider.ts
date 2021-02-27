@@ -38,7 +38,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			return null;
 		}
 
-		const test = this.resultService.getResult(parsed.resultId)?.getStateByExtId(parsed.testExtId);
+		const test = this.resultService.getResult(parsed.resultId)?.getStateById(parsed.testExtId);
 
 		if (!test) {
 			return null;

@@ -5,9 +5,24 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { hasWorkspaceFileExtension, toWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, toWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, ISerializedWorkspaceIdentifier, reviveIdentifier, ISerializedSingleFolderWorkspaceIdentifier, IEmptyWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Workspaces', () => {
+
+	test('reviveIdentifier', () => {
+		let serializedWorkspaceIdentifier: ISerializedWorkspaceIdentifier = { id: 'id', configPath: URI.file('foo').toJSON() };
+		assert.strictEqual(isWorkspaceIdentifier(reviveIdentifier(serializedWorkspaceIdentifier)), true);
+
+		let serializedSingleFolderWorkspaceIdentifier: ISerializedSingleFolderWorkspaceIdentifier = { id: 'id', uri: URI.file('foo').toJSON() };
+		assert.strictEqual(isSingleFolderWorkspaceIdentifier(reviveIdentifier(serializedSingleFolderWorkspaceIdentifier)), true);
+
+		let serializedEmptyWorkspaceIdentifier: IEmptyWorkspaceIdentifier = { id: 'id' };
+		assert.strictEqual(reviveIdentifier(serializedEmptyWorkspaceIdentifier).id, serializedEmptyWorkspaceIdentifier.id);
+		assert.strictEqual(isWorkspaceIdentifier(serializedEmptyWorkspaceIdentifier), false);
+		assert.strictEqual(isSingleFolderWorkspaceIdentifier(serializedEmptyWorkspaceIdentifier), false);
+
+		assert.strictEqual(reviveIdentifier(undefined), undefined);
+	});
 
 	test('hasWorkspaceFileExtension', () => {
 		assert.strictEqual(hasWorkspaceFileExtension('something'), false);

@@ -8,6 +8,7 @@ import { localize } from 'vs/nls';
 import { editorErrorForeground, editorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
@@ -135,15 +136,17 @@ registerThemingParticipant((theme, collector) => {
 	//#region active buttons
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.testing-filter-button.checked, .codicon-testing-autorun.checked::before { border-color: ${inputActiveOptionBorderColor}; }`);
+		collector.addRule(`.testing-filter-button.checked { border-color: ${inputActiveOptionBorderColor}; }`);
 	}
 	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
 	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.testing-filter-button.checked, .codicon-testing-autorun.checked::before { color: ${inputActiveOptionForegroundColor}; }`);
+		collector.addRule(`.testing-filter-button.checked { color: ${inputActiveOptionForegroundColor}; }`);
 	}
 	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
 	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.testing-filter-button.checked, .codicon-testing-autorun.checked::before { background-color: ${inputActiveOptionBackgroundColor}; }`);
+		collector.addRule(`.testing-filter-button.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
 	}
+	const badgeColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
+	collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after { background-color: ${badgeColor}; }`);
 	//#endregion
 });

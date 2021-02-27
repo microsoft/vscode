@@ -62,18 +62,18 @@ export const LANGUAGE_MODES: { [id: string]: string[] } = {
 	'haml': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xml': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xsl': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'css': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'scss': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'sass': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'less': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'stylus': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'css': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'scss': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'sass': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'less': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'stylus': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'javascriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
 export function isStyleSheet(syntax: string): boolean {
 	let stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
-	return (stylesheetSyntaxes.indexOf(syntax) > -1);
+	return stylesheetSyntaxes.includes(syntax);
 }
 
 export function validate(allowStylesheet: boolean = true): boolean {
@@ -372,6 +372,16 @@ export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined
 		}
 	}
 	return currentNode;
+}
+
+export function isOffsetInsideOpenOrCloseTag(node: FlatNode, offset: number): boolean {
+	const htmlNode = node as HtmlFlatNode;
+	if ((htmlNode.open && offset > htmlNode.open.start && offset < htmlNode.open.end)
+		|| (htmlNode.close && offset > htmlNode.close.start && offset < htmlNode.close.end)) {
+		return true;
+	}
+
+	return false;
 }
 
 export function offsetRangeToSelection(document: vscode.TextDocument, start: number, end: number): vscode.Selection {

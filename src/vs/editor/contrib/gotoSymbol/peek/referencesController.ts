@@ -139,13 +139,11 @@ export abstract class ReferencesController implements IEditorContribution {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
+				model.dispose();
 				return undefined;
 			}
 
-			if (this._model) {
-				this._model.dispose();
-			}
-
+			this._model?.dispose();
 			this._model = model;
 
 			// show widget

@@ -270,5 +270,4 @@ export const content: GettingStartedContent = [
 			]
 		}
 	}
-
 ];

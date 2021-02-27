@@ -355,7 +355,7 @@ class RequestRouter {
 			for (let serverIndex = 0; serverIndex < this.servers.length; ++serverIndex) {
 				const server = this.servers[serverIndex].server;
 
-				const request = server.executeImpl(command, args, { ...executeInfo, token });
+				const request = server.executeImpl(command, args, { ...executeInfo, token }) as Promise<ServerResponse.Response<Proto.Response>> | undefined;
 				if (serverIndex === 0) {
 					firstRequest = request;
 				}

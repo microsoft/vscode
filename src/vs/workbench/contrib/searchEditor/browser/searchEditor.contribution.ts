@@ -33,6 +33,7 @@ import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEA
 import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -92,7 +93,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					override: (async () => {
 						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
 						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, override: false }, group);
+						return editorService.openEditor(input, { ...options, override: EditorOverride.DISABLED }, group);
 					})()
 				};
 			}

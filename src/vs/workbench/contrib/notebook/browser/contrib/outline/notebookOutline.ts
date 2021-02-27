@@ -368,6 +368,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	dispose(): void {
+		this._onDidChange.dispose();
 		this._dispoables.dispose();
 		this._entriesDisposables.dispose();
 	}
@@ -389,7 +390,8 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const [selected] = viewModel.selectionHandles;
+		const selectedCellIndex = viewModel.getSelection().start;
+		const selected = viewModel.getCellByIndex(selectedCellIndex)?.handle;
 		const entries: OutlineEntry[] = [];
 
 		for (let i = 0; i < viewModel.viewCells.length; i++) {
@@ -511,8 +513,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const { viewModel } = this._editor;
 
 		if (viewModel) {
-			const [selected] = viewModel.selectionHandles;
-			const cell = viewModel.getCellByHandle(selected);
+			const cell = viewModel.getCellByIndex(viewModel.getSelection()?.start);
 			if (cell) {
 				for (let entry of this._entries) {
 					newActive = entry.find(cell, []);

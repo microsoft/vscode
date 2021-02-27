@@ -23,7 +23,7 @@ suite('NotebookViewModel', () => {
 	const undoRedoService = instantiationService.get(IUndoRedoService);
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', false, URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
@@ -43,7 +43,7 @@ suite('NotebookViewModel', () => {
 				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
 				assert.equal(viewModel.viewCells[1].metadata?.editable, false);
 
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, []);
+				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getCellIndex(cell), 1);

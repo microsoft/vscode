@@ -5,7 +5,7 @@
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ExtensionsInitializer } from 'vs/platform/userDataSync/common/extensionsSync';
-import { GlobalStateInitializer } from 'vs/platform/userDataSync/common/globalStateSync';
+import { GlobalStateInitializer, UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
 import { KeybindingsInitializer } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { SettingsInitializer } from 'vs/platform/userDataSync/common/settingsSync';
 import { SnippetsInitializer } from 'vs/platform/userDataSync/common/snippetsSync';
@@ -16,8 +16,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { ISyncExtension, IUserDataInitializer, IUserDataSyncLogService, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { ISyncExtension, IUserData, IUserDataInitializer, IUserDataSyncLogService, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -30,6 +30,8 @@ import { IExtensionService, toExtensionDescription } from 'vs/workbench/services
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { mark } from 'vs/base/common/performance';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -47,6 +49,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 	private readonly initialized: SyncResource[] = [];
 	private readonly initializationFinished = new Barrier();
+	private globalStateUserData: IUserData | null = null;
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -88,12 +91,6 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 					return;
 				}
 
-				const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-				if (!userDataSyncStore) {
-					this.logService.trace(`Skipping initializing user data as sync service is not provided`);
-					return;
-				}
-
 				if (!this.environmentService.options?.credentialsProvider) {
 					this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
 					return;
@@ -110,6 +107,15 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 					return;
 				}
 
+				await this.initializeUserDataSyncStore(authenticationSession);
+
+				const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
+				if (!userDataSyncStore) {
+					this.logService.trace(`Skipping initializing user data as sync service is not provided`);
+					return;
+				}
+
+				this.logService.info(`Using settings sync service ${userDataSyncStore.url.toString()} for initialization`);
 				const userDataSyncStoreClient = new UserDataSyncStoreClient(userDataSyncStore.url, this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
 				userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
 				return userDataSyncStoreClient;
@@ -117,6 +123,37 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		}
 
 		return this._userDataSyncStoreClientPromise;
+	}
+
+	private async initializeUserDataSyncStore(authenticationSession: AuthenticationSessionInfo): Promise<void> {
+		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
+		if (!userDataSyncStore?.canSwitch) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		try {
+			const userDataSyncStoreClient = disposables.add(new UserDataSyncStoreClient(userDataSyncStore.url, this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService));
+			userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
+
+			// Cache global state data for global state initialization
+			this.globalStateUserData = await userDataSyncStoreClient.read(SyncResource.GlobalState, null);
+
+			if (this.globalStateUserData) {
+				const userDataSyncStoreType = new UserDataSyncStoreTypeSynchronizer(userDataSyncStoreClient, this.storageService, this.environmentService, this.fileService, this.logService).getSyncStoreType(this.globalStateUserData);
+				if (userDataSyncStoreType) {
+					await this.userDataSyncStoreManagementService.switch(userDataSyncStoreType);
+
+					// Unset cached global state data if urls are changed
+					if (!isEqual(userDataSyncStore.url, this.userDataSyncStoreManagementService.userDataSyncStore?.url)) {
+						this.logService.info('Switched settings sync store');
+						this.globalStateUserData = null;
+					}
+				}
+			}
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	async whenInitializationFinished(): Promise<void> {
@@ -158,7 +195,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 				this.initialized.push(syncResource);
 				this.logService.trace(`Initializing ${getSyncAreaLabel(syncResource)}`);
 				const initializer = this.createSyncResourceInitializer(syncResource, instantiationService);
-				const userData = await userDataSyncStoreClient.read(syncResource, null);
+				const userData = await userDataSyncStoreClient.read(syncResource, syncResource === SyncResource.GlobalState ? this.globalStateUserData : null);
 				await initializer.initialize(userData);
 				this.logService.info(`Initialized ${getSyncAreaLabel(syncResource)}`);
 			} catch (error) {

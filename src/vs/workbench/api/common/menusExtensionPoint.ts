@@ -46,8 +46,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'editor/title/run',
 		id: MenuId.EditorTitleRun,
-		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu"),
-		proposed: true
+		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
 	},
 	{
 		key: 'editor/context',
@@ -168,6 +167,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: true
 	},
 	{
+		key: 'testing/item/context',
+		id: MenuId.TestItem,
+		description: localize('testing.item.title', "The contributed test item menu"),
+		proposed: true
+	},
+	{
 		key: 'extension/context',
 		id: MenuId.ExtensionContext,
 		description: localize('menus.extensionContext', "The extension context menu")
@@ -186,6 +191,11 @@ const apiMenus: IAPIMenu[] = [
 		key: 'ports/item/context',
 		id: MenuId.TunnelContext,
 		description: localize('view.tunnelContext', "The Ports view item context menu")
+	},
+	{
+		key: 'ports/item/origin/inline',
+		id: MenuId.TunnelOriginInline,
+		description: localize('view.tunnelOriginInline', "The Ports view item origin inline menu")
 	}
 ];
 
@@ -348,7 +358,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.submenu.icon', '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -476,7 +486,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},

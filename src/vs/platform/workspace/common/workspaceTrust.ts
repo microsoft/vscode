@@ -37,10 +37,15 @@ export interface IWorkspaceTrustModel {
 
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
 	getFolderTrustState(folder: URI): WorkspaceTrustState;
+
+	setTrustedFolders(folders: URI[]): void;
+	setUntrustedFolders(folders: URI[]): void;
+
+	getTrustStateInfo(): IWorkspaceTrustStateInfo;
 }
 
 export interface IWorkspaceTrustRequest {
-	immediate: boolean;
+	modal: boolean;
 	message?: string;
 }
 

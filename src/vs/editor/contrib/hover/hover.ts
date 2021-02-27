@@ -312,13 +312,9 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
 		const promise = goto.startFindDefinitionFromCursor(position);
-		if (promise) {
-			promise.then(() => {
-				controller.showContentHover(range, HoverStartMode.Immediate, true);
-			});
-		} else {
+		promise.then(() => {
 			controller.showContentHover(range, HoverStartMode.Immediate, true);
-		}
+		});
 	}
 }
 

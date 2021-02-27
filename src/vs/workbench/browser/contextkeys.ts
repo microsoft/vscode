@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -22,18 +23,18 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isNative } from 'vs/base/common/platform';
 
-export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined);
-export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0);
-export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWorkspaceSupport', true);
+export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
+export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
+export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWorkspaceSupport', true, true);
 
-export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
+export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false, localize('dirtyWorkingCopies', "Wether there are any dirty working copies"));
 
-export const RemoteNameContext = new RawContextKey<string>('remoteName', '');
+export const RemoteNameContext = new RawContextKey<string>('remoteName', '', localize('remoteName', "The name of the remote the window is connected to or an empty string if not connected to any remote"));
 
-export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false);
+export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the window is in fullscreen mode"));
 
 // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
-export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false);
+export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true);
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -167,7 +168,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidAddGroup(() => this.updateEditorContextKeys()));
 		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidGroupIndexChange(() => this.updateEditorContextKeys()));
+		this._register(this.editorGroupService.onDidChangeGroupIndex(() => this.updateEditorContextKeys()));
 
 		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
 
@@ -180,15 +181,15 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			}
 		}));
 
-		this._register(this.layoutService.onZenModeChange(enabled => this.inZenModeContext.set(enabled)));
-		this._register(this.layoutService.onFullscreenChange(fullscreen => this.isFullscreenContext.set(fullscreen)));
-		this._register(this.layoutService.onCenteredLayoutChange(centered => this.isCenteredLayoutContext.set(centered)));
-		this._register(this.layoutService.onPanelPositionChange(position => this.panelPositionContext.set(position)));
+		this._register(this.layoutService.onDidChangeZenMode(enabled => this.inZenModeContext.set(enabled)));
+		this._register(this.layoutService.onDidChangeFullscreen(fullscreen => this.isFullscreenContext.set(fullscreen)));
+		this._register(this.layoutService.onDidChangeCenteredLayout(centered => this.isCenteredLayoutContext.set(centered)));
+		this._register(this.layoutService.onDidChangePanelPosition(position => this.panelPositionContext.set(position)));
 
 		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
 		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
 
-		this._register(this.layoutService.onPartVisibilityChange(() => {
+		this._register(this.layoutService.onDidChangePartVisibility(() => {
 			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));
 			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
 			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());

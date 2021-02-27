@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { GettingStartedInputFactory, GettingStartedInput, GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { GettingStartedInputFactory, GettingStartedInput, GettingStartedPage, inGettingStartedContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -61,6 +61,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.Escape,
+				when: inGettingStartedContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -86,6 +87,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.DownArrow,
 				secondary: [KeyCode.RightArrow],
+				when: inGettingStartedContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -111,6 +113,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.UpArrow,
 				secondary: [KeyCode.LeftArrow],
+				when: inGettingStartedContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
