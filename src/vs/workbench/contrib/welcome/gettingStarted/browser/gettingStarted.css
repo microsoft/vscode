@@ -112,6 +112,12 @@
 	font-size: 32px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category img.category-icon {
+	margin-right: 10px;
+	max-width: 32px;
+	max-height: 32px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail {
 	display: flex;
 	flex-direction: column;
@@ -150,12 +156,11 @@
 	display: flex;
 	width: 100%;
 	overflow: hidden;
-	transition: max-height .1s linear;
-	max-height: 180px;
+	transition: height .1s linear;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) {
-	max-height: 54px;
+	height: 54px;
 	background: none;
 	opacity: 0.8;
 }
@@ -169,10 +174,12 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) .actions,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) button,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task:not(.expanded) a {
-	display: none;
+	visibility: hidden;
 }
 
-
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description-container {
+	width: 100%;
+}
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-description {
 	padding-top: 8px;
@@ -239,6 +246,11 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-right img {
 	object-fit: contain;
+	cursor: unset;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-right img.clickable {
+	cursor: pointer;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button {

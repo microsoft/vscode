@@ -430,6 +430,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	readonly onDidChangeEncoding: Event<void>;
 
 	hasState(state: TextFileEditorModelState): boolean;
+	joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void>;
 
 	updatePreferredEncoding(encoding: string | undefined): void;
 

@@ -111,7 +111,7 @@ suite('Files - TextFileEditorModel', () => {
 		const pendingSave = model.save();
 		assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
 
-		await pendingSave;
+		await Promise.all([pendingSave, model.joinState(TextFileEditorModelState.PENDING_SAVE)]);
 
 		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
 		assert.ok(!model.isDirty());

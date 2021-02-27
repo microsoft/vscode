@@ -314,44 +314,44 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 
 export class AdapterLogger extends AbstractLogger implements ILogger {
 
-	constructor(private readonly adapter: { log: (type: string, args: any[]) => void }, logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+	constructor(private readonly adapter: { log: (logLevel: LogLevel, args: any[]) => void }, logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
 		this.setLevel(logLevel);
 	}
 
 	trace(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Trace) {
-			this.adapter.log('trace', [this.extractMessage(message), ...args]);
+			this.adapter.log(LogLevel.Trace, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Debug) {
-			this.adapter.log('debug', [this.extractMessage(message), ...args]);
+			this.adapter.log(LogLevel.Debug, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Info) {
-			this.adapter.log('info', [this.extractMessage(message), ...args]);
+			this.adapter.log(LogLevel.Info, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Warning) {
-			this.adapter.log('warn', [this.extractMessage(message), ...args]);
+			this.adapter.log(LogLevel.Warning, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	error(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Error) {
-			this.adapter.log('error', [this.extractMessage(message), ...args]);
+			this.adapter.log(LogLevel.Error, [this.extractMessage(message), ...args]);
 		}
 	}
 
 	critical(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
-			this.adapter.log('critical', [this.extractMessage(message), ...args]);
+			this.adapter.log(LogLevel.Critical, [this.extractMessage(message), ...args]);
 		}
 	}
 

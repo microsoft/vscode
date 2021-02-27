@@ -299,6 +299,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/history",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/log",
 			"project": "vscode-workbench"
 		},

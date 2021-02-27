@@ -6,7 +6,7 @@
 import { promises } from 'fs';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { StorageScope, WillSaveStateReason, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
+import { StorageScope, WillSaveStateReason, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
@@ -15,7 +15,7 @@ import { copy, exists, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises } from 'vs/base/common/async';
 
 export class NativeStorageService extends AbstractStorageService {
 
@@ -28,13 +28,9 @@ export class NativeStorageService extends AbstractStorageService {
 	private workspaceStorage: IStorage | undefined;
 	private workspaceStorageListener: IDisposable | undefined;
 
-	private initializePromise: Promise<void> | undefined;
-
-	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 60000 /* every minute */));
-	private runWhenIdleDisposable: IDisposable | undefined = undefined;
-
 	constructor(
 		private globalStorageDatabase: IStorageDatabase,
+		private payload: IWorkspaceInitializationPayload | undefined,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
@@ -49,26 +45,13 @@ export class NativeStorageService extends AbstractStorageService {
 		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 	}
 
-	initialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = this.doInitialize(payload);
-		}
-
-		return this.initializePromise;
-	}
-
-	private async doInitialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
+	protected async doInitialize(): Promise<void> {
 
 		// Init all storage locations
 		await Promises.settled([
 			this.initializeGlobalStorage(),
-			payload ? this.initializeWorkspaceStorage(payload) : Promise.resolve()
+			this.payload ? this.initializeWorkspaceStorage(this.payload) : Promise.resolve()
 		]);
-
-		// On some OS we do not get enough time to persist state on shutdown (e.g. when
-		// Windows restarts after applying updates). In other cases, VSCode might crash,
-		// so we periodically save state to reduce the chance of loosing any state.
-		this.periodicFlushScheduler.schedule();
 	}
 
 	private initializeGlobalStorage(): Promise<void> {
@@ -170,71 +153,18 @@ export class NativeStorageService extends AbstractStorageService {
 		}
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope): string | undefined;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		return this.getStorage(scope).get(key, fallbackValue);
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope): boolean | undefined;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		return this.getStorage(scope).getBoolean(key, fallbackValue);
-	}
-
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope): number | undefined;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getNumber(key, fallbackValue);
-	}
-
-	protected doStore(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
-		this.getStorage(scope).set(key, value);
-	}
-
-	protected doRemove(key: string, scope: StorageScope): void {
-		this.getStorage(scope).delete(key);
-	}
-
-	private getStorage(scope: StorageScope): IStorage {
-		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
-	}
-
-	protected async doFlush(): Promise<void> {
-		const promises: Promise<unknown>[] = [];
-		if (this.globalStorage) {
-			promises.push(this.globalStorage.whenFlushed());
-		}
-
-		if (this.workspaceStorage) {
-			promises.push(this.workspaceStorage.whenFlushed());
-		}
-
-		await Promises.settled(promises);
-	}
-
-	private doFlushWhenIdle(): void {
-
-		// Dispose any previous idle runner
-		dispose(this.runWhenIdleDisposable);
-
-		// Run when idle
-		this.runWhenIdleDisposable = runWhenIdle(() => {
-
-			// send event to collect state
-			this.flush();
-
-			// repeat
-			this.periodicFlushScheduler.schedule();
-		});
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStoragePath;
 	}
 
 	async close(): Promise<void> {
 
 		// Stop periodic scheduler and idle runner as we now collect state normally
-		this.periodicFlushScheduler.dispose();
-		dispose(this.runWhenIdleDisposable);
-		this.runWhenIdleDisposable = undefined;
+		this.stopFlushWhenIdle();
 
 		// Signal as event so that clients can still store data
 		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
@@ -246,21 +176,13 @@ export class NativeStorageService extends AbstractStorageService {
 		]);
 	}
 
-	async logStorage(): Promise<void> {
-		return logStorage(
-			this.globalStorage.items,
-			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(), // Shared process storage does not has workspace storage
-			this.environmentService.globalStorageHome.fsPath,
-			this.workspaceStoragePath || '');
-	}
-
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
 			return; // no migration needed if running in memory
 		}
 
 		// Close workspace DB to be able to copy
-		await this.getStorage(StorageScope.WORKSPACE).close();
+		await this.workspaceStorage?.close();
 
 		// Prepare new workspace storage folder
 		const result = await this.prepareWorkspaceStorageFolder(toWorkspace);

@@ -1102,7 +1102,7 @@ export class SearchView extends ViewPane {
 			this.tree.domFocus();
 			const selection = this.tree.getSelection();
 			if (selection.length === 0) {
-				this.tree.focusNext();
+				this.tree.focusNext(undefined, undefined, getSelectionKeyboardEvent());
 			}
 		}
 	}

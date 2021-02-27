@@ -30,7 +30,7 @@ export interface IWorkspacesHistoryMainService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onRecentlyOpenedChange: CommonEvent<void>;
+	readonly onDidChangeRecentlyOpened: CommonEvent<void>;
 
 	addRecentlyOpened(recents: IRecent[]): void;
 	getRecentlyOpened(include?: ICodeWindow): IRecentlyOpened;
@@ -57,8 +57,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onRecentlyOpenedChange = this._register(new Emitter<void>());
-	readonly onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
+	private readonly _onDidChangeRecentlyOpened = this._register(new Emitter<void>());
+	readonly onDidChangeRecentlyOpened: CommonEvent<void> = this._onDidChangeRecentlyOpened.event;
 
 	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
 
@@ -66,7 +66,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
@@ -80,7 +80,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.handleWindowsJumpList());
 
 		// Add to history when entering workspace
-		this._register(this.workspacesManagementMainService.onWorkspaceEntered(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
+		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this.addRecentlyOpened([{ workspace: event.workspace }])));
 	}
 
 	private handleWindowsJumpList(): void {
@@ -89,7 +89,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		this.updateWindowsJumpList();
-		this._register(this.onRecentlyOpenedChange(() => this.updateWindowsJumpList()));
+		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
 	}
 
 	addRecentlyOpened(recentToAdd: IRecent[]): void {
@@ -139,7 +139,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		this.saveRecentlyOpened({ workspaces, files });
-		this._onRecentlyOpenedChange.fire();
+		this._onDidChangeRecentlyOpened.fire();
 
 		// Schedule update to recent documents on macOS dock
 		if (isMacintosh) {
@@ -165,7 +165,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		if (workspaces.length !== mru.workspaces.length || files.length !== mru.files.length) {
 			this.saveRecentlyOpened({ files, workspaces });
-			this._onRecentlyOpenedChange.fire();
+			this._onDidChangeRecentlyOpened.fire();
 
 			// Schedule update to recent documents on macOS dock
 			if (isMacintosh) {
@@ -238,7 +238,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		app.clearRecentDocuments();
 
 		// Event
-		this._onRecentlyOpenedChange.fire();
+		this._onDidChangeRecentlyOpened.fire();
 	}
 
 	getRecentlyOpened(include?: ICodeWindow): IRecentlyOpened {
@@ -402,7 +402,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		// Workspace: Untitled
-		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, this.environmentService.userHome)) {
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, this.environmentMainService.userHome)) {
 			return { title: localize('untitledWorkspace', "Untitled (Workspace)"), description: '' };
 		}
 

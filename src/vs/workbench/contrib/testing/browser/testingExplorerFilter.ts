@@ -28,6 +28,7 @@ import { TestExplorerStateFilter, Testing } from 'vs/workbench/contrib/testing/c
 import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
@@ -36,6 +37,8 @@ export interface ITestExplorerFilterState {
 	readonly reveal: ObservableValue<string | undefined>;
 	readonly stateFilter: ObservableValue<TestExplorerStateFilter>;
 	readonly currentDocumentOnly: ObservableValue<boolean>;
+	/** Whether excluded test should be shown in the view */
+	readonly showExcludedTests: ObservableValue<boolean>;
 
 	readonly onDidRequestInputFocus: Event<void>;
 	focusInput(): void;
@@ -58,6 +61,7 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 		target: StorageTarget.USER
 	}, this.storage), false);
 
+	public readonly showExcludedTests = new ObservableValue(false);
 	public readonly reveal = new ObservableValue<string | undefined>(undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
@@ -185,7 +189,8 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		action: IAction,
 		private readonly filters: ITestExplorerFilterState,
 		actionRunner: IActionRunner,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITestService private readonly testService: ITestService,
 	) {
 		super(action,
 			{ getActions: () => this.getActions() },
@@ -220,6 +225,27 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 				tooltip: '',
 				dispose: () => null
 			})),
+			new Separator(),
+			{
+				checked: this.filters.showExcludedTests.value,
+				class: undefined,
+				enabled: true,
+				id: 'showExcluded',
+				label: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
+				run: async () => this.filters.showExcludedTests.value = !this.filters.showExcludedTests.value,
+				tooltip: '',
+				dispose: () => null
+			},
+			{
+				checked: false,
+				class: undefined,
+				enabled: this.testService.excludeTests.value.size > 0,
+				id: 'removeExcluded',
+				label: localize('testing.filters.removeTestExclusions', "Unhide All Tests"),
+				run: async () => this.testService.clearExcludedTests(),
+				tooltip: '',
+				dispose: () => null
+			},
 			new Separator(),
 			{
 				checked: this.filters.currentDocumentOnly.value,

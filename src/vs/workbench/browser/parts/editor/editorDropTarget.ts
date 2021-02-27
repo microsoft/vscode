@@ -26,6 +26,7 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { ByteSize } from 'vs/platform/files/common/files';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -284,7 +285,7 @@ class DropOverlay extends Themable {
 					const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({
 						pinned: true,										// always pin dropped editor
 						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
-						override: false, // Use `draggedEditor.editor` as is. If it is already a custom editor, it will stay so.
+						override: EditorOverride.DISABLED 					// preserve editor type
 					}));
 					const copyEditor = this.isCopyOperation(event, draggedEditor);
 					targetGroup.openEditor(draggedEditor.editor, options, copyEditor ? OpenEditorContext.COPY_EDITOR : OpenEditorContext.MOVE_EDITOR);
@@ -521,7 +522,7 @@ class DropOverlay extends Themable {
 
 		// With tabs and opened editors: use the area below tabs as drop target
 		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
-			return this.groupView.titleDimensions.offset;
+			return this.groupView.titleHeight.offset;
 		}
 
 		// Without tabs or empty group: use entire editor area as drop target

@@ -208,8 +208,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- trust ---
 
-	$requireWorkspaceTrust(message?: string): Promise<WorkspaceTrustState> {
-		return this._workspaceTrustService.requireWorkspaceTrust({ immediate: true, message });
+	$requireWorkspaceTrust(modal?: boolean): Promise<WorkspaceTrustState> {
+		return this._workspaceTrustService.requireWorkspaceTrust({ modal: modal ?? true });
 	}
 
 	private getWorkspaceTrustState(): WorkspaceTrustState {

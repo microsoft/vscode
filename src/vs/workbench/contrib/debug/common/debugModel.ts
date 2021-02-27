@@ -251,7 +251,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 	}
 
 	toString(): string {
-		return `${this.name}: ${this.value}`;
+		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 
 	toDebugProtocolObject(): DebugProtocol.Variable {

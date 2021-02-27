@@ -17,7 +17,6 @@ import { Range } from 'vs/editor/common/core/range';
 const simplify = (item: TestItem) => {
 	if ('toJSON' in item) {
 		item = (item as any).toJSON();
-		delete (item as any).id;
 		delete (item as any).providerId;
 		delete (item as any).testId;
 	}
@@ -62,7 +61,7 @@ suite('ExtHost Testing', () => {
 
 	teardown(() => {
 		single.dispose();
-		assert.strictEqual(owned.idToInternal.size, 0, 'expected owned ids to be empty after dispose');
+		assert.strictEqual(!owned.idToInternal?.size, true, 'expected owned ids to be empty after dispose');
 	});
 
 	suite('OwnedTestCollection', () => {
@@ -70,11 +69,11 @@ suite('ExtHost Testing', () => {
 			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Add, { id: '0', providerId: 'pid', parent: null, item: convert.TestItem.from(stubTest('root')) }],
-				[TestDiffOpType.Add, { id: '1', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('a'), 'root') }],
-				[TestDiffOpType.Add, { id: '2', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('aa'), 'root\0a') }],
-				[TestDiffOpType.Add, { id: '3', providerId: 'pid', parent: '1', item: convert.TestItem.from(stubTest('ab'), 'root\0a') }],
-				[TestDiffOpType.Add, { id: '4', providerId: 'pid', parent: '0', item: convert.TestItem.from(stubTest('b'), 'root') }],
+				[TestDiffOpType.Add, { providerId: 'pid', parent: null, item: convert.TestItem.from(stubTest('root')) }],
+				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-root', item: convert.TestItem.from(stubTest('a')) }],
+				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-a', item: convert.TestItem.from(stubTest('aa')) }],
+				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-a', item: convert.TestItem.from(stubTest('ab')) }],
+				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-root', item: convert.TestItem.from(stubTest('b')) }],
 			]);
 		});
 
@@ -92,7 +91,7 @@ suite('ExtHost Testing', () => {
 			tests.children![0].description = 'Hello world'; /* item a */
 			single.onItemChange(tests, 'pid');
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Update, { id: '1', parent: '0', providerId: 'pid', item: convert.TestItem.from({ ...stubTest('a'), description: 'Hello world' }, 'root') }],
+				[TestDiffOpType.Update, { parent: 'id-root', providerId: 'pid', item: convert.TestItem.from({ ...stubTest('a'), description: 'Hello world' }) }],
 			]);
 
 			single.onItemChange(tests, 'pid');
@@ -107,9 +106,9 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Remove, '1'],
+				[TestDiffOpType.Remove, 'id-a'],
 			]);
-			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['0', '4']);
+			assert.deepStrictEqual([...owned.idToInternal].map(n => n.item.extId).sort(), ['id-b', 'id-root']);
 			assert.strictEqual(single.itemToInternal.size, 2);
 		});
 
@@ -122,9 +121,12 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Add, { id: '5', providerId: 'pid', parent: '1', item: convert.TestItem.from(child, 'root\0a') }],
+				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-a', item: convert.TestItem.from(child) }],
 			]);
-			assert.deepStrictEqual([...owned.idToInternal.keys()].sort(), ['0', '1', '2', '3', '4', '5']);
+			assert.deepStrictEqual(
+				[...owned.idToInternal].map(n => n.item.extId).sort(),
+				['id-a', 'id-aa', 'id-ab', 'id-ac', 'id-b', 'id-root'],
+			);
 			assert.strictEqual(single.itemToInternal.size, 6);
 		});
 	});
@@ -137,7 +139,7 @@ suite('ExtHost Testing', () => {
 			const tests = testStubs.nested();
 			single.addRoot(tests, 'pid');
 			m.apply(single.collectDiff());
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
@@ -149,7 +151,7 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
@@ -161,7 +163,7 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 			assert.strictEqual(m.length, single.itemToInternal.size);
 		});
 
@@ -173,7 +175,7 @@ suite('ExtHost Testing', () => {
 			single.onItemChange(tests, 'pid');
 			m.apply(single.collectDiff());
 
-			assertTreesEqual(m.rootTestItems[0], owned.getTestById('0')!.actual);
+			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 		});
 
 		suite('MirroredChangeCollector', () => {
@@ -224,7 +226,7 @@ suite('ExtHost Testing', () => {
 			});
 
 			test('is a no-op if a node is added and removed', () => {
-				const nested = testStubs.nested();
+				const nested = testStubs.nested('id2-');
 				tests.children.push(nested);
 				single.onItemChange(tests, 'pid');
 				tests.children.pop();

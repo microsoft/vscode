@@ -166,7 +166,7 @@ registerAction2(class extends Action2 {
 });
 
 export class KernelStatus extends Disposable implements IWorkbenchContribution {
-	private _editorDisposable = new DisposableStore();
+	private readonly _editorDisposable = this._register(new DisposableStore());
 	private readonly kernelInfoElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,

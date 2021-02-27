@@ -18,7 +18,7 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, NotebookCellMetadata, ICellRange, INotebookKernel, notebookDocumentMetadataDefaults, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookEditorModel, NotebookCellMetadata, ICellRange, INotebookKernel, notebookDocumentMetadataDefaults, IOutputDto, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { NotImplementedError } from 'vs/base/common/errors';
@@ -65,6 +65,12 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getSelection(): ICellRange | undefined {
+		throw new Error('Method not implemented.');
+	}
+	getSelections(): ICellRange[] {
+		throw new Error('Method not implemented.');
+	}
 	getSelectionViewModels(): ICellViewModel[] {
 		throw new Error('Method not implemented.');
 	}
@@ -81,6 +87,9 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
+		throw new Error('Method not implemented.');
+	}
+	getCellById(cellId: string): ICellViewModel {
 		throw new Error('Method not implemented.');
 	}
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void {
@@ -108,11 +117,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	removeEditorDecorations(key: string): void {
 		// throw new Error('Method not implemented.');
 	}
-	getSelectionHandles(): number[] {
-		return [];
-	}
-
-
 	setOptions(options: NotebookEditorOptions | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -224,7 +228,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	selectElement(cell: CellViewModel): void {
+	focusElement(cell: CellViewModel): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -318,8 +322,11 @@ export class TestNotebookEditor implements INotebookEditor {
 	createMarkdownPreview(cell: ICellViewModel): Promise<void> {
 		return Promise.resolve();
 	}
-	hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
-		return Promise.resolve();
+	async unhideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		// noop
+	}
+	async hideMarkdownPreview(cell: ICellViewModel): Promise<void> {
+		// noop
 	}
 	removeMarkdownPreview(cell: ICellViewModel): Promise<void> {
 		return Promise.resolve();
@@ -413,6 +420,10 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._notebook;
 	}
 
+	async load(): Promise<IResolvedNotebookEditorModel> {
+		return this;
+	}
+
 	async save(): Promise<boolean> {
 		if (this._notebook) {
 			this._dirty = false;
@@ -450,7 +461,7 @@ export function withTestNotebook(instantiationService: TestInstantiationService,
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(viewType, false, URI.parse('test'), cells.map(cell => {
+	const notebook = new NotebookTextModel(viewType, URI.parse('test'), cells.map(cell => {
 		return {
 			source: cell[0],
 			language: cell[1],

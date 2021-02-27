@@ -5,8 +5,8 @@
 
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
-import { ICellDragEndMessage, ICellDragMessage, ICellDragStartMessage, ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDragEndMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IFocusMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -28,6 +28,7 @@ declare class ResizeObserver {
 
 declare const __outputNodePadding__: number;
 declare const __outputNodeLeftPadding__: number;
+declare const __previewNodePadding__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -60,9 +61,7 @@ function webviewPreloads() {
 	};
 
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
-		vscode.postMessage({
-			__vscode_notebook_message: true,
-			type: 'clicked-data-url',
+		postNotebookMessage<IClickedDataUrlMessage>('clicked-data-url', {
 			data,
 			downloadName
 		});
@@ -145,21 +144,20 @@ function webviewPreloads() {
 
 				if (entry.target.id === id && entry.contentRect) {
 					if (entry.contentRect.height !== 0) {
-						entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
-						vscode.postMessage({
-							__vscode_notebook_message: true,
-							type: 'dimension',
+						const padding = output ? __outputNodePadding__ : __previewNodePadding__;
+						const paddingLeft = output ? __outputNodeLeftPadding__ : 0;
+
+						entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${paddingLeft}px`;
+						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
-								height: entry.contentRect.height + __outputNodePadding__ * 2
+								height: entry.contentRect.height + padding * 2
 							},
 							isOutput: output
 						});
 					} else {
 						entry.target.style.padding = `0px`;
-						vscode.postMessage({
-							__vscode_notebook_message: true,
-							type: 'dimension',
+						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
 								height: entry.contentRect.height
@@ -201,10 +199,7 @@ function webviewPreloads() {
 		if (event.defaultPrevented || scrollWillGoToParent(event)) {
 			return;
 		}
-
-		vscode.postMessage({
-			__vscode_notebook_message: true,
-			type: 'did-scroll-wheel',
+		postNotebookMessage<IWheelMessage>('did-scroll-wheel', {
 			payload: {
 				deltaMode: event.deltaMode,
 				deltaX: event.deltaX,
@@ -228,9 +223,7 @@ function webviewPreloads() {
 		const element = document.createElement('div');
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			vscode.postMessage({
-				__vscode_notebook_message: true,
-				type: 'focus-editor',
+			postNotebookMessage<IBlurOutputMessage>('focus-editor', {
 				id: outputId,
 				focusNext
 			});
@@ -246,19 +239,13 @@ function webviewPreloads() {
 
 	function addMouseoverListeners(element: HTMLElement, outputId: string): void {
 		element.addEventListener('mouseenter', () => {
-			vscode.postMessage({
-				__vscode_notebook_message: true,
-				type: 'mouseenter',
+			postNotebookMessage<IMouseEnterMessage>('mouseenter', {
 				id: outputId,
-				data: {}
 			});
 		});
 		element.addEventListener('mouseleave', () => {
-			vscode.postMessage({
-				__vscode_notebook_message: true,
-				type: 'mouseleave',
+			postNotebookMessage<IMouseLeaveMessage>('mouseleave', {
 				id: outputId,
-				data: {}
 			});
 		});
 	}
@@ -345,9 +332,7 @@ function webviewPreloads() {
 
 		return {
 			postMessage(message: unknown) {
-				vscode.postMessage({
-					__vscode_notebook_message: true,
-					type: 'customRendererMessage',
+				postNotebookMessage<ICustomRendererMessage>('customRendererMessage', {
 					rendererId: namespace,
 					message,
 				});
@@ -418,10 +403,7 @@ function webviewPreloads() {
 					createMarkdownPreview(cell.cellId, cell.content, -10000);
 				}
 
-				vscode.postMessage({
-					__vscode_notebook_message: true,
-					type: 'initializedMarkdownPreview',
-				});
+				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
 				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
@@ -443,9 +425,18 @@ function webviewPreloads() {
 			case 'hideMarkdownPreview':
 				{
 					const data = event.data;
-					let cellContainer = document.getElementById(data.id);
+					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
 						cellContainer.style.display = 'none';
+					}
+				}
+				break;
+			case 'unhideMarkdownPreview':
+				{
+					const data = event.data;
+					const cellContainer = document.getElementById(data.id);
+					if (cellContainer) {
+						cellContainer.style.display = '';
 					}
 				}
 				break;
@@ -524,9 +515,7 @@ function webviewPreloads() {
 
 					resizeObserve(outputNode, outputId, true);
 
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
+					postNotebookMessage<IDimensionMessage>('dimension', {
 						id: outputId,
 						init: true,
 						data: {
@@ -602,9 +591,7 @@ function webviewPreloads() {
 						output.parentElement!.style.display = 'block';
 						output.style.top = top + 'px';
 
-						vscode.postMessage({
-							__vscode_notebook_message: true,
-							type: 'dimension',
+						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: outputId,
 							data: {
 								height: output.clientHeight
@@ -674,15 +661,12 @@ function webviewPreloads() {
 		e.preventDefault();
 
 		const { cellId } = JSON.parse(data);
-		const msg: ICellDragEndMessage = {
-			__vscode_notebook_message: true,
-			type: 'cell-drag-end',
+		postNotebookMessage<ICellDragEndMessage>('cell-drag-end', {
 			cellId: cellId,
 			ctrlKey: e.ctrlKey,
 			altKey: e.altKey,
 			position: { clientX: e.clientX, clientY: e.clientY },
-		};
-		vscode.postMessage(msg);
+		});
 	});
 
 	function createMarkdownPreview(cellId: string, content: string, top: number) {
@@ -700,12 +684,21 @@ function webviewPreloads() {
 			previewContainerNode.style.top = top + 'px';
 			previewContainerNode.id = `${cellId}_preview`;
 			previewContainerNode.classList.add('preview');
+
 			previewContainerNode.addEventListener('dblclick', () => {
-				vscode.postMessage({
-					__vscode_notebook_message: true,
-					type: 'toggleMarkdownPreview',
-					cellId,
-				});
+				postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
+			});
+
+			previewContainerNode.addEventListener('click', () => {
+				postNotebookMessage<IFocusMarkdownPreviewMessage>('focusMarkdownPreview', { cellId });
+			});
+
+			previewContainerNode.addEventListener('mouseenter', () => {
+				postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
+			});
+
+			previewContainerNode.addEventListener('mouseleave', () => {
+				postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
 			});
 
 			previewContainerNode.setAttribute('draggable', 'true');
@@ -718,23 +711,17 @@ function webviewPreloads() {
 
 				(e.target as HTMLElement).classList.add('dragging');
 
-				const msg: ICellDragStartMessage = {
-					__vscode_notebook_message: true,
-					type: 'cell-drag-start',
+				postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
 					cellId: cellId,
 					position: { clientX: e.clientX, clientY: e.clientY },
-				};
-				vscode.postMessage(msg);
+				});
 			});
 
 			previewContainerNode.addEventListener('drag', e => {
-				const msg: ICellDragMessage = {
-					__vscode_notebook_message: true,
-					type: 'cell-drag',
+				postNotebookMessage<ICellDragMessage>('cell-drag', {
 					cellId: cellId,
 					position: { clientX: e.clientX, clientY: e.clientY },
-				};
-				vscode.postMessage(msg);
+				});
 			});
 
 			previewContainerNode.addEventListener('dragend', e => {
@@ -754,19 +741,28 @@ function webviewPreloads() {
 
 			resizeObserve(previewContainerNode, `${cellId}_preview`, false);
 
-			vscode.postMessage({
-				__vscode_notebook_message: true,
-				type: 'dimension',
+			postNotebookMessage<IDimensionMessage>('dimension', {
 				id: `${cellId}_preview`,
 				init: true,
 				data: {
-					height: previewContainerNode.clientHeight
+					height: previewContainerNode.clientHeight,
 				},
 				isOutput: false
 			});
 		} else {
 			updateMarkdownPreview(cellId, content);
 		}
+	}
+
+	function postNotebookMessage<T extends FromWebviewMessage>(
+		type: T['type'],
+		properties: Omit<T, '__vscode_notebook_message' | 'type'>
+	) {
+		vscode.postMessage({
+			__vscode_notebook_message: true,
+			type,
+			...properties
+		});
 	}
 
 	function updateMarkdownPreview(cellId: string, content: string) {
@@ -781,4 +777,8 @@ function webviewPreloads() {
 	}
 }
 
-export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number) => `(${webviewPreloads})()`.replace(/__outputNodePadding__/g, `${outputNodePadding}`).replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`);
+export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number, previewNodePadding: number) =>
+	`(${webviewPreloads})()`
+		.replace(/__outputNodePadding__/g, `${outputNodePadding}`)
+		.replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`)
+		.replace(/__previewNodePadding__/g, `${previewNodePadding}`);

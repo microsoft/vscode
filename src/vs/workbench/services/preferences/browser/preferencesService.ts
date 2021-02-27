@@ -40,6 +40,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -220,7 +221,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			focusSearch: true
 		};
-		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : undefined)
+		return this.editorService.openEditor(input, options ? { ...SettingsEditorOptions.create(options), override: EditorOverride.DISABLED } : { override: EditorOverride.DISABLED })
 			.then(() => this.editorGroupService.activeGroup.activeEditorPane!);
 	}
 
@@ -238,7 +239,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const environment = await this.remoteAgentService.getEnvironment();
 		if (environment) {
 			await this.createIfNotExists(environment.settingsPath, emptyEditableSettingsContent);
-			return this.editorService.openEditor({ resource: environment.settingsPath, options: { pinned: true, revealIfOpened: true } });
+			return this.editorService.openEditor({ resource: environment.settingsPath, options: { pinned: true, revealIfOpened: true, override: EditorOverride.DISABLED } });
 		}
 		return undefined;
 	}
@@ -299,7 +300,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				const activeEditorGroup = this.editorGroupService.activeGroup;
 				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
 				await Promise.all([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorOverride.DISABLED }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
 					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
 				]);
 			} else {
@@ -307,7 +308,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 
 		} else {
-			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), options)) as IKeybindingsEditorPane;
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options, override: EditorOverride.DISABLED })) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
 			}
@@ -353,21 +354,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
-				if (!options) {
-					options = { pinned: true };
-				} else {
-					options = { ...options, pinned: true };
-				}
+				options = { ...options, pinned: true };
 
 				if (openDefaultSettings) {
 					const activeEditorGroup = this.editorGroupService.activeGroup;
 					const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
 					return Promise.all([
-						this.editorService.openEditor({ resource: this.defaultSettingsRawResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true }, label: nls.localize('defaultSettings', "Default Settings"), description: '' }),
-						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true }, sideEditorGroup.id)
+						this.editorService.openEditor({ resource: this.defaultSettingsRawResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorOverride.DISABLED }, label: nls.localize('defaultSettings', "Default Settings"), description: '' }),
+						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true, override: EditorOverride.DISABLED }, sideEditorGroup.id)
 					]).then(([defaultEditor, editor]) => withNullAsUndefined(editor));
 				} else {
-					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
+					return this.editorService.openEditor(editableSettingsEditorInput, { ...SettingsEditorOptions.create(options), override: EditorOverride.DISABLED }, group);
 				}
 			});
 	}
@@ -384,7 +381,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 				const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 				this.lastOpenedSettingsInput = preferencesEditorInput;
-				return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
+				return this.editorService.openEditor(preferencesEditorInput, { ...SettingsEditorOptions.create(options), override: EditorOverride.DISABLED }, group);
 			});
 	}
 

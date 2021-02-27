@@ -7,7 +7,7 @@ import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
+import { linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +17,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 
 export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
 	public _serviceBrand: undefined;

@@ -61,6 +61,9 @@ export interface ICustomEditorModel extends IDisposable {
 
 	isReadonly(): boolean;
 
+	isOrphaned(): boolean;
+	readonly onDidChangeOrphaned: Event<void>;
+
 	isDirty(): boolean;
 	readonly onDidChangeDirty: Event<void>;
 

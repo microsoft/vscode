@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapFind } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { throttle } from 'vs/base/common/decorators';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
 import { RequiredTestItem, TestItem as ApiTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestDiffOpType, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -15,14 +15,17 @@ import { InternalTestItem, TestDiffOpType, TestsDiff, TestsDiffOp } from 'vs/wor
  * @private
  */
 export class OwnedTestCollection {
-	protected readonly testIdToInternal = new Map<string, OwnedCollectionTestItem>();
+	protected readonly testIdsToInternal = new Set<TestTree<OwnedCollectionTestItem>>();
 
 	/**
 	 * Gets test information by ID, if it was defined and still exists in this
 	 * extension host.
 	 */
 	public getTestById(id: string) {
-		return this.testIdToInternal.get(id);
+		return mapFind(this.testIdsToInternal, t => {
+			const owned = t.get(id);
+			return owned && [t, owned] as const;
+		});
 	}
 
 	/**
@@ -30,7 +33,13 @@ export class OwnedTestCollection {
 	 * or document observation.
 	 */
 	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new SingleUseTestCollection(this.testIdToInternal, publishDiff);
+		return new SingleUseTestCollection(this.createIdMap(), publishDiff);
+	}
+
+	protected createIdMap(): IReference<TestTree<OwnedCollectionTestItem>> {
+		const tree = new TestTree<OwnedCollectionTestItem>();
+		this.testIdsToInternal.add(tree);
+		return { object: tree, dispose: () => this.testIdsToInternal.delete(tree) };
 	}
 }
 /**
@@ -42,6 +51,117 @@ export interface OwnedCollectionTestItem extends InternalTestItem {
 	previousEquals: (v: ApiTestItem) => boolean;
 }
 
+/**
+ * Enum for describing relative positions of tests. Similar to
+ * `node.compareDocumentPosition` in the DOM.
+ */
+export const enum TestPosition {
+	/** Neither a nor b are a child of one another. They may share a common parent, though. */
+	Disconnected,
+	/** b is a child of a */
+	IsChild,
+	/** b is a parent of a */
+	IsParent,
+	/** a === b */
+	IsSame,
+}
+
+/**
+ * Test tree is (or will be after debt week 2020-03) the standard collection
+ * for test trees. Internally it indexes tests by their extension ID in
+ * a map.
+ */
+export class TestTree<T extends InternalTestItem> {
+	private readonly map = new Map<string, T>();
+	private readonly _roots = new Set<T>();
+	public readonly roots: ReadonlySet<T> = this._roots;
+
+	/**
+	 * Gets the size of the tree.
+	 */
+	public get size() {
+		return this.map.size;
+	}
+
+	/**
+	 * Adds a new test to the tree if it doesn't exist.
+	 * @throws if a duplicate item is inserted
+	 */
+	public add(test: T) {
+		if (this.map.has(test.item.extId)) {
+			throw new Error(`Attempted to insert a duplicate test item ID ${test.item.extId}`);
+		}
+
+		this.map.set(test.item.extId, test);
+		if (!test.parent) {
+			this._roots.add(test);
+		}
+	}
+
+	/**
+	 * Gets whether the test exists in the tree.
+	 */
+	public has(testId: string) {
+		return this.map.has(testId);
+	}
+
+	/**
+	 * Removes a test ID from the tree. This is NOT recursive.
+	 */
+	public delete(testId: string) {
+		const existing = this.map.get(testId);
+		if (!existing) {
+			return false;
+		}
+
+		this.map.delete(testId);
+		this._roots.delete(existing);
+		return true;
+	}
+
+	/**
+	 * Gets a test item by ID from the tree.
+	 */
+	public get(testId: string) {
+		return this.map.get(testId);
+	}
+
+	/**
+ * Compares the positions of the two items in the test tree.
+	 */
+	public comparePositions(aOrId: T | string, bOrId: T | string) {
+		const a = typeof aOrId === 'string' ? this.map.get(aOrId) : aOrId;
+		const b = typeof bOrId === 'string' ? this.map.get(bOrId) : bOrId;
+		if (!a || !b) {
+			return TestPosition.Disconnected;
+		}
+
+		if (a === b) {
+			return TestPosition.IsSame;
+		}
+
+		for (let p = this.map.get(b.parent!); p; p = this.map.get(p.parent!)) {
+			if (p === a) {
+				return TestPosition.IsChild;
+			}
+		}
+
+		for (let p = this.map.get(a.parent!); p; p = this.map.get(p.parent!)) {
+			if (p === b) {
+				return TestPosition.IsParent;
+			}
+		}
+
+		return TestPosition.Disconnected;
+	}
+
+	/**
+	 * Iterates over all test in the tree.
+	 */
+	[Symbol.iterator]() {
+		return this.map.values();
+	}
+}
 
 /**
  * Maintains tests created and registered for a single set of hierarchies
@@ -60,7 +180,10 @@ export class SingleUseTestCollection implements IDisposable {
 	 */
 	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
 
-	constructor(private readonly testIdToInternal: Map<string, OwnedCollectionTestItem>, private readonly publishDiff: (diff: TestsDiff) => void) { }
+	constructor(
+		private readonly testIdToInternal: IReference<TestTree<OwnedCollectionTestItem>>,
+		private readonly publishDiff: (diff: TestsDiff) => void,
+	) { }
 
 	/**
 	 * Adds a new root node to the collection.
@@ -112,39 +235,34 @@ export class SingleUseTestCollection implements IDisposable {
 	}
 
 	public dispose() {
-		for (const item of this.testItemToInternal.values()) {
-			this.testIdToInternal.delete(item.id);
-		}
-
+		this.testIdToInternal.dispose();
 		this.diff = [];
 		this.disposed = true;
 	}
 
-	protected getId(): string {
-		return generateUuid();
-	}
-
 	private addItem(actual: ApiTestItem, providerId: string, parent: string | null) {
 		let internal = this.testItemToInternal.get(actual);
-		const parentItem = parent ? this.testIdToInternal.get(parent) : null;
 		if (!internal) {
+			if (this.testIdToInternal.object.has(actual.id)) {
+				throw new Error(`Attempted to insert a duplicate test item ID ${actual.id}`);
+			}
+
 			internal = {
 				actual,
-				id: this.getId(),
 				parent,
-				item: TestItem.from(actual, parentItem?.item.extId),
+				item: TestItem.from(actual),
 				providerId,
 				previousChildren: new Set(),
 				previousEquals: itemEqualityComparator(actual),
 			};
 
+			this.testIdToInternal.object.add(internal);
 			this.testItemToInternal.set(actual, internal);
-			this.testIdToInternal.set(internal.id, internal);
-			this.diff.push([TestDiffOpType.Add, { id: internal.id, parent, providerId, item: internal.item }]);
+			this.diff.push([TestDiffOpType.Add, { parent, providerId, item: internal.item }]);
 		} else if (!internal.previousEquals(actual)) {
-			internal.item = TestItem.from(actual, parentItem?.item.extId);
+			internal.item = TestItem.from(actual);
 			internal.previousEquals = itemEqualityComparator(actual);
-			this.diff.push([TestDiffOpType.Update, { id: internal.id, parent, providerId, item: internal.item }]);
+			this.diff.push([TestDiffOpType.Update, { parent, providerId, item: internal.item }]);
 		}
 
 		// If there are children, track which ones are deleted
@@ -153,9 +271,16 @@ export class SingleUseTestCollection implements IDisposable {
 			const deletedChildren = internal.previousChildren;
 			const currentChildren = new Set<string>();
 			for (const child of actual.children) {
-				const c = this.addItem(child, providerId, internal.id);
-				deletedChildren.delete(c.id);
-				currentChildren.add(c.id);
+				// If a child was recreated, delete the old object before calling
+				// addItem() anew.
+				const previous = this.testIdToInternal.object.get(child.id);
+				if (previous && previous.actual !== child) {
+					this.removeItembyId(child.id);
+				}
+
+				const c = this.addItem(child, providerId, internal.item.extId);
+				deletedChildren.delete(c.item.extId);
+				currentChildren.add(c.item.extId);
 			}
 
 			for (const child of deletedChildren) {
@@ -172,17 +297,17 @@ export class SingleUseTestCollection implements IDisposable {
 	private removeItembyId(id: string) {
 		this.diff.push([TestDiffOpType.Remove, id]);
 
-		const queue = [this.testIdToInternal.get(id)];
+		const queue = [this.testIdToInternal.object.get(id)];
 		while (queue.length) {
 			const item = queue.pop();
 			if (!item) {
 				continue;
 			}
 
-			this.testIdToInternal.delete(item.id);
+			this.testIdToInternal.object.delete(item.item.extId);
 			this.testItemToInternal.delete(item.actual);
 			for (const child of item.previousChildren) {
-				queue.push(this.testIdToInternal.get(child));
+				queue.push(this.testIdToInternal.object.get(child));
 			}
 		}
 	}

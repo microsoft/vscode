@@ -181,9 +181,9 @@ class CodeMain {
 		return [new InstantiationService(services, true), instanceEnvironment, environmentService, configurationService, stateService, bufferLogService];
 	}
 
-	private patchEnvironment(environmentService: IEnvironmentMainService): IProcessEnvironment {
+	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
 		const instanceEnvironment: IProcessEnvironment = {
-			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
+			VSCODE_IPC_HOOK: environmentMainService.mainIPCHandle
 		};
 
 		['VSCODE_NLS_CONFIG', 'VSCODE_PORTABLE'].forEach(key => {
@@ -198,16 +198,16 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentService: IEnvironmentMainService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
+	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
 
 		// Environment service (paths)
 		const environmentServiceInitialization = Promise.all<void | undefined>([
-			environmentService.extensionsPath,
-			environmentService.nodeCachedDataDir,
-			environmentService.logsPath,
-			environmentService.globalStorageHome.fsPath,
-			environmentService.workspaceStorageHome.fsPath,
-			environmentService.backupHome
+			environmentMainService.extensionsPath,
+			environmentMainService.nodeCachedDataDir,
+			environmentMainService.logsPath,
+			environmentMainService.globalStorageHome.fsPath,
+			environmentMainService.workspaceStorageHome.fsPath,
+			environmentMainService.backupHome
 		].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Configuration service
@@ -219,14 +219,14 @@ class CodeMain {
 		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
 	}
 
-	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<NodeIPCServer> {
+	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<NodeIPCServer> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
 		// that another instance is already running.
 		let mainProcessNodeIpcServer: NodeIPCServer;
 		try {
-			mainProcessNodeIpcServer = await nodeIPCServe(environmentService.mainIPCHandle);
+			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
 			once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 		} catch (error) {
 
@@ -235,7 +235,7 @@ class CodeMain {
 			if (error.code !== 'EADDRINUSE') {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentService, error);
+				this.handleStartupDataDirError(environmentMainService, error);
 
 				// Any other runtime error is just printed to the console
 				throw error;
@@ -244,7 +244,7 @@ class CodeMain {
 			// there's a running instance, let's connect to it
 			let client: NodeIPCClient<string>;
 			try {
-				client = await nodeIPCConnect(environmentService.mainIPCHandle, 'main');
+				client = await nodeIPCConnect(environmentMainService.mainIPCHandle, 'main');
 			} catch (error) {
 
 				// Handle unexpected connection errors by showing a dialog to the user
@@ -263,18 +263,18 @@ class CodeMain {
 				// let's delete it, since we can't connect to it and then
 				// retry the whole thing
 				try {
-					unlinkSync(environmentService.mainIPCHandle);
+					unlinkSync(environmentMainService.mainIPCHandle);
 				} catch (error) {
 					logService.warn('Could not delete obsolete instance handle', error);
 
 					throw error;
 				}
 
-				return this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, false);
+				return this.doStartup(args, logService, environmentMainService, lifecycleMainService, instantiationService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
-			if (environmentService.extensionTestsLocationURI && !environmentService.debugExtensionHost.break) {
+			if (environmentMainService.extensionTestsLocationURI && !environmentMainService.debugExtensionHost.break) {
 				const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 				logService.error(msg);
 				client.dispose();
@@ -344,9 +344,9 @@ class CodeMain {
 		return mainProcessNodeIpcServer;
 	}
 
-	private handleStartupDataDirError(environmentService: IEnvironmentMainService, error: NodeJS.ErrnoException): void {
+	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
-			const directories = coalesce([environmentService.userDataPath, environmentService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentService));
+			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentMainService));
 
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),
@@ -369,9 +369,9 @@ class CodeMain {
 		});
 	}
 
-	private async windowsAllowSetForegroundWindow(launchService: ILaunchMainService, logService: ILogService): Promise<void> {
+	private async windowsAllowSetForegroundWindow(launchMainService: ILaunchMainService, logService: ILogService): Promise<void> {
 		if (isWindows) {
-			const processId = await launchService.getMainProcessId();
+			const processId = await launchMainService.getMainProcessId();
 
 			logService.trace('Sending some foreground love to the running instance:', processId);
 

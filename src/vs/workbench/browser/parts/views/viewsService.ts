@@ -255,6 +255,17 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
+	getViewWithId<T extends IView>(id: string): T | null {
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
+		if (viewContainer) {
+			const viewPaneContainer: IViewPaneContainer | undefined = this.viewPaneContainers.get(viewContainer.id);
+			if (viewPaneContainer) {
+				return viewPaneContainer.getView(id) as T;
+			}
+		}
+		return null;
+	}
+
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {

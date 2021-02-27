@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./workspaceTrustEditor';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
@@ -18,13 +20,16 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkspaceTrustFileSystemProvider } from 'vs/workbench/contrib/workspace/common/workspaceTrustFileSystemProvider';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
-import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_URI } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
+import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
+import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -64,7 +69,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			if (this.requestModel.trustRequest) {
 				this.toggleRequestBadge(true);
 
-				if (this.requestModel.trustRequest.immediate) {
+				if (this.requestModel.trustRequest.modal) {
 					const result = await this.dialogService.show(
 						Severity.Warning,
 						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
@@ -105,6 +110,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
+		this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => {
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+				this.toggleRequestBadge(false);
+			}
+		}));
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKSPACE_TRUST_ENABLED)) {
 				const isEnabled = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED);
@@ -130,10 +141,13 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContribution {
 	private static readonly ID = 'status.workspaceTrust';
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
+	private pendingRequestContextKey = WorkspaceTrustContext.PendingRequest.key;
+	private contextKeys = new Set([this.pendingRequestContextKey]);
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -143,6 +157,13 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 			const entry = this.getStatusbarEntry(this.workspaceTrustService.getWorkspaceTrustState());
 			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, WorkspaceTrustStatusbarItem.ID, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 			this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => this.updateStatusbarEntry(trustState)));
+			this._register(this.contextKeyService.onDidChangeContext((contextChange) => {
+				if (contextChange.affectsSome(this.contextKeys)) {
+					this.updateVisibility(this.workspaceTrustService.getWorkspaceTrustState());
+				}
+			}));
+
+			this.updateVisibility(this.workspaceTrustService.getWorkspaceTrustState());
 		}
 	}
 
@@ -162,9 +183,14 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 		};
 	}
 
-	private updateStatusbarEntry(trustState: WorkspaceTrustStateChangeEvent): void {
-		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(trustState.currentTrustState));
-		this.statusbarService.updateEntryVisibility(WorkspaceTrustStatusbarItem.ID, trustState.currentTrustState !== WorkspaceTrustState.Unknown);
+	private updateVisibility(trustState: WorkspaceTrustState): void {
+		const pendingRequest = this.contextKeyService.getContextKeyValue(this.pendingRequestContextKey) === true;
+		this.statusbarService.updateEntryVisibility(WorkspaceTrustStatusbarItem.ID, trustState === WorkspaceTrustState.Untrusted || pendingRequest);
+	}
+
+	private updateStatusbarEntry(trustStateChange: WorkspaceTrustStateChangeEvent): void {
+		this.statusBarEntryAccessor.value?.update(this.getStatusbarEntry(trustStateChange.currentTrustState));
+		this.updateVisibility(trustStateChange.currentTrustState);
 	}
 }
 
@@ -173,12 +199,36 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	LifecyclePhase.Starting
 );
 
-/*
- * Trusted Workspace JSON Editor
+/**
+ * Trusted Workspace GUI Editor
  */
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	WorkspaceTrustFileSystemProvider,
-	LifecyclePhase.Ready
+class WorkspaceTrustEditorInputFactory implements IEditorInputFactory {
+
+	canSerialize(editorInput: EditorInput): boolean {
+		return true;
+	}
+
+	serialize(input: WorkspaceTrustEditorInput): string {
+		return '{}';
+	}
+
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WorkspaceTrustEditorInput {
+		return instantiationService.createInstance(WorkspaceTrustEditorInput);
+	}
+}
+
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
+	.registerEditorInputFactory(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputFactory);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		WorkspaceTrustEditor,
+		WorkspaceTrustEditor.ID,
+		localize('workspaceTrustEditor', "Workspace Trust Editor")
+	),
+	[
+		new SyncDescriptor(WorkspaceTrustEditorInput)
+	]
 );
 
 /*
@@ -285,7 +335,11 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: WORKSPACE_TRUST_URI, mode: 'jsonc', options: { pinned: true } });
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const input = instantiationService.createInstance(WorkspaceTrustEditorInput);
+
+		editorService.openEditor(input, { pinned: true, revealIfOpened: true });
 		return;
 	}
 });

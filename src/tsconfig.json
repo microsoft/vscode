@@ -13,6 +13,12 @@
 			"sinon",
 			"winreg",
 			"trusted-types"
+		],
+		"plugins": [
+			{
+				"name": "tsec",
+				"exemptionConfig": "./tsec.exemptions.json"
+			}
 		]
 	},
 	"include": [

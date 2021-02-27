@@ -94,8 +94,10 @@ function fillInActions(
 	for (const { group, action, index } of submenuInfo) {
 		const target = isPrimaryGroup(group) ? primaryBucket : secondaryBucket;
 
+		// inlining submenus with length 0 or 1 is easy,
+		// larger submenus need to be checked with the overall limit
 		const submenuActions = action.actions;
-		if (target.length + submenuActions.length - 2 <= primaryMaxCount && shouldInlineSubmenu(action, group, target.length)) {
+		if ((submenuActions.length <= 1 || target.length + submenuActions.length - 2 <= primaryMaxCount) && shouldInlineSubmenu(action, group, target.length)) {
 			target.splice(index, 1, ...submenuActions);
 		}
 	}

@@ -193,12 +193,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
 
 		const runnable = actionRunner.run(actionToRun, context);
-		if (runnable) {
-			try {
-				await runnable;
-			} catch (error) {
-				this.notificationService.error(error);
-			}
+		try {
+			await runnable;
+		} catch (error) {
+			this.notificationService.error(error);
 		}
 	}
 }
