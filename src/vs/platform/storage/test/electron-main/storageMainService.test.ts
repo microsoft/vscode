@@ -48,9 +48,7 @@ suite('StorageMainService', function () {
 
 			this._onWillShutdown.fire({
 				join(promise) {
-					if (promise) {
-						joiners.push(promise);
-					}
+					joiners.push(promise);
 				}
 			});
 

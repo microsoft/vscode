@@ -102,26 +102,23 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
-				if (forward) {
-					return forward.then(tunnel => {
-						this.logService.trace(`MainThreadTunnelService: New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
-						if (!tunnel) {
-							return undefined;
+				return forward.then(tunnel => {
+					this.logService.trace(`MainThreadTunnelService: New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
+					if (!tunnel) {
+						return undefined;
+					}
+					return {
+						tunnelRemotePort: tunnel.remoteAddress.port,
+						tunnelRemoteHost: tunnel.remoteAddress.host,
+						localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
+						tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
+						public: tunnel.public,
+						dispose: async (silent?: boolean) => {
+							this.logService.trace(`MainThreadTunnelService: Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
+							return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
 						}
-						return {
-							tunnelRemotePort: tunnel.remoteAddress.port,
-							tunnelRemoteHost: tunnel.remoteAddress.host,
-							localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
-							tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
-							public: tunnel.public,
-							dispose: async (silent?: boolean) => {
-								this.logService.trace(`MainThreadTunnelService: Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
-								return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
-							}
-						};
-					});
-				}
-				return undefined;
+					};
+				});
 			}
 		};
 		this.tunnelService.setTunnelProvider(tunnelProvider, features);

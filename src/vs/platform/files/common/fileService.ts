@@ -79,9 +79,7 @@ export class FileService extends Disposable implements IFileService {
 		this._onWillActivateFileSystemProvider.fire({
 			scheme,
 			join(promise) {
-				if (promise) {
-					joiners.push(promise);
-				}
+				joiners.push(promise);
 			},
 		});
 
