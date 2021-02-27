@@ -164,7 +164,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
 			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
-				this.focusNext();
+				eventHandled = this.focusNext();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
@@ -428,6 +428,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected focusNext(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;
@@ -450,6 +452,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected focusPrevious(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;
