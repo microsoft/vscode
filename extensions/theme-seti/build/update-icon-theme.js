@@ -11,29 +11,31 @@ let https = require('https');
 let url = require('url');
 
 // list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
+// Please try and keep this list in alphabetical order! Thank you.
 let nonBuiltInLanguages = { // { fileNames, extensions  }
-	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
-	"elm": { extensions: ['elm'] },
-	"ocaml": { extensions: ['ml', 'mli'] },
-	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
-	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
-	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
-	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
-	"vue": { extensions: ['vue'] },
-	"sass": { extensions: ['sass'] },
-	"puppet": { extensions: ['puppet'] },
-	"kotlin": { extensions: ['kt'] },
-	"jinja": { extensions: ['jinja'] },
-	"haxe": { extensions: ['hx'] },
-	"haskell": { extensions: ['hs'] },
-	"gradle": { extensions: ['gradle'] },
 	"elixir": { extensions: ['ex'] },
-	"haml": { extensions: ['haml'] },
-	"stylus": { extensions: ['styl'] },
-	"vala": { extensions: ['vala'] },
+	"elm": { extensions: ['elm'] },
+	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
 	"github-issues": { extensions: ['github-issues'] },
-	"todo": { fileNames: ['todo'] }
+	"gradle": { extensions: ['gradle'] },
+	"godot": { extensions: ['gd', 'godot', 'tres', 'tscn'] },
+	"haml": { extensions: ['haml'] },
+	"haskell": { extensions: ['hs'] },
+	"haxe": { extensions: ['hx'] },
+	"jinja": { extensions: ['jinja'] },
+	"kotlin": { extensions: ['kt'] },
+	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
+	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
+	"ocaml": { extensions: ['ml', 'mli'] },
+	"puppet": { extensions: ['puppet'] },
+	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"sass": { extensions: ['sass'] },
+	"stylus": { extensions: ['styl'] },
+	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
+	"todo": { fileNames: ['todo'] },
+	"vala": { extensions: ['vala'] },
+	"vue": { extensions: ['vue'] }
 };
 
 // list of languagesId that inherit the icon from another language
