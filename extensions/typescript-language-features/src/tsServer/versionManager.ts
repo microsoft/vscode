@@ -57,6 +57,8 @@ export class TypeScriptVersionManager extends Disposable {
 					const localVersion = this.versionProvider.localVersion;
 					if (localVersion) {
 						this.updateActiveVersion(localVersion);
+					} else {
+						this.updateActiveVersion(this.versionProvider.defaultVersion);
 					}
 				} else {
 					this.updateActiveVersion(this.versionProvider.defaultVersion);
