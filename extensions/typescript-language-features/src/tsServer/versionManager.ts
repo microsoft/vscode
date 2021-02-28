@@ -54,12 +54,7 @@ export class TypeScriptVersionManager extends Disposable {
 		this._register(vscode.workspace.onDidChangeWorkspaceTrustState((event: vscode.WorkspaceTrustStateChangeEvent) => {
 			if (this.useWorkspaceTsdkSetting) {
 				if (event.currentTrustState === vscode.WorkspaceTrustState.Trusted) {
-					const localVersion = this.versionProvider.localVersion;
-					if (localVersion) {
-						this.updateActiveVersion(localVersion);
-					} else {
-						this.updateActiveVersion(this.versionProvider.defaultVersion);
-					}
+					this.updateActiveVersion(this.versionProvider.localVersion ?? this.versionProvider.defaultVersion);
 				} else {
 					this.updateActiveVersion(this.versionProvider.defaultVersion);
 				}
