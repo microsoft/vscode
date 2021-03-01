@@ -1319,8 +1319,8 @@ export class Repository implements Disposable {
 		await this._fetch({ all: true });
 	}
 
-	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
-		await this._fetch({ remote, ref, depth });
+	async fetch(remote?: string, ref?: string, depth?: number, prune?: boolean): Promise<void> {
+		await this._fetch({ remote, ref, depth, prune });
 	}
 
 	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean; } = {}): Promise<void> {
