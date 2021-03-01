@@ -19,7 +19,7 @@ export class CommitCharacterController {
 		readonly item: ISelectedSuggestion;
 	};
 
-	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
+	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion, charCode: number) => any) {
 
 		this._disposables.add(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
 		this._disposables.add(widget.onDidFocus(this._onItem, this));
@@ -29,7 +29,7 @@ export class CommitCharacterController {
 			if (this._active && !widget.isFrozen()) {
 				const ch = text.charCodeAt(text.length - 1);
 				if (this._active.acceptCharacters.has(ch) && editor.getOption(EditorOption.acceptSuggestionOnCommitCharacter)) {
-					accept(this._active.item);
+					accept(this._active.item, ch);
 				}
 			}
 		}));

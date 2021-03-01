@@ -137,7 +137,9 @@ export class SuggestController implements IEditorContribution {
 			this._toDispose.add(widget.onDidSelect(item => this._insertSuggestion(item, 0), this));
 
 			// Wire up logic to accept a suggestion on certain characters
-			const commitCharacterController = new CommitCharacterController(this.editor, widget, item => this._insertSuggestion(item, InsertFlags.NoAfterUndoStop));
+			const commitCharacterController = new CommitCharacterController(this.editor, widget,
+				(item, charCode) => this._insertSuggestion(item, InsertFlags.NoAfterUndoStop, charCode)
+			);
 			this._toDispose.add(commitCharacterController);
 			this._toDispose.add(this.model.onDidSuggest(e => {
 				if (e.completionModel.items.length === 0) {
@@ -259,7 +261,8 @@ export class SuggestController implements IEditorContribution {
 
 	protected _insertSuggestion(
 		event: ISelectedSuggestion | undefined,
-		flags: InsertFlags
+		flags: InsertFlags,
+		charCode: number = '\n'.charCodeAt(0)
 	): void {
 		if (!event || !event.item) {
 			this._alternatives.value.reset();
@@ -363,15 +366,22 @@ export class SuggestController implements IEditorContribution {
 			insertText = SnippetParser.escape(insertText);
 		}
 
-		SnippetController2.get(this.editor).insert(insertText, {
-			overwriteBefore: info.overwriteBefore,
-			overwriteAfter: info.overwriteAfter,
-			undoStopBefore: false,
-			undoStopAfter: false,
-			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
-			clipboardText: event.model.clipboardText,
-			overtypingCapturer: this._overtypingCapturer.value
-		});
+		if (item.completion.insertHandler) {
+			item.completion.insertHandler({
+				commitChar: String.fromCharCode(charCode),
+				position: this.editor.getPosition()
+			});
+		} else {
+			SnippetController2.get(this.editor).insert(insertText, {
+				overwriteBefore: info.overwriteBefore,
+				overwriteAfter: info.overwriteAfter,
+				undoStopBefore: false,
+				undoStopAfter: false,
+				adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
+				clipboardText: event.model.clipboardText,
+				overtypingCapturer: this._overtypingCapturer.value
+			});
+		}
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this.editor.pushUndoStop();
@@ -406,7 +416,8 @@ export class SuggestController implements IEditorContribution {
 					}
 					this._insertSuggestion(
 						next,
-						InsertFlags.NoBeforeUndoStop | InsertFlags.NoAfterUndoStop | (flags & InsertFlags.AlternativeOverwriteConfig ? InsertFlags.AlternativeOverwriteConfig : 0)
+						InsertFlags.NoBeforeUndoStop | InsertFlags.NoAfterUndoStop | (flags & InsertFlags.AlternativeOverwriteConfig ? InsertFlags.AlternativeOverwriteConfig : 0),
+						charCode
 					);
 					break;
 				}
@@ -524,7 +535,7 @@ export class SuggestController implements IEditorContribution {
 		this.editor.focus();
 	}
 
-	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, alternativeOverwriteConfig: boolean): void {
+	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, alternativeOverwriteConfig: boolean, charCode: number = 0): void {
 		const item = this.widget.value.getFocusedItem();
 		let flags = 0;
 		if (keepAlternativeSuggestions) {
@@ -533,7 +544,7 @@ export class SuggestController implements IEditorContribution {
 		if (alternativeOverwriteConfig) {
 			flags |= InsertFlags.AlternativeOverwriteConfig;
 		}
-		this._insertSuggestion(item, flags);
+		this._insertSuggestion(item, flags, charCode);
 	}
 	acceptNextSuggestion() {
 		this._alternatives.value.next();

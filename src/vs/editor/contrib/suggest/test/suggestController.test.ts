@@ -27,6 +27,7 @@ import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Range } from 'vs/editor/common/core/range';
 import { timeout } from 'vs/base/common/async';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 
 suite('SuggestController', function () {
 
@@ -50,8 +51,12 @@ suite('SuggestController', function () {
 				}
 			}],
 			[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
-				memorize(): void { }
-				select(): number { return 0; }
+				memorize(): void {
+				}
+
+				select(): number {
+					return 0;
+				}
 			}],
 			[IMenuService, new class extends mock<IMenuService>() {
 				createMenu() {
@@ -202,7 +207,8 @@ suite('SuggestController', function () {
 	test('resolve additionalTextEdits async when needed (typing)', async function () {
 
 		let resolveCallCount = 0;
-		let resolve: Function = () => { };
+		let resolve: Function = () => {
+		};
 		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
@@ -258,7 +264,8 @@ suite('SuggestController', function () {
 	test('resolve additionalTextEdits async when needed (simple conflict)', async function () {
 
 		let resolveCallCount = 0;
-		let resolve: Function = () => { };
+		let resolve: Function = () => {
+		};
 		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
@@ -307,7 +314,8 @@ suite('SuggestController', function () {
 	test('resolve additionalTextEdits async when needed (conflict)', async function () {
 
 		let resolveCallCount = 0;
-		let resolve: Function = () => { };
+		let resolve: Function = () => {
+		};
 		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
 			provideCompletionItems(doc, pos) {
 				return {
@@ -414,5 +422,91 @@ suite('SuggestController', function () {
 
 		// next suggestion used
 		assert.equal(editor.getValue(), 'halloabc');
+	});
+
+	test('insert handler (additional insert)', async function () {
+		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, position) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'let',
+						insertText: 'hello',
+						range: Range.fromPositions(position),
+						insertHandler: (info) => {
+							if (info.commitChar === '(') {
+								const insertEdit: IIdentifiedSingleEditOperation = {
+									forceMoveMarkers: true,
+									range: Range.fromPositions(position),
+									text: 'hello'
+								};
+								const bracketsEdit: IIdentifiedSingleEditOperation = {
+									forceMoveMarkers: true,
+									range: Range.fromPositions(position),
+									text: '()'
+								};
+								doc.applyEdits([insertEdit, bracketsEdit]);
+							}
+						}
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('abc');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		let p2 = Event.toPromise(controller.model.onDidCancel);
+		controller.acceptSelectedSuggestion(false, false, '('.charCodeAt(0));
+		await p2;
+
+		assert.equal(editor.getValue(), 'hello()abc');
+	});
+
+	test('insert handler (replace insert)', async function () {
+		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, position) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'let',
+						insertText: 'hello',
+						range: Range.fromPositions(position),
+						insertHandler: (info) => {
+							if (info.commitChar === '\t') {
+								const insertEdit: IIdentifiedSingleEditOperation = {
+									forceMoveMarkers: true,
+									range: Range.fromPositions(position),
+									text: 'hello'
+								};
+								const replaceEdit: IIdentifiedSingleEditOperation = {
+									forceMoveMarkers: false,
+									range: Range.fromPositions(position, position.delta(0, 3)),
+									text: ''
+								};
+								doc.applyEdits([insertEdit, replaceEdit]);
+							}
+						}
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('abc');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		let p2 = Event.toPromise(controller.model.onDidCancel);
+		controller.acceptSelectedSuggestion(false, false, '\t'.charCodeAt(0));
+		await p2;
+
+		assert.equal(editor.getValue(), 'hello');
 	});
 });
