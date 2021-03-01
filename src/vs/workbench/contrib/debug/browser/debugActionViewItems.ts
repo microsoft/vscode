@@ -49,6 +49,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		super(context, action);
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox.setFocusable(false);
 		this.toDispose.push(this.selectBox);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
@@ -98,6 +99,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				this.actionRunner.run(this.action, this.context);
 			}
 			if (event.equals(KeyCode.RightArrow)) {
+				this.start.tabIndex = -1;
 				this.selectBox.focus();
 				event.stopPropagation();
 			}
@@ -118,6 +120,8 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.toDispose.push(dom.addDisposableListener(selectBoxContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
+				this.selectBox.setFocusable(false);
+				this.start.tabIndex = 0;
 				this.start.focus();
 				event.stopPropagation();
 			}
@@ -157,7 +161,17 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	blur(): void {
 		this.start.tabIndex = -1;
+		this.selectBox.blur();
 		this.container.blur();
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (focusable) {
+			this.start.tabIndex = 0;
+		} else {
+			this.start.tabIndex = -1;
+			this.selectBox.setFocusable(false);
+		}
 	}
 
 	dispose(): void {
