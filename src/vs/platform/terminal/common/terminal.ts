@@ -255,7 +255,7 @@ export interface ITerminalChildProcess {
 	/**
 	 * Whether the process should be persisted across reloads.
 	 */
-	shouldPersist?: boolean;
+	shouldPersist: boolean;
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
