@@ -401,40 +401,41 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 				continue;
 			}
 
-			// anaslse cell text but cap it 10000 characters
+			// The cap the amount of characters that we look at and use the following logic
+			// - for MD prefer headings (each header is an entry)
+			// - otherwise use the first none-empty line of the cell (MD or code)
 			let content = cell.getText().substr(0, 10_000);
-			let level = 7;
+			let hasHeader = false;
 
 			if (isMarkdown) {
-				// MD cell: "render" as plain text, find highest header
-				let headerText = content;
 				for (const token of marked.lexer(content, { gfm: true })) {
 					if (token.type === 'heading') {
-						if (token.depth < level) {
-							level = token.depth;
-							headerText = token.text;
-						}
+						hasHeader = true;
+						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), Codicon.markdown));
 					}
 				}
-				content = renderMarkdownAsPlaintext({ value: headerText });
-			}
-
-			// find first none empty line or use default text
-			const lineMatch = content.match(/^.*\w+.*\w*$/m);
-			let preview: string;
-			if (!lineMatch) {
-				preview = localize('empty', "empty cell");
-			} else {
-				preview = lineMatch[0].trim();
-				if (preview.length >= 64) {
-					preview = preview.slice(0, 64) + '…';
+				if (!hasHeader) {
+					content = renderMarkdownAsPlaintext({ value: content });
 				}
 			}
 
-			const entry = new OutlineEntry(i, level, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code);
-			entries.push(entry);
+			if (!hasHeader) {
+				const lineMatch = content.match(/^.*\w+.*\w*$/m);
+				let preview: string;
+				if (!lineMatch) {
+					preview = localize('empty', "empty cell");
+				} else {
+					preview = lineMatch[0].trim();
+					if (preview.length >= 64) {
+						preview = preview.slice(0, 64) + '…';
+					}
+				}
+
+				entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
+			}
+
 			if (cell.handle === selected) {
-				this._activeEntry = entry;
+				this._activeEntry = entries[entries.length - 1];
 			}
 
 			// send an event whenever any of the cells change
@@ -517,7 +518,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const { viewModel } = this._editor;
 
 		if (viewModel) {
-			const cell = viewModel.getCellByIndex(viewModel.getSelection()?.start);
+			const cell = viewModel.getCellByIndex(viewModel.getSelection().start);
 			if (cell) {
 				for (let entry of this._entries) {
 					newActive = entry.find(cell, []);

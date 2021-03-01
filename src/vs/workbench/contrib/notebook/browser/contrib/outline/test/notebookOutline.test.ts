@@ -80,8 +80,9 @@ suite('Notebook Outline', function () {
 			['## h2 \n# h1', 'md', CellKind.Markdown]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h1');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h2');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'h1');
 		});
 
 		withNotebookOutline([
