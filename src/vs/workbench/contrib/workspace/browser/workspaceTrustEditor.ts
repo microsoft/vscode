@@ -110,7 +110,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const buttonBar = this._register(new ButtonBar(this.headerButtons));
 
 		const createButton = (label: string, command: string) => {
-			const button = buttonBar.addButton({ title: true });
+			const button = buttonBar.addButton();
 			button.label = label;
 			this._register(button.onDidClick(e => {
 				if (e) {
