@@ -160,7 +160,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		if (!textModel) {
 			return false;
 		}
-		return textModel.applyEdits(modelVersionId, cellEdits, true, undefined, () => undefined, undefined);
+		if (textModel.versionId !== modelVersionId) {
+			return false;
+		}
+		return textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
 
 	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {

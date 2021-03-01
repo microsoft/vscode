@@ -440,7 +440,6 @@ abstract class AbstractElementRenderer extends Disposable {
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
 				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);
 				this.notebookEditor.textModel!.applyEdits(
-					this.notebookEditor.textModel!.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
 					true,
 					undefined,
@@ -455,7 +454,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				return;
 			}
 
-			this.notebookEditor.textModel!.applyEdits(this.notebookEditor.textModel!.versionId, [
+			this.notebookEditor.textModel!.applyEdits([
 				{ editType: CellEditType.Metadata, index, metadata: result }
 			], true, undefined, () => undefined, undefined);
 		} catch {

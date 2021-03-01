@@ -283,10 +283,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._operationManager.pushStackElement(label, selectionState, undoRedoGroup);
 	}
 
-	applyEdits(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
-		if (modelVersionId !== this._versionId) {
-			return false;
-		}
+	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
 
 		this._eventEmitter.beginDeferredEmit();
 		this.pushStackElement('edit', beginSelectionState, undoRedoGroup);

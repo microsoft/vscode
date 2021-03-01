@@ -608,7 +608,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 					? firstSelectIndex
 					: viewModel.notebookDocument.cells.length - 1;
 
-				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, { kind: SelectionStateType.Index, selections: viewModel.getSelections() }, () => {
+				viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, selections: viewModel.getSelections() }, () => {
 					return {
 						kind: SelectionStateType.Index,
 						selections: [{ start: newFocusedCellIndex, end: newFocusedCellIndex + 1 }]

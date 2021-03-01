@@ -777,7 +777,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 
 	const text = cell.getText();
 	const idx = notebookEditor.viewModel.getCellIndex(cell);
-	notebookEditor.viewModel.notebookDocument.applyEdits(notebookEditor.viewModel.notebookDocument.versionId, [
+	notebookEditor.viewModel.notebookDocument.applyEdits([
 		{
 			editType: CellEditType.Replace,
 			index: idx,
@@ -1593,10 +1593,10 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		editor.viewModel.notebookDocument.applyEdits(editor.viewModel.notebookDocument.versionId, [{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
+		editor.viewModel.notebookDocument.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
 		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
-			context.notebookEditor.viewModel.notebookDocument.applyEdits(context.notebookEditor.viewModel.notebookDocument.versionId, [{
+			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.Metadata, index, metadata: {
 					...context.cell.metadata,
 					runState: NotebookCellRunState.Idle,
@@ -1756,7 +1756,6 @@ export class ChangeCellLanguageAction extends NotebookCellAction<ICellRange> {
 		} else {
 			const index = context.notebookEditor.viewModel.notebookDocument.cells.indexOf(context.cell.model);
 			context.notebookEditor.viewModel.notebookDocument.applyEdits(
-				context.notebookEditor.viewModel.notebookDocument.versionId,
 				[{ editType: CellEditType.CellLanguage, index, language: languageId }],
 				true, undefined, () => undefined, undefined
 			);
@@ -1805,7 +1804,7 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		editor.viewModel.notebookDocument.applyEdits(editor.viewModel.notebookDocument.versionId,
+		editor.viewModel.notebookDocument.applyEdits(
 			editor.viewModel.notebookDocument.cells.map((cell, index) => ({
 				editType: CellEditType.Output, index, outputs: []
 			})), true, undefined, () => undefined, undefined);
@@ -1827,7 +1826,7 @@ registerAction2(class extends NotebookAction {
 			}
 		}).filter(edit => !!edit) as ICellEditOperation[];
 		if (clearExecutionMetadataEdits.length) {
-			context.notebookEditor.viewModel.notebookDocument.applyEdits(context.notebookEditor.viewModel.notebookDocument.versionId, clearExecutionMetadataEdits, true, undefined, () => undefined, undefined);
+			context.notebookEditor.viewModel.notebookDocument.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined);
 		}
 	}
 });
@@ -1962,7 +1961,7 @@ abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 			return;
 		}
 
-		textModel.applyEdits(textModel.versionId, [{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true, undefined, () => undefined, undefined);
+		textModel.applyEdits([{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true, undefined, () => undefined, undefined);
 	}
 
 	abstract getMetadataDelta(): NotebookCellMetadata;
@@ -2116,7 +2115,7 @@ CommandsRegistry.registerCommand('notebook.trust', (accessor, args) => {
 	const document = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
 
 	if (document) {
-		document.applyEdits(document.versionId, [{ editType: CellEditType.DocumentMetadata, metadata: { ...document.metadata, ...{ trusted: true } } }], true, undefined, () => undefined, undefined, false);
+		document.applyEdits([{ editType: CellEditType.DocumentMetadata, metadata: { ...document.metadata, ...{ trusted: true } } }], true, undefined, () => undefined, undefined, false);
 	}
 });
 

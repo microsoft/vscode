@@ -341,11 +341,11 @@ abstract class AbstractCellRenderer {
 			}
 
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
-				textModel.applyEdits(textModel.versionId, [
+				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
-				textModel.applyEdits(textModel.versionId, [
+				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
 			}
