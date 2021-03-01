@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 
 export abstract class Widget extends Disposable {
@@ -39,12 +39,12 @@ export abstract class Widget extends Disposable {
 		this._register(dom.addDisposableListener(domNode, dom.EventType.INPUT, listener));
 	}
 
-	protected onblur(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.BLUR, listener));
+	protected onblur(domNode: HTMLElement, listener: (e: FocusEvent) => void): IDisposable {
+		return this._register(dom.addDisposableListener(domNode, dom.EventType.BLUR, listener));
 	}
 
-	protected onfocus(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.FOCUS, listener));
+	protected onfocus(domNode: HTMLElement, listener: (e: FocusEvent) => void): IDisposable {
+		return this._register(dom.addDisposableListener(domNode, dom.EventType.FOCUS, listener));
 	}
 
 	protected onchange(domNode: HTMLElement, listener: (e: Event) => void): void {

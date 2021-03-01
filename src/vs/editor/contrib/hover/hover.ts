@@ -65,6 +65,7 @@ export class ModesHoverController implements IEditorContribution {
 		this._hoverClicked = false;
 		this._contentWidget = null;
 		this._glyphWidget = null;
+		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
 
 		this._hookEvents();
 
@@ -74,8 +75,6 @@ export class ModesHoverController implements IEditorContribution {
 				this._hookEvents();
 			}
 		});
-
-		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
 	}
 
 	private _hookEvents(): void {
@@ -204,6 +203,7 @@ export class ModesHoverController implements IEditorContribution {
 				);
 				if (!this._contentWidget) {
 					this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
+					this._toUnhook.add(this._contentWidget.onBlur(() => this._onWidgetBlur()));
 				}
 				const modifiers = ModesHoverController.getModifiers(mouseEvent);
 				this._contentWidget.startShowingAt(showAtRange, HoverStartMode.Delayed, false, HoverSource.Mouse, modifiers);
@@ -251,6 +251,12 @@ export class ModesHoverController implements IEditorContribution {
 		}
 	}
 
+	public _onWidgetBlur() {
+		if (this._isCurrentSticky) {
+			this._hideWidgets();
+		}
+	}
+
 	private _hideWidgets(): void {
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible())) {
 			return;
@@ -270,8 +276,9 @@ export class ModesHoverController implements IEditorContribution {
 		this._isCurrentSticky = !!sticky;
 		if (!this._contentWidget) {
 			this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
+			this._toUnhook.add(this._contentWidget.onBlur(() => this._onWidgetBlur()));
 		}
-		this._contentWidget.startShowingAt(range, mode, focus, HoverSource.Action);
+		this._contentWidget.startShowingAt(range, mode, focus, HoverSource.Action, [], this._isCurrentSticky);
 	}
 
 	public dispose(): void {

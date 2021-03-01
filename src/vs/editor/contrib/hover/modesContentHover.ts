@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
@@ -31,6 +30,7 @@ import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHover, MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IHoverPart {
 	readonly range: Range;
@@ -201,6 +201,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _messages: HoverPartInfo[];
 	private _lastRange: Range | null;
 	private _lastKeyModifiers: KeyMod[] = [];
+	private _sticky: boolean = false;
 	private readonly _computer: ModesContentComputer;
 	private readonly _hoverOperation: HoverOperation<HoverPartInfo[]>;
 	private _highlightDecorations: string[];
@@ -208,6 +209,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
 	private _renderDisposable: IDisposable | null;
+
+	private _onBlur = this._register(new Emitter<void>());
+	readonly onBlur: Event<void> = this._onBlur.event;
 
 	constructor(
 		editor: ICodeEditor,
@@ -263,14 +267,29 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			this._editor.getOption(EditorOption.hover).delay
 		);
 
-		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.FOCUS, () => {
+		const checkBlur = (oldEvent: FocusEvent) => {
+			const activeElement = oldEvent.relatedTarget;
+			if (activeElement && activeElement instanceof HTMLElement && this.getDomNode().contains(activeElement)) {
+				const blurDisposable = this.onblur(activeElement, (newEvent: FocusEvent) => {
+					blurDisposable.dispose();
+					checkBlur(newEvent);
+				});
+				return;
+			}
+			this._onBlur.fire();
+		};
+
+		this.onfocus(this.getDomNode(), () => {
 			if (this._colorPicker) {
 				this.getDomNode().classList.add('colorpicker-hover');
 			}
-		}));
-		this._register(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
+		});
+		this.onblur(this.getDomNode(), (e: FocusEvent) => {
 			this.getDomNode().classList.remove('colorpicker-hover');
-		}));
+			if (this._sticky) {
+				checkBlur(e);
+			}
+		});
 		this._register(editor.onDidChangeConfiguration(() => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
 		}));
@@ -385,9 +404,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}
 	}
 
-	public startShowingAt(range: Range, mode: HoverStartMode, focus: boolean, source: HoverSource, keyModifiers: KeyMod[] = []): void {
+	public startShowingAt(range: Range, mode: HoverStartMode, focus: boolean, source: HoverSource, keyModifiers: KeyMod[], sticky?: boolean): void {
 		const keyModifiersSame = equalArray(this._lastKeyModifiers, keyModifiers);
-		if (this._lastRange && this._lastRange.equalsRange(range) && keyModifiersSame) {
+		if (this._lastRange && this._lastRange.equalsRange(range) && keyModifiersSame && this._sticky === !!sticky) {
 			// We have to show the widget at the exact same range with the same modifiers as before, so no work is needed
 			return;
 		}
@@ -422,6 +441,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		this._lastRange = range;
 		this._lastKeyModifiers = keyModifiers;
+		this._sticky = !!sticky;
 		this._computer.setRange(range);
 		this._computer.setContext({
 			keyModifiers: keyModifiers,
