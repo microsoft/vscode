@@ -310,3 +310,8 @@ export interface EditorFoldingStateDelegate {
 	getCellIndex(cell: CellViewModel): number;
 	getFoldingState(index: number): CellFoldingState;
 }
+
+export function updateFoldingStateAtIndex(foldingModel: FoldingModel, index: number, collapsed: boolean) {
+	const range = foldingModel.regions.findRange(index + 1);
+	foldingModel.setCollapsed(range, collapsed);
+}

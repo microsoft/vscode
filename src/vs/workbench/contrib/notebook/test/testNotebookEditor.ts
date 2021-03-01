@@ -3,13 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { NotImplementedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
+import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookEditorCreationOptions, NotebookEditorOptions, ICellOutputViewModel, IInsetRenderOutput, ICommonCellInfo, IGenericCellViewModel, INotebookCellOutputLayoutInfo, CellEditState, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -18,13 +28,8 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, NotebookCellMetadata, ICellRange, INotebookKernel, notebookDocumentMetadataDefaults, IOutputDto, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, ICellRange, INotebookEditorModel, INotebookKernel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
-import { NotImplementedError } from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -36,6 +41,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -450,6 +456,8 @@ export function setupInstantiationService() {
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
+	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
 
 	return instantiationService;
 }
@@ -483,4 +491,39 @@ export function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [so
 		viewModel.dispose();
 	}
 	return res;
+}
+
+export function createNotebookCellList(instantiationService: TestInstantiationService) {
+	const delegate: IListVirtualDelegate<number> = {
+		getHeight() { return 20; },
+		getTemplateId() { return 'template'; }
+	};
+
+	const renderer: IListRenderer<number, void> = {
+		templateId: 'template',
+		renderTemplate() { },
+		renderElement() { },
+		disposeTemplate() { }
+	};
+
+	const cellList: NotebookCellList = instantiationService.createInstance(
+		NotebookCellList,
+		'NotebookCellList',
+		DOM.$('container'),
+		DOM.$('body'),
+		delegate,
+		[renderer],
+		instantiationService.get<IContextKeyService>(IContextKeyService),
+		{
+			supportDynamicHeights: true,
+			multipleSelectionSupport: true,
+			enableKeyboardNavigation: true,
+			focusNextPreviousDelegate: {
+				onFocusNext: (applyFocusNext: () => void) => { applyFocusNext(); },
+				onFocusPrevious: (applyFocusPrevious: () => void) => { applyFocusPrevious(); },
+			}
+		}
+	);
+
+	return cellList;
 }

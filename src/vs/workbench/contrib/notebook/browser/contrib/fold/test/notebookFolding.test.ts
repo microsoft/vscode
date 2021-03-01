@@ -7,12 +7,7 @@ import * as assert from 'assert';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-
-function updateFoldingStateAtIndex(foldingModel: FoldingModel, index: number, collapsed: boolean) {
-	const range = foldingModel.regions.findRange(index + 1);
-	foldingModel.setCollapsed(range, collapsed);
-}
+import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 
 suite('Notebook Folding', () => {
 	const instantiationService = setupInstantiationService();
