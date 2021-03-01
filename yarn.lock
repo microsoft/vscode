@@ -4001,15 +4001,6 @@ fs-constants@^1.0.0:
   resolved "https://registry.yarnpkg.com/fs-constants/-/fs-constants-1.0.0.tgz#6be0de9be998ce16af8afc24497b9ee9b7ccd9ad"
   integrity sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==
 
-fs-extra@^7.0.0:
-  version "7.0.1"
-  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-7.0.1.tgz#4f189c44aa123b895f722804f55ea23eadc348e9"
-  integrity sha512-YJDaCJZEnBmcbw13fvdAM9AwNOJwOzrE4pqMqBq5nFiEqXUqHwlK4B+3pUw6JNvfSPtX05xFHtYy/1ni01eGCw==
-  dependencies:
-    graceful-fs "^4.1.2"
-    jsonfile "^4.0.0"
-    universalify "^0.1.0"
-
 fs-extra@^8.1.0:
   version "8.1.0"
   resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-8.1.0.tgz#49d43c45a88cd9677668cb7be1b46efdb8d2e1c0"
@@ -5932,16 +5923,6 @@ lodash.isequal@^4.0.0:
   resolved "https://registry.yarnpkg.com/lodash.isequal/-/lodash.isequal-4.5.0.tgz#415c4478f2bcc30120c22ce10ed3226f7d3e18e0"
   integrity sha1-QVxEePK8wwEgwizhDtMib30+GOA=
 
-lodash.isinteger@^4.0.4:
-  version "4.0.4"
-  resolved "https://registry.yarnpkg.com/lodash.isinteger/-/lodash.isinteger-4.0.4.tgz#619c0af3d03f8b04c31f5882840b77b11cd68343"
-  integrity sha1-YZwK89A/iwTDH1iChAt3sRzWg0M=
-
-lodash.isundefined@^3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/lodash.isundefined/-/lodash.isundefined-3.0.1.tgz#23ef3d9535565203a66cefd5b830f848911afb48"
-  integrity sha1-I+89lTVWUgOmbO/VuDD4SJEa+0g=
-
 lodash.memoize@^4.1.2:
   version "4.1.2"
   resolved "https://registry.yarnpkg.com/lodash.memoize/-/lodash.memoize-4.1.2.tgz#bcc6c49a42a2840ed997f323eada5ecd182e0bfe"
@@ -6533,7 +6514,7 @@ mute-stream@0.0.8:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
   integrity sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==
 
-nan@^2.10.0, nan@^2.12.1:
+nan@^2.12.1:
   version "2.14.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
@@ -6616,6 +6597,11 @@ node-abi@^2.19.1, node-abi@^2.7.0:
   integrity sha512-9xZrlyfvKhWme2EXFKQhZRp1yNWT/uI1luYPr3sFl+H4keYY4xR+1jO7mvTTijIsHf1M+QDe9uWuKeEpLInIlg==
   dependencies:
     semver "^5.4.1"
+
+node-addon-api@*:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
+  integrity sha512-flmrDNB06LIl5lywUz7YlNGZH/5p0M7W28k8hzd9Lshtdh1wshD2Y+U4h9LD6KObOy1f+fEVdgprPrEymjM5uw==
 
 node-addon-api@^3.0.0, node-addon-api@^3.0.2:
   version "3.0.2"
@@ -6796,6 +6782,13 @@ npmlog@^4.0.1, npmlog@^4.1.2:
     console-control-strings "~1.1.0"
     gauge "~2.7.3"
     set-blocking "~2.0.0"
+
+nsfw@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-2.1.1.tgz#3cc8cc9ebf567c0121364cd42bb26167242b4be0"
+  integrity sha512-DvkPpsIkw/DogPxI4vQugtrSc0AtuCoxiprLxTLVZrZuEe8H++0DHpV/081q0LOtUc+96yW3FBl0pEKiyMOfJg==
+  dependencies:
+    node-addon-api "*"
 
 nth-check@^1.0.2:
   version "1.0.2"
@@ -10097,16 +10090,6 @@ vscode-nls-dev@^3.3.1:
     vinyl "^2.1.0"
     xml2js "^0.4.19"
     yargs "^13.2.4"
-
-vscode-nsfw@1.2.9:
-  version "1.2.9"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-1.2.9.tgz#87def7c538ae713d08c88592a8a043d2b2009951"
-  integrity sha512-VwaB8H1fS0ngl9eAHgFqtF/q3N3J/ZWfI17zvC8Gfj33cL4UrIW/XxdoFYptBZR/MIA6Qj8FZyYu9D/JvlKWXg==
-  dependencies:
-    fs-extra "^7.0.0"
-    lodash.isinteger "^4.0.4"
-    lodash.isundefined "^3.0.1"
-    nan "^2.10.0"
 
 vscode-oniguruma@1.3.1:
   version "1.3.1"

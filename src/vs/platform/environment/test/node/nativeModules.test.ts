@@ -37,9 +37,9 @@ suite('Native Modules (all platforms)', () => {
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('spdlog'));
 	});
 
-	test('vscode-nsfw', async () => {
-		const nsfWatcher = await import('vscode-nsfw');
-		assert.ok(typeof nsfWatcher === 'function', testErrorMessage('vscode-nsfw'));
+	test('nsfw', async () => {
+		const nsfWatcher = await import('nsfw');
+		assert.ok(typeof nsfWatcher === 'function', testErrorMessage('nsfw'));
 	});
 
 	test('vscode-sqlite3', async () => {
