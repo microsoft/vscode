@@ -78,10 +78,6 @@
 	padding-right: 0;
 }
 
-.workspace-trust-editor.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents .setting-list-edit-row {
-	margin-top: 4px;
-}
-
 .workspace-trust-editor.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents .setting-list-edit-row > .setting-list-valueInput {
 	width: 100%;
 	max-width: 100%;
