@@ -55,7 +55,6 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release() },
-	enableExperimentalMainProcessWorkspaceStorage: false,
 	...parseArgs(process.argv, OPTIONS)
 };
 
@@ -168,6 +167,7 @@ export class TestNativeHostService implements INativeHostService {
 	onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
+	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }

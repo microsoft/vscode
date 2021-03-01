@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/anythingQuickAccess';
-import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks, PicksWithActive } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -221,7 +221,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}));
 
 		// Restore view state upon cancellation if we changed it
-		disposables.add(once(token.onCancellationRequested)(() => this.pickState.restoreEditorViewState()));
+		// but only when the picker was closed via explicit user
+		// gesture and not e.g. when focus was lost because that
+		// could mean the user clicked into the editor directly.
+		disposables.add(once(picker.onDidHide)(({ reason }) => {
+			if (reason === QuickInputHideReason.Gesture) {
+				this.pickState.restoreEditorViewState();
+			}
+		}));
 
 		// Start picker
 		disposables.add(super.provide(picker, token));

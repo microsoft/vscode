@@ -114,7 +114,6 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -254,8 +253,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;
-
-	enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 /**

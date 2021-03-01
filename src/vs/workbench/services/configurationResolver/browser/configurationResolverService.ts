@@ -17,9 +17,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
@@ -373,5 +372,3 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
-
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);

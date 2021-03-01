@@ -17,7 +17,7 @@ import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import product from 'vs/platform/product/common/product';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -26,7 +26,6 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -37,6 +36,7 @@ import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -118,7 +118,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
 
@@ -468,7 +469,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		if (isMacintosh) {
-			const displayChangedScheduler = this._register(new RunOnceScheduler(() => {
+			this._register(this.nativeHostMainService.onDidChangeDisplay(() => {
 				if (!this._win) {
 					return; // disposed
 				}
@@ -480,27 +481,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
-			}, 100));
-
-			const displayChangedListener = (event: Event, display: Display, changedMetrics?: string[]) => {
-				if (Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea') {
-					// Electron will emit 'display-metrics-changed' events even when actually
-					// going fullscreen, because the dock hides. However, we do not want to
-					// react on this event as there is no change in display bounds.
-					return;
-				}
-
-				displayChangedScheduler.schedule();
-			};
-
-			screen.on('display-metrics-changed', displayChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayChangedListener)));
-
-			screen.on('display-added', displayChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-added', displayChangedListener)));
-
-			screen.on('display-removed', displayChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-removed', displayChangedListener)));
+			}));
 		}
 
 		// Window (Un)Maximize
@@ -869,8 +850,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.os = {
 			release: release()
 		};
-
-		windowConfiguration.enableExperimentalMainProcessWorkspaceStorage = !!(windowConfig?.enableExperimentalMainProcessWorkspaceStorage);
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);

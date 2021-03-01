@@ -60,15 +60,13 @@ import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountS
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
 import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
+import 'vs/workbench/services/timer/electron-sandbox/timerService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 
-registerSingleton(ITimerService, TimerService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
 

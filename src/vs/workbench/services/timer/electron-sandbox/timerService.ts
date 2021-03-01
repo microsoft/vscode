@@ -13,9 +13,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IStartupMetrics, AbstractTimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
+import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TimerService extends AbstractTimerService {
 
@@ -79,6 +80,8 @@ export class TimerService extends AbstractTimerService {
 		}
 	}
 }
+
+registerSingleton(ITimerService, TimerService);
 
 //#region cached data logic
 

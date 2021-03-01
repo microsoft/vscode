@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS, ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS, ItemActivation, QuickInputHideReason, IQuickInputHideEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
@@ -146,7 +146,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _buttons: IQuickInputButton[] = [];
 	private buttonsUpdated = false;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
-	private readonly onDidHideEmitter = this._register(new Emitter<void>());
+	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
@@ -266,10 +266,10 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.ui.hide();
 	}
 
-	didHide(): void {
+	didHide(reason = QuickInputHideReason.Other): void {
 		this.visible = false;
 		this.visibleDisposables.clear();
-		this.onDidHideEmitter.fire();
+		this.onDidHideEmitter.fire({ reason });
 	}
 
 	readonly onDidHide = this.onDidHideEmitter.event;
@@ -1257,7 +1257,7 @@ export class QuickInputController extends Disposable {
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
-				this.hide();
+				this.hide(QuickInputHideReason.Blur);
 			}
 			this.previousFocusElement = undefined;
 		}));
@@ -1273,7 +1273,7 @@ export class QuickInputController extends Disposable {
 					break;
 				case KeyCode.Escape:
 					dom.EventHelper.stop(e, true);
-					this.hide();
+					this.hide(QuickInputHideReason.Gesture);
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -1600,7 +1600,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	hide() {
+	hide(reason?: QuickInputHideReason) {
 		const controller = this.controller;
 		if (controller) {
 			const focusChanged = !this.ui?.container.contains(document.activeElement);
@@ -1615,7 +1615,7 @@ export class QuickInputController extends Disposable {
 					this.options.returnFocus();
 				}
 			}
-			controller.didHide();
+			controller.didHide(reason);
 		}
 	}
 

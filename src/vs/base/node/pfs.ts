@@ -6,12 +6,13 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { Queue } from 'vs/base/common/async';
+import { ResourceQueue } from 'vs/base/common/async';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { Event } from 'vs/base/common/event';
 import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
 //#region Constants
 
@@ -361,6 +362,11 @@ export namespace SymlinkSupport {
 
 //#region Write File
 
+// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
+// it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
+// Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
+const writeQueues = new ResourceQueue();
+
 /**
  * Same as `fs.writeFile` but with an additional call to
  * `fs.fdatasync` after writing to ensure changes are
@@ -373,45 +379,11 @@ export function writeFile(path: string, data: Buffer, options?: IWriteFileOption
 export function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
-	const queueKey = toQueueKey(path);
-
-	return ensureWriteFileQueue(queueKey).queue(() => {
+	return writeQueues.queueFor(URI.file(path), extUriBiasedIgnorePathCase).queue(() => {
 		const ensuredOptions = ensureWriteOptions(options);
 
 		return new Promise((resolve, reject) => doWriteFileAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve()));
 	});
-}
-
-// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
-// it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
-// Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
-const writeFilePathQueues: Map<string, Queue<void>> = new Map();
-
-function toQueueKey(path: string): string {
-	let queueKey = path;
-	if (isWindows || isMacintosh) {
-		queueKey = queueKey.toLowerCase(); // accommodate for case insensitive file systems
-	}
-
-	return queueKey;
-}
-
-function ensureWriteFileQueue(queueKey: string): Queue<void> {
-	const existingWriteFileQueue = writeFilePathQueues.get(queueKey);
-	if (existingWriteFileQueue) {
-		return existingWriteFileQueue;
-	}
-
-	const writeFileQueue = new Queue<void>();
-	writeFilePathQueues.set(queueKey, writeFileQueue);
-
-	const onFinish = Event.once(writeFileQueue.onFinished);
-	onFinish(() => {
-		writeFilePathQueues.delete(queueKey);
-		writeFileQueue.dispose();
-	});
-
-	return writeFileQueue;
 }
 
 export interface IWriteFileOptions {
@@ -607,9 +579,6 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 
 	// Symlink
 	if (symbolicLink) {
-		if (symbolicLink.dangling) {
-			return; // do not copy dangling symbolic links (https://github.com/microsoft/vscode/issues/111621)
-		}
 
 		// Try to re-create the symlink unless `preserveSymlinks: false`
 		if (payload.options.preserveSymlinks) {
@@ -619,6 +588,10 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 				// in any case of an error fallback to normal copy via dereferencing
 				console.warn('[node.js fs] copy of symlink failed: ', error);
 			}
+		}
+
+		if (symbolicLink.dangling) {
+			return; // skip dangling symbolic links from here on (https://github.com/microsoft/vscode/issues/111621)
 		}
 	}
 
