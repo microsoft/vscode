@@ -633,12 +633,22 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			}
 		});
 
-		if (markdownParts.length > 0) {
-			disposables.add(this._markdownHoverParticipant.renderHoverParts(markdownParts, fragment));
-		}
+		if (this._editor.getOption(EditorOption.renderMarkerMessagesFirst)) {
+			if (markerMessages.length) {
+				disposables.add(this._markerHoverParticipant.renderHoverParts(markerMessages, fragment));
+			}
 
-		if (markerMessages.length) {
-			disposables.add(this._markerHoverParticipant.renderHoverParts(markerMessages, fragment));
+			if (markdownParts.length > 0) {
+				disposables.add(this._markdownHoverParticipant.renderHoverParts(markdownParts, fragment));
+			}
+		} else {
+			if (markdownParts.length > 0) {
+				disposables.add(this._markdownHoverParticipant.renderHoverParts(markdownParts, fragment));
+			}
+
+			if (markerMessages.length) {
+				disposables.add(this._markerHoverParticipant.renderHoverParts(markerMessages, fragment));
+			}
 		}
 
 		this._renderDisposable = disposables;

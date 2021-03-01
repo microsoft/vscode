@@ -3149,6 +3149,11 @@ declare namespace monaco.editor {
 		 */
 		renderLineHighlightOnlyWhenFocus?: boolean;
 		/**
+		 * Controls if messages from markers should always be on top of hover list.
+		 * Defaults to false.
+		 */
+		renderMarkerMessagesFirst?: boolean;
+		/**
 		 * Inserting and deleting whitespace follows tab stops.
 		 */
 		useTabStops?: boolean;
@@ -4055,52 +4060,53 @@ declare namespace monaco.editor {
 		renderFinalNewline = 80,
 		renderLineHighlight = 81,
 		renderLineHighlightOnlyWhenFocus = 82,
-		renderValidationDecorations = 83,
-		renderWhitespace = 84,
-		revealHorizontalRightPadding = 85,
-		roundedSelection = 86,
-		rulers = 87,
-		scrollbar = 88,
-		scrollBeyondLastColumn = 89,
-		scrollBeyondLastLine = 90,
-		scrollPredominantAxis = 91,
-		selectionClipboard = 92,
-		selectionHighlight = 93,
-		selectOnLineNumbers = 94,
-		showFoldingControls = 95,
-		showHoverDefinition = 96,
-		showMultipleSignaturesAsList = 97,
-		showUnused = 98,
-		snippetSuggestions = 99,
-		smartSelect = 100,
-		smoothScrolling = 101,
-		stickyTabStops = 102,
-		stopRenderingLineAfter = 103,
-		suggest = 104,
-		suggestFontSize = 105,
-		suggestLineHeight = 106,
-		suggestOnTriggerCharacters = 107,
-		suggestSelection = 108,
-		tabCompletion = 109,
-		tabIndex = 110,
-		unusualLineTerminators = 111,
-		useTabStops = 112,
-		wordSeparators = 113,
-		wordWrap = 114,
-		wordWrapBreakAfterCharacters = 115,
-		wordWrapBreakBeforeCharacters = 116,
-		wordWrapColumn = 117,
-		wordWrapOverride1 = 118,
-		wordWrapOverride2 = 119,
-		wrappingIndent = 120,
-		wrappingStrategy = 121,
-		showDeprecated = 122,
-		inlineHints = 123,
-		editorClassName = 124,
-		pixelRatio = 125,
-		tabFocusMode = 126,
-		layoutInfo = 127,
-		wrappingInfo = 128
+		renderMarkerMessagesFirst = 83,
+		renderValidationDecorations = 84,
+		renderWhitespace = 85,
+		revealHorizontalRightPadding = 86,
+		roundedSelection = 87,
+		rulers = 88,
+		scrollbar = 89,
+		scrollBeyondLastColumn = 90,
+		scrollBeyondLastLine = 91,
+		scrollPredominantAxis = 92,
+		selectionClipboard = 93,
+		selectionHighlight = 94,
+		selectOnLineNumbers = 95,
+		showFoldingControls = 96,
+		showHoverDefinition = 97,
+		showMultipleSignaturesAsList = 98,
+		showUnused = 99,
+		snippetSuggestions = 100,
+		smartSelect = 101,
+		smoothScrolling = 102,
+		stickyTabStops = 103,
+		stopRenderingLineAfter = 104,
+		suggest = 105,
+		suggestFontSize = 106,
+		suggestLineHeight = 107,
+		suggestOnTriggerCharacters = 108,
+		suggestSelection = 109,
+		tabCompletion = 110,
+		tabIndex = 111,
+		unusualLineTerminators = 112,
+		useTabStops = 113,
+		wordSeparators = 114,
+		wordWrap = 115,
+		wordWrapBreakAfterCharacters = 116,
+		wordWrapBreakBeforeCharacters = 117,
+		wordWrapColumn = 118,
+		wordWrapOverride1 = 119,
+		wordWrapOverride2 = 120,
+		wrappingIndent = 121,
+		wrappingStrategy = 122,
+		showDeprecated = 123,
+		inlineHints = 124,
+		editorClassName = 125,
+		pixelRatio = 126,
+		tabFocusMode = 127,
+		layoutInfo = 128,
+		wrappingInfo = 129
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4187,6 +4193,7 @@ declare namespace monaco.editor {
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, boolean>;
 		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
 		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;
+		renderMarkerMessagesFirst: IEditorOption<EditorOption.renderMarkerMessagesFirst, boolean>;
 		renderValidationDecorations: IEditorOption<EditorOption.renderValidationDecorations, 'on' | 'off' | 'editable'>;
 		renderWhitespace: IEditorOption<EditorOption.renderWhitespace, 'all' | 'none' | 'boundary' | 'selection' | 'trailing'>;
 		revealHorizontalRightPadding: IEditorOption<EditorOption.revealHorizontalRightPadding, number>;

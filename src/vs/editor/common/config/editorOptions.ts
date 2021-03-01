@@ -584,6 +584,11 @@ export interface IEditorOptions {
 	 */
 	renderLineHighlightOnlyWhenFocus?: boolean;
 	/**
+	 * Controls if messages from markers should always be on top of hover list.
+	 * Defaults to false.
+	 */
+	renderMarkerMessagesFirst?: boolean;
+	/**
 	 * Inserting and deleting whitespace follows tab stops.
 	 */
 	useTabStops?: boolean;
@@ -3817,6 +3822,7 @@ export const enum EditorOption {
 	renderFinalNewline,
 	renderLineHighlight,
 	renderLineHighlightOnlyWhenFocus,
+	renderMarkerMessagesFirst,
 	renderValidationDecorations,
 	renderWhitespace,
 	revealHorizontalRightPadding,
@@ -4287,6 +4293,10 @@ export const EditorOptions = {
 	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
 		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
 		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused") }
+	)),
+	renderMarkerMessagesFirst: register(new EditorBooleanOption(
+		EditorOption.renderMarkerMessagesFirst, 'renderMarkerMessagesFirst', false,
+		{ description: nls.localize('renderMarkerMessagesFirst', 'Controls if messages from markers should always be on top of hover list.') }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
