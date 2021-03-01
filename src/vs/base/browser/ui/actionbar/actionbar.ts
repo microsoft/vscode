@@ -151,6 +151,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 				eventHandled = this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
+			} else if (event.equals(KeyCode.Home)) {
+				eventHandled = this.focusFirst();
+			} else if (event.equals(KeyCode.End)) {
+				eventHandled = this.focusLast();
 			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
 				eventHandled = this.focusNext();
 			} else if (this.isTriggerKeyEvent(event)) {
@@ -411,6 +415,16 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			this.updateFocus();
 		}
+	}
+
+	private focusFirst(): boolean {
+		this.focusedItem = this.length() > 1 ? 1 : 0;
+		return this.focusPrevious();
+	}
+
+	private focusLast(): boolean {
+		this.focusedItem = this.length() < 2 ? 0 : this.length() - 2;
+		return this.focusNext();
 	}
 
 	protected focusNext(): boolean {
