@@ -634,6 +634,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	showMultipleSignaturesAsList?: boolean;
+	/**
+	 * Controls whether to show hover with quick definition.
+	 * Defaults to true.
+	 */
+	showHoverDefinition?: boolean;
 }
 
 /**
@@ -3819,6 +3824,7 @@ export const enum EditorOption {
 	selectionHighlight,
 	selectOnLineNumbers,
 	showFoldingControls,
+	showHoverDefinition,
 	showMultipleSignaturesAsList,
 	showUnused,
 	snippetSuggestions,
@@ -4340,6 +4346,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('showFoldingControls', "Controls when the folding controls on the gutter are shown.")
 		}
+	)),
+	showHoverDefinition: register(new EditorBooleanOption(
+		EditorOption.showHoverDefinition, 'showHoverDefinition', false,
+		{ description: nls.localize('showHoverDefinition', "Show definition on hover with Ctrl/Cmd button.") }
 	)),
 	showMultipleSignaturesAsList: register(new EditorBooleanOption(
 		EditorOption.showMultipleSignaturesAsList, 'showMultipleSignaturesAsList', false,

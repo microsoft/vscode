@@ -54,9 +54,11 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.add(linkGesture);
 
-		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this.startFindDefinitionFromMouse(mouseEvent, withNullAsUndefined(keyboardEvent));
-		}));
+		if (this.editor.getOption(EditorOption.showHoverDefinition)) {
+			this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+				this.startFindDefinitionFromMouse(mouseEvent, withNullAsUndefined(keyboardEvent));
+			}));
+		}
 
 		this.toUnhook.add(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
 			if (this.isEnabled(mouseEvent)) {
