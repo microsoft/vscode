@@ -73,6 +73,12 @@
 }
 
 /** Settings */
+.workspace-trust-editor.settings-editor > .settings-body > .settings-tree-container .shadow.top {
+	left: unset;
+	margin-left: unset;
+	max-width: unset;
+}
+
 .workspace-trust-editor.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
 	padding-left: 0;
 	padding-right: 0;
