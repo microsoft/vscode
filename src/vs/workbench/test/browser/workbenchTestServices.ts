@@ -1373,6 +1373,14 @@ export class TestEditorPart extends EditorPart {
 	}
 }
 
+export function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): TestEditorPart {
+	const part = disposables.add(instantiationService.createInstance(TestEditorPart));
+	part.create(document.createElement('div'));
+	part.layout(1080, 800);
+
+	return part;
+}
+
 export class TestListService implements IListService {
 	declare readonly _serviceBrand: undefined;
 
