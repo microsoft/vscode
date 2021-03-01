@@ -12,7 +12,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookEditorCreationOptions, NotebookEditorOptions, ICellOutputViewModel, IInsetRenderOutput, ICommonCellInfo, IGenericCellViewModel, INotebookCellOutputLayoutInfo, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookEditorCreationOptions, NotebookEditorOptions, ICellOutputViewModel, IInsetRenderOutput, ICommonCellInfo, IGenericCellViewModel, INotebookCellOutputLayoutInfo, CellEditState, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -59,13 +59,10 @@ export class TestNotebookEditor implements INotebookEditor {
 		return this._isDisposed;
 	}
 
-	get viewModel() {
-		return undefined;
-	}
 	creationOptions: INotebookEditorCreationOptions = { isEmbedded: false };
 
-	constructor(
-	) { }
+	constructor(readonly viewModel: NotebookViewModel) { }
+
 	getSelection(): ICellRange | undefined {
 		throw new Error('Method not implemented.');
 	}
@@ -137,7 +134,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
 
-	hasModel(): boolean {
+	hasModel(): this is IActiveNotebookEditor {
 		return true;
 	}
 
@@ -457,7 +454,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export function withTestNotebook(accessor: ServicesAccessor, cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
+export function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => R): R {
 
 	const instantiationService = accessor.get(IInstantiationService);
 	const undoRedoService = accessor.get(IUndoRedoService);
@@ -465,22 +462,25 @@ export function withTestNotebook(accessor: ServicesAccessor, cells: [string, str
 	const bulkEditService = accessor.get(IBulkEditService);
 
 	const viewType = 'notebook';
-	const editor = new TestNotebookEditor();
 	const notebook = new NotebookTextModel(viewType, URI.parse('test'), cells.map(cell => {
 		return {
 			source: cell[0],
 			language: cell[1],
 			cellKind: cell[2],
-			outputs: cell[3],
+			outputs: cell[3] ?? [],
 			metadata: cell[4]
 		};
 	}), notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
 	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
+	const editor = new TestNotebookEditor(viewModel);
 
-	callback(editor, viewModel, notebook);
-
-	viewModel.dispose();
-	return;
+	const res = callback(editor, viewModel, notebook);
+	if (res instanceof Promise) {
+		res.finally(() => viewModel.dispose());
+	} else {
+		viewModel.dispose();
+	}
+	return res;
 }

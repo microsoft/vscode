@@ -237,7 +237,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
-	getQuickPickElements(): Iterable<IQuickPickOutlineElement<OutlineEntry>> {
+	getQuickPickElements(): IQuickPickOutlineElement<OutlineEntry>[] {
 		const bucket: OutlineEntry[] = [];
 		for (let entry of this._getEntries()) {
 			entry.asFlatList(bucket);
