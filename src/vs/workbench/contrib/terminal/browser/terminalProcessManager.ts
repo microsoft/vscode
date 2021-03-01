@@ -275,6 +275,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
 				this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
+				if (this._processType === ProcessType.ExtensionTerminal) {
+					this._environmentVariableInfo.extensionTerminal = true;
+				}
 				this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
 			}
 		}
@@ -409,6 +412,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			return;
 		}
 		this._environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._terminalId);
+		if (this._processType === ProcessType.ExtensionTerminal) {
+			this._environmentVariableInfo.extensionTerminal = true;
+		}
 		this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
 	}
 }

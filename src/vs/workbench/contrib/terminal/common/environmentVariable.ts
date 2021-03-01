@@ -100,6 +100,7 @@ export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVa
 
 export interface IEnvironmentVariableInfo {
 	readonly requiresAction: boolean;
+	extensionTerminal: boolean;
 	getInfo(): string;
 	getIcon(): ThemeIcon;
 	getActions?(): { label: string, iconClass?: string, run: () => void, commandId: string }[];

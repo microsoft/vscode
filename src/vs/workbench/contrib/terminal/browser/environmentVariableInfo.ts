@@ -12,7 +12,7 @@ import { Codicon } from 'vs/base/common/codicons';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;
-
+	extensionTerminal = false;
 	constructor(
 		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
 		private readonly _terminalId: number,
@@ -70,7 +70,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 
 export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariableInfo {
 	readonly requiresAction = false;
-
+	extensionTerminal = false;
 	constructor(
 		private _collection: IMergedEnvironmentVariableCollection
 	) {
