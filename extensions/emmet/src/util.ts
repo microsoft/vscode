@@ -28,7 +28,6 @@ export function getEmmetHelper() {
 	if (!_emmetHelper) {
 		_emmetHelper = require('vscode-emmet-helper');
 	}
-	updateEmmetExtensionsPath();
 	return _emmetHelper;
 }
 
@@ -36,9 +35,7 @@ export function getEmmetHelper() {
  * Update Emmet Helper to use user snippets from the extensionsPath setting
  */
 export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
-	if (!_emmetHelper) {
-		return;
-	}
+	const helper = getEmmetHelper();
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
@@ -47,7 +44,7 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 		} else {
 			const rootPath = vscode.workspace.workspaceFolders[0].uri;
 			const fileSystem = vscode.workspace.fs;
-			_emmetHelper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).then(null, (err: string) => vscode.window.showErrorMessage(err));
+			helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => vscode.window.showErrorMessage(err.message));
 		}
 	}
 }
