@@ -125,6 +125,21 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "redhat.vscode-yaml",
+			"version": "0.15.0",
+			"repo": "https://github.com/redhat-developer/vscode-yaml",
+			"metadata": {
+				"id": "2061917f-f76a-458a-8da9-f162de22b97e",
+				"publisherId": {
+					"publisherId": "eed56242-9699-4317-8bc7-e9f4b9bdd3ff",
+					"publisherName": "redhat",
+					"displayName": "Red Hat",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Red Hat"
+			}
 		}
 	],
 	"webBuiltInExtensions": [
