@@ -15,8 +15,16 @@ export abstract class Widget extends Disposable {
 		this._register(dom.addDisposableListener(domNode, dom.EventType.CLICK, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
 	}
 
-	protected onmousedown(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
+	protected onmousedown(domNode: EventTarget, listener: (e: IMouseEvent) => void): void {
 		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+	}
+
+	protected onmouseup(domNode: EventTarget, listener: (e: IMouseEvent) => void): void {
+		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_UP, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+	}
+
+	protected onmousemove(domNode: EventTarget, listener: (e: IMouseEvent) => void): void {
+		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_MOVE, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
 	}
 
 	protected onmouseover(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {

@@ -7,6 +7,7 @@ import 'vs/css!./hover';
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ResizableElement } from 'vs/base/browser/ui/resizable/resizableElement';
 
 const $ = dom.$;
 
@@ -14,6 +15,7 @@ export class HoverWidget extends Disposable {
 
 	public readonly containerDomNode: HTMLElement;
 	public readonly contentsDomNode: HTMLElement;
+	public readonly resizable: ResizableElement;
 	private readonly _scrollbar: DomScrollableElement;
 
 	constructor() {
@@ -27,7 +29,9 @@ export class HoverWidget extends Disposable {
 		this.contentsDomNode = document.createElement('div');
 		this.contentsDomNode.className = 'monaco-hover-content';
 
-		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
+		this.resizable = this._register(new ResizableElement(this.contentsDomNode));
+		this._register(this.resizable.onResize(() => this.onContentsChanged()));
+		this._scrollbar = this._register(new DomScrollableElement(this.resizable.getDomNode(), {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
 		this.containerDomNode.appendChild(this._scrollbar.getDomNode());

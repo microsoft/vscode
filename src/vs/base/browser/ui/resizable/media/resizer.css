@@ -1,0 +1,19 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-resizable-element > .resizer {
+	cursor: nwse-resize;
+	width: 30px;
+	height: 30px;
+	position: absolute;
+	right: -15px;
+	bottom: -15px;
+	z-index: 20;
+}
+
+.monaco-resizable-element {
+	min-width: 100px;
+	min-height: 50px;
+}

@@ -320,6 +320,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}));
 	}
 
+	get isResizing(): boolean {
+		return this._hover.resizable.isResizing;
+	}
+
 	public dispose(): void {
 		this._hoverOperation.cancel();
 		this._editor.removeContentWidget(this);
@@ -382,12 +386,13 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	private layout(): void {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
 		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
 		this._hover.contentsDomNode.style.lineHeight = `${lineHeight}px`;
 		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
-		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${width}px`;
 	}
 
 	public onModelDecorationsChanged(): void {
@@ -444,6 +449,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._lastRange = range;
 		this._lastKeyModifiers = keyModifiers;
 		this._sticky = !!sticky;
+		if (this._sticky) {
+			this._hover.resizable.restoreResize();
+		}
 		this._computer.setRange(range);
 		this._computer.setContext({
 			keyModifiers: keyModifiers,
@@ -458,6 +466,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._hoverOperation.cancel();
 
 		if (this._isVisible) {
+			if (this._sticky) {
+				this._hover.resizable.saveResize();
+			}
+
 			setTimeout(() => {
 				// Give commands a chance to see the key
 				if (!this._isVisible) {
@@ -471,6 +483,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			if (this._stoleFocus) {
 				this._editor.focus();
 			}
+			this._hover.resizable.clearResize();
 		}
 
 		this._isChangingDecorations = true;
