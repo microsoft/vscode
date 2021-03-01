@@ -17,6 +17,7 @@ import { IRemoteTerminalProcessExecCommandEvent, IShellLaunchConfigDto, RemoteTe
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+
 export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
 	public _serviceBrand: undefined;
 
@@ -39,7 +40,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	public async createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess> {
+	public async createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -52,7 +53,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			});
 		}
 
-		return new RemoteTerminalProcess(terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+		return new RemoteTerminalProcess(terminalId, shouldPersist, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
 	}
 
 	public async listTerminals(isInitialization = false): Promise<IRemoteTerminalAttachTarget[]> {
@@ -108,6 +109,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 
 	constructor(
 		readonly id: number,
+		readonly shouldPersist: boolean,
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
 		private readonly _activeWorkspaceRootUri: URI | undefined,
 		private readonly _cols: number,
@@ -154,7 +156,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 			const result = await this._remoteTerminalChannel.createTerminalProcess(
 				shellLaunchConfigDto,
 				this._activeWorkspaceRootUri,
-				!this._shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions,
+				this.shouldPersist,
 				this._cols,
 				this._rows,
 				isWorkspaceShellAllowed,

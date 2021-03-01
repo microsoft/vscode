@@ -90,7 +90,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
 	public get persistentTerminalId(): number | undefined { return this._process?.id; }
-	public get shouldPersist(): boolean { return this._process?.shouldPersist || false; }
+	public get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
 
 	public get hasWrittenData(): boolean {
 		return this._hasWrittenData;
@@ -187,7 +187,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
 				if (enableRemoteAgentTerminals) {
-					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+					const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
+					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				} else {
 					this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
 				}

@@ -26,6 +26,7 @@ const WRITE_INTERVAL_MS = 5;
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
+	readonly shouldPersist = false;
 
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
