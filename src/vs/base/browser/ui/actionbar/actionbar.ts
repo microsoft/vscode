@@ -28,9 +28,7 @@ export interface IActionViewItemProvider {
 
 export const enum ActionsOrientation {
 	HORIZONTAL,
-	HORIZONTAL_REVERSE,
 	VERTICAL,
-	VERTICAL_REVERSE,
 }
 
 export interface ActionTrigger {
@@ -135,20 +133,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 				previousKeys = [KeyCode.LeftArrow];
 				nextKeys = [KeyCode.RightArrow];
 				break;
-			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKeys = [KeyCode.RightArrow];
-				nextKeys = [KeyCode.LeftArrow];
-				this.domNode.className += ' reverse';
-				break;
 			case ActionsOrientation.VERTICAL:
 				previousKeys = [KeyCode.UpArrow];
 				nextKeys = [KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
-				break;
-			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKeys = [KeyCode.DownArrow];
-				nextKeys = [KeyCode.UpArrow];
-				this.domNode.className += ' vertical reverse';
 				break;
 		}
 
