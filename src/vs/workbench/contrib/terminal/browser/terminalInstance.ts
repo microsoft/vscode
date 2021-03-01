@@ -644,18 +644,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
-		this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
-			this._terminalFocusContextKey.set(true);
-			if (this.shellType) {
-				this._terminalShellTypeContextKey.set(this.shellType.toString());
-			} else {
-				this._terminalShellTypeContextKey.reset();
-			}
-		}));
-		this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
-			this._terminalFocusContextKey.reset();
-			this._refreshSelectionContextKey();
-		}));
 
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
