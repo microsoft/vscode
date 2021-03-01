@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookSelection', () => {
@@ -122,6 +122,53 @@ suite('NotebookCellList focus/selection', () => {
 				cellList.setHiddenAreas(viewModel.getHiddenRanges(), true);
 				assert.strictEqual(cellList.length, 4);
 				assert.deepStrictEqual(viewModel.getSelection(), { start: 2, end: 3 });
+			});
+	});
+
+	test('notebook validate range', () => {
+		withTestNotebook(
+			instantiationService,
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				assert.deepStrictEqual(viewModel.validateRange(null), null);
+				assert.deepStrictEqual(viewModel.validateRange(undefined), null);
+				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 0 }), null);
+				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 2 }), { start: 0, end: 2 });
+				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 3 }), { start: 0, end: 2 });
+				assert.deepStrictEqual(viewModel.validateRange({ start: -1, end: 3 }), { start: 0, end: 2 });
+				assert.deepStrictEqual(viewModel.validateRange({ start: -1, end: 1 }), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.validateRange({ start: 2, end: 1 }), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.validateRange({ start: 2, end: -1 }), { start: 0, end: 2 });
+			});
+	});
+
+	test('notebook updateSelectionState', function () {
+		withTestNotebook(
+			instantiationService,
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 1, end: 2 }, { start: -1, end: 0 }] });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
+			});
+	});
+
+	test('notebook cell selection w/ cell deletion', function () {
+		withTestNotebook(
+			instantiationService,
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 1, end: 2 }] });
+				viewModel.deleteCell(1, true, false);
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
 			});
 	});
 });
