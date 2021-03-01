@@ -5,10 +5,11 @@
 
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export abstract class BackupTracker extends Disposable {
 
@@ -20,11 +21,26 @@ export abstract class BackupTracker extends Disposable {
 	// A map of scheduled pending backups for working copies
 	protected readonly pendingBackups = new Map<IWorkingCopy, IDisposable>();
 
+	// Delay creation of backups when content changes to avoid too much
+	// load on the backup service when the user is typing into the editor
+	// Since we always schedule a backup, even when auto save is on, we
+	// have different scheduling delays based on auto save. This helps to
+	// avoid a (not critical but also not really wanted) race between saving
+	// (after 1s per default) and making a backup of the working copy.
+	private static readonly BACKUP_SCHEDULE_DELAYS = {
+		[AutoSaveMode.OFF]: 1000,
+		[AutoSaveMode.ON_FOCUS_CHANGE]: 1000,
+		[AutoSaveMode.ON_WINDOW_CHANGE]: 1000,
+		[AutoSaveMode.AFTER_SHORT_DELAY]: 2000, // explicitly higher to prevent races
+		[AutoSaveMode.AFTER_LONG_DELAY]: 1000
+	};
+
 	constructor(
 		protected readonly backupFileService: IBackupFileService,
 		protected readonly workingCopyService: IWorkingCopyService,
 		protected readonly logService: ILogService,
-		protected readonly lifecycleService: ILifecycleService
+		protected readonly lifecycleService: ILifecycleService,
+		protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -84,27 +100,10 @@ export abstract class BackupTracker extends Disposable {
 		}
 	}
 
-	/**
-	 * Allows subclasses to conditionally opt-out of doing a backup, e.g. if
-	 * auto save is enabled.
-	 */
-	protected abstract shouldScheduleBackup(workingCopy: IWorkingCopy): boolean;
-
-	/**
-	 * Allows subclasses to control the delay before performing a backup from
-	 * working copy content changes.
-	 */
-	protected abstract getBackupScheduleDelay(workingCopy: IWorkingCopy): number;
-
 	private scheduleBackup(workingCopy: IWorkingCopy): void {
 
 		// Clear any running backup operation
 		this.cancelBackup(workingCopy);
-
-		// subclass prevented backup for working copy
-		if (!this.shouldScheduleBackup(workingCopy)) {
-			return;
-		}
 
 		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString());
 
@@ -151,6 +150,15 @@ export abstract class BackupTracker extends Disposable {
 			cts.dispose(true);
 			clearTimeout(handle);
 		}));
+	}
+
+	protected getBackupScheduleDelay(workingCopy: IWorkingCopy): number {
+		let autoSaveMode = this.filesConfigurationService.getAutoSaveMode();
+		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
+			autoSaveMode = AutoSaveMode.OFF; // auto-save is never on for untitled working copies
+		}
+
+		return BackupTracker.BACKUP_SCHEDULE_DELAYS[autoSaveMode];
 	}
 
 	protected getContentVersion(workingCopy: IWorkingCopy): number {

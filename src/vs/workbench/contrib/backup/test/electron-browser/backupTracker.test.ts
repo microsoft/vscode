@@ -159,10 +159,17 @@ flakySuite('BackupTracker (native)', function () {
 		return { accessor, part, tracker, instantiationService, cleanup };
 	}
 
-	test('Track backups (file)', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('Track backups (file, auto save off)', function () {
+		return trackBackupsTest(toResource.call(this, '/path/index.txt'), false);
+	});
 
-		const resource = toResource.call(this, '/path/index.txt');
+	test('Track backups (file, auto save on)', function () {
+		return trackBackupsTest(toResource.call(this, '/path/index.txt'), true);
+	});
+
+	async function trackBackupsTest(resource: URI, autoSave: boolean) {
+		const { accessor, cleanup } = await createTracker(autoSave);
+
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 
 		const fileModel = accessor.textFileService.files.get(resource);
@@ -179,7 +186,7 @@ flakySuite('BackupTracker (native)', function () {
 		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), false);
 
 		await cleanup();
-	});
+	}
 
 	test('onWillShutdown - no veto if no dirty files', async function () {
 		const { accessor, cleanup } = await createTracker();
