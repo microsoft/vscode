@@ -15,7 +15,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
-import { HoverProviderRegistry } from 'vs/editor/common/modes';
+import { HoverProviderRegistry, HoverContext } from 'vs/editor/common/modes';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { Position } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -75,7 +75,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public async computeAsync(range: Range, token: CancellationToken): Promise<MarkdownHover[]> {
+	public async computeAsync(range: Range, token: CancellationToken, context?: HoverContext): Promise<MarkdownHover[]> {
 		if (!this._editor.hasModel() || !range) {
 			return Promise.resolve([]);
 		}
@@ -89,7 +89,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const hovers = await getHover(model, new Position(
 			range.startLineNumber,
 			range.startColumn
-		), token);
+		), token, context);
 
 		const result: MarkdownHover[] = [];
 		for (const hover of hovers) {

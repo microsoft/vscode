@@ -423,6 +423,7 @@ declare namespace monaco {
 		equals(keybinding: number): boolean;
 		preventDefault(): void;
 		stopPropagation(): void;
+		getKeyMods(): KeyMod[];
 	}
 	export interface IMouseEvent {
 		readonly browserEvent: MouseEvent;
@@ -5553,6 +5554,25 @@ declare namespace monaco.languages {
 		range?: IRange;
 	}
 
+	export enum HoverSource {
+		Mouse = 1,
+		Action = 2
+	}
+
+	/**
+	 * Context for hovering operation.
+	 */
+	export interface HoverContext {
+		/**
+		 * Modifier the hover was invoked with.
+		 */
+		keyModifiers: KeyMod[];
+		/**
+		 * The source of invoking hover.
+		 */
+		source: HoverSource;
+	}
+
 	/**
 	 * The hover provider interface defines the contract between extensions and
 	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
@@ -5563,7 +5583,7 @@ declare namespace monaco.languages {
 		 * position will be merged by the editor. A hover can have a range which defaults
 		 * to the word range at the position when omitted.
 		 */
-		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken, context: HoverContext): ProviderResult<Hover>;
 	}
 
 	export enum CompletionItemKind {

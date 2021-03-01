@@ -388,10 +388,10 @@ export function registerSignatureHelpProvider(languageId: string, provider: mode
  */
 export function registerHoverProvider(languageId: string, provider: modes.HoverProvider): IDisposable {
 	return modes.HoverProviderRegistry.register(languageId, {
-		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<modes.Hover | undefined> => {
+		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken, context: modes.HoverContext): Promise<modes.Hover | undefined> => {
 			let word = model.getWordAtPosition(position);
 
-			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token)).then((value): modes.Hover | undefined => {
+			return Promise.resolve<modes.Hover | null | undefined>(provider.provideHover(model, position, token, context)).then((value): modes.Hover | undefined => {
 				if (!value) {
 					return undefined;
 				}
@@ -625,6 +625,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlineHintKind: standaloneEnums.InlineHintKind,
+		HoverSource: standaloneEnums.HoverSource,
 
 		// classes
 		FoldingRangeKind: modes.FoldingRangeKind,

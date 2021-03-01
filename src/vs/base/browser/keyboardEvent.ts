@@ -198,6 +198,8 @@ export interface IKeyboardEvent {
 
 	preventDefault(): void;
 	stopPropagation(): void;
+
+	getKeyMods(): KeyMod[]
 }
 
 const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
@@ -332,5 +334,19 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 			key = this.keyCode;
 		}
 		return new SimpleKeybinding(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);
+	}
+
+	public getKeyMods(): KeyMod[] {
+		const result: KeyMod[] = [];
+		if (this.ctrlKey) {
+			result.push(ctrlKeyMod);
+		} else if (this.altKey) {
+			result.push(altKeyMod);
+		} else if (this.shiftKey) {
+			result.push(shiftKeyMod);
+		} else if (this.metaKey) {
+			result.push(metaKeyMod);
+		}
+		return result;
 	}
 }

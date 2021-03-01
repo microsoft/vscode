@@ -2595,6 +2595,26 @@ declare module 'vscode' {
 		constructor(contents: MarkedString | MarkedString[], range?: Range);
 	}
 
+	export enum HoverSource {
+		Mouse = 1,
+		Action = 2
+	}
+
+	/**
+	 * Context for hovering operation.
+	 */
+	export interface HoverContext {
+		/**
+		 * Modifier the hover was invoked with.
+		 */
+		keyModifiers: number[];
+
+		/**
+		 * The source of invoking hover.
+		 */
+		source: HoverSource;
+	}
+
 	/**
 	 * The hover provider interface defines the contract between extensions and
 	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
@@ -2608,11 +2628,12 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
+		 * @param context The context containing information about hover.
 		 * @param token A cancellation token.
 		 * @return A hover or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		provideHover(document: TextDocument, position: Position, token: CancellationToken, context: HoverContext): ProviderResult<Hover>;
 	}
 
 	/**

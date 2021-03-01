@@ -249,12 +249,12 @@ class HoverAdapter {
 		private readonly _provider: vscode.HoverProvider,
 	) { }
 
-	public provideHover(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined> {
+	public provideHover(resource: URI, position: IPosition, token: CancellationToken, context: modes.HoverContext): Promise<modes.Hover | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		return asPromise(() => this._provider.provideHover(doc, pos, token)).then(value => {
+		return asPromise(() => this._provider.provideHover(doc, pos, token, context)).then(value => {
 			if (!value || isFalsyOrEmpty(value.contents)) {
 				return undefined;
 			}
@@ -1571,8 +1571,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined> {
-		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined);
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken, context: modes.HoverContext): Promise<modes.Hover | undefined> {
+		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token, context), undefined);
 	}
 
 	// --- debug hover

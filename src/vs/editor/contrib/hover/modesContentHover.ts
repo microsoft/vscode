@@ -11,7 +11,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, IColor, TokenizationRegistry } from 'vs/editor/common/modes';
+import { DocumentColorProvider, IColor, TokenizationRegistry, HoverSource, HoverContext } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -26,7 +26,7 @@ import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHover, MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -44,7 +44,7 @@ export interface IEditorHover {
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): T[];
-	computeAsync?(range: Range, token: CancellationToken): Promise<T[]>;
+	computeAsync?(range: Range, token: CancellationToken, context: HoverContext): Promise<T[]>;
 	renderHoverParts(hoverParts: T[], fragment: DocumentFragment): IDisposable;
 }
 
@@ -73,6 +73,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 	private readonly _editor: ICodeEditor;
 	private _result: HoverPartInfo[];
 	private _range: Range | null;
+	private _context?: HoverContext;
 
 	constructor(
 		editor: ICodeEditor,
@@ -89,6 +90,11 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 		this._result = [];
 	}
 
+	setContext(context: HoverContext) {
+		this._context = context;
+		this._result = [];
+	}
+
 	public clearResult(): void {
 		this._result = [];
 	}
@@ -98,7 +104,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 			return Promise.resolve([]);
 		}
 
-		const markdownHovers = await this._markdownHoverParticipant.computeAsync(this._range, token);
+		const markdownHovers = await this._markdownHoverParticipant.computeAsync(this._range, token, this._context);
 		return markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, h));
 	}
 
@@ -194,6 +200,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	private _messages: HoverPartInfo[];
 	private _lastRange: Range | null;
+	private _lastKeyModifiers: Set<KeyMod> = new Set();
 	private readonly _computer: ModesContentComputer;
 	private readonly _hoverOperation: HoverOperation<HoverPartInfo[]>;
 	private _highlightDecorations: string[];
@@ -378,9 +385,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}
 	}
 
-	public startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
-		if (this._lastRange && this._lastRange.equalsRange(range)) {
-			// We have to show the widget at the exact same range as before, so no work is needed
+	public startShowingAt(range: Range, mode: HoverStartMode, focus: boolean, source: HoverSource, keyModifiers?: Set<KeyMod>): void {
+		if (this._lastRange && this._lastRange.equalsRange(range) && keyModifiers &&
+			this._lastKeyModifiers.size === keyModifiers.size && [...this._lastKeyModifiers].every(value => keyModifiers.has(value))) {
+			// We have to show the widget at the exact same range with the same modifiers as before, so no work is needed
 			return;
 		}
 
@@ -413,9 +421,35 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}
 
 		this._lastRange = range;
+		if (keyModifiers) {
+			this._lastKeyModifiers = keyModifiers;
+		} else {
+			this._lastKeyModifiers.clear();
+		}
 		this._computer.setRange(range);
+		this._computer.setContext({
+			keyModifiers: [...this._lastKeyModifiers],
+			source: source
+		});
 		this._shouldFocus = focus;
 		this._hoverOperation.start(mode);
+	}
+
+	update(range: Range, mode: HoverStartMode, focus: boolean, source: HoverSource, keyModifiers: Set<KeyMod>): void {
+		this._hoverOperation.cancel();
+
+		if (this._isVisible) {
+			this.hide();
+			this._lastRange = range;
+			this._lastKeyModifiers = keyModifiers;
+			this._computer.setRange(range);
+			this._computer.setContext({
+				keyModifiers: [...keyModifiers],
+				source: source
+			});
+			this._shouldFocus = focus;
+			this._hoverOperation.start(mode);
+		}
 	}
 
 	public hide(): void {

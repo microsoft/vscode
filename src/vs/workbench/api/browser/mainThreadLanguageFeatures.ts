@@ -234,8 +234,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerHoverProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, modes.HoverProviderRegistry.register(selector, <modes.HoverProvider>{
-			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<modes.Hover | undefined> => {
-				return this._proxy.$provideHover(handle, model.uri, position, token);
+			provideHover: (model: ITextModel, position: EditorPosition, token: CancellationToken, context: modes.HoverContext): Promise<modes.Hover | undefined> => {
+				return this._proxy.$provideHover(handle, model.uri, position, token, context);
 			}
 		}));
 	}

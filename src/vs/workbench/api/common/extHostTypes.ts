@@ -3270,7 +3270,6 @@ export enum StandardTokenType {
 	RegEx = 4
 }
 
-
 export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
 	}
@@ -3311,4 +3310,9 @@ export enum WorkspaceTrustState {
 	Untrusted = 0,
 	Trusted = 1,
 	Unknown = 2
+}
+
+export enum HoverSource {
+	Mouse = 1,
+	Action = 2
 }

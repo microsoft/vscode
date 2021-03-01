@@ -9,14 +9,18 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
+import { Hover, HoverContext, HoverProviderRegistry, HoverSource } from 'vs/editor/common/modes';
 
-export function getHover(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover[]> {
+export function getHover(model: ITextModel, position: Position, token: CancellationToken, context?: HoverContext): Promise<Hover[]> {
 
 	const supports = HoverProviderRegistry.ordered(model);
+	const _context: HoverContext = context || {
+		keyModifiers: [],
+		source: HoverSource.Action,
+	};
 
 	const promises = supports.map(support => {
-		return Promise.resolve(support.provideHover(model, position, token)).then(hover => {
+		return Promise.resolve(support.provideHover(model, position, token, _context)).then(hover => {
 			return hover && isValid(hover) ? hover : undefined;
 		}, err => {
 			onUnexpectedExternalError(err);

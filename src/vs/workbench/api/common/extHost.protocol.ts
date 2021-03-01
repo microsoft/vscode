@@ -1489,7 +1489,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDeclaration(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IDefinitionLinkDto[]>;
-	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
+	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken, context: modes.HoverContext): Promise<modes.Hover | undefined>;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined>;
 	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined>;
