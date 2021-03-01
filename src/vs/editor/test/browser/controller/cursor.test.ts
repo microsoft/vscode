@@ -5756,6 +5756,72 @@ suite('autoClosingPairs', () => {
 			});
 			assertCursor(viewModel, new Selection(3, 7, 4, 7));
 		});
+
+		model.dispose();
+	});
+
+	test('jump out of auto closed on Tab', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [''],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: { jumpOutOfAutoClosedOnTab: true }
+		}, (editor, model, viewModel) => {
+			viewModel.type('(text', 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+
+			moveTo(editor, viewModel, 1, 6);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(), '(text   )');
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+
+			moveTo(editor, viewModel, 1, 10);
+			viewModel.type('\n\'text', 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assertCursor(viewModel, new Selection(2, 7, 2, 7));
+
+			moveTo(editor, viewModel, 2, 6);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(), '(text   )\n\'text   \'');
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
+		});
+		mode.dispose();
+	});
+
+	test('jump out of auto closed on Tab after in scope edits', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [''],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: { jumpOutOfAutoClosedOnTab: true }
+		}, (editor, model, viewModel) => {
+			viewModel.type('(text', 'keyboard');
+			moveTo(editor, viewModel, 1, 2);
+			viewModel.type('abc', 'keyboard');
+			moveTo(editor, viewModel, 1, 9);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assertCursor(viewModel, new Selection(1, 10, 1, 10));
+		});
+		mode.dispose();
+	});
+
+	test('do not jump out of auto closed on Tab after out of scope edits', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [''],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: { jumpOutOfAutoClosedOnTab: true }
+		}, (editor, model, viewModel) => {
+			viewModel.type('(text', 'keyboard');
+			moveTo(editor, viewModel, 1, 7);
+			viewModel.type('abc', 'keyboard');
+			moveTo(editor, viewModel, 1, 6);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getValue(), '(text   )abc');
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+		});
+		mode.dispose();
 	});
 });
 

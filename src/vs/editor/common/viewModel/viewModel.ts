@@ -220,6 +220,8 @@ export interface IViewModel extends ICursorSimpleModel {
 	revealTopMostCursor(source: string | null | undefined): void;
 	revealBottomMostCursor(source: string | null | undefined): void;
 	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
+	getTabOutScopeRanges(): Range[];
+	removeTabOutScopeRange(i: number): void;
 	//#endregion
 
 	//#region viewLayout

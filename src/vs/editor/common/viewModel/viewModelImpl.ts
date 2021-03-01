@@ -980,6 +980,14 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, verticalType, revealHorizontal, scrollType)));
 	}
 
+	public getTabOutScopeRanges(): Range[] {
+		return this._cursor.getTabOutScopeRanges();
+	}
+
+	public removeTabOutScopeRange(i: number): void {
+		this._cursor.removeTabOutScopeRange(i);
+	}
+
 	//#endregion
 
 	//#region viewLayout

@@ -87,6 +87,7 @@ export class CursorConfiguration {
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 	public readonly overtypeAllowed: boolean;
+	public readonly jumpOutOfAutoClosedOnTab: boolean;
 
 	private readonly _languageIdentifier: LanguageIdentifier;
 	private _electricChars: { [key: string]: boolean; } | null;
@@ -106,6 +107,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.lineHeight)
 			|| e.hasChanged(EditorOption.readOnly)
 			|| e.hasChanged(EditorOption.overtypeAllowed)
+			|| e.hasChanged(EditorOption.jumpOutOfAutoCloseOnTab)
 		);
 	}
 
@@ -138,6 +140,7 @@ export class CursorConfiguration {
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
 		this.overtypeAllowed = options.get(EditorOption.overtypeAllowed);
+		this.jumpOutOfAutoClosedOnTab = options.get(EditorOption.jumpOutOfAutoCloseOnTab);
 
 		this.surroundingPairs = {};
 		this._electricChars = null;

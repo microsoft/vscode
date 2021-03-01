@@ -20,6 +20,8 @@ import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'v
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { MoveCursorCommand } from 'vs/editor/common/commands/moveCursorCommand';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export class TypeOperations {
 
@@ -215,12 +217,32 @@ export class TypeOperations {
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
 	}
 
-	public static tab(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
+	public static tab(viewModel: IViewModel): ICommand[] {
+		const config = viewModel.cursorConfig;
+		const model = viewModel.model;
+		const selections = viewModel.getCursorStates().map(s => s.modelState.selection);
+
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
 			if (selection.isEmpty()) {
+
+				if (config.jumpOutOfAutoClosedOnTab) {
+					const tabOutScopeRanges = viewModel.getTabOutScopeRanges();
+					for (let j = 0, length = tabOutScopeRanges.length; j < length; j++) {
+						const tabOutScopeRange = tabOutScopeRanges[j];
+						if (tabOutScopeRange.containsRange(selection)) {
+							viewModel.removeTabOutScopeRange(j);
+							commands[i] = new MoveCursorCommand(tabOutScopeRange.getEndPosition());
+							break;
+						}
+					}
+
+					if (commands[i]) {
+						continue;
+					}
+				}
 
 				let lineText = model.getLineContent(selection.startLineNumber);
 

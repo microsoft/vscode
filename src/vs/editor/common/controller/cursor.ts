@@ -137,6 +137,8 @@ export class Cursor extends Disposable {
 	private _columnSelectData: IColumnSelectData | null;
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
+	private _tabOutScopeCharacterDecorations: string[];
+	private _tabOutScopeEnclosingDecorations: string[];
 
 	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		super();
@@ -154,11 +156,15 @@ export class Cursor extends Disposable {
 		this._columnSelectData = null;
 		this._autoClosedActions = [];
 		this._prevEditOperationType = EditOperationType.Other;
+		this._tabOutScopeCharacterDecorations = [];
+		this._tabOutScopeEnclosingDecorations = [];
 	}
 
 	public dispose(): void {
 		this._cursors.dispose();
 		this._autoClosedActions = dispose(this._autoClosedActions);
+		this._tabOutScopeCharacterDecorations = [];
+		this._tabOutScopeEnclosingDecorations = [];
 		super.dispose();
 	}
 
@@ -194,6 +200,21 @@ export class Cursor extends Disposable {
 				if (!autoClosedAction.isValid(selections)) {
 					autoClosedAction.dispose();
 					this._autoClosedActions.splice(i, 1);
+					i--;
+				}
+			}
+		}
+	}
+
+	private _validateTabOutScopeDecorations(): void {
+		if (this._tabOutScopeEnclosingDecorations.length > 0) {
+			let selections: Range[] = this._cursors.getSelections();
+			for (let i = 0; i < this._tabOutScopeEnclosingDecorations.length; i++) {
+				const tabOutScopeDecoration = this._tabOutScopeEnclosingDecorations[i];
+				const decorationRange = this._model.getDecorationRange(tabOutScopeDecoration);
+				if (!decorationRange || !decorationRange.strictContainsRange(selections[i])) {
+					this._tabOutScopeCharacterDecorations.splice(i, 1);
+					this._tabOutScopeEnclosingDecorations.splice(i, 1);
 					i--;
 				}
 			}
@@ -343,6 +364,7 @@ export class Cursor extends Disposable {
 			this._cursors.dispose();
 			this._cursors = new CursorCollection(this.context);
 			this._validateAutoClosedActions();
+			this._validateTabOutScopeDecorations();
 			this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
 		} else {
 			if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
@@ -430,6 +452,10 @@ export class Cursor extends Disposable {
 		const autoClosedCharactersDecorations = this._model.deltaDecorations([], autoClosedCharactersDeltaDecorations);
 		const autoClosedEnclosingDecorations = this._model.deltaDecorations([], autoClosedEnclosingDeltaDecorations);
 		this._autoClosedActions.push(new AutoClosedAction(this._model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations));
+		if (this.context.cursorConfig.jumpOutOfAutoClosedOnTab) {
+			this._tabOutScopeCharacterDecorations.push(...autoClosedCharactersDecorations);
+			this._tabOutScopeEnclosingDecorations.push(...autoClosedEnclosingDecorations);
+		}
 	}
 
 	private _executeEditOperation(opResult: EditOperationResult | null): void {
@@ -611,6 +637,7 @@ export class Cursor extends Disposable {
 		this._isHandling = false;
 		this._cursors.startTrackingSelections();
 		this._validateAutoClosedActions();
+		this._validateTabOutScopeDecorations();
 		if (this._emitStateChangedIfNecessary(eventsCollector, source, cursorChangeReason, oldState, false)) {
 			this._revealPrimaryCursor(eventsCollector, source, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
@@ -707,6 +734,14 @@ export class Cursor extends Disposable {
 				shouldPushStackElementAfter: false
 			}));
 		}, eventsCollector, source);
+	}
+
+	public getTabOutScopeRanges(): Range[] {
+		return this._tabOutScopeCharacterDecorations.map(d => this._model.getDecorationRange(d) ?? new Range(0, 0, 0, 0));
+	}
+
+	public removeTabOutScopeRange(i: number) {
+		this._tabOutScopeCharacterDecorations.splice(i, 1);
 	}
 }
 
