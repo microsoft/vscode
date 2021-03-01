@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -19,8 +18,8 @@ import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/not
 
 
 suite('Notebook Outline', function () {
+
 	const instantiationService = setupInstantiationService();
-	instantiationService.spy(IUndoRedoService, 'pushElement');
 	instantiationService.set(IEditorService, new class extends mock<IEditorService>() { });
 	instantiationService.set(IMarkerService, new MarkerService());
 	instantiationService.set(IThemeService, new class extends mock<IThemeService>() {
@@ -56,25 +55,33 @@ suite('Notebook Outline', function () {
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Hellö & Hällo');
 		});
+
+		withNotebookOutline([
+			['# bo<i>ld</i>', 'md', CellKind.Markdown]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'bold');
+		});
 	});
 
-	test('First line vs heading...', function () {
+	test('Heading text defines entry label', function () {
 		return withNotebookOutline([
 			['foo\n # h1', 'md', CellKind.Markdown]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'foo');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h1');
 		});
 	});
 
-	test('Only one entry per cell', function () {
+	test('Notebook outline ignores markdown headings #115200', function () {
 		withNotebookOutline([
 			['## h2 \n# h1', 'md', CellKind.Markdown]
 		], outline => {
 			assert.ok(outline instanceof NotebookCellOutline);
 			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
-			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h2');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'h1');
 		});
 
 		withNotebookOutline([

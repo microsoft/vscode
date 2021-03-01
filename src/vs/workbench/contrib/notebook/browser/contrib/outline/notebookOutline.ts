@@ -407,12 +407,16 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 			if (isMarkdown) {
 				// MD cell: "render" as plain text, find highest header
+				let headerText = content;
 				for (const token of marked.lexer(content, { gfm: true })) {
 					if (token.type === 'heading') {
-						level = Math.min(level, token.depth);
+						if (token.depth < level) {
+							level = token.depth;
+							headerText = token.text;
+						}
 					}
 				}
-				content = renderMarkdownAsPlaintext({ value: content });
+				content = renderMarkdownAsPlaintext({ value: headerText });
 			}
 
 			// find first none empty line or use default text
