@@ -443,14 +443,10 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		// Get the abbreviation right now
 		// Fixes https://github.com/microsoft/vscode/issues/74505
 		// Stylesheet abbreviations starting with @ should only bring up suggestions
-		// at outer-most level
+		// even at outer-most level
 		const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
 		if (abbreviation.startsWith('@')) {
-			if (currentNode.parent && currentNode.parent.type === 'stylesheet') {
-				return true;
-			} else {
-				return false;
-			}
+			return true;
 		}
 
 		// Fix for https://github.com/microsoft/vscode/issues/34162
