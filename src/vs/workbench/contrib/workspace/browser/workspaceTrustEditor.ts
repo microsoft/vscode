@@ -93,11 +93,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private getHeaderDescriptionText(trustState: WorkspaceTrustState): string {
 		switch (trustState) {
 			case WorkspaceTrustState.Trusted:
-				return localize('trustedHeaderDescription', "All features requiring trust in this workspace are enabled. Below is the current list of features that will be disabled you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inheret the current workspace trust status.");
+				return localize('trustedHeaderDescription', "All features requiring trust in this workspace are enabled. Below is the current list of features that will be disabled until you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inheret the current workspace trust status.");
 			case WorkspaceTrustState.Untrusted:
-				return localize('untrustedHeaderDescription', "This workspace has limited functionality as some features will not work until trust is given to the current workspace. Below is the current list of features that will be disabled you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inherit the current workspace trust status.");
+				return localize('untrustedHeaderDescription', "This workspace has limited functionality as some features will not work until trust is given to the current workspace. Below is the current list of features that will be disabled until you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inherit the current workspace trust status.");
 			case WorkspaceTrustState.Unknown:
-				return localize('unknownHeaderDescription', "This workspace has limited functionality as some features will not work until trust is given to the current workspace. Below is the current list of features that will be disabled you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inherit the current workspace trust status.");
+				return localize('unknownHeaderDescription', "This workspace has limited functionality as some features will not work until trust is given to the current workspace. Below is the current list of features that will be disabled until you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inherit the current workspace trust status.");
 		}
 	}
 
