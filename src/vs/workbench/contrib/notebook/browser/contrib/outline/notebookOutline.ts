@@ -273,7 +273,7 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 	}
 }
 
-class NotebookCellOutline implements IOutline<OutlineEntry> {
+export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private readonly _dispoables = new DisposableStore();
 

@@ -6,22 +6,17 @@
 import * as assert from 'assert';
 import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 suite('NotebookTextModel', () => {
 	const instantiationService = setupInstantiationService();
 	const textModelService = instantiationService.get(ITextModelService);
-	const blukEditService = instantiationService.get(IBulkEditService);
-	const undoRedoService = instantiationService.stub(IUndoRedoService, () => { });
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('insert', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -45,8 +40,6 @@ suite('NotebookTextModel', () => {
 	test('multiple inserts at same position', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -70,8 +63,6 @@ suite('NotebookTextModel', () => {
 	test('delete', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -93,8 +84,6 @@ suite('NotebookTextModel', () => {
 	test('delete + insert', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -118,8 +107,6 @@ suite('NotebookTextModel', () => {
 	test('delete + insert at same position', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -143,8 +130,6 @@ suite('NotebookTextModel', () => {
 	test('(replace) delete + insert at same position', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -167,8 +152,6 @@ suite('NotebookTextModel', () => {
 	test('output', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 			],
@@ -242,8 +225,6 @@ suite('NotebookTextModel', () => {
 	test('metadata', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 			],
@@ -282,8 +263,6 @@ suite('NotebookTextModel', () => {
 	test('multiple inserts in one edit', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -319,8 +298,6 @@ suite('NotebookTextModel', () => {
 	test('insert and metadata change in one edit', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
@@ -354,7 +331,7 @@ suite('NotebookTextModel', () => {
 
 
 	test('Updating appending/updating output in Notebooks does not work as expected #117273', function () {
-		withTestNotebook(instantiationService, blukEditService, undoRedoService, [
+		withTestNotebook(instantiationService, [
 			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }]
 		], (_editor, _view, model) => {
 

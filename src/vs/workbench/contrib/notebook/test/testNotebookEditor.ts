@@ -35,6 +35,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -456,8 +457,12 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
-	const textModelService = instantiationService.get(ITextModelService);
+export function withTestNotebook(accessor: ServicesAccessor, cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
+
+	const instantiationService = accessor.get(IInstantiationService);
+	const undoRedoService = accessor.get(IUndoRedoService);
+	const textModelService = accessor.get(ITextModelService);
+	const bulkEditService = accessor.get(IBulkEditService);
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
@@ -472,7 +477,7 @@ export function withTestNotebook(instantiationService: TestInstantiationService,
 	}), notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
-	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
+	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
 
 	callback(editor, viewModel, notebook);
 
