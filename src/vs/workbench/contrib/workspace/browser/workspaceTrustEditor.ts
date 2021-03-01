@@ -82,11 +82,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private getHeaderTitleText(trustState: WorkspaceTrustState): string {
 		switch (trustState) {
 			case WorkspaceTrustState.Trusted:
-				return localize('trustedHeader', "This Workspace is Trusted");
+				return localize('trustedHeader', "This Workspace Is Trusted");
 			case WorkspaceTrustState.Untrusted:
-				return localize('untrustedHeader', "This Workspace is Not Trusted");
+				return localize('untrustedHeader', "This Workspace Is Not Trusted");
 			case WorkspaceTrustState.Unknown:
-				return localize('unknownHeader', "This Workspace has Not Been Trusted");
+				return localize('unknownHeader', "This Workspace Has Not Been Trusted");
 		}
 	}
 
