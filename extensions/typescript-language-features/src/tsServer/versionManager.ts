@@ -32,16 +32,15 @@ export class TypeScriptVersionManager extends Disposable {
 		this._currentVersion = this.versionProvider.defaultVersion;
 
 		if (this.useWorkspaceTsdkSetting) {
-			if (vscode.workspace.trustState === vscode.WorkspaceTrustState.Unknown) {
-				setImmediate(() => {
-					vscode.workspace.requireWorkspaceTrust(false);
-				});
-			}
 			if (this.isWorkspaceTrusted) {
 				const localVersion = this.versionProvider.localVersion;
 				if (localVersion) {
 					this._currentVersion = localVersion;
 				}
+			} else {
+				setImmediate(() => {
+					vscode.workspace.requireWorkspaceTrust(false);
+				});
 			}
 		}
 
@@ -53,8 +52,8 @@ export class TypeScriptVersionManager extends Disposable {
 
 		this._register(vscode.workspace.onDidChangeWorkspaceTrustState((event: vscode.WorkspaceTrustStateChangeEvent) => {
 			if (this.useWorkspaceTsdkSetting) {
-				if (event.currentTrustState === vscode.WorkspaceTrustState.Trusted) {
-					this.updateActiveVersion(this.versionProvider.localVersion ?? this.versionProvider.defaultVersion);
+				if (event.currentTrustState === vscode.WorkspaceTrustState.Trusted && this.versionProvider.localVersion) {
+					this.updateActiveVersion(this.versionProvider.localVersion);
 				} else {
 					this.updateActiveVersion(this.versionProvider.defaultVersion);
 				}
