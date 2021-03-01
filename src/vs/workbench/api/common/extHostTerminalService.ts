@@ -185,6 +185,7 @@ export class ExtHostTerminal {
 
 export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	readonly id = 0;
+	readonly shouldPersist = false;
 
 	private readonly _onProcessData = new Emitter<string>();
 	public readonly onProcessData: Event<string> = this._onProcessData.event;

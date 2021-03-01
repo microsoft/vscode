@@ -11,6 +11,7 @@ import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/comm
 
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	readonly id = 0;
+	readonly shouldPersist = false;
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
