@@ -360,7 +360,9 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 		};
 
 		const resolving: Promise<any>[] = [];
-		const completions = await provideSuggestionItems(ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerCharacter ? modes.CompletionTriggerKind.TriggerCharacter : modes.CompletionTriggerKind.Invoke });
+		const triggerKind = triggerCharacter ? modes.CompletionTriggerKind.TriggerCharacter : modes.CompletionTriggerKind.Invoke;
+		const auto = triggerKind === modes.CompletionTriggerKind.TriggerCharacter;
+		const completions = await provideSuggestionItems(ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerKind, auto: auto });
 		for (const item of completions.items) {
 			if (resolving.length < (maxItemsToResolve ?? 0)) {
 				resolving.push(item.resolve(CancellationToken.None));
