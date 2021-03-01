@@ -133,6 +133,8 @@ export class SuggestWidget implements IDisposable {
 	readonly onDidHide: Event<this> = this._onDidHide.event;
 	readonly onDidShow: Event<this> = this._onDidShow.event;
 
+	private _isUserAware: boolean = false;
+
 	private readonly _onDetailsKeydown = new Emitter<IKeyboardEvent>();
 	readonly onDetailsKeyDown: Event<IKeyboardEvent> = this._onDetailsKeydown.event;
 
@@ -382,6 +384,10 @@ export class SuggestWidget implements IDisposable {
 			this._currentSuggestionDetails?.cancel();
 			this._currentSuggestionDetails = undefined;
 
+			if (this._focusedItem) {
+				this._isUserAware = true;
+			}
+
 			this._focusedItem = item;
 
 			this._list.reveal(index);
@@ -446,6 +452,7 @@ export class SuggestWidget implements IDisposable {
 				this._focusedItem = undefined;
 				this._cappedHeight = undefined;
 				this._explainMode = false;
+				this._isUserAware = false;
 				break;
 			case State.Loading:
 				this.element.domNode.classList.add('message');
@@ -505,6 +512,7 @@ export class SuggestWidget implements IDisposable {
 
 		if (!this._isAuto) {
 			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), delay);
+			this._isUserAware = true;
 		}
 	}
 
@@ -717,6 +725,10 @@ export class SuggestWidget implements IDisposable {
 
 	isFrozen(): boolean {
 		return this._state === State.Frozen;
+	}
+
+	isUserAware(): boolean {
+		return this._isUserAware;
 	}
 
 	_afterRender(position: ContentWidgetPositionPreference | null) {

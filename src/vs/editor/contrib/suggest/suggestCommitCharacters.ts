@@ -31,7 +31,7 @@ export class CommitCharacterController {
 		this._disposables.add(widget.onDidHide(this.reset, this));
 
 		this._disposables.add(editor.onWillType(e => {
-			if (this._active && !widget.isFrozen()) {
+			if (this._active && !widget.isFrozen() && widget.isUserAware()) {
 				const ch = e.text.charCodeAt(e.text.length - 1);
 				const characterInfo = this._active.acceptCharacters.get(ch);
 				if (characterInfo !== CharacterInfo.NOT_COMMIT && editor.getOption(EditorOption.acceptSuggestionOnCommitCharacter)) {
