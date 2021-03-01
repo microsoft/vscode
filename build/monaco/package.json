@@ -1,7 +1,7 @@
 {
   "name": "@datalore/monaco-editor-core",
   "private": true,
-  "version": "0.22.0-24",
+  "version": "0.22.0-25",
   "description": "A browser based code editor",
   "author": "Microsoft Corporation",
   "license": "MIT",

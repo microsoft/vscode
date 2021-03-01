@@ -47,6 +47,39 @@ const _ttpInsane = window.trustedTypes?.createPolicy('insane', {
 export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): HTMLElement {
 	const element = createElement(options);
 
+	if (options.actionHandler) {
+		options.actionHandler.disposeables.add(Event.any<MouseEvent>(domEvent(element, 'click'), domEvent(element, 'auxclick'))(e => {
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
+				return;
+			}
+
+			let target: HTMLElement | null = mouseEvent.target;
+			if (target.tagName !== 'A') {
+				target = target.parentElement;
+				if (!target || target.tagName !== 'A') {
+					return;
+				}
+			}
+			try {
+				const href = target.dataset['href'];
+				if (href) {
+					options.actionHandler!.callback(href, mouseEvent);
+				}
+			} catch (err) {
+				onUnexpectedError(err);
+			} finally {
+				mouseEvent.preventDefault();
+			}
+		}));
+	}
+
+	if (markdown.rendered) {
+		const value = markdown.value.replace(/<a href="(.*?)"/g, '<a href="#" data-href="$1"');
+		element.innerHTML = sanitizeRenderedMarkdown(markdown, value, markdown) as string;
+		return element;
+	}
+
 	const _uriMassage = function (part: string): string {
 		let data: any;
 		try {
@@ -185,33 +218,6 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		};
 	}
 
-	if (options.actionHandler) {
-		options.actionHandler.disposeables.add(Event.any<MouseEvent>(domEvent(element, 'click'), domEvent(element, 'auxclick'))(e => {
-			const mouseEvent = new StandardMouseEvent(e);
-			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
-				return;
-			}
-
-			let target: HTMLElement | null = mouseEvent.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
-					return;
-				}
-			}
-			try {
-				const href = target.dataset['href'];
-				if (href) {
-					options.actionHandler!.callback(href, mouseEvent);
-				}
-			} catch (err) {
-				onUnexpectedError(err);
-			} finally {
-				mouseEvent.preventDefault();
-			}
-		}));
-	}
-
 	// Use our own sanitizer so that we can let through only spans.
 	// Otherwise, we'd be letting all html be rendered.
 	// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
@@ -238,7 +244,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const renderedMarkdown = marked.parse(value, markedOptions);
 
 	// sanitize with insane
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as string;
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown, markdown) as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
@@ -260,7 +266,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean },
 	renderedMarkdown: string,
+	markdown?: IMarkdownString
 ): string | TrustedHTML {
+	if (markdown?.sanitized) {
+		return renderedMarkdown;
+	}
+
 	const insaneOptions = getInsaneOptions(options);
 	return _ttpInsane?.createHTML(renderedMarkdown, insaneOptions) ?? insane(renderedMarkdown, insaneOptions);
 }
