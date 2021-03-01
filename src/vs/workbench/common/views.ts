@@ -381,6 +381,7 @@ export interface IViewsRegistry {
 
 	readonly onDidChangeViewWelcomeContent: Event<string>;
 	registerViewWelcomeContent(id: string, viewContent: IViewContentDescriptor): IDisposable;
+	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable>;
 	getViewWelcomeContent(id: string): IViewContentDescriptor[];
 }
 
@@ -471,6 +472,22 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 			this._viewWelcomeContents.delete(id, viewContent);
 			this._onDidChangeViewWelcomeContent.fire(id);
 		});
+	}
+
+	registerViewWelcomeContent2<TKey>(id: string, viewContentMap: Map<TKey, IViewContentDescriptor>): Map<TKey, IDisposable> {
+		const disposables = new Map<TKey, IDisposable>();
+
+		for (const [key, content] of viewContentMap) {
+			this._viewWelcomeContents.add(id, content);
+
+			disposables.set(key, toDisposable(() => {
+				this._viewWelcomeContents.delete(id, content);
+				this._onDidChangeViewWelcomeContent.fire(id);
+			}));
+		}
+		this._onDidChangeViewWelcomeContent.fire(id);
+
+		return disposables;
 	}
 
 	getViewWelcomeContent(id: string): IViewContentDescriptor[] {
