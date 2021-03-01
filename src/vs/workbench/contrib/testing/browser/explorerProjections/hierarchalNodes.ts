@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
@@ -17,7 +18,7 @@ export class HierarchicalElement implements ITestTreeElement {
 	public readonly depth: number = this.parentItem.depth + 1;
 
 	public get treeId() {
-		return `hitest:${this.test.item.extId}`;
+		return generateUuid();
 	}
 
 	public get label() {
@@ -63,7 +64,7 @@ export class HierarchicalFolder implements ITestTreeElement {
 	public computedState: TestRunState | undefined;
 
 	public get treeId() {
-		return `hifolder:${this.folder.index}`;
+		return generateUuid();
 	}
 
 	public get runnable() {
