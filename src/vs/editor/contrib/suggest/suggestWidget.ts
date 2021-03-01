@@ -223,7 +223,6 @@ export class SuggestWidget implements IDisposable {
 			accessibilityProvider: {
 				getRole: () => 'option',
 				getAriaLabel: (item: CompletionItem) => {
-					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 					if (item.isResolved && this._isDetailsVisible()) {
 						const { documentation, detail } = item.completion;
 						const docs = strings.format(
@@ -231,9 +230,9 @@ export class SuggestWidget implements IDisposable {
 							detail || '',
 							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
+						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", item.textLabel, docs);
 					} else {
-						return textLabel;
+						return item.textLabel;
 					}
 				},
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),

@@ -440,10 +440,9 @@ export class SuggestController implements IEditorContribution {
 		};
 	}
 
-	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
-		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", textLabel, suggestion.additionalTextEdits.length);
+	private _alertCompletionItem(item: CompletionItem): void {
+		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
+			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
