@@ -1133,7 +1133,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
 		menu.dispose();
 
 		return result;

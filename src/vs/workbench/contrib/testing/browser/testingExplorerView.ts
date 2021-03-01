@@ -967,7 +967,7 @@ const getTestItemActions = (
 		const actionsDisposable = createAndFillInActionBarActions(menu, {
 			arg: element.test?.item.extId,
 			shouldForwardArgs: true,
-		}, result, g => /^inline/.test(g));
+		}, result, 'inline');
 
 		return { value: result, dispose: () => actionsDisposable.dispose };
 	} finally {

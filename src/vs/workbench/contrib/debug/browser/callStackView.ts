@@ -441,7 +441,7 @@ export class CallStackView extends ViewPane {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -543,7 +543,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
 			this.callStackItemType.set('session');
-			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => /^inline/.test(g)));
+			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, 'inline'));
 
 			data.actionBar.clear();
 			data.actionBar.push(primary, { icon: true, label: false });

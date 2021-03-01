@@ -224,12 +224,11 @@ export abstract class TitleControl extends Themable {
 				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
 			}));
 
-			const isPrimaryGroup = (group: string) => group === 'navigation' || group === '1_run';
-			const shouldInlineGroup = (action: SubmenuAction, group: string) => isPrimaryGroup(group) && action.actions.length <= 1;
+			const shouldInlineGroup = (action: SubmenuAction, group: string) => (group === 'navigation' || group === '1_run') && action.actions.length <= 1;
 
 			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
 				titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary },
-				isPrimaryGroup, 9, shouldInlineGroup
+				'navigation', 9, shouldInlineGroup
 			));
 		}
 
