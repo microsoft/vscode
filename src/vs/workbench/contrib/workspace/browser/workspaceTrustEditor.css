@@ -74,9 +74,9 @@
 
 /** Settings */
 .workspace-trust-editor.settings-editor > .settings-body > .settings-tree-container .shadow.top {
-	left: unset;
-	margin-left: unset;
-	max-width: unset;
+	left: initial;
+	margin-left: initial;
+	max-width: initial;
 }
 
 .workspace-trust-editor.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
