@@ -12,11 +12,13 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditorActivation, ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
@@ -115,6 +117,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookService private _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -642,7 +645,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
-		const editorOptions: ITextEditorOptions = {
+		const editorOptions = new NotebookEditorOptions({
+			cellSelections: options.selection && [options.selection],
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
 			// selection: options.selection,
@@ -650,20 +654,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
 			override: EditorOverride.DISABLED,
-		};
+		});
 
-		const input = this._editorService.createEditorInput({ resource: URI.revive(resource), options: editorOptions });
-
-		// TODO: handle options.selection
-		const editorPane = await this._editorService.openEditor(input, { ...options, override: viewType }, options.position);
+		const input = NotebookEditorInput.create(this._instantiationService, URI.revive(resource), viewType);
+		const editorPane = await this._editorService.openEditor(input, editorOptions, options.position);
 		const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
 
 		if (notebookEditor) {
-			if (notebookEditor.viewModel && options.selection && notebookEditor.viewModel.viewCells[options.selection.start]) {
-				const focusedCell = notebookEditor.viewModel.viewCells[options.selection.start];
-				notebookEditor.revealInCenterIfOutsideViewport(focusedCell);
-				notebookEditor.focusElement(focusedCell);
-			}
 			return notebookEditor.getId();
 		} else {
 			throw new Error(`Notebook Editor creation failure for documenet ${resource}`);
