@@ -230,6 +230,9 @@ export class TerminalService implements ITerminalService {
 		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		// The state must be updated when the terminal is relaunched, otherwise the persistent
+		// terminal ID will be stale and the process will be leaked.
+		this.onInstanceProcessIdReady(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 	}
 
 	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {
