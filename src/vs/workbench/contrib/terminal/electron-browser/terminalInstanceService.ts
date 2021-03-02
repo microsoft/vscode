@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWindowsShellHelper, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
-import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/electron-browser/windowsShellHelper';
+import { IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
 import type { Terminal as XTermTerminal } from 'xterm';
@@ -125,10 +124,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}
 		return WebglAddon;
-	}
-
-	public createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper {
-		return new WindowsShellHelper(shellProcessId, xterm);
 	}
 
 	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {

@@ -4,9 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+
+
+export interface IWindowsShellHelper extends IDisposable {
+	readonly onShellNameChange: Event<string>;
+	getShellType(title: string): TerminalShellType;
+	getShellName(): Promise<string>;
+}
+
+export enum WindowsShellType {
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
+}
+export type TerminalShellType = WindowsShellType | undefined;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -263,6 +279,7 @@ export interface ITerminalChildProcess {
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
+	onShellTypeChanged: Event<TerminalShellType | undefined>;
 
 	/**
 	 * Starts the process.

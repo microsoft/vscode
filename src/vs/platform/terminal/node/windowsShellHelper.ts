@@ -5,11 +5,10 @@
 
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as XTermTerminal } from 'xterm';
 import type * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
+import { IWindowsShellHelper, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { debounce } from 'vs/base/common/decorators';
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
@@ -28,17 +27,15 @@ const SHELL_EXECUTABLES = [
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
-	private _onCheckShell: Emitter<Promise<string> | undefined> = this._register(new Emitter<Promise<string> | undefined>());
+	// private _onCheckShell: Emitter<Promise<string> | undefined> = this._register(new Emitter<Promise<string> | undefined>());
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | undefined;
-	private _newLineFeed: boolean = false;
 
 	private readonly _onShellNameChange = new Emitter<string>();
 	public get onShellNameChange(): Event<string> { return this._onShellNameChange.event; }
 
 	public constructor(
-		private _rootProcessId: number,
-		private _xterm: XTermTerminal
+		private _rootProcessId: number
 	) {
 		super();
 
@@ -55,34 +52,12 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (this._isDisposed) {
 			return;
 		}
-
-		// The debounce is necessary to prevent multiple processes from spawning when
-		// the enter key or output is spammed
-		Event.debounce(this._onCheckShell.event, (l, e) => e, 150, true)(async () => {
-			await timeout(50);
-			this.checkShell();
-		});
-
-		// We want to fire a new check for the shell on a linefeed, but only
-		// when parsing has finished which is indicated by the cursormove event.
-		// If this is done on every linefeed, parsing ends up taking
-		// significantly longer due to resetting timers. Note that this is
-		// private API.
-		this._xterm.onLineFeed(() => this._newLineFeed = true);
-		this._xterm.onCursorMove(() => {
-			if (this._newLineFeed) {
-				this._onCheckShell.fire(undefined);
-				this._newLineFeed = false;
-			}
-		});
-
-		// Fire a new check for the shell when any key is pressed.
-		this._xterm.onKey(() => this._onCheckShell.fire(undefined));
+		this.checkShell();
 	}
 
-	private checkShell(): void {
+	@debounce(500)
+	checkShell(): void {
 		if (platform.isWindows) {
-			// TODO: Only fire when it's different
 			this.getShellName().then(title => this._onShellNameChange.fire(title));
 		}
 	}
@@ -140,5 +115,28 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			});
 		});
 		return this._currentRequest;
+	}
+
+	public getShellType(executable: string): TerminalShellType {
+		switch (executable.toLowerCase()) {
+			case 'cmd.exe':
+				return WindowsShellType.CommandPrompt;
+			case 'powershell.exe':
+			case 'pwsh.exe':
+				return WindowsShellType.PowerShell;
+			case 'bash.exe':
+			case 'git-cmd.exe':
+				return WindowsShellType.GitBash;
+			case 'wsl.exe':
+			case 'ubuntu.exe':
+			case 'ubuntu1804.exe':
+			case 'kali.exe':
+			case 'debian.exe':
+			case 'opensuse-42.exe':
+			case 'sles-12.exe':
+				return WindowsShellType.Wsl;
+			default:
+				return undefined;
+		}
 	}
 }

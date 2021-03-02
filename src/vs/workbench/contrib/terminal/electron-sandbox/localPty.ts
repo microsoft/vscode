@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
@@ -30,6 +30,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	public readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	private readonly _onShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onShellTypeChanged = this._onShellTypeChanged.event;
 
 	constructor(
 		readonly id: number,

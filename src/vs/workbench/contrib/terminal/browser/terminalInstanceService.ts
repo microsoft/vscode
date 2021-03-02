@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWindowsShellHelper, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -13,7 +13,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
+import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess, IWindowsShellHelper } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 let Terminal: typeof XTermTerminal;

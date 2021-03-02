@@ -10,12 +10,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -35,6 +36,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
+	private _shellType: TerminalShellType | undefined;
+	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _writeQueue: string[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
@@ -56,6 +59,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	private readonly _onShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onShellTypeChanged = this._onShellTypeChanged.event;
+
+	public get shellType(): TerminalShellType { return this._shellType; }
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -102,6 +109,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 			}));
 		}
+		this.onProcessReady(() => {
+			if (platform.isWindows && this._ptyProcess?.pid) {
+				this._windowsShellHelper = this._register(new WindowsShellHelper(this._ptyProcess.pid));
+				const helper = this._windowsShellHelper;
+				this._register(this._windowsShellHelper.onShellNameChange(title => {
+					this._shellType = helper.getShellType(title);
+					this._onShellTypeChanged.fire(this._shellType);
+					this._onProcessTitleChanged.fire(title);
+				}));
+			}
+		});
 	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
@@ -182,6 +200,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
+			this._windowsShellHelper?.checkShell();
 		});
 		ptyProcess.onExit(e => {
 			this._exitCode = e.exitCode;
@@ -201,6 +220,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._onProcessExit.dispose();
 		this._onProcessReady.dispose();
 		this._onProcessTitleChanged.dispose();
+		this._onShellTypeChanged.dispose();
 		super.dispose();
 	}
 

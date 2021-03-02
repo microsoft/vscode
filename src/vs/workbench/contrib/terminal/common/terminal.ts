@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
@@ -230,12 +230,6 @@ export interface IDefaultShellAndArgsRequest {
 	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChange: Event<string>;
-
-	getShellName(): Promise<string>;
-}
-
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
@@ -254,6 +248,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessTitle: Event<string>;
+	readonly onShellTypeChanged: Event<TerminalShellType>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
@@ -341,12 +336,6 @@ export enum TitleEventSource {
 	Process,
 	/** From the VT sequence */
 	Sequence
-}
-
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChange: Event<string>;
-
-	getShellName(): Promise<string>;
 }
 
 export const enum TERMINAL_COMMAND_ID {
