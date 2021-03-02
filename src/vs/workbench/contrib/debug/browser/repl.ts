@@ -63,6 +63,16 @@ import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench
 import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { INotebookExclusiveDocumentFilter, NotebookDataDto, TransientOptions, notebookDocumentMetadataDefaults, CellKind, INotebookKernel, CellUri, CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { generateUuid } from 'vs/base/common/uuid';
+import { Schemas } from 'vs/base/common/network';
 
 const $ = dom.$;
 
@@ -78,11 +88,150 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 const sessionsToIgnore = new Set<IDebugSession>();
 const identityProvider = { getId: (element: IReplElement) => element.getId() };
 
+export class ReplNotebookContentProvider extends Disposable implements IMainNotebookController {
+	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; } | undefined = {
+		displayName: 'Debug',
+		filenamePattern: ['**/replinput'],
+		exclusive: false
+	};
+	options = { transientOutputs: true, transientMetadata: {} };
+
+	constructor(@INotebookService notebookService: INotebookService) {
+		super();
+		this._register(notebookService.registerNotebookController(DEBUG_SCHEME, { id: new ExtensionIdentifier('repl'), location: Repl.URI }, this));
+	}
+
+	async openNotebook(viewType: string, uri: uri, backupId?: string): Promise<{ data: NotebookDataDto; transientOptions: TransientOptions; }> {
+		// Q? what's the language to use?
+		return {
+			data: {
+				cells: [{
+					cellKind: CellKind.Code,
+					language: 'javascript',
+					outputs: [],
+					source: '',
+				}],
+				metadata: notebookDocumentMetadataDefaults
+			},
+			transientOptions: this.options
+		};
+	}
+
+	async resolveNotebookEditor(viewType: string, uri: uri, editorId: string): Promise<void> {
+		// noop
+	}
+
+	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void {
+		// noop
+	}
+
+	async save(uri: uri, token: CancellationToken): Promise<boolean> {
+		// Q? where do we save the document?
+		return false;
+	}
+
+	async saveAs(uri: uri, target: uri, token: CancellationToken): Promise<boolean> {
+		// throw new Error('Method not implemented.');
+		return false;
+	}
+
+	async backup(uri: uri, token: CancellationToken): Promise<string> {
+		// Q? where do we backup?
+		return uri.toString();
+	}
+}
+
+export class ReplKernel extends Disposable implements INotebookKernel {
+	friendlyId: string = `${DEBUG_SCHEME} Kernel`;
+	label: string = `${DEBUG_SCHEME} Kernel`;
+	extension: ExtensionIdentifier = new ExtensionIdentifier('repl');
+	extensionLocation: uri = Repl.URI;
+	isPreferred: boolean | undefined = true;
+	supportedLanguages?: string[] | undefined = ['javascript'];
+
+	constructor(
+		private tree: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>,
+		@INotebookService private readonly notebookService: INotebookService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@IModelService private readonly modelService: IModelService,
+		@IDebugService private readonly debugService: IDebugService
+
+	) {
+		super();
+
+		const emitter = new Emitter<uri | undefined>();
+		this._register(notebookService.registerNotebookKernelProvider({
+			onDidChangeKernels: emitter.event,
+			provideKernels: async () => {
+				return [this];
+			},
+			providerExtensionId: DEBUG_SCHEME,
+			selector: { viewType: DEBUG_SCHEME }
+		}));
+	}
+
+	async resolve(uri: uri, editorId: string, token: CancellationToken): Promise<void> {
+		// noop
+	}
+
+	async executeNotebookCell(uri: uri, handle: number | undefined): Promise<void> {
+		const textModel = this.modelService.getModel(CellUri.generate(uri, handle!));
+		if (!textModel) {
+			return;
+		}
+
+		const document = this.notebookService.getNotebookTextModel(uri);
+		const cellIndex = document?.cells.findIndex(cell => cell.handle === handle);
+
+		const session = this.tree.getInput();
+		if (session && !this.isReadonly) {
+			const replElements = session.getReplElements();
+			const len = replElements.length;
+			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, textModel.getValue());
+			revealLastElement(this.tree);
+
+			await Event.toPromise(session.onDidChangeReplElements);
+			const newReplElements = session.getReplElements();
+			const addElements = newReplElements.splice(len);
+			const edit = new ResourceNotebookCellEdit(uri, {
+				editType: CellEditType.Output,
+				index: cellIndex!,
+				outputs: addElements.map(el => el.toString(false)).map(str => (
+					{
+						outputId: generateUuid(),
+						outputs: [{
+							mime: 'application/x.notebook.stream',
+							value: str
+						}]
+					}))
+			});
+
+			await this.bulkEditService.apply([
+				edit
+			]);
+		}
+	}
+
+	get isReadonly(): boolean {
+		// Do not allow to edit inactive sessions
+		const session = this.tree.getInput();
+		if (session && session.state !== State.Inactive) {
+			return false;
+		}
+
+		return true;
+	}
+
+	async cancelNotebookCell(uri: uri, handle: number | undefined): Promise<void> {
+		// Q? can we cancel execution in repl?
+	}
+}
+
 export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 50; // delay in ms to refresh the repl for new elements to show
-	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
+	static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
@@ -99,12 +248,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
 	private completionItemProvider: IDisposable | undefined;
+	private completionItemProviderForNotebook: IDisposable | undefined;
 	private modelChangeListener: IDisposable = Disposable.None;
 	private filter: ReplFilter;
 	private filterState: ReplFilterState;
 	private filterActionViewItem: ReplFilterActionViewItem | undefined;
 	private multiSessionRepl: IContextKey<boolean>;
 	private menu: IMenu;
+	private notebookContentProvider: ReplNotebookContentProvider;
+	private replKernel!: ReplKernel;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -134,6 +286,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.filterState = new ReplFilterState(this);
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
 		this.multiSessionRepl.set(this.isMultiSessionView);
+		this.notebookContentProvider = this.instantiationService.createInstance(ReplNotebookContentProvider);
+		this._register(this.notebookContentProvider);
 
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
@@ -146,14 +300,18 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				if (this.completionItemProvider) {
 					this.completionItemProvider.dispose();
 				}
+				if (this.completionItemProviderForNotebook) {
+					this.completionItemProviderForNotebook.dispose();
+				}
+
 				if (session.capabilities.supportsCompletionsRequest) {
-					this.completionItemProvider = CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+					const completionItemProvider = {
 						triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
-						provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
+						provideCompletionItems: async (m: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 							// Disable history navigation because up and down are used to navigate through the suggest widget
 							this.historyNavigationEnablement.set(false);
 
-							const model = this.replInput.getModel();
+							const model = m.uri.scheme === Schemas.vscodeNotebookCell ? m : this.replInput.getModel();
 							if (model) {
 								const word = model.getWordAtPosition(position);
 								const overwriteBefore = word ? word.word.length : 0;
@@ -206,7 +364,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 							return Promise.resolve({ suggestions: [] });
 						}
-					});
+					};
+					this.completionItemProvider = CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, completionItemProvider);
+					this.completionItemProviderForNotebook = CompletionProviderRegistry.register({ scheme: Schemas.vscodeNotebookCell, pattern: '**/replinput', hasAccessToAllModels: true }, completionItemProvider);
 				}
 			}
 
@@ -601,6 +761,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
 		this.onDidStyleChange();
+
+		this.replKernel = this.instantiationService.createInstance(ReplKernel, this.tree);
+		this._register(this.replKernel);
 	}
 
 	private createReplInput(container: HTMLElement): void {
@@ -982,5 +1145,38 @@ registerAction2(class extends Action2 {
 		} else if (element) {
 			await clipboardService.writeText(element.toString());
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'debug.openNotebook',
+			title: localize('debug.openNotebook', "Open Debug Notebook"),
+			f1: true,
+			menu: [
+				{ id: MenuId.CommandPalette },
+				{
+					id: MenuId.DebugConsoleContext,
+					group: '4_notebook',
+					order: 1
+				}
+			],
+		});
+	}
+
+	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const direction = preferredSideBySideGroupDirection(configurationService);
+		let neighbourGroup = editorGroupsService.findGroup({ direction });
+		if (!neighbourGroup) {
+			neighbourGroup = editorGroupsService.addGroup(editorGroupsService.activeGroup, direction);
+		}
+		let group = neighbourGroup;
+		const input = editorService.createEditorInput({ resource: Repl.URI });
+		await editorService.openEditor(input, { override: DEBUG_SCHEME }, group);
+		return;
 	}
 });
