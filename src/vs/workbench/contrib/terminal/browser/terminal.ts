@@ -275,10 +275,10 @@ export interface ITerminalInstance {
 	processId: number | undefined;
 
 	/**
-	 * The id of a persistent terminal. Defined if this is a terminal created
-	 * by the RemoteTerminalService or LocalPtyService.
+	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
+	 * that supports reconnection.
 	 */
-	readonly persistentTerminalId: number | undefined;
+	readonly persistentProcessId: number | undefined;
 
 	/**
 	 * Whether the process should be persisted across reloads.

@@ -244,7 +244,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-	readonly persistentTerminalId: number | undefined;
+	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;

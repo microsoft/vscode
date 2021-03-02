@@ -89,7 +89,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
-	public get persistentTerminalId(): number | undefined { return this._process?.id; }
+	public get persistentProcessId(): number | undefined { return this._process?.id; }
 	public get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
 
 	public get hasWrittenData(): boolean {
@@ -190,12 +190,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			} else {
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
-				if (shellLaunchConfig.attachPersistentTerminal) {
-					const result = await this._terminalInstanceService.attachToProcess(shellLaunchConfig.attachPersistentTerminal.id);
+				if (shellLaunchConfig.attachPersistentProcess) {
+					const result = await this._terminalInstanceService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						this._process = result;
 					} else {
-						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentTerminal}`);
+						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
 						return undefined;
 					}
 				} else {
