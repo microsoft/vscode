@@ -98,11 +98,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _memento: Memento;
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocusEmitter.event;
-	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
-	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
-
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
 	set scrollTop(top: number) {
@@ -904,7 +899,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this._localStore.add(this._list.onWillScroll(e => {
-			this._onWillScroll.fire(e);
 			if (!this._webviewResolved) {
 				return;
 			}
@@ -1898,7 +1892,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	dispose() {
 		this._isDisposed = true;
-		this._onWillDispose.fire();
 		// dispose webview first
 		this._webview?.dispose();
 		this._webview = null;
