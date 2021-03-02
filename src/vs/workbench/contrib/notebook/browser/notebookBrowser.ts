@@ -577,7 +577,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	 */
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
 
-	setCellSelection(cell: ICellViewModel, selection: Range): void;
+	setCellEditorSelection(cell: ICellViewModel, selection: Range): void;
 
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[];
 
