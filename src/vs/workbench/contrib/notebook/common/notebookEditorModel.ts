@@ -126,7 +126,6 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		return {
 			meta: {
 				mtime: stats?.mtime ?? Date.now(),
-				name: this._name,
 				viewType: this.notebook.viewType,
 				backupId: backupId
 			}
