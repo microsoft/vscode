@@ -120,12 +120,13 @@ export class ExtHostTerminal {
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
 		hideFromUser?: boolean,
-		isFeatureTerminal?: boolean
+		isFeatureTerminal?: boolean,
+		isExtensionOwnedTerminal?: boolean
 	): Promise<void> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal });
+		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
 	}
 
 	public async createExtensionTerminal(): Promise<number> {
