@@ -243,7 +243,7 @@
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "master",
-    "@gitpod/supervisor-api-grpc": "master",
+    "@gitpod/supervisor-api-grpc": "jankoehnlein-supervisor-support-3038",
     "@grpc/grpc-js": "latest",
     "bufferutil": "^4.0.1",
     "reconnecting-websocket": "^4.4.0",

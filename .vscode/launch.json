@@ -32,7 +32,7 @@
 			"restart": true,
 			"name": "Attach to Extension Host",
 			"timeout": 30000,
-			"port": 5870,
+			"port": 45099,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
 				"${workspaceFolder}/extensions/*/out/**/*.js"
