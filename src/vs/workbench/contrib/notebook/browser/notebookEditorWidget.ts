@@ -355,56 +355,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._overlayContainer.classList.toggle('cell-statusbar-hidden', !showCellStatusBar);
 	}
 
-	updateEditorFocus() {
-		// Note - focus going to the webview will fire 'blur', but the webview element will be
-		// a descendent of the notebook editor root.
-		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
-		this._editorFocus.set(focused);
-		this.viewModel?.setFocus(focused);
-	}
-
-	hasFocus() {
-		return this._editorFocus.get() || false;
-	}
-
-	hasWebviewFocus() {
-		return this._webiewFocused;
-	}
-
-	hasOutputTextSelection() {
-		if (!this.hasFocus()) {
-			return false;
-		}
-
-		const windowSelection = window.getSelection();
-		if (windowSelection?.rangeCount !== 1) {
-			return false;
-		}
-
-		const activeSelection = windowSelection.getRangeAt(0);
-		if (activeSelection.endOffset - activeSelection.startOffset === 0) {
-			return false;
-		}
-
-		let container: any = activeSelection.commonAncestorContainer;
-
-		if (!this._body.contains(container)) {
-			return false;
-		}
-
-		while (container
-			&&
-			container !== this._body) {
-			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('output')) {
-				return true;
-			}
-
-			container = container.parentNode;
-		}
-
-		return false;
-	}
-
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this._fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio());
@@ -584,40 +534,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._overflowContainer;
 	}
 
-	onWillHide() {
-		this._isVisible = false;
-		this._editorFocus.set(false);
-		this._overlayContainer.style.visibility = 'hidden';
-		this._overlayContainer.style.left = '-50000px';
-	}
-
 	getInnerWebview(): Webview | undefined {
 		return this._webview?.webview;
-	}
-
-	focus() {
-		this._isVisible = true;
-		this._editorFocus.set(true);
-
-		if (this._webiewFocused) {
-			this._webview?.focusWebview();
-		} else {
-			const focus = this._list.getFocus()[0];
-			if (typeof focus === 'number' && this.viewModel) {
-				const element = this.viewModel.viewCells[focus];
-
-				if (element.focusMode === CellFocusMode.Editor) {
-					element.editState = CellEditState.Editing;
-					element.focusMode = CellFocusMode.Editor;
-					this._onDidFocusEditorWidget.fire();
-					return;
-				}
-
-			}
-			this._list.domFocus();
-		}
-
-		this._onDidFocusEditorWidget.fire();
 	}
 
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
@@ -1104,6 +1022,91 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
+	//#endregion
+
+	//#region Focus tracker
+	focus() {
+		this._isVisible = true;
+		this._editorFocus.set(true);
+
+		if (this._webiewFocused) {
+			this._webview?.focusWebview();
+		} else {
+			const focus = this._list.getFocus()[0];
+			if (typeof focus === 'number' && this.viewModel) {
+				const element = this.viewModel.viewCells[focus];
+
+				if (element.focusMode === CellFocusMode.Editor) {
+					element.editState = CellEditState.Editing;
+					element.focusMode = CellFocusMode.Editor;
+					this._onDidFocusEditorWidget.fire();
+					return;
+				}
+
+			}
+			this._list.domFocus();
+		}
+
+		this._onDidFocusEditorWidget.fire();
+	}
+
+	onWillHide() {
+		this._isVisible = false;
+		this._editorFocus.set(false);
+		this._overlayContainer.style.visibility = 'hidden';
+		this._overlayContainer.style.left = '-50000px';
+	}
+
+	updateEditorFocus() {
+		// Note - focus going to the webview will fire 'blur', but the webview element will be
+		// a descendent of the notebook editor root.
+		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
+		this._editorFocus.set(focused);
+		this.viewModel?.setFocus(focused);
+	}
+
+	hasFocus() {
+		return this._editorFocus.get() || false;
+	}
+
+	hasWebviewFocus() {
+		return this._webiewFocused;
+	}
+
+	hasOutputTextSelection() {
+		if (!this.hasFocus()) {
+			return false;
+		}
+
+		const windowSelection = window.getSelection();
+		if (windowSelection?.rangeCount !== 1) {
+			return false;
+		}
+
+		const activeSelection = windowSelection.getRangeAt(0);
+		if (activeSelection.endOffset - activeSelection.startOffset === 0) {
+			return false;
+		}
+
+		let container: any = activeSelection.commonAncestorContainer;
+
+		if (!this._body.contains(container)) {
+			return false;
+		}
+
+		while (container
+			&&
+			container !== this._body) {
+			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('output')) {
+				return true;
+			}
+
+			container = container.parentNode;
+		}
+
+		return false;
+	}
+
 	//#endregion
 
 	//#region Editor Features
