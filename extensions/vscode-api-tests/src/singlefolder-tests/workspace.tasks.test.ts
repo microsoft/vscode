@@ -20,7 +20,7 @@ import { assertNoRpc } from '../utils';
 			disposables.length = 0;
 		});
 
-		test.skip('CustomExecution task should start and shutdown successfully', (done) => { // https://github.com/microsoft/vscode/issues/117446
+		test('CustomExecution task should start and shutdown successfully', (done) => {
 			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -54,6 +54,9 @@ import { assertNoRpc } from '../utils';
 				terminal = term;
 			}));
 			disposables.push(window.onDidWriteTerminalData(e => {
+				if (e.terminal !== terminal) {
+					return;
+				}
 				try {
 					assert.equal(testOrder, TestOrder.TerminalOpened);
 					testOrder = TestOrder.TerminalWritten;
@@ -123,6 +126,9 @@ import { assertNoRpc } from '../utils';
 			const taskName = 'First custom task';
 			disposables.push(window.onDidOpenTerminal(term => {
 				disposables.push(window.onDidWriteTerminalData(e => {
+					if (e.terminal !== term) {
+						return;
+					}
 					try {
 						assert.equal(e.data, 'exiting');
 					} catch (e) {
