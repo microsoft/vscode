@@ -11488,7 +11488,7 @@ declare module 'vscode' {
 		readonly path: string;
 
 		/**
-		 * Create a description for a debug adapter running as a socket based server.
+		 * Create a description for a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
 		 */
 		constructor(path: string);
 	}
