@@ -105,7 +105,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('sync CustomExecution task should flush all data on close', (done) => {
+		test('sync CustomExecution task should flush all data on close', async () => {
 			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -114,55 +114,58 @@ import { assertNoRpc } from '../utils';
 			}
 			const taskType: string = 'customTesting';
 			const taskName = 'First custom task';
-			disposables.push(window.onDidOpenTerminal(term => {
+
+			// Launch the task
+			const terminal = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(e => r(e)));
+				disposables.push(tasks.registerTaskProvider(taskType, {
+					provideTasks: () => {
+						const result: Task[] = [];
+						const kind: CustomTestingTaskDefinition = {
+							type: taskType,
+							customProp1: 'testing task one'
+						};
+						const writeEmitter = new EventEmitter<string>();
+						const closeEmitter = new EventEmitter<void>();
+						const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
+							const pty: Pseudoterminal = {
+								onDidWrite: writeEmitter.event,
+								onDidClose: closeEmitter.event,
+								open: () => {
+									writeEmitter.fire('exiting');
+									closeEmitter.fire();
+								},
+								close: () => { }
+							};
+							return Promise.resolve(pty);
+						});
+						const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
+						result.push(task);
+						return result;
+					},
+					resolveTask(_task: Task): Task | undefined {
+						assert.fail('resolveTask should not trigger during the test');
+					}
+				}));
+				commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+			});
+
+			// Verify the output
+			await new Promise<void>(r => {
 				disposables.push(window.onDidWriteTerminalData(e => {
-					if (e.terminal !== term) {
+					if (e.terminal !== terminal) {
 						return;
 					}
-					try {
-						assert.equal(e.data, 'exiting');
-					} catch (e) {
-						done(e);
-					}
-					disposables.push(window.onDidCloseTerminal(() => done()));
-					term.dispose();
+					assert.strictEqual(e.data, 'exiting');
+					r();
 				}));
-			}));
-			disposables.push(tasks.registerTaskProvider(taskType, {
-				provideTasks: () => {
-					const result: Task[] = [];
-					const kind: CustomTestingTaskDefinition = {
-						type: taskType,
-						customProp1: 'testing task one'
-					};
-					const writeEmitter = new EventEmitter<string>();
-					const closeEmitter = new EventEmitter<void>();
-					const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
-						const pty: Pseudoterminal = {
-							onDidWrite: writeEmitter.event,
-							onDidClose: closeEmitter.event,
-							open: () => {
-								writeEmitter.fire('exiting');
-								closeEmitter.fire();
-							},
-							close: () => { }
-						};
-						return Promise.resolve(pty);
-					});
-					const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
-					result.push(task);
-					return result;
-				},
-				resolveTask(_task: Task): Task | undefined {
-					try {
-						assert.fail('resolveTask should not trigger during the test');
-					} catch (e) {
-						done(e);
-					}
-					return undefined;
-				}
-			}));
-			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+			});
+
+			// Dispose the terminal
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(() => r()));
+				terminal.dispose();
+			});
 		});
 
 		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
