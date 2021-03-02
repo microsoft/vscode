@@ -265,7 +265,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
 		let instance: ITerminalInstance;
-		if ('id' in shellLaunchConfigOrInstance) {
+		if ('instanceId' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
 		} else {
 			instance = this._terminalService.createInstance(undefined, shellLaunchConfigOrInstance);
@@ -350,13 +350,13 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	private _setActiveInstance(instance: ITerminalInstance): void {
-		this.setActiveInstanceByIndex(this._getIndexFromId(instance.id));
+		this.setActiveInstanceByIndex(this._getIndexFromId(instance.instanceId));
 	}
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				terminalIndex = i;
 			}
 		});

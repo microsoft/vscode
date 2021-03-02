@@ -291,7 +291,7 @@ export const enum ProcessState {
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
-	readonly terminalId: number;
+	readonly instanceId: number;
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;

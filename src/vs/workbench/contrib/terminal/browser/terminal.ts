@@ -200,7 +200,7 @@ export interface IRemoteTerminalService {
 	readonly _serviceBrand: undefined;
 	dispose(): void;
 	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
-	createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
+	createRemoteTerminalProcess(instanceId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
 
 	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
@@ -258,10 +258,10 @@ export interface ITerminalBeforeHandleLinkEvent {
 
 export interface ITerminalInstance {
 	/**
-	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
-	 * terminal instance.
+	 * The ID of the terminal instance, this is an arbitrary number only used to uniquely identify
+	 * terminal instances within a window.
 	 */
-	readonly id: number;
+	readonly instanceId: number;
 
 	readonly cols: number;
 	readonly rows: number;

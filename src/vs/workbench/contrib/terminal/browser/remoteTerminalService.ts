@@ -40,7 +40,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	public async createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
+	public async createRemoteTerminalProcess(instanceId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -53,7 +53,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			});
 		}
 
-		return new RemoteTerminalProcess(terminalId, shouldPersist, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+		return new RemoteTerminalProcess(instanceId, shouldPersist, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
 	}
 
 	public async listTerminals(isInitialization = false): Promise<IRemoteTerminalAttachTarget[]> {

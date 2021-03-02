@@ -296,7 +296,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		const activeTerminalInstance = this.terminalService.getActiveInstance();
 		const isPanelShowingTerminal = !!this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
-		return isPanelShowingTerminal && (activeTerminalInstance?.id === terminalData.terminal.id);
+		return isPanelShowingTerminal && (activeTerminalInstance?.instanceId === terminalData.terminal.instanceId);
 	}
 
 
@@ -782,7 +782,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}, (_error) => {
 				this.logService.error('Task terminal process never got ready');
 			});
-			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId));
 			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
 				if (skipLine) {
@@ -812,10 +812,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 						// Only keep a reference to the terminal if it is not being disposed.
 						switch (task.command.presentation!.panel) {
 							case PanelKind.Dedicated:
-								this.sameTaskTerminals[key] = terminal!.id.toString();
+								this.sameTaskTerminals[key] = terminal!.instanceId.toString();
 								break;
 							case PanelKind.Shared:
-								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								this.idleTaskTerminals.set(key, terminal!.instanceId.toString(), Touch.AsOld);
 								break;
 						}
 					}
@@ -868,7 +868,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}, (_error) => {
 				// The process never got ready. Need to think how to handle this.
 			});
-			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id, resolver.values));
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
 			const mapKey = task.getMapKey();
 			this.busyTasks[mapKey] = task;
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -892,10 +892,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 						// Only keep a reference to the terminal if it is not being disposed.
 						switch (task.command.presentation!.panel) {
 							case PanelKind.Dedicated:
-								this.sameTaskTerminals[key] = terminal!.id.toString();
+								this.sameTaskTerminals[key] = terminal!.instanceId.toString();
 								break;
 							case PanelKind.Shared:
-								this.idleTaskTerminals.set(key, terminal!.id.toString(), Touch.AsOld);
+								this.idleTaskTerminals.set(key, terminal!.instanceId.toString(), Touch.AsOld);
 								break;
 						}
 					}
@@ -1215,7 +1215,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (task.command.presentation && task.command.presentation.clear) {
 				terminalToReuse.terminal.clear();
 			}
-			this.terminals[terminalToReuse.terminal.id.toString()].lastTask = taskKey;
+			this.terminals[terminalToReuse.terminal.instanceId.toString()].lastTask = taskKey;
 			return [terminalToReuse.terminal, commandExecutable, undefined];
 		}
 
@@ -1239,7 +1239,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			result = this.terminalService.createTerminal(launchConfigs);
 		}
 
-		const terminalKey = result.id.toString();
+		const terminalKey = result.instanceId.toString();
 		result.onDisposed((terminal) => {
 			let terminalData = this.terminals[terminalKey];
 			if (terminalData) {

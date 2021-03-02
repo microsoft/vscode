@@ -412,7 +412,7 @@ export class TerminalService implements ITerminalService {
 	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				bgIndex = i;
 			}
 		});
@@ -436,7 +436,7 @@ export class TerminalService implements ITerminalService {
 		if (terminalInstance.shellLaunchConfig.hideFromUser) {
 			this._showBackgroundTerminal(terminalInstance);
 		}
-		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
+		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.instanceId));
 	}
 
 	public setActiveTabByIndex(tabIndex: number): void {
@@ -621,7 +621,7 @@ export class TerminalService implements ITerminalService {
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				terminalIndex = i;
 			}
 		});
