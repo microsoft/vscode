@@ -2329,7 +2329,7 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		runTests?(options: TestRun<T>, cancellationToken: CancellationToken): ProviderResult<void>;
+		runTests(options: TestRun<T>, cancellationToken: CancellationToken): ProviderResult<void>;
 	}
 
 	/**

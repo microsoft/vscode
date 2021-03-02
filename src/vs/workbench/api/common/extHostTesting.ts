@@ -239,7 +239,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 */
 	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<void> {
 		const provider = this.providers.get(req.providerId);
-		if (!provider || !provider.runTests) {
+		if (!provider) {
 			return;
 		}
 
