@@ -104,11 +104,12 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 
 	private _startBarrier: Barrier;
 	private _persistentTerminalId: number;
+	public get id(): number { return this._persistentTerminalId; }
 
 	private _inReplay = false;
 
 	constructor(
-		readonly id: number,
+		private readonly _instanceId: number,
 		readonly shouldPersist: boolean,
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
 		private readonly _activeWorkspaceRootUri: URI | undefined,
@@ -151,7 +152,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 				env: this._shellLaunchConfig.env
 			};
 
-			this._logService.trace('Spawning remote agent process', { terminalId: this.id, shellLaunchConfigDto });
+			this._logService.trace('Spawning remote agent process', { terminalId: this._instanceId, shellLaunchConfigDto });
 
 			const result = await this._remoteTerminalChannel.createTerminalProcess(
 				shellLaunchConfigDto,

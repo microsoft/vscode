@@ -307,7 +307,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 			terminals: instances.map(t => {
 				return {
 					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,
-					terminal: t.persistentTerminalId ? t.persistentTerminalId : t.id
+					terminal: t.persistentTerminalId || 0
 				};
 			})
 		};
