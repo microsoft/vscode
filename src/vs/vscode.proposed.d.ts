@@ -2301,7 +2301,7 @@ declare module 'vscode' {
 		 * @param workspace The workspace in which to observe tests
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
+		createWorkspaceTestHierarchy(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
 
 		/**
 		 * Requests that tests be provided for the given document. This will be
