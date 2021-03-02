@@ -240,7 +240,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {
-		if (extname(oldResource) === extname(newResource)) {
+		if (extname(oldResource).toLowerCase() === extname(newResource).toLowerCase()) {
 			return;
 		}
 
