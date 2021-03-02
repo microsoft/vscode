@@ -445,7 +445,16 @@ function webviewPreloads() {
 					const data = event.data;
 					let cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer?.parentElement?.removeChild(cellContainer);
+						cellContainer.parentElement?.removeChild(cellContainer);
+					}
+				}
+				break;
+			case 'updateMarkdownPreviewSelectionState':
+				{
+					const data = event.data;
+					const previewNode = document.getElementById(`${data.id}_preview`);
+					if (previewNode) {
+						previewNode.classList.toggle('selected', data.isSelected);
 					}
 				}
 				break;

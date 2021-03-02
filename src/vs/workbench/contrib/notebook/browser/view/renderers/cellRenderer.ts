@@ -545,6 +545,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}
 		}));
 
+		elementDisposables.add(this.notebookEditor.onDidChangeSelection(() => {
+			const selectedCells = this.notebookEditor.getSelectionViewModels();
+			const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === element);
+			this.notebookEditor.updateMarkdownPreviewSelectionState(element, isSelected);
+		}));
+
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
@@ -569,7 +575,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		// templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP - CELL_BOTTOM_MARGIN}px`;
 
 		const focusSideHeight = element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP;

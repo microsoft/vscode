@@ -1688,6 +1688,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		await this._webview?.removeMarkdownPreview(cell.id);
 	}
 
+	async updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
+		if (!this._webview) {
+			return;
+		}
+
+		await this._resolveWebview();
+
+		await this._webview?.updateMarkdownPreviewSelectionState(cell.id, isSelected);
+	}
+
 	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
 			if (!this._webview) {
