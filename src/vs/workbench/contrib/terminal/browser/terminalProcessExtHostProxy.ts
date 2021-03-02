@@ -48,7 +48,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
 
 	constructor(
-		public terminalId: number,
+		public instanceId: number,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		private _cols: number,
 		private _rows: number,

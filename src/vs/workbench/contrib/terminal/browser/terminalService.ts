@@ -200,18 +200,18 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create tab and terminal
-							terminalInstance = this.createTerminal({ attachPersistentTerminal: terminalLayout.terminal! });
+							terminalInstance = this.createTerminal({ attachPersistentProcess: terminalLayout.terminal! });
 							tab = this._getTabForInstance(terminalInstance);
 							if (tabLayout.isActive) {
 								activeTab = tab;
 							}
 						} else {
 							// add split terminals to this tab
-							this.splitInstance(terminalInstance, { attachPersistentTerminal: terminalLayout.terminal! });
+							this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
 						}
 					});
 					const activeInstance = this.terminalInstances.find(t => {
-						return t.shellLaunchConfig.attachPersistentTerminal?.id === tabLayout.activePersistentTerminalId;
+						return t.shellLaunchConfig.attachPersistentProcess?.id === tabLayout.activePersistentProcessId;
 					});
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
@@ -412,7 +412,7 @@ export class TerminalService implements ITerminalService {
 	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				bgIndex = i;
 			}
 		});
@@ -436,7 +436,7 @@ export class TerminalService implements ITerminalService {
 		if (terminalInstance.shellLaunchConfig.hideFromUser) {
 			this._showBackgroundTerminal(terminalInstance);
 		}
-		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
+		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.instanceId));
 	}
 
 	public setActiveTabByIndex(tabIndex: number): void {
@@ -621,7 +621,7 @@ export class TerminalService implements ITerminalService {
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				terminalIndex = i;
 			}
 		});
