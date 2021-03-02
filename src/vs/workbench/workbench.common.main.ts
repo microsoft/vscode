@@ -276,6 +276,7 @@ import 'vs/workbench/contrib/watermark/browser/watermark';
 
 // Surveys
 import 'vs/workbench/contrib/surveys/browser/nps.contribution';
+import 'vs/workbench/contrib/surveys/browser/ces.contribution';
 import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
