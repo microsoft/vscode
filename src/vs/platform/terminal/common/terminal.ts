@@ -231,7 +231,7 @@ export interface IShellLaunchConfig {
 	flowControl?: boolean;
 
 	/**
-	 * Whether an extension owns this terminal.
+	 * Whether this terminal was created by an extension.
 	 */
 	isExtensionOwnedTerminal?: boolean;
 }
