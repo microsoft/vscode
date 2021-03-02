@@ -117,6 +117,55 @@ export interface INotebookCellActionContext extends INotebookActionContext {
 	cell: ICellViewModel;
 }
 
+function getContextFromActiveEditor(editorService: IEditorService) {
+	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	if (!editor) {
+		return;
+	}
+
+	if (!editor.hasModel()) {
+		return;
+	}
+
+	const activeCell = editor.getActiveCell();
+	return {
+		cell: activeCell,
+		notebookEditor: editor
+	};
+}
+
+function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
+	const editorService = accessor.get(IEditorService);
+	const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
+	const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
+
+	if (editorId) {
+		const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resource!.toString());
+
+		if (widget && widget.hasModel()) {
+			return widget;
+		}
+	}
+
+	return undefined;
+}
+
+function getContextFromUri(accessor: ServicesAccessor, context?: any) {
+	const uri = URI.revive(context);
+
+	if (uri) {
+		const widget = getWidgetFromUri(accessor, uri);
+
+		if (widget) {
+			return {
+				notebookEditor: widget,
+			};
+		}
+	}
+
+	return undefined;
+}
+
 abstract class NotebookAction extends Action2 {
 	constructor(desc: IAction2Options) {
 		if (desc.f1 !== false) {
@@ -164,22 +213,7 @@ abstract class NotebookAction extends Action2 {
 	}
 
 	protected getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any): INotebookActionContext | undefined {
-		const editorService = accessor.get(IEditorService);
-
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor) {
-			return;
-		}
-
-		if (!editor.hasModel()) {
-			return;
-		}
-
-		const activeCell = editor.getActiveCell();
-		return {
-			cell: activeCell,
-			notebookEditor: editor
-		};
+		return getContextFromActiveEditor(accessor.get(IEditorService));
 	}
 }
 
@@ -210,22 +244,6 @@ abstract class NotebookCellAction<T = INotebookCellActionContext> extends Notebo
 	}
 
 	abstract runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
-}
-
-export function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
-	const editorService = accessor.get(IEditorService);
-	const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
-	const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
-
-	if (editorId) {
-		const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resource!.toString());
-
-		if (widget && widget.hasModel()) {
-			return widget;
-		}
-	}
-
-	return undefined;
 }
 
 registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
@@ -547,35 +565,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
-		if (context) {
-			const uri = URI.revive(context);
-
-			if (uri) {
-				const widget = getWidgetFromUri(accessor, uri);
-
-				if (widget) {
-					return {
-						notebookEditor: widget,
-					};
-				}
-			}
-		}
-
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor) {
-			return;
-		}
-
-		if (!editor.hasModel()) {
-			return;
-		}
-
-		const activeCell = editor.getActiveCell();
-		return {
-			cell: activeCell,
-			notebookEditor: editor
-		};
+		return getContextFromUri(accessor, context) ?? getContextFromActiveEditor(accessor.get(IEditorService));
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
@@ -622,35 +612,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: UriComponents): INotebookActionContext | undefined {
-		if (context) {
-			const uri = URI.revive(context);
-
-			if (uri) {
-				const widget = getWidgetFromUri(accessor, uri);
-
-				if (widget) {
-					return {
-						notebookEditor: widget,
-					};
-				}
-			}
-		}
-
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor) {
-			return;
-		}
-
-		if (!editor.hasModel()) {
-			return;
-		}
-
-		const activeCell = editor.getActiveCell();
-		return {
-			cell: activeCell,
-			notebookEditor: editor
-		};
+		return getContextFromUri(accessor, context) ?? getContextFromActiveEditor(accessor.get(IEditorService));
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
