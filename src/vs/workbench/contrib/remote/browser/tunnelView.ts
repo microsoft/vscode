@@ -47,7 +47,7 @@ import { ITableColumn, ITableContextMenuEvent, ITableMouseEvent, ITableRenderer,
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 
-export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
+export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
 class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 
@@ -571,14 +571,14 @@ class TunnelItem implements ITunnelItem {
 	}
 }
 
-export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add);
-export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false);
-const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacy | undefined>('tunnelPrivacy', undefined);
-const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false);
+export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
+export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
+const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacy | undefined>('tunnelPrivacy', undefined, true);
+const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false, nls.localize('tunnel.focusContext', "Whether the Ports view has focus."));
 const TunnelViewSelectionKeyName = 'tunnelViewSelection';
-const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined);
-const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false);
-const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb);
+const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined, true);
+const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false, true);
+const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb, true);
 
 export class TunnelPanel extends ViewPane {
 

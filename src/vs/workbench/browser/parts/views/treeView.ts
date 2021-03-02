@@ -205,11 +205,11 @@ export class TreeView extends Disposable implements ITreeView {
 	) {
 		super();
 		this.root = new Root();
-		this.collapseAllContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableCollapseAll`, false);
+		this.collapseAllContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableCollapseAll`, false, localize('treeView.enableCollapseAll', "Whether the the tree view with id {0} enables collapse all.", this.id));
 		this.collapseAllContext = this.collapseAllContextKey.bindTo(contextKeyService);
-		this.collapseAllToggleContextKey = new RawContextKey<boolean>(`treeView.${this.id}.toggleCollapseAll`, false);
+		this.collapseAllToggleContextKey = new RawContextKey<boolean>(`treeView.${this.id}.toggleCollapseAll`, false, localize('treeView.toggleCollapseAll', "Whether collapse all is toggled for the tree view with id {0}.", this.id));
 		this.collapseAllToggleContext = this.collapseAllToggleContextKey.bindTo(contextKeyService);
-		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false);
+		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false, localize('treeView.enableRefresh', "Whether the tree view with id {0} enables refresh.", this.id));
 		this.refreshContext = this.refreshContextKey.bindTo(contextKeyService);
 
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
