@@ -1536,6 +1536,11 @@ export interface ExtHostQuickOpenShape {
 	$onDidHide(sessionId: number): void;
 }
 
+export interface ExtHostTelemetryShape {
+	$initializeTelemetryEnabled(enabled: boolean): void;
+	$onDidChangeTelemetryEnabled(enabled: boolean): void;
+}
+
 export interface IShellLaunchConfigDto {
 	name?: string;
 	executable?: string;
@@ -1962,4 +1967,5 @@ export const ExtHostContext = {
 	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),
 	ExtHostTimeline: createMainId<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createMainId<ExtHostTestingShape>('ExtHostTesting'),
+	ExtHostTelemetry: createMainId<ExtHostTelemetryShape>('ExtHostTelemetry'),
 };

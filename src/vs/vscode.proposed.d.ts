@@ -2708,6 +2708,10 @@ declare module 'vscode' {
 
 	namespace env {
 		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
+
+		export const isTelemetryEnabled: boolean;
+
+		export const onDidChangeTelemetryEnabled: Event<boolean>;
 	}
 
 	//#endregion
