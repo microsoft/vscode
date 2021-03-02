@@ -24,7 +24,7 @@ import { EditorsAssociations, editorsAssociationsSettingId, Extensions as Editor
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -41,7 +41,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _models = new CustomEditorModelManager();
 
-	private readonly _customEditorContextKey: IContextKey<string>;
+	private readonly _activeCustomEditorId: IContextKey<string>;
 	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
 
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
@@ -62,7 +62,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	) {
 		super();
 
-		this._customEditorContextKey = CONTEXT_CUSTOM_EDITORS.bindTo(contextKeyService);
+		this._activeCustomEditorId = CONTEXT_ACTIVE_CUSTOM_EDITOR_ID.bindTo(contextKeyService);
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
@@ -230,14 +230,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const activeEditorPane = this.editorService.activeEditorPane;
 		const resource = activeEditorPane?.input?.resource;
 		if (!resource) {
-			this._customEditorContextKey.reset();
+			this._activeCustomEditorId.reset();
 			this._focusedCustomEditorIsEditable.reset();
 			return;
 		}
 
-		const possibleEditors = this.getAllCustomEditors(resource).allEditors;
-
-		this._customEditorContextKey.set(possibleEditors.map(x => x.id).join(','));
+		this._activeCustomEditorId.set(activeEditorPane?.input instanceof CustomEditorInput ? activeEditorPane.input.viewType : '');
 		this._focusedCustomEditorIsEditable.set(activeEditorPane?.input instanceof CustomEditorInput);
 	}
 
