@@ -1235,6 +1235,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.deltaCellDecorations(cellDecorations || [], []);
 	}
 
+
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
+		return this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
+	}
+
+	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
+		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	}
+
 	//#endregion
 
 	//#region Mouse Events
@@ -1244,11 +1253,39 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
 	public readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 
-	private pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
+	//#endregion
+
+	//#region Kernel/Execution
+	async cancelNotebookExecution(): Promise<void> {
+		return this._kernelManger.cancelNotebookExecution();
+	}
+
+	async executeNotebook(): Promise<void> {
+		return this._kernelManger.executeNotebook();
+	}
+
+	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
+		return this._kernelManger.cancelNotebookCellExecution(cell);
+	}
+
+	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		if (!this.viewModel) {
+			return;
+		}
+
+		// TODO@roblourens, don't use the "execute" command for this
+		if (cell.cellKind === CellKind.Markdown) {
+			this.focusNotebookCell(cell, 'container');
+			return;
+		}
+
+		return this._kernelManger.executeNotebookCell(cell);
+	}
 
 	//#endregion
 
-	//#region Cell operations
+	//#region Cell operations/layout API
+	private _pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
 	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
 		const viewIndex = this._list.getViewIndex(cell);
 		if (viewIndex === undefined) {
@@ -1264,8 +1301,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._list.updateElementHeight2(cell, height);
 		};
 
-		if (this.pendingLayouts.has(cell)) {
-			this.pendingLayouts.get(cell)!.dispose();
+		if (this._pendingLayouts.has(cell)) {
+			this._pendingLayouts.get(cell)!.dispose();
 		}
 
 		let r: () => void;
@@ -1274,13 +1311,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			this.pendingLayouts.delete(cell);
+			this._pendingLayouts.delete(cell);
 
 			relayout(cell, height);
 			r();
 		});
 
-		this.pendingLayouts.set(cell, toDisposable(() => {
+		this._pendingLayouts.set(cell, toDisposable(() => {
 			layoutDisposable.dispose();
 			r();
 		}));
@@ -1382,8 +1419,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (ret) {
 			ret.deletedCells.forEach(cell => {
-				if (this.pendingLayouts.has(cell)) {
-					this.pendingLayouts.get(cell)!.dispose();
+				if (this._pendingLayouts.has(cell)) {
+					this._pendingLayouts.get(cell)!.dispose();
 				}
 			});
 
@@ -1402,8 +1439,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return false;
 		}
 
-		if (this.pendingLayouts.has(cell)) {
-			this.pendingLayouts.get(cell)!.dispose();
+		if (this._pendingLayouts.has(cell)) {
+			this._pendingLayouts.get(cell)!.dispose();
 		}
 
 		const index = this.viewModel.getCellIndex(cell);
@@ -1445,26 +1482,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const newIdx = index - 1;
 		return this._moveCellToIndex(index, 1, newIdx);
-	}
-
-	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
-		if (!this.viewModel) {
-			return null;
-		}
-
-		if (!this.viewModel.metadata.editable) {
-			return null;
-		}
-
-		if (cell === relativeToCell) {
-			return null;
-		}
-
-		const originalIdx = this.viewModel.getCellIndex(cell);
-		const relativeToIndex = this.viewModel.getCellIndex(relativeToCell);
-
-		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
-		return this._moveCellToIndex(originalIdx, 1, newIdx);
 	}
 
 	async moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null> {
@@ -1522,20 +1539,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	editNotebookCell(cell: CellViewModel): void {
-		if (!this.viewModel) {
-			return;
-		}
-
-		if (!cell.getEvaluatedMetadata(this.viewModel.metadata).editable) {
-			return;
-		}
-
-		cell.editState = CellEditState.Editing;
-
-		this._renderedEditors.get(cell)?.focus();
-	}
-
 	getActiveCell() {
 		const elements = this._list.getFocusedElements();
 
@@ -1544,32 +1547,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		return undefined;
-	}
-
-	async cancelNotebookExecution(): Promise<void> {
-		return this._kernelManger.cancelNotebookExecution();
-	}
-
-	async executeNotebook(): Promise<void> {
-		return this._kernelManger.executeNotebook();
-	}
-
-	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
-		return this._kernelManger.cancelNotebookCellExecution(cell);
-	}
-
-	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
-		if (!this.viewModel) {
-			return;
-		}
-
-		// TODO@roblourens, don't use the "execute" command for this
-		if (cell.cellKind === CellKind.Markdown) {
-			this.focusNotebookCell(cell, 'container');
-			return;
-		}
-
-		return this._kernelManger.executeNotebookCell(cell);
 	}
 
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions) {
@@ -1634,14 +1611,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#endregion
 
 	//#region MISC
-
-	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
-		return this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
-	}
-
-	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
-		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
-	}
 
 	getLayoutInfo(): NotebookLayoutInfo {
 		if (!this._list) {
@@ -1775,10 +1744,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			this._webview.postRendererMessage(forRendererId, message);
 		}
-	}
-
-	toggleClassName(className: string) {
-		this._overlayContainer.classList.toggle(className);
 	}
 
 	addClassName(className: string) {

@@ -423,12 +423,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null>;
 
 	/**
-	 * @deprecated Note that this method doesn't support batch operations, use #moveCellToIdx instead.
-	 * Move a cell above or below another cell
-	 */
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null>;
-
-	/**
 	 * Move a cell to a specific position
 	 */
 	moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null>;
@@ -494,11 +488,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	 * Send message to the webview for outputs.
 	 */
 	postMessage(forRendererId: string | undefined, message: any): void;
-
-	/**
-	 * Toggle class name on the notebook editor root DOM node.
-	 */
-	toggleClassName(className: string): void;
 
 	/**
 	 * Remove class name on the notebook editor root DOM node.
