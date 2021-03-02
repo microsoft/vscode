@@ -84,12 +84,11 @@
           "description": "%emmetExclude%"
         },
         "emmet.extensionsPath": {
-          "type": [
-            "string",
-            "array",
-            "null"
-          ],
-          "default": null,
+          "type": "array",
+			    "items": {
+				    "type": "string"
+          },
+			    "default": [],
           "description": "%emmetExtensionsPath%"
         },
         "emmet.triggerExpansionOnTab": {
