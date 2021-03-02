@@ -15,6 +15,7 @@ import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc
 import { ExposedPortInfo, OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_pb';
 import { GetTokenRequest, GetTokenResponse } from '@gitpod/supervisor-api-grpc/lib/token_pb';
+import { NotificationServiceClient } from '@gitpod/supervisor-api-grpc/lib/notification_grpc_pb';
 import * as grpc from '@grpc/grpc-js';
 import * as fs from 'fs';
 import type * as keytarType from 'keytar';
@@ -27,11 +28,80 @@ import * as vscode from 'vscode';
 import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
 import { GitpodPluginModel } from './gitpod-plugin-model';
 import WebSocket = require('ws');
+import { NotifyRequest, NotifyResponse, RespondRequest, SubscribeRequest, SubscribeResponse } from '@gitpod/supervisor-api-grpc/lib/notification_pb';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
 	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const controlServiceClient = new ControlServiceClient(supervisorAddr, grpc.credentials.createInsecure());
+	const notificationServiceClient = new NotificationServiceClient(supervisorAddr, grpc.credentials.createInsecure());
+
+	//#region notifications
+	function observeNotifications(): vscode.Disposable {
+		let run = true;
+		let stopUpdates: Function | undefined;
+		(async () => {
+			while (run) {
+				try {
+					console.info('connecting to notification service');
+					const evts = notificationServiceClient.subscribe(new SubscribeRequest());
+					stopUpdates = evts.cancel.bind(evts);
+
+					await new Promise((resolve, reject) => {
+						evts.on('end', resolve);
+						evts.on('error', reject);
+						evts.on('data', async (result: SubscribeResponse) => {
+							const request = result.getRequest();
+							if (request) {
+								console.info('received notification request', request);
+								const level = request.getLevel();
+								const message = request.getMessage();
+								const actions = request.getActionsList();
+								let choice: string | undefined;
+								switch (level) {
+									case NotifyRequest.Level.ERROR:
+										choice = await vscode.window.showErrorMessage(message, ...actions);
+										break;
+									case NotifyRequest.Level.WARNING:
+										choice = await vscode.window.showWarningMessage(message, ...actions);
+										break;
+									case NotifyRequest.Level.INFO:
+									default:
+										choice = await vscode.window.showInformationMessage(message, ...actions);
+								}
+								const respondRequest = new RespondRequest();
+								const notifyResponse = new NotifyResponse();
+								notifyResponse.setAction(choice || '');
+								respondRequest.setResponse(notifyResponse);
+								respondRequest.setRequestid(result.getRequestid());
+								console.info('sending notification response', request);
+								notificationServiceClient.respond(respondRequest, (error, _) => {
+									if (error?.code !== grpc.status.DEADLINE_EXCEEDED) {
+										reject(error);
+									}
+								});
+							}
+						});
+					});
+				} catch (err) {
+					if (!('code' in err && err.code === grpc.status.CANCELLED)) {
+						console.error('cannot maintain connection to supervisor', err);
+					}
+				} finally {
+					stopUpdates = undefined;
+				}
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
+		})();
+		return new vscode.Disposable(() => {
+			run = false;
+			if (stopUpdates) {
+				stopUpdates();
+			}
+		});
+	}
+	context.subscriptions.push(observeNotifications());
+	//#endregion
 
 	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
