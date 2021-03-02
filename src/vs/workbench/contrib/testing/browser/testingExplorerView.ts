@@ -996,6 +996,8 @@ const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) =>
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
 		percent = Math.min(percent, 99.9);
+	} else if (runSoFar === 0) {
+		percent = 0;
 	}
 
 	if (skipped === 0) {
