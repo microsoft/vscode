@@ -187,7 +187,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
 				this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
-
 			} else {
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
@@ -323,6 +322,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
+
 		this._terminalInstanceService.onPtyHostUnresponsive(() => this._onPtyDisconnect.fire());
 		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}
