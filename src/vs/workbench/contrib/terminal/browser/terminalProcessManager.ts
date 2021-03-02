@@ -187,7 +187,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
 				if (enableRemoteAgentTerminals) {
-					const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
+					const shouldPersist = !shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.isExtensionTerminal && this._configHelper.config.enablePersistentSessions;
 					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				} else {
 					this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
@@ -327,7 +327,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
-
 		this._terminalInstanceService.onPtyHostUnresponsive(() => this._onPtyDisconnect.fire());
 		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}

@@ -132,7 +132,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			hideFromUser: launchConfig.hideFromUser,
 			isExtensionTerminal: launchConfig.isExtensionTerminal,
 			extHostTerminalId: extHostTerminalId,
-			isFeatureTerminal: launchConfig.isFeatureTerminal
+			isFeatureTerminal: launchConfig.isFeatureTerminal,
+			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.id);

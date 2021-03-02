@@ -229,6 +229,11 @@ export interface IShellLaunchConfig {
 	 * Whether flow control is enabled for this terminal.
 	 */
 	flowControl?: boolean;
+
+	/**
+	 * Whether an extension owns this terminal.
+	 */
+	isExtensionOwnedTerminal?: boolean;
 }
 
 export interface ITerminalEnvironment {

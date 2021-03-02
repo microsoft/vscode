@@ -74,7 +74,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			/*options.waitOnExit*/ undefined,
 			withNullAsUndefined(options.strictEnv),
 			withNullAsUndefined(options.hideFromUser),
-			withNullAsUndefined(isFeatureTerminal));
+			withNullAsUndefined(isFeatureTerminal),
+			true
+		);
 		return terminal.value;
 	}
 
