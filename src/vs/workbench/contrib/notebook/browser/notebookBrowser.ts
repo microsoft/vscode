@@ -26,8 +26,7 @@ import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INot
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
@@ -328,6 +327,10 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	getSelection(): ICellRange;
 }
 
+export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
+
+export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+
 export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	isEmbedded: boolean;
 
@@ -345,7 +348,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	readonly isNotebookEditor: boolean;
 	activeKernel: INotebookKernel | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;
@@ -865,10 +867,8 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 	return result;
 }
 
-export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
-	// TODO@rebornix can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
-	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
+export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
+	return editorPane?.getId() === NOTEBOOK_EDITOR_ID ? editorPane.getControl() as INotebookEditor | undefined : undefined;
 }
 
 let EDITOR_TOP_PADDING = 12;

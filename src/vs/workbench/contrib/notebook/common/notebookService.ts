@@ -84,7 +84,6 @@ export interface INotebookService {
 	removeNotebookEditor(editor: IEditor): void;
 	getNotebookEditor(editorId: string): IEditor | undefined;
 	listNotebookEditors(): readonly IEditor[];
-	listVisibleNotebookEditors(): readonly IEditor[];
 	listNotebookDocuments(): readonly NotebookTextModel[];
 	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
 	removeEditorDecorationType(key: string): void;

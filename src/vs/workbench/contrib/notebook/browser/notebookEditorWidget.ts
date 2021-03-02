@@ -41,7 +41,7 @@ import { IEditorMemento } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_OUTPUT_PADDING, CELL_RUN_GUTTER, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, MARKDOWN_CELL_BOTTOM_MARGIN, MARKDOWN_CELL_TOP_MARGIN, SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -72,7 +72,6 @@ const $ = DOM.$;
 const NotebookEditorActiveKernelCache = 'workbench.editor.notebook.activeKernel';
 
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
-	static readonly ID: string = 'workbench.editor.notebook';
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;
 	private _body!: HTMLElement;
@@ -270,7 +269,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
 		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
-		this._memento = new Memento(NotebookEditorWidget.ID, storageService);
+		this._memento = new Memento(NOTEBOOK_EDITOR_ID, storageService);
 		this._activeKernelMemento = new Memento(NotebookEditorActiveKernelCache, storageService);
 
 		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
@@ -368,11 +367,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#region Editor Core
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
-		const mementoKey = `${NotebookEditorWidget.ID}${key}`;
+		const mementoKey = `${NOTEBOOK_EDITOR_ID}${key}`;
 
 		let editorMemento = NotebookEditorWidget.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(NotebookEditorWidget.ID, key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
+			editorMemento = new EditorMemento(NOTEBOOK_EDITOR_ID, key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
 			NotebookEditorWidget.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
@@ -381,10 +380,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	protected getMemento(scope: StorageScope): MementoObject {
 		return this._memento.getMemento(scope, StorageTarget.MACHINE);
-	}
-
-	public get isNotebookEditor() {
-		return true;
 	}
 
 	private _updateForNotebookConfiguration() {

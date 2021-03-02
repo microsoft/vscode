@@ -35,7 +35,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { INotebookEditor, IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -270,17 +270,16 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		this._register(this.editorService.onDidVisibleEditorsChange(() => {
 			const visibleNotebookEditors = editorService.visibleEditorPanes
-				.filter(pane => (pane as unknown as { isNotebookEditor?: boolean }).isNotebookEditor)
-				.map(pane => pane.getControl() as INotebookEditor)
-				.filter(control => !!control)
-				.map(editor => editor.getId());
+				.map(pane => getNotebookEditorFromEditorPane(pane))
+				.filter(editor => !!editor)
+				.map(editor => editor!.getId());
 
 			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
 		}));
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
-			const activeEditorPane = editorService.activeEditorPane as { isNotebookEditor?: boolean } | undefined;
-			const notebookEditor = activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
+			const notebookEditor = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
+
 			if (notebookEditor) {
 				this.notebookService.updateActiveNotebookEditor(notebookEditor);
 			} else {
@@ -297,9 +296,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	}
 
 	private _updateContextKeys() {
-		const activeEditorPane = this.editorService.activeEditorPane as { isNotebookEditor?: boolean } | undefined;
-		this._notebookEditorIsOpen.set(!!activeEditorPane?.isNotebookEditor);
-		this._notebookDiffEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebookTextDiffEditor');
+		this._notebookEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID);
+		this._notebookDiffEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_DIFF_EDITOR_ID);
 	}
 
 	getUserAssociatedEditors(resource: URI) {

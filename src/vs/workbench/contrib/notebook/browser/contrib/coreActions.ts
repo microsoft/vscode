@@ -21,7 +21,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, IActiveNotebookEditor, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -166,7 +166,7 @@ abstract class NotebookAction extends Action2 {
 	protected getEditorContextFromArgsOrActive(accessor: ServicesAccessor, context?: any): INotebookActionContext | undefined {
 		const editorService = accessor.get(IEditorService);
 
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}
@@ -562,7 +562,7 @@ registerAction2(class extends NotebookAction {
 		}
 
 		const editorService = accessor.get(IEditorService);
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}
@@ -637,7 +637,7 @@ registerAction2(class extends NotebookAction {
 		}
 
 		const editorService = accessor.get(IEditorService);
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}
@@ -740,12 +740,6 @@ registerAction2(class extends NotebookCellAction {
 		await changeCellToKind(CellKind.Markdown, context);
 	}
 });
-
-export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
-	// TODO@roblourens can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
-	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean; } | undefined;
-	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
-}
 
 async function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.metadata?.runState === NotebookCellRunState.Running) {
@@ -2072,7 +2066,7 @@ registerAction2(class extends Action2 {
 	protected getActiveEditorContext(accessor: ServicesAccessor): INotebookActionContext | undefined {
 		const editorService = accessor.get(IEditorService);
 
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}

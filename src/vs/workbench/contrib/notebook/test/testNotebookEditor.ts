@@ -210,8 +210,6 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	isNotebookEditor = true;
-
 	postMessage(): void {
 		throw new Error('Method not implemented.');
 	}

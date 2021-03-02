@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { CellEditState, getActiveNotebookEditor, ICellViewModel, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -413,7 +413,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		}));
 
 		const getContext = () => {
-			const editor = getActiveNotebookEditor(this._editorService);
+			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 			const activeCell = editor?.getActiveCell();
 
 			return {
@@ -887,14 +887,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	listNotebookEditors(): INotebookEditor[] {
 		return [...this._notebookEditors].map(e => e[1]);
-	}
-
-	listVisibleNotebookEditors(): INotebookEditor[] {
-		return this._editorService.visibleEditorPanes
-			.filter(pane => (pane as unknown as { isNotebookEditor?: boolean; }).isNotebookEditor)
-			.map(pane => pane.getControl() as INotebookEditor)
-			.filter(editor => !!editor)
-			.filter(editor => this._notebookEditors.has(editor.getId()));
 	}
 
 	listNotebookDocuments(): NotebookTextModel[] {

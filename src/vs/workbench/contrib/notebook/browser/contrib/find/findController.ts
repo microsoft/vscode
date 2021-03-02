@@ -6,7 +6,7 @@
 import 'vs/css!./media/notebookFind';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_OPEN, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -23,7 +23,6 @@ import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -367,7 +366,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
 		if (!editor) {
 			return;
@@ -394,7 +393,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
 		if (!editor) {
 			return;
@@ -407,7 +406,7 @@ registerAction2(class extends Action2 {
 
 EditorStartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
 	const editorService = accessor.get(IEditorService);
-	const editor = getActiveNotebookEditor(editorService);
+	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
 	if (!editor) {
 		return false;
@@ -420,7 +419,7 @@ EditorStartFindAction.addImplementation(100, (accessor: ServicesAccessor, args: 
 
 EditorStartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, args: any) => {
 	const editorService = accessor.get(IEditorService);
-	const editor = getActiveNotebookEditor(editorService);
+	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
 	if (!editor) {
 		return false;

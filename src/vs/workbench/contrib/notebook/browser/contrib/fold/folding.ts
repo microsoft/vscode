@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -15,7 +15,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { localize } from 'vs/nls';
 import { FoldingRegion } from 'vs/editor/contrib/folding/foldingRanges';
 
@@ -196,7 +196,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}
@@ -280,7 +280,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}
