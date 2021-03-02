@@ -143,7 +143,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		for (const viewDescriptor of views) {
 			const disposables = new DisposableStore();
 			disposables.add(this.registerOpenViewAction(viewDescriptor));
-			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name ?? CATEGORIES.View));
+			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name && composite.name !== composite.id ? composite.name : CATEGORIES.View));
 			disposables.add(this.registerResetViewLocationAction(viewDescriptor));
 			this.viewDisposable.set(viewDescriptor, disposables);
 		}
