@@ -12,12 +12,10 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -25,8 +23,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
@@ -120,9 +117,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		extHostContext: IExtHostContext,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookService private _notebookService: INotebookService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
@@ -657,26 +652,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			override: EditorOverride.DISABLED,
 		};
 
-		const columnArg = viewColumnToEditorGroup(this._editorGroupsService, options.position);
-
-		let group: IEditorGroup | undefined = undefined;
-
-		if (columnArg === SIDE_GROUP) {
-			const direction = preferredSideBySideGroupDirection(this._configurationService);
-
-			let neighbourGroup = this._editorGroupsService.findGroup({ direction });
-			if (!neighbourGroup) {
-				neighbourGroup = this._editorGroupsService.addGroup(this._editorGroupsService.activeGroup, direction);
-			}
-			group = neighbourGroup;
-		} else {
-			group = this._editorGroupsService.getGroup(viewColumnToEditorGroup(this._editorGroupsService, columnArg)) ?? this._editorGroupsService.activeGroup;
-		}
-
 		const input = this._editorService.createEditorInput({ resource: URI.revive(resource), options: editorOptions });
 
 		// TODO: handle options.selection
-		const editorPane = await this._editorService.openEditor(input, { ...options, override: viewType }, group);
+		const editorPane = await this._editorService.openEditor(input, { ...options, override: viewType }, options.position);
 		const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
 
 		if (notebookEditor) {
