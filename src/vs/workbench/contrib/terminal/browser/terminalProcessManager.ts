@@ -185,13 +185,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				// this is a copy of what the merged environment collection is on the remote side
 				await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
-				const enableRemoteAgentTerminals = this._configHelper.config.serverSpawn;
-				if (enableRemoteAgentTerminals) {
-					const shouldPersist = !shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.isExtensionTerminal && this._configHelper.config.enablePersistentSessions;
-					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
-				} else {
-					this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
-				}
+				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
+				this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+
 			} else {
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
