@@ -60,6 +60,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class BrowserMain extends Disposable {
 
@@ -150,6 +151,7 @@ class BrowserMain extends Disposable {
 		// Environment
 		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
 		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration }, productService);
+		serviceCollection.set(IEnvironmentService, environmentService);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Log
