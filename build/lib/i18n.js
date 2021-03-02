@@ -242,6 +242,7 @@ XLF.parse = function (xlfString) {
                         }
                         if (!key) {
                             reject(new Error(`XLF parsing error: trans-unit ${JSON.stringify(unit, undefined, 0)} defined in file ${originalFilePath} is missing the ID attribute.`));
+                            return;
                         }
                         messages[key] = decodeEntities(val);
                     });
