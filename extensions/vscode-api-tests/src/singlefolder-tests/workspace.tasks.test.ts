@@ -20,7 +20,7 @@ import { assertNoRpc } from '../utils';
 			disposables.length = 0;
 		});
 
-		test('CustomExecution task should start and shutdown successfully', (done) => {
+		test.skip('CustomExecution task should start and shutdown successfully', (done) => { // https://github.com/microsoft/vscode/issues/117446
 			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
