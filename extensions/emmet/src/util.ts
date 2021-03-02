@@ -57,28 +57,22 @@ export function migrateEmmetExtensionsPath() {
 	// Get the detail info of emmet.extensionsPath setting
 	let config = vscode.workspace.getConfiguration().inspect('emmet.extensionsPath');
 
-	// Update Global setting if the value type is string
+	// Update Global setting if the value type is string or the value is null
 	if (typeof config?.globalValue === 'string') {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.globalValue], true);
-	}
-	// Update Global setting if the value is null
-	if (config?.globalValue === null) {
+	} else if (config?.globalValue === null) {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], true);
 	}
-	// Update Workspace setting if the value type is string
+	// Update Workspace setting if the value type is string or the value is null
 	if (typeof config?.workspaceValue === 'string') {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceValue], false);
-	}
-	// Update Workspace setting if the value is null
-	if (config?.workspaceValue === null) {
+	} else if (config?.workspaceValue === null) {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], false);
 	}
-	// Update WorkspaceFolder setting if the value type is string
+	// Update WorkspaceFolder setting if the value type is string or the value is null
 	if (typeof config?.workspaceFolderValue === 'string') {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceFolderValue]);
-	}
-	// Update WorkspaceFolder setting if the value is null
-	if (config?.workspaceFolderValue === null) {
+	} else if (config?.workspaceFolderValue === null) {
 		vscode.workspace.getConfiguration().update('emmet.extensionsPath', []);
 	}
 }
