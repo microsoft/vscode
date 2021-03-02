@@ -103,13 +103,20 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	private decorateLabel(label: string): string {
-		const orphaned = this._modelRef?.object.isOrphaned();
-		const readonly = this.isReadonly();
-		return decorateFileEditorLabel(label, { orphaned: !!orphaned, readonly });
+		const orphaned = !!this._modelRef?.object.isOrphaned();
+
+		const readonly = this._modelRef
+			? !this._modelRef.object.isEditable() || this._modelRef.object.isOnReadonlyFileSystem()
+			: false;
+
+		return decorateFileEditorLabel(label, {
+			orphaned,
+			readonly
+		});
 	}
 
 	public isReadonly(): boolean {
-		return this._modelRef ? this._modelRef.object.isReadonly() : false;
+		return this._modelRef ? !this._modelRef.object.isEditable() : false;
 	}
 
 	public isUntitled(): boolean {
