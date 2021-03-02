@@ -1134,10 +1134,12 @@ declare module 'vscode' {
 	export interface NotebookCell {
 		readonly index: number;
 		readonly notebook: NotebookDocument;
-		readonly uri: Uri;
 		readonly cellKind: NotebookCellKind;
-		readonly document: TextDocument;
+		// todo@API duplicates #document.uri
+		readonly uri: Uri;
+		// todo@API duplicates #document.languageId
 		readonly language: string;
+		readonly document: TextDocument;
 		readonly outputs: readonly NotebookCellOutput[];
 		readonly metadata: NotebookCellMetadata
 	}
