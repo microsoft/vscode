@@ -38,6 +38,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class Workbench extends Layout {
 
@@ -174,6 +175,7 @@ export class Workbench extends Layout {
 	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
 
 		// Layout Service
+		serviceCollection.set(ILayoutService, this);
 		serviceCollection.set(IWorkbenchLayoutService, this);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
