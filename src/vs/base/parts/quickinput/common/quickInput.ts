@@ -148,9 +148,31 @@ export interface IInputOptions {
 	validateInput?: (input: string) => Promise<string | null | undefined>;
 }
 
+export enum QuickInputHideReason {
+
+	/**
+	 * Focus moved away from the quick input.
+	 */
+	Blur = 1,
+
+	/**
+	 * An explicit user gesture, e.g. pressing Escape key.
+	 */
+	Gesture,
+
+	/**
+	 * Anything else.
+	 */
+	Other
+}
+
+export interface IQuickInputHideEvent {
+	reason: QuickInputHideReason;
+}
+
 export interface IQuickInput extends IDisposable {
 
-	readonly onDidHide: Event<void>;
+	readonly onDidHide: Event<IQuickInputHideEvent>;
 	readonly onDispose: Event<void>;
 
 	title: string | undefined;

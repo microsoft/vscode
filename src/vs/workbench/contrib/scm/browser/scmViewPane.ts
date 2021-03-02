@@ -20,10 +20,10 @@ import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, ActionRunner } from 'vs/base/common/actions';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getStatusBarActionViewItem } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -1770,43 +1770,25 @@ export class SCMViewPane extends ViewPane {
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
 
-	private scmService: ISCMService;
-	private scmViewService: ISCMViewService;
-	private storageService: IStorageService;
-	private commandService: ICommandService;
-	private editorService: IEditorService;
-	private menuService: IMenuService;
-
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMService scmService: ISCMService,
-		@ISCMViewService scmViewService: ISCMViewService,
+		@ISCMService private scmService: ISCMService,
+		@ISCMViewService private scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ICommandService commandService: ICommandService,
-		@IEditorService editorService: IEditorService,
-		@IInstantiationService _instantiationService: IInstantiationService,
+		@ICommandService private commandService: ICommandService,
+		@IEditorService private editorService: IEditorService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IStorageService storageService: IStorageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService private menuService: IMenuService,
+		@IStorageService private storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		const contextKeyService = _contextKeyService.createScoped();
-		const services = new ServiceCollection([IContextKeyService, contextKeyService]);
-		const instantiationService = _instantiationService.createChild(services);
-
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-
-		this.scmService = scmService;
-		this.scmViewService = scmViewService;
-		this.storageService = storageService;
-		this.commandService = commandService;
-		this.editorService = editorService;
-		this.menuService = menuService;
 
 		this._onDidLayout = new Emitter<void>();
 		this.layoutCache = {
@@ -1816,7 +1798,6 @@ export class SCMViewPane extends ViewPane {
 		};
 
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
-		// this._register(this.scmViewService.menus.titleMenu.onDidChangeTitle(this.updateActions, this));
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -1850,10 +1831,10 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner.onBeforeRun(() => this.tree.domFocus()));
 
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
-			this.instantiationService.createInstance(RepositoryRenderer, getStatusBarActionViewItem),
+			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
-			this.instantiationService.createInstance(ResourceGroupRenderer, getStatusBarActionViewItem),
-			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getStatusBarActionViewItem, actionRunner)
+			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
+			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
 		];
 
 		const filter = new SCMTreeFilter();

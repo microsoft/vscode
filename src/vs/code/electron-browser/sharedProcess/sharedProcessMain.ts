@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
 import * as fs from 'fs';
 import { release } from 'os';
 import { gracefulify } from 'graceful-fs';
-import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { StaticRouter, createChannelSender, createChannelReceiver } from 'vs/base/parts/ipc/common/ipc';
+import { ipcRenderer } from 'electron';
+import product from 'vs/platform/product/common/product';
+import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
+import { StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -28,9 +29,8 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogService } from 'vs/platform/log/common/log';
-import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
+import { ILogService, ILoggerService, MultiplexLogService, ConsoleLogger } from 'vs/platform/log/common/log';
+import { LogLevelChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -40,9 +40,11 @@ import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/co
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { IMainProcessService, MessagePortMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -51,13 +53,12 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, IUserDataSyncStoreManagementService, IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
@@ -78,6 +79,11 @@ import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/con
 import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { join } from 'vs/base/common/path';
+import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { LocalPtyService } from 'vs/platform/terminal/electron-browser/localPtyService';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 
 class SharedProcessMain extends Disposable {
 
@@ -142,13 +148,13 @@ class SharedProcessMain extends Disposable {
 
 		// Log
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
-		const loggerClient = new LoggerChannelClient(this.server.getChannel('logger', mainRouter)); // we only use this for log levels
+		const logLevelClient = new LogLevelChannelClient(this.server.getChannel('logLevel', mainRouter)); // we only use this for log levels
 		const multiplexLogger = this._register(new MultiplexLogService([
-			this._register(new ConsoleLogService(this.configuration.logLevel)),
-			this._register(new SpdLogService('sharedprocess', environmentService.logsPath, this.configuration.logLevel))
+			this._register(new ConsoleLogger(this.configuration.logLevel)),
+			this._register(new SpdLogLogger('sharedprocess', join(environmentService.logsPath, 'sharedprocess.log'), true, this.configuration.logLevel))
 		]));
 
-		const logService = this._register(new FollowerLogService(loggerClient, multiplexLogger));
+		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
 
 		// Main Process
@@ -168,8 +174,8 @@ class SharedProcessMain extends Disposable {
 
 		await configurationService.initialize();
 
-		// Storage
-		const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
+		// Storage (global access only)
+		const storageService = new NativeStorageService(undefined, mainProcessService, environmentService);
 		services.set(IStorageService, storageService);
 
 		await storageService.initialize();
@@ -182,7 +188,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		// Native Host
-		const nativeHostService = createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
+		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
@@ -256,51 +262,52 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncResourceEnablementService, new SyncDescriptor(UserDataSyncResourceEnablementService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
+		// Terminal
+		const localPtyService = this._register(new LocalPtyService(logService));
+		services.set(ILocalPtyService, localPtyService);
+
 		return new InstantiationService(services);
 	}
 
 	private initChannels(accessor: ServicesAccessor): void {
 
 		// Extensions Management
-		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const channel = new ExtensionManagementChannel(extensionManagementService, () => null);
+		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
 		// Localizations
-		const localizationsService = accessor.get(ILocalizationsService);
-		const localizationsChannel = createChannelReceiver(localizationsService);
+		const localizationsChannel = ProxyChannel.fromService(accessor.get(ILocalizationsService));
 		this.server.registerChannel('localizations', localizationsChannel);
 
 		// Diagnostics
-		const diagnosticsService = accessor.get(IDiagnosticsService);
-		const diagnosticsChannel = createChannelReceiver(diagnosticsService);
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips
-		const extensionTipsService = accessor.get(IExtensionTipsService);
-		const extensionTipsChannel = new ExtensionTipsChannel(extensionTipsService);
+		const extensionTipsChannel = new ExtensionTipsChannel(accessor.get(IExtensionTipsService));
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
 		// Settings Sync
-		const userDataSyncMachinesService = accessor.get(IUserDataSyncMachinesService);
-		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(userDataSyncMachinesService);
+		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
 
-		const authTokenService = accessor.get(IUserDataSyncAccountService);
-		const authTokenChannel = new UserDataSyncAccountServiceChannel(authTokenService);
-		this.server.registerChannel('userDataSyncAccount', authTokenChannel);
+		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
+		this.server.registerChannel('userDataSyncAccount', userDataSyncAccountChannel);
 
-		const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
-		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(userDataSyncStoreManagementService);
+		const userDataSyncStoreManagementChannel = new UserDataSyncStoreManagementServiceChannel(accessor.get(IUserDataSyncStoreManagementService));
 		this.server.registerChannel('userDataSyncStoreManagement', userDataSyncStoreManagementChannel);
 
-		const userDataSyncService = accessor.get(IUserDataSyncService);
-		const userDataSyncChannel = new UserDataSyncChannel(this.server, userDataSyncService, accessor.get(ILogService));
+		const userDataSyncChannel = new UserDataSyncChannel(accessor.get(IUserDataSyncService), accessor.get(ILogService));
 		this.server.registerChannel('userDataSync', userDataSyncChannel);
 
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+
+		// Terminal
+		const localPtyService = accessor.get(ILocalPtyService);
+		const localPtyChannel = ProxyChannel.fromService(localPtyService);
+		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

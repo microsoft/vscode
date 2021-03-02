@@ -223,8 +223,7 @@ function getDocumentation(
 	return undefined;
 }
 
-CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (accessor, ...args): Promise<ReadonlyArray<modes.CodeAction>> {
-	const [resource, rangeOrSelection, kind, itemResolveCount] = args;
+CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (accessor, resource: URI, rangeOrSelection: Range | Selection, kind?: string, itemResolveCount?: number): Promise<ReadonlyArray<modes.CodeAction>> {
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
@@ -244,13 +243,13 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		throw illegalArgument();
 	}
 
+	const include = typeof kind === 'string' ? new CodeActionKind(kind) : undefined;
 	const codeActionSet = await getCodeActions(
 		model,
 		validatedRangeOrSelection,
-		{ type: modes.CodeActionTriggerType.Manual, filter: { includeSourceActions: true, include: kind && kind.value ? new CodeActionKind(kind.value) : undefined } },
+		{ type: modes.CodeActionTriggerType.Manual, filter: { includeSourceActions: true, include } },
 		Progress.None,
 		CancellationToken.None);
-
 
 	const resolving: Promise<any>[] = [];
 	const resolveCount = Math.min(codeActionSet.validActions.length, typeof itemResolveCount === 'number' ? itemResolveCount : 0);

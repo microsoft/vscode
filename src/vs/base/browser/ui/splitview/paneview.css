@@ -54,6 +54,7 @@
 
 /* TODO: actions should be part of the pane, but they aren't yet */
 .monaco-pane-view .pane:hover > .pane-header.expanded > .actions,
+.monaco-pane-view .pane:focus-within > .pane-header.expanded > .actions,
 .monaco-pane-view .pane > .pane-header.actions-always-visible.expanded > .actions,
 .monaco-pane-view .pane > .pane-header.focused.expanded > .actions {
 	display: initial;

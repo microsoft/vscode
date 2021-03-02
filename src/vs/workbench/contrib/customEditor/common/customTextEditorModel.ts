@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
@@ -28,6 +28,11 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		});
 	}
 
+	private readonly _textFileModel: ITextFileEditorModel | undefined;
+
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
+	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+
 	private constructor(
 		public readonly viewType: string,
 		private readonly _resource: URI,
@@ -37,6 +42,11 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		super();
 
 		this._register(_model);
+
+		this._textFileModel = this.textFileService.files.get(_resource);
+		if (this._textFileModel) {
+			this._register(this._textFileModel.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
+		}
 
 		this._register(this.textFileService.files.onDidChangeDirty(e => {
 			if (isEqual(this.resource, e.resource)) {
@@ -60,6 +70,10 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 
 	public isDirty(): boolean {
 		return this.textFileService.isDirty(this.resource);
+	}
+
+	public isOrphaned(): boolean {
+		return !!this._textFileModel?.hasState(TextFileEditorModelState.ORPHAN);
 	}
 
 	private readonly _onDidChangeDirty: Emitter<void> = this._register(new Emitter<void>());

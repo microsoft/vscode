@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
+import { homedir, tmpdir } from 'os';
+import product from 'vs/platform/product/common/product';
 import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import * as paths from 'vs/base/node/paths';
-import * as path from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
+import { getDefaultUserDataPath } from 'vs/base/node/userDataPath';
+import { dirname, join, normalize, resolve } from 'vs/base/common/path';
+import { joinPath } from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
-import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 
 export class NativeEnvironmentService implements INativeEnvironmentService {
 
@@ -23,46 +22,46 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get args(): NativeParsedArgs { return this._args; }
 
 	@memoize
-	get appRoot(): string { return path.dirname(FileAccess.asFileUri('', require).fsPath); }
+	get appRoot(): string { return dirname(FileAccess.asFileUri('', require).fsPath); }
 
 	readonly logsPath: string;
 
 	@memoize
-	get userHome(): URI { return URI.file(os.homedir()); }
+	get userHome(): URI { return URI.file(homedir()); }
 
 	@memoize
 	get userDataPath(): string {
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
-			return path.join(vscodePortable, 'user-data');
+			return join(vscodePortable, 'user-data');
 		}
 
 		return parseUserDataDir(this._args, process);
 	}
 
 	@memoize
-	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
+	get appSettingsHome(): URI { return URI.file(join(this.userDataPath, 'User')); }
 
 	@memoize
-	get tmpDir(): URI { return URI.file(os.tmpdir()); }
+	get tmpDir(): URI { return URI.file(tmpdir()); }
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
-	get settingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
 
 	@memoize
-	get userDataSyncHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'sync'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
 
 	@memoize
-	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }
+	get userDataSyncLogResource(): URI { return URI.file(join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
-	get machineSettingsResource(): URI { return resources.joinPath(URI.file(path.join(this.userDataPath, 'Machine')), 'settings.json'); }
+	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
 	get globalStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'globalStorage'); }
@@ -71,32 +70,32 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get workspaceStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
-	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 
 	@memoize
-	get keyboardLayoutResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
+	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
 	get argvResource(): URI {
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
-			return URI.file(path.join(vscodePortable, 'argv.json'));
+			return URI.file(join(vscodePortable, 'argv.json'));
 		}
 
-		return resources.joinPath(this.userHome, product.dataFolderName, 'argv.json');
+		return joinPath(this.userHome, product.dataFolderName, 'argv.json');
 	}
 
 	@memoize
-	get snippetsHome(): URI { return resources.joinPath(this.userRoamingDataHome, 'snippets'); }
+	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }
+	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
-	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
+	get installSourcePath(): string { return join(this.userDataPath, 'installSource'); }
 
 	@memoize
 	get builtinExtensionsPath(): string {
@@ -104,7 +103,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 		if (fromArgs) {
 			return fromArgs;
 		} else {
-			return path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
+			return normalize(join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 		}
 	}
 
@@ -113,7 +112,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 		if (fromArgs) {
 			return fromArgs;
 		} else {
-			return path.join(this.userDataPath, 'CachedExtensionVSIXs');
+			return join(this.userDataPath, 'CachedExtensionVSIXs');
 		}
 	}
 
@@ -132,10 +131,10 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 		const vscodePortable = process.env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
-			return path.join(vscodePortable, 'extensions');
+			return join(vscodePortable, 'extensions');
 		}
 
-		return resources.joinPath(this.userHome, product.dataFolderName, 'extensions').fsPath;
+		return joinPath(this.userHome, product.dataFolderName, 'extensions').fsPath;
 	}
 
 	@memoize
@@ -146,7 +145,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 				if (/^[^:/?#]+?:\/\//.test(p)) {
 					return URI.parse(p);
 				}
-				return URI.file(path.normalize(p));
+				return URI.file(normalize(p));
 			});
 		}
 		return undefined;
@@ -159,7 +158,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 			if (/^[^:/?#]+?:\/\//.test(s)) {
 				return URI.parse(s);
 			}
-			return URI.file(path.normalize(s));
+			return URI.file(normalize(s));
 		}
 		return undefined;
 	}
@@ -189,10 +188,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get logLevel(): string | undefined { return this._args.log; }
 
 	@memoize
-	get sharedIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'shared', product.version); }
-
-	@memoize
-	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
+	get serviceMachineIdResource(): URI { return joinPath(URI.file(this.userDataPath), 'machineid'); }
 
 	get crashReporterId(): string | undefined { return this._args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this._args['crash-reporter-directory']; }
@@ -200,13 +196,13 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get driverHandle(): string | undefined { return this._args['driver']; }
 
 	@memoize
-	get telemetryLogResource(): URI { return URI.file(path.join(this.logsPath, 'telemetry.log')); }
+	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
 
 	constructor(protected _args: NativeParsedArgs) {
 		if (!_args.logsPath) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
-			_args.logsPath = path.join(this.userDataPath, 'logs', key);
+			_args.logsPath = join(this.userDataPath, 'logs', key);
 		}
 		this.logsPath = _args.logsPath;
 	}
@@ -235,15 +231,15 @@ export function parsePathArg(arg: string | undefined, process: NodeJS.Process): 
 
 	// Determine if the arg is relative or absolute, if relative use the original CWD
 	// (VSCODE_CWD), not the potentially overridden one (process.cwd()).
-	const resolved = path.resolve(arg);
+	const resolved = resolve(arg);
 
-	if (path.normalize(arg) === resolved) {
+	if (normalize(arg) === resolved) {
 		return resolved;
 	}
 
-	return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
+	return resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
 }
 
 export function parseUserDataDir(args: NativeParsedArgs, process: NodeJS.Process): string {
-	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath());
+	return parsePathArg(args['user-data-dir'], process) || resolve(getDefaultUserDataPath());
 }

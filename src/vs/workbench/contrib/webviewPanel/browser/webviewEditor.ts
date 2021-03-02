@@ -31,6 +31,7 @@ export class WebviewEditor extends EditorPane {
 	private _element?: HTMLElement;
 	private _dimension?: DOM.Dimension;
 	private _visible = false;
+	private _isDisposed = false;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -71,6 +72,8 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	public dispose(): void {
+		this._isDisposed = true;
+
 		if (this._element) {
 			this._element.remove();
 			this._element = undefined;
@@ -133,7 +136,7 @@ export class WebviewEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		await input.resolve();
 
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this._isDisposed) {
 			return;
 		}
 

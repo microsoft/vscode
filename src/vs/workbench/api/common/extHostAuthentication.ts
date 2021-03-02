@@ -39,11 +39,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
-	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
-		this._providers = providers;
-		return Promise.resolve();
-	}
-
 	get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
 		return Object.freeze(this._providers.slice());
 	}
@@ -87,13 +82,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
 	}
 
-	async logout(providerId: string, sessionId: string): Promise<void> {
+	async removeSession(providerId: string, sessionId: string): Promise<void> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (!providerData) {
-			return this._proxy.$logout(providerId, sessionId);
+			return this._proxy.$removeSession(providerId, sessionId);
 		}
 
-		return providerData.provider.logout(sessionId);
+		return providerData.provider.removeSession(sessionId);
 	}
 
 	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
@@ -111,7 +106,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		const listener = provider.onDidChangeSessions(e => {
-			this._proxy.$sendDidChangeSessions(id, e);
+			this._proxy.$sendDidChangeSessions(id, {
+				added: e.added ?? [],
+				changed: e.changed ?? [],
+				removed: e.changed ?? []
+			});
 		});
 
 		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false);
@@ -129,50 +128,35 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
+	$createSession(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.login(scopes));
+			return Promise.resolve(providerData.provider.createSession(scopes));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$logout(providerId: string, sessionId: string): Promise<void> {
+	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.logout(sessionId));
+			return Promise.resolve(providerData.provider.removeSession(sessionId));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$getSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>> {
+	$getSessions(providerId: string, scopes?: string[]): Promise<ReadonlyArray<modes.AuthenticationSession>> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.getSessions());
+			return Promise.resolve(providerData.provider.getSessions(scopes));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	async $getSessionAccessToken(providerId: string, sessionId: string): Promise<string> {
-		const providerData = this._authenticationProviders.get(providerId);
-		if (providerData) {
-			const sessions = await providerData.provider.getSessions();
-			const session = sessions.find(session => session.id === sessionId);
-			if (session) {
-				return session.accessToken;
-			}
-
-			throw new Error(`Unable to find session with id: ${sessionId}`);
-		}
-
-		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
-	}
-
-	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent) {
-		this._onDidChangeSessions.fire({ provider: { id, label }, ...event });
+	$onDidChangeAuthenticationSessions(id: string, label: string) {
+		this._onDidChangeSessions.fire({ provider: { id, label } });
 		return Promise.resolve();
 	}
 

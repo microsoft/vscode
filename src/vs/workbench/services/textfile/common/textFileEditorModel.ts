@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
@@ -783,17 +783,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return;
 			}
 
-			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
-			// the file has not changed and as such was not dirty before.
-			// The conditions are all of:
-			// - a forced, explicit save (Ctrl+S)
-			// - the model is not dirty (otherwise we know there are changed which needs to go to the file)
-			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
-			// - the model version did not change due to save participants running
-			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === this.versionId) {
-				return this.doTouch(this.versionId, options);
-			}
-
 			// update versionId with its new value (if pre-save changes happened)
 			versionId = this.versionId;
 
@@ -805,14 +794,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString(true));
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-			const textFileEditorModel = this;
+			const resolvedTextFileEditorModel = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
+					const stat = await this.textFileService.write(lastResolvedFileStat.resource, resolvedTextFileEditorModel.createSnapshot(), {
 						overwriteReadonly: options.overwriteReadonly,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
-						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, resolvedTextFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						writeElevated: options.writeElevated
 					});
 
@@ -853,6 +842,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			throw error;
 		}
 
+		// In any case of an error, we mark the model as dirty to prevent data loss
+		// It could be possible that the write corrupted the file on disk (e.g. when
+		// an error happened after truncating the file) and as such we want to preserve
+		// the model contents to prevent data loss.
+		this.setDirty(true);
+
 		// Flag as error state in the model
 		this.inErrorMode = true;
 
@@ -866,41 +861,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as event
 		this._onDidSaveError.fire();
-	}
-
-	private doTouch(this: TextFileEditorModel & IResolvedTextFileEditorModel, versionId: number, options: ITextFileSaveOptions): Promise<void> {
-		const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-
-		return this.saveSequentializer.setPending(versionId, (async () => {
-			try {
-
-				// Write contents to touch: we used to simply update the mtime of the file
-				// but this lead to weird results, either for external watchers or even for
-				// us where we thought the file has changed on disk. As such, we let the OS
-				// handle the increment of mtime and not deal with it ourselves.
-				const stat = await this.textFileService.write(lastResolvedFileStat.resource, this.createSnapshot(), {
-					mtime: lastResolvedFileStat.mtime,
-					encoding: this.getEncoding(),
-					etag: lastResolvedFileStat.etag
-				});
-
-				// Updated resolved stat with updated stat since touching it might have changed mtime
-				this.updateLastResolvedFileStat(stat);
-
-				// Emit File Saved Event
-				this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
-			} catch (error) {
-
-				// In any case of an error, we mark the model as dirty to prevent data loss
-				// It could be possible that the touch corrupted the file on disk (e.g. when
-				// an error happened after truncating the file) and as such we want to preserve
-				// the model contents to prevent data loss
-				this.setDirty(true);
-
-				// Notify user to handle this save error
-				this.handleSaveError(error, versionId, options);
-			}
-		})());
 	}
 
 	private updateSavedVersionId(): void {
@@ -948,6 +908,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
+	joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void> {
+		return this.saveSequentializer.pending ?? Promise.resolve();
+	}
+
 	getMode(this: IResolvedTextFileEditorModel): string;
 	getMode(): string | undefined;
 	getMode(): string | undefined {
@@ -987,7 +951,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Decode: Load with encoding
 		else {
 			if (this.isDirty()) {
-				this.notificationService.info(nls.localize('saveFileFirst', "The file is dirty. Please save it first before reopening it with another encoding."));
+				this.notificationService.info(localize('saveFileFirst', "The file is dirty. Please save it first before reopening it with another encoding."));
 
 				return;
 			}

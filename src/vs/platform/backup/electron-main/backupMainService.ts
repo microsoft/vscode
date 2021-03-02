@@ -38,12 +38,12 @@ export class BackupMainService implements IBackupMainService {
 	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !isLinux) };
 
 	constructor(
-		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.backupHome = environmentService.backupHome;
-		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
+		this.backupHome = environmentMainService.backupHome;
+		this.workspacesJsonPath = environmentMainService.backupWorkspacesPath;
 	}
 
 	async initialize(): Promise<void> {

@@ -36,6 +36,7 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	sandbox: boolean;
 	driverVerbose: boolean;
 	disableUpdates: boolean;
+	disableKeytar: boolean;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
@@ -60,6 +61,9 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
+
+	@memoize
+	get disableKeytar(): boolean { return !!this._args['disable-keytar']; }
 
 	@memoize
 	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }

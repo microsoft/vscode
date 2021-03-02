@@ -210,4 +210,8 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 			onStopCallback(e);
 		});
 	}
+
+	public stopMonitoring(): void {
+		this._globalMouseMoveMonitor.stopMonitoring(true);
+	}
 }

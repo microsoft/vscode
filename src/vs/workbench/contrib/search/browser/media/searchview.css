@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.search-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.search-view .results {
+	flex-grow: 1;
+	min-height: 0; /* Allow it to be smaller than its contents */
+}
+
 .search-view .search-widgets-container {
 	margin: 0px 12px 0 2px;
 	padding-top: 6px;

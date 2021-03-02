@@ -222,6 +222,8 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			return RecommendationsNotificationResult.TooMany;
 		}
 
+		this.recommendationSources.push(source);
+
 		// Ignore exe recommendation if recommendations are already shown
 		if (source === RecommendationSource.EXE && extensionIds.every(id => this.recommendedExtensions.includes(id))) {
 			return RecommendationsNotificationResult.Ignored;
@@ -328,7 +330,6 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	private async doShowRecommendationsNotification(severity: Severity, message: string, choices: IPromptChoice[], source: RecommendationSource, token: CancellationToken): Promise<boolean> {
 		const disposables = new DisposableStore();
 		try {
-			this.recommendationSources.push(source);
 			const recommendationsNotification = new RecommendationsNotification(severity, message, choices, this.notificationService);
 			Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
 			if (this.visibleNotification) {

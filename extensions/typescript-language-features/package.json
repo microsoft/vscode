@@ -9,6 +9,7 @@
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
+  "requiresWorkspaceTrust": "onDemand",
   "engines": {
     "vscode": "^1.30.0"
   },
@@ -600,6 +601,18 @@
           "type": "boolean",
           "default": true,
           "description": "%configuration.suggest.completeJSDocs%",
+          "scope": "resource"
+        },
+        "javascript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+          "scope": "resource"
+        },
+        "typescript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
           "scope": "resource"
         },
         "typescript.locale": {

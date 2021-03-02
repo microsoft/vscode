@@ -160,7 +160,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 
 	private revealCellRange(cellIndex: number, matchIndex: number) {
 		this._findMatches[cellIndex].cell.editState = CellEditState.Editing;
-		this._notebookEditor.selectElement(this._findMatches[cellIndex].cell);
+		this._notebookEditor.focusElement(this._findMatches[cellIndex].cell);
 		this._notebookEditor.setCellSelection(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 		this._notebookEditor.revealRangeInCenterIfOutsideViewportAsync(this._findMatches[cellIndex].cell, this._findMatches[cellIndex].matches[matchIndex].range);
 	}

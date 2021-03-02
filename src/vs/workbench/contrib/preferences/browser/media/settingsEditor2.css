@@ -289,24 +289,9 @@
 	overflow: visible;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::before,
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::after,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::before,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::after {
-	content: ' ';
-	position: absolute;
-	left: 0px;
-	right: 0px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::before,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::before {
-	top: 0px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label::after,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents::after {
-	bottom: 0px;
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label,
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents {
+	outline-offset: -1px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {

@@ -16,6 +16,13 @@ export interface ReadableStreamEvents<T> {
 	/**
 	 * The 'data' event is emitted whenever the stream is
 	 * relinquishing ownership of a chunk of data to a consumer.
+	 *
+	 * NOTE: PLEASE UNDERSTAND THAT ADDING A DATA LISTENER CAN
+	 * TURN THE STREAM INTO FLOWING MODE. IT IS THEREFOR THE
+	 * LAST LISTENER THAT SHOULD BE ADDED AND NOT THE FIRST
+	 *
+	 * Use `listenStream` as a helper method to listen to
+	 * stream events in the right order.
 	 */
 	on(event: 'data', callback: (data: T) => void): void;
 
@@ -268,7 +275,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		// end with data or error if provided
 		if (result instanceof Error) {
 			this.error(result);
-		} else if (result) {
+		} else if (typeof result !== 'undefined') {
 			this.write(result);
 		}
 
@@ -489,16 +496,72 @@ export function peekReadable<T>(readable: Readable<T>, reducer: IReducer<T>, max
 }
 
 /**
- * Helper to fully read a T stream into a T.
+ * Helper to fully read a T stream into a T or consuming
+ * a stream fully, awaiting all the events without caring
+ * about the data.
  */
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T> {
+export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T>;
+export function consumeStream(stream: ReadableStreamEvents<unknown>): Promise<undefined>;
+export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T>): Promise<T | undefined> {
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 
-		stream.on('data', data => chunks.push(data));
-		stream.on('error', error => reject(error));
-		stream.on('end', () => resolve(reducer(chunks)));
+		listenStream(stream, {
+			onData: chunk => {
+				if (reducer) {
+					chunks.push(chunk);
+				}
+			},
+			onError: error => {
+				if (reducer) {
+					reject(error);
+				} else {
+					resolve(undefined);
+				}
+			},
+			onEnd: () => {
+				if (reducer) {
+					resolve(reducer(chunks));
+				} else {
+					resolve(undefined);
+				}
+			}
+		});
 	});
+}
+
+export interface IStreamListener<T> {
+
+	/**
+	 * The 'data' event is emitted whenever the stream is
+	 * relinquishing ownership of a chunk of data to a consumer.
+	 */
+	onData(data: T): void;
+
+	/**
+	 * Emitted when any error occurs.
+	 */
+	onError(err: Error): void;
+
+	/**
+	 * The 'end' event is emitted when there is no more data
+	 * to be consumed from the stream. The 'end' event will
+	 * not be emitted unless the data is completely consumed.
+	 */
+	onEnd(): void;
+}
+
+/**
+ * Helper to listen to all events of a T stream in proper order.
+ */
+export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>): void {
+	stream.on('error', error => listener.onError(error));
+	stream.on('end', () => listener.onEnd());
+
+	// Adding the `data` listener will turn the stream
+	// into flowing mode. As such it is important to
+	// add this listener last (DO NOT CHANGE!)
+	stream.on('data', data => listener.onData(data));
 }
 
 /**
@@ -509,9 +572,9 @@ export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IRedu
 export function peekStream<T>(stream: ReadableStream<T>, maxChunks: number): Promise<ReadableBufferedStream<T>> {
 	return new Promise((resolve, reject) => {
 		const streamListeners = new DisposableStore();
+		const buffer: T[] = [];
 
 		// Data Listener
-		const buffer: T[] = [];
 		const dataListener = (chunk: T) => {
 
 			// Add to buffer
@@ -529,23 +592,27 @@ export function peekStream<T>(stream: ReadableStream<T>, maxChunks: number): Pro
 			}
 		};
 
-		streamListeners.add(toDisposable(() => stream.removeListener('data', dataListener)));
-		stream.on('data', dataListener);
-
 		// Error Listener
 		const errorListener = (error: Error) => {
 			return reject(error);
 		};
 
-		streamListeners.add(toDisposable(() => stream.removeListener('error', errorListener)));
-		stream.on('error', errorListener);
-
+		// End Listener
 		const endListener = () => {
 			return resolve({ stream, buffer, ended: true });
 		};
 
+		streamListeners.add(toDisposable(() => stream.removeListener('error', errorListener)));
+		stream.on('error', errorListener);
+
 		streamListeners.add(toDisposable(() => stream.removeListener('end', endListener)));
 		stream.on('end', endListener);
+
+		// Important: leave the `data` listener last because
+		// this can turn the stream into flowing mode and we
+		// want `error` events to be received as well.
+		streamListeners.add(toDisposable(() => stream.removeListener('data', dataListener)));
+		stream.on('data', dataListener);
 	});
 }
 
@@ -585,46 +652,11 @@ export function toReadable<T>(t: T): Readable<T> {
 export function transform<Original, Transformed>(stream: ReadableStreamEvents<Original>, transformer: ITransformer<Original, Transformed>, reducer: IReducer<Transformed>): ReadableStream<Transformed> {
 	const target = newWriteableStream<Transformed>(reducer);
 
-	stream.on('data', data => target.write(transformer.data(data)));
-	stream.on('end', () => target.end());
-	stream.on('error', error => target.error(transformer.error ? transformer.error(error) : error));
+	listenStream(stream, {
+		onData: data => target.write(transformer.data(data)),
+		onError: error => target.error(transformer.error ? transformer.error(error) : error),
+		onEnd: () => target.end()
+	});
 
 	return target;
-}
-
-export interface IReadableStreamObservable {
-
-	/**
-	 * A promise to await the `end` or `error` event
-	 * of a stream.
-	 */
-	errorOrEnd: () => Promise<void>;
-}
-
-/**
- * Helper to observe a stream for certain events through
- * a promise based API.
- */
-export function observe(stream: ReadableStream<unknown>): IReadableStreamObservable {
-
-	// A stream is closed when it ended or errord
-	// We install this listener right from the
-	// beginning to catch the events early.
-	const errorOrEnd = Promise.race([
-		new Promise<void>(resolve => stream.on('end', () => resolve())),
-		new Promise<void>(resolve => stream.on('error', () => resolve()))
-	]);
-
-	return {
-		errorOrEnd(): Promise<void> {
-
-			// We need to ensure the stream is flowing so that our
-			// listeners are getting triggered. It is possible that
-			// the stream is not flowing because no `data` listener
-			// was attached yet.
-			stream.resume();
-
-			return errorOrEnd;
-		}
-	};
 }

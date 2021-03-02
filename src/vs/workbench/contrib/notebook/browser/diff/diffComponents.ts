@@ -14,7 +14,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/wi
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellEditType, CellUri, IProcessedOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -89,7 +89,7 @@ export const fixedDiffEditorOptions: IDiffEditorOptions = {
 	...fixedEditorOptions,
 	glyphMargin: true,
 	enableSplitViewResizing: false,
-	renderIndicators: false,
+	renderIndicators: true,
 	readOnly: false,
 	isInEmbeddedEditor: true,
 	renderOverviewRuler: false
@@ -440,7 +440,6 @@ abstract class AbstractElementRenderer extends Disposable {
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
 				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);
 				this.notebookEditor.textModel!.applyEdits(
-					this.notebookEditor.textModel!.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
 					true,
 					undefined,
@@ -455,7 +454,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				return;
 			}
 
-			this.notebookEditor.textModel!.applyEdits(this.notebookEditor.textModel!.versionId, [
+			this.notebookEditor.textModel!.applyEdits([
 				{ editType: CellEditType.Metadata, index, metadata: result }
 			], true, undefined, () => undefined, undefined);
 		} catch {
@@ -564,8 +563,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		}
 	}
 
-	private _getFormatedOutputJSON(outputs: IProcessedOutput[]) {
-		return JSON.stringify(outputs, undefined, '\t');
+	private _getFormatedOutputJSON(outputs: IOutputDto[]) {
+		return JSON.stringify(outputs.map(op => ({ outputs: op.outputs })), undefined, '\t');
 	}
 
 	private _buildOutputEditor() {

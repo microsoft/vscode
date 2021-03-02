@@ -35,7 +35,7 @@ import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerTestFileEditor, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -135,9 +135,7 @@ flakySuite('BackupTracker (native)', function () {
 			configurationService
 		));
 
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+		const part = createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -161,10 +159,17 @@ flakySuite('BackupTracker (native)', function () {
 		return { accessor, part, tracker, instantiationService, cleanup };
 	}
 
-	test('Track backups (file)', async function () {
-		const { accessor, cleanup } = await createTracker();
+	test('Track backups (file, auto save off)', function () {
+		return trackBackupsTest(toResource.call(this, '/path/index.txt'), false);
+	});
 
-		const resource = toResource.call(this, '/path/index.txt');
+	test('Track backups (file, auto save on)', function () {
+		return trackBackupsTest(toResource.call(this, '/path/index.txt'), true);
+	});
+
+	async function trackBackupsTest(resource: URI, autoSave: boolean) {
+		const { accessor, cleanup } = await createTracker(autoSave);
+
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 
 		const fileModel = accessor.textFileService.files.get(resource);
@@ -181,7 +186,7 @@ flakySuite('BackupTracker (native)', function () {
 		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), false);
 
 		await cleanup();
-	});
+	}
 
 	test('onWillShutdown - no veto if no dirty files', async function () {
 		const { accessor, cleanup } = await createTracker();

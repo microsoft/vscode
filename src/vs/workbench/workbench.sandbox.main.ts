@@ -49,15 +49,24 @@ import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionMana
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
+import 'vs/workbench/services/diagnostics/electron-sandbox/diagnosticsService';
+import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
+import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
+import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionTipsService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncMachinesService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
+import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
+import 'vs/workbench/services/timer/electron-sandbox/timerService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 
-registerSingleton(ITimerService, TimerService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
 
@@ -100,7 +109,16 @@ import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper.contribution';
 
+// Terminal
+import 'vs/workbench/contrib/terminal/electron-sandbox/terminal.contribution';
+
 // Themes Support
 import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
+
+// User Data Sync
+import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
+
+// Output
+import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
 
 //#endregion

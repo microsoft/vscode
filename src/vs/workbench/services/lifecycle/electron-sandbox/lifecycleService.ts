@@ -148,13 +148,11 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		this._onWillShutdown.fire({
 			join(promise, id) {
-				if (promise) {
-					joiners.push(promise);
+				joiners.push(promise);
 
-					// Track promise completion
-					pendingJoiners.add(id);
-					promise.finally(() => pendingJoiners.delete(id));
-				}
+				// Track promise completion
+				pendingJoiners.add(id);
+				promise.finally(() => pendingJoiners.delete(id));
 			},
 			reason
 		});

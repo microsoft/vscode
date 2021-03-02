@@ -11,6 +11,7 @@ import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -63,9 +64,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return true;
 	}
 
-	@memoize
 	getName(): string {
-		return basename(this.labelService.getUriLabel(this.resource));
+		const name = basename(this.labelService.getUriLabel(this.resource));
+		return this.decorateLabel(name);
 	}
 
 	matches(other: IEditorInput): boolean {
@@ -92,13 +93,32 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.shortTitle;
+				return this.decorateLabel(this.shortTitle);
 			default:
 			case Verbosity.MEDIUM:
-				return this.mediumTitle;
+				return this.decorateLabel(this.mediumTitle);
 			case Verbosity.LONG:
-				return this.longTitle;
+				return this.decorateLabel(this.longTitle);
 		}
+	}
+
+	private decorateLabel(label: string): string {
+		const orphaned = this._modelRef?.object.isOrphaned();
+		const readonly = this.isReadonly();
+
+		if (orphaned && readonly) {
+			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
+		}
+
+		if (orphaned) {
+			return localize('orphanedFile', "{0} (deleted)", label);
+		}
+
+		if (readonly) {
+			return localize('readonlyFile', "{0} (read-only)", label);
+		}
+
+		return label;
 	}
 
 	public isReadonly(): boolean {
@@ -169,6 +189,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		if (!this._modelRef) {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 
 			if (this.isDirty()) {
 				this._onDidChangeDirty.fire();

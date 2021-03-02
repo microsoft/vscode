@@ -9,6 +9,7 @@ import fetch, { Response } from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 const localize = nls.loadMessageBundle();
 
@@ -39,7 +40,9 @@ export class GitHubServer {
 	private _statusBarItem: vscode.StatusBarItem | undefined;
 
 	private _pendingStates = new Map<string, string[]>();
-	private _codeExchangePromises = new Map<string, Promise<string>>();
+	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
+
+	constructor(private readonly telemetryReporter: TelemetryReporter) { }
 
 	private isTestEnvironment(url: vscode.Uri): boolean {
 		return url.authority === 'vscode-web-test-playground.azurewebsites.net' || url.authority.startsWith('localhost:');
@@ -83,17 +86,21 @@ export class GitHubServer {
 
 		// Register a single listener for the URI callback, in case the user starts the login process multiple times
 		// before completing it.
-		let existingPromise = this._codeExchangePromises.get(scopes);
-		if (!existingPromise) {
-			existingPromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
-			this._codeExchangePromises.set(scopes, existingPromise);
+		let codeExchangePromise = this._codeExchangePromises.get(scopes);
+		if (!codeExchangePromise) {
+			codeExchangePromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
+			this._codeExchangePromises.set(scopes, codeExchangePromise);
 		}
 
 		return Promise.race([
-			existingPromise,
-			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined): string => { if (!token) { throw new Error('Cancelled'); } return token; })
+			codeExchangePromise.promise,
+			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined): string => {
+				if (!token) { throw new Error('Cancelled'); }
+				return token;
+			}).promise
 		]).finally(() => {
 			this._pendingStates.delete(scopes);
+			codeExchangePromise?.cancel.fire();
 			this._codeExchangePromises.delete(scopes);
 			this.updateStatusBarItem(false);
 		});
@@ -153,7 +160,7 @@ export class GitHubServer {
 		}
 
 		try {
-			const uri = vscode.Uri.parse(uriOrToken);
+			const uri = vscode.Uri.parse(uriOrToken.trim());
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
 			uriHandler.handleUri(uri);
 		} catch (e) {
@@ -209,5 +216,37 @@ export class GitHubServer {
 			Logger.error(`Getting account info failed: ${result.statusText}`);
 			throw new Error(result.statusText);
 		}
+	}
+
+	public async checkIsEdu(token: string): Promise<void> {
+		try {
+			const result = await fetch('https://education.github.com/api/user', {
+				headers: {
+					Authorization: `token ${token}`,
+					'faculty-check-preview': 'true',
+					'User-Agent': 'Visual-Studio-Code'
+				}
+			});
+
+			if (result.ok) {
+				const json: { student: boolean, faculty: boolean } = await result.json();
+
+				/* __GDPR__
+					"session" : {
+						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryReporter.sendTelemetryEvent('session', {
+					isEdu: json.student
+						? 'student'
+						: json.faculty
+							? 'faculty'
+							: 'none'
+				});
+			}
+		} catch (e) {
+			// No-op
+		}
+
 	}
 }

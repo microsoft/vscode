@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/.bin/vscode-grammar-updater atom/language-shellscript grammars/shell-unix-bash.cson ./syntaxes/shell-unix-bash.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-shellscript grammars/shell-unix-bash.cson ./syntaxes/shell-unix-bash.tmLanguage.json"
   },
   "contributes": {
     "languages": [

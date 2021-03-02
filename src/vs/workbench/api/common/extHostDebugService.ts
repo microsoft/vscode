@@ -945,6 +945,9 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			getConfigurationValue: (folderUri: URI | undefined, section: string): string | undefined => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
 			},
+			getAppRoot: (): string | undefined => {
+				return env ? env['VSCODE_CWD'] : undefined;
+			},
 			getExecPath: (): string | undefined => {
 				return env ? env['VSCODE_EXEC_PATH'] : undefined;
 			},

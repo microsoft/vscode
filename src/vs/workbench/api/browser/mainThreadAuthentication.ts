@@ -18,9 +18,6 @@ import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class MainThreadAuthenticationProvider extends Disposable {
-	private _accounts = new Map<string, string[]>(); // Map account name to session ids
-	private _sessions = new Map<string, string>(); // Map account id to name
-
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
@@ -33,15 +30,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	) {
 		super();
 	}
-
-	public async initialize(): Promise<void> {
-		return this.registerCommandsAndContextMenuItems();
-	}
-
-	public hasSessions(): boolean {
-		return !!this._sessions.size;
-	}
-
 	public manageTrustedExtensions(accountName: string) {
 		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
 
@@ -65,7 +53,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 
 		quickPick.items = items;
-		quickPick.selectedItems = items;
+		quickPick.selectedItems = items.filter(item => item.extension.allowed === undefined || item.extension.allowed);
 		quickPick.title = nls.localize('manageTrustedExtensions', "Manage Trusted Extensions");
 		quickPick.placeholder = nls.localize('manageExensions', "Choose which extensions can access this account");
 
@@ -83,77 +71,40 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	private async registerCommandsAndContextMenuItems(): Promise<void> {
-		try {
-			const sessions = await this._proxy.$getSessions(this.id);
-			sessions.forEach(session => this.registerSession(session));
-		} catch (_) {
-			// Ignore
-		}
-	}
-
-	private registerSession(session: modes.AuthenticationSession) {
-		this._sessions.set(session.id, session.account.label);
-
-		const existingSessionsForAccount = this._accounts.get(session.account.label);
-		if (existingSessionsForAccount) {
-			this._accounts.set(session.account.label, existingSessionsForAccount.concat(session.id));
-			return;
-		} else {
-			this._accounts.set(session.account.label, [session.id]);
-		}
-	}
-
-	async signOut(accountName: string): Promise<void> {
+	async removeAccountSessions(accountName: string, sessions: modes.AuthenticationSession[]): Promise<void> {
 		const accountUsages = readAccountUsages(this.storageService, this.id, accountName);
-		const sessionsForAccount = this._accounts.get(accountName);
 
-		const result = await this.dialogService.confirm({
-			title: nls.localize('signOutConfirm', "Sign out of {0}", accountName),
-			message: accountUsages.length
-				? nls.localize('signOutMessagve', "The account {0} has been used by: \n\n{1}\n\n Sign out of these features?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
-				: nls.localize('signOutMessageSimple', "Sign out of {0}?", accountName)
-		});
+		const result = await this.dialogService.show(
+			Severity.Info,
+			accountUsages.length
+				? nls.localize('signOutMessagve', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountName, accountUsages.map(usage => usage.extensionName).join('\n'))
+				: nls.localize('signOutMessageSimple', "Sign out of '{0}'?", accountName),
+			[
+				nls.localize('signOut', "Sign out"),
+				nls.localize('cancel', "Cancel")
+			],
+			{
+				cancelId: 1
+			});
 
-		if (result.confirmed) {
-			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+		if (result.choice === 0) {
+			const removeSessionPromises = sessions.map(session => this.removeSession(session.id));
+			await Promise.all(removeSessionPromises);
 			removeAccountUsage(this.storageService, this.id, accountName);
 			this.storageService.remove(`${this.id}-${accountName}`, StorageScope.GLOBAL);
 		}
 	}
 
-	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		return this._proxy.$getSessions(this.id);
+	async getSessions(scopes?: string[]) {
+		return this._proxy.$getSessions(this.id, scopes);
 	}
 
-	async updateSessionItems(event: modes.AuthenticationSessionsChangeEvent): Promise<void> {
-		const { added, removed } = event;
-		const session = await this._proxy.$getSessions(this.id);
-		const addedSessions = session.filter(session => added.some(id => id === session.id));
-
-		removed.forEach(sessionId => {
-			const accountName = this._sessions.get(sessionId);
-			if (accountName) {
-				this._sessions.delete(sessionId);
-				let sessionsForAccount = this._accounts.get(accountName) || [];
-				const sessionIndex = sessionsForAccount.indexOf(sessionId);
-				sessionsForAccount.splice(sessionIndex);
-
-				if (!sessionsForAccount.length) {
-					this._accounts.delete(accountName);
-				}
-			}
-		});
-
-		addedSessions.forEach(session => this.registerSession(session));
+	createSession(scopes: string[]): Promise<modes.AuthenticationSession> {
+		return this._proxy.$createSession(this.id, scopes);
 	}
 
-	login(scopes: string[]): Promise<modes.AuthenticationSession> {
-		return this._proxy.$login(this.id, scopes);
-	}
-
-	async logout(sessionId: string): Promise<void> {
-		await this._proxy.$logout(this.id, sessionId);
+	async removeSession(sessionId: string): Promise<void> {
+		await this._proxy.$removeSession(this.id, sessionId);
 		this.notificationService.info(nls.localize('signedOut', "Successfully signed out."));
 	}
 }
@@ -175,7 +126,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
-			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label, e.event);
+			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label);
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(info => {
@@ -185,17 +136,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(info => {
 			this._proxy.$onDidChangeAuthenticationProviders([], [info]);
 		}));
-
-		this._proxy.$setProviders(this.authenticationService.declaredProviders);
-
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(e => {
-			this._proxy.$setProviders(e);
-		}));
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, this.storageService, this.quickInputService, this.dialogService);
-		await provider.initialize();
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
@@ -211,16 +155,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
-	$logout(providerId: string, sessionId: string): Promise<void> {
-		return this.authenticationService.logout(providerId, sessionId);
+	$removeSession(providerId: string, sessionId: string): Promise<void> {
+		return this.authenticationService.removeSession(providerId, sessionId);
 	}
-
-	private isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		const extensionData = allowList.find(extension => extension.id === extensionId);
-		return !!extensionData;
-	}
-
 	private async loginPrompt(providerName: string, extensionName: string): Promise<boolean> {
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
@@ -235,17 +172,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
-		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-		if (!allowList.find(allowed => allowed.id === extensionId)) {
-			allowList.push({ id: extensionId, name: extensionName });
-			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL, StorageTarget.USER);
-		}
-
+		this.authenticationService.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 	}
 
-	private async selectSession(providerId: string, extensionId: string, extensionName: string, potentialSessions: modes.AuthenticationSession[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
+	private async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean, silent: boolean): Promise<modes.AuthenticationSession | undefined> {
 		if (!potentialSessions.length) {
 			throw new Error('No potential sessions found');
 		}
@@ -257,52 +189,66 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			if (existingSessionPreference) {
 				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
 				if (matchingSession) {
-					const allowed = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
-					if (allowed) {
-						return matchingSession;
+					const allowed = this.authenticationService.isAccessAllowed(providerId, matchingSession.account.label, extensionId);
+					if (!allowed) {
+						if (!silent) {
+							const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, matchingSession.account.label, extensionId, extensionName);
+							if (!didAcceptPrompt) {
+								throw new Error('User did not consent to login.');
+							}
+						} else {
+							this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, potentialSessions);
+							return undefined;
+						}
 					}
+
+					return matchingSession;
 				}
 			}
 		}
 
-		return this.authenticationService.selectSession(providerId, extensionId, extensionName, potentialSessions);
+		if (silent) {
+			this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, potentialSessions);
+			return undefined;
+		}
+
+		return this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, potentialSessions);
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
-		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await this.authenticationService.getSessions(providerId)).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
 
 		const silent = !options.createIfNone;
 		let session: modes.AuthenticationSession | undefined;
 		if (sessions.length) {
 			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
 				session = sessions[0];
-				const allowed = this.isAccessAllowed(providerId, session.account.label, extensionId);
+				const allowed = this.authenticationService.isAccessAllowed(providerId, session.account.label, extensionId);
 				if (!allowed) {
 					if (!silent) {
 						const didAcceptPrompt = await this.authenticationService.showGetSessionPrompt(providerId, session.account.label, extensionId, extensionName);
 						if (!didAcceptPrompt) {
 							throw new Error('User did not consent to login.');
 						}
+					} else if (allowed !== false) {
+						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, [session]);
+						return undefined;
 					} else {
-						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, [session]);
+						return undefined;
 					}
 				}
 			} else {
-				if (!silent) {
-					session = await this.selectSession(providerId, extensionId, extensionName, sessions, !!options.clearSessionPreference);
-				} else {
-					this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, sessions);
-				}
+				return this.selectSession(providerId, extensionId, extensionName, scopes, sessions, !!options.clearSessionPreference, silent);
 			}
 		} else {
 			if (!silent) {
-				const isAllowed = await this.loginPrompt(providerId, extensionName);
+				const providerName = await this.authenticationService.getLabel(providerId);
+				const isAllowed = await this.loginPrompt(providerName, extensionName);
 				if (!isAllowed) {
 					throw new Error('User did not consent to login.');
 				}
 
-				session = await this.authenticationService.login(providerId, scopes);
+				session = await this.authenticationService.createSession(providerId, scopes, true);
 				await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			} else {
 				await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);

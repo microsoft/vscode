@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as env from 'vs/base/common/platform';
 import { visit } from 'vs/base/common/json';
@@ -11,7 +12,10 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardTokenType } from 'vs/editor/common/modes';
+import { InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { flatten } from 'vs/base/common/arrays';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -40,6 +44,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const INLINE_VALUE_DECORATION_KEY = 'inlinevaluedecoration';
@@ -47,7 +52,12 @@ const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We 
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
 
-function createInlineValueDecoration(lineNumber: number, contentText: string): IDecorationOptions {
+class InlineSegment {
+	constructor(public column: number, public text: string) {
+	}
+}
+
+function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IDecorationOptions {
 	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
 		contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
@@ -57,8 +67,8 @@ function createInlineValueDecoration(lineNumber: number, contentText: string): I
 		range: {
 			startLineNumber: lineNumber,
 			endLineNumber: lineNumber,
-			startColumn: Constants.MAX_SAFE_SMALL_INTEGER,
-			endColumn: Constants.MAX_SAFE_SMALL_INTEGER
+			startColumn: column,
+			endColumn: column
 		},
 		renderOptions: {
 			after: {
@@ -561,6 +571,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private async updateInlineValueDecorations(stackFrame: IStackFrame | undefined): Promise<void> {
+
+		const var_value_format = '{0} = {1}';
+		const separator = ', ';
+
 		const model = this.editor.getModel();
 		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
@@ -572,20 +586,119 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
-		// Get all top level children in the scope chain
-		const decorationsPerScope = await Promise.all(scopes.map(async scope => {
-			const children = await scope.getChildren();
-			let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
-			if (scope.range) {
-				range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
-			}
+		let allDecorations: IDecorationOptions[];
 
-			return createInlineValueDecorationsInsideRange(children, range, model, this.wordToLineNumbersMap);
-		}));
+		if (InlineValuesProviderRegistry.has(model)) {
 
+			const findVariable = async (_key: string, caseSensitiveLookup: boolean): Promise<string | undefined> => {
+				const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
+				const key = caseSensitiveLookup ? _key : _key.toLowerCase();
+				for (let scope of scopes) {
+					const variables = await scope.getChildren();
+					const found = variables.find(v => caseSensitiveLookup ? (v.name === key) : (v.name.toLowerCase() === key));
+					if (found) {
+						return found.value;
+					}
+				}
+				return undefined;
+			};
 
-		const allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
+			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
+
+			const ctx = { stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1) };
+			const token = new CancellationTokenSource().token;
+
+			const providers = InlineValuesProviderRegistry.ordered(model).reverse();
+
+			allDecorations = [];
+
+			const lineDecorations = new Map<number, InlineSegment[]>();
+
+			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
+				if (result) {
+					for (let iv of result) {
+
+						let text: string | undefined = undefined;
+						switch (iv.type) {
+							case 'text':
+								text = iv.text;
+								break;
+							case 'variable':
+								let va = iv.variableName;
+								if (!va) {
+									const lineContent = model.getLineContent(iv.range.startLineNumber);
+									va = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
+								}
+								const value = await findVariable(va, iv.caseSensitiveLookup);
+								if (value) {
+									text = strings.format(var_value_format, va, value);
+								}
+								break;
+							case 'expression':
+								let expr = iv.expression;
+								if (!expr) {
+									const lineContent = model.getLineContent(iv.range.startLineNumber);
+									expr = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
+								}
+								if (expr) {
+									const viewModel = this.debugService.getViewModel();
+									const expression = new Expression(expr);
+									await expression.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch');
+									if (expression.available) {
+										text = strings.format(var_value_format, expr, expression.value);
+									}
+								}
+								break;
+						}
+
+						if (text) {
+							const line = iv.range.startLineNumber;
+							let lineSegments = lineDecorations.get(line);
+							if (!lineSegments) {
+								lineSegments = [];
+								lineDecorations.set(line, lineSegments);
+							}
+							if (!lineSegments.some(iv => iv.text === text)) {	// de-dupe
+								lineSegments.push(new InlineSegment(iv.range.startColumn, text));
+							}
+						}
+					}
+				}
+			}, err => {
+				onUnexpectedExternalError(err);
+			}))));
+
+			await Promise.all(promises);
+
+			// sort line segments and concatenate them into a decoration
+
+			lineDecorations.forEach((segments, line) => {
+				if (segments.length > 0) {
+					segments = segments.sort((a, b) => a.column - b.column);
+					const text = segments.map(s => s.text).join(separator);
+					allDecorations.push(createInlineValueDecoration(line, text));
+				}
+			});
+
+		} else {
+			// old "one-size-fits-all" strategy
+
+			const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
+			// Get all top level variables in the scope chain
+			const decorationsPerScope = await Promise.all(scopes.map(async scope => {
+				const variables = await scope.getChildren();
+
+				let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
+				if (scope.range) {
+					range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
+				}
+
+				return createInlineValueDecorationsInsideRange(variables, range, model, this.wordToLineNumbersMap);
+			}));
+
+			allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
+		}
+
 		this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
 	}
 

@@ -13,9 +13,9 @@ import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding
 import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { DispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IKeyboardLayoutMainService } from 'vs/platform/keyboardLayout/common/keyboardLayoutMainService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export class KeyboardLayoutService extends Disposable implements IKeyboardLayoutService {
 
@@ -34,7 +34,7 @@ export class KeyboardLayoutService extends Disposable implements IKeyboardLayout
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
 		super();
-		this._keyboardLayoutMainService = createChannelSender<IKeyboardLayoutMainService>(mainProcessService.getChannel('keyboardLayout'));
+		this._keyboardLayoutMainService = ProxyChannel.toService<IKeyboardLayoutMainService>(mainProcessService.getChannel('keyboardLayout'));
 		this._initPromise = null;
 		this._keyboardMapping = null;
 		this._keyboardLayoutInfo = null;

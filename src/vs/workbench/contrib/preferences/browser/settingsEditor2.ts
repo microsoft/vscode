@@ -61,7 +61,7 @@ export const enum SettingsFocusContext {
 	SettingControl
 }
 
-function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
+export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
 		return {
 			element: g,
@@ -303,6 +303,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
+		if (options.focusSearch) {
+			this.focusSearch();
+		}
+
 		if (options.query) {
 			this.searchWidget.setValue(options.query);
 		}

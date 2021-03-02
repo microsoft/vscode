@@ -547,8 +547,8 @@ export namespace FuzzyScore {
 	 */
 	export const Default: FuzzyScore = ([-100, 0]);
 
-	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
-		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
+	export function isDefault(score?: FuzzyScore): score is [-100, 0] {
+		return !score || (score.length === 2 && score[0] === -100 && score[1] === 0);
 	}
 }
 

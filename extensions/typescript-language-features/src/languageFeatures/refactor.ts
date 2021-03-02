@@ -309,7 +309,15 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection);
+		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection).filter(action => {
+			// Don't show 'infer return type' refactoring unless it has been explicitly requested
+			// https://github.com/microsoft/TypeScript/issues/42993
+			if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
+				return false;
+			}
+			return true;
+		});
+
 		if (!context.only) {
 			return actions;
 		}

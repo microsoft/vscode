@@ -49,7 +49,7 @@ let BUNDLED_FILE_HEADER = [
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + headerVersion,
 	' * Released under the MIT license',
-	' * https://github.com/microsoft/vscode/blob/master/LICENSE.txt',
+	' * https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 	' *-----------------------------------------------------------*/',
 	''
 ].join('\n');

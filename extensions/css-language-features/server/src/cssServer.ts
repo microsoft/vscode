@@ -206,10 +206,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(async () => {
 			const document = documents.get(textDocumentPosition.textDocument.uri);
 			if (document) {
-				await dataProvidersReady;
+				const [settings,] = await Promise.all([getDocumentSettings(document), dataProvidersReady]);
 				const styleSheet = stylesheets.get(document);
 				const documentContext = getDocumentContext(document.uri, workspaceFolders);
-				return getLanguageService(document).doComplete2(document, textDocumentPosition.position, styleSheet, documentContext);
+				return getLanguageService(document).doComplete2(document, textDocumentPosition.position, styleSheet, documentContext, settings?.completion);
 			}
 			return null;
 		}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
@@ -219,9 +219,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(async () => {
 			const document = documents.get(textDocumentPosition.textDocument.uri);
 			if (document) {
-				await dataProvidersReady;
+				const [settings,] = await Promise.all([getDocumentSettings(document), dataProvidersReady]);
 				const styleSheet = stylesheets.get(document);
-				return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
+				return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet, settings?.hover);
 			}
 			return null;
 		}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);

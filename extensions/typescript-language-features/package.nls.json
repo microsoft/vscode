@@ -68,6 +68,7 @@
 	"configuration.javascript.checkJs.experimentalDecorators.deprecation": "This setting has been deprecated in favor of `js/ts.implicitProjectConfig.experimentalDecorators`.",
 	"configuration.implicitProjectConfig.strictNullChecks": "Enable/disable [strict null checks](https://www.typescriptlang.org/tsconfig#strictNullChecks) in JavaScript and TypeScript files that are not part of a project. Existing `jsconfig.json` or `tsconfig.json` files override this setting.",
 	"configuration.implicitProjectConfig.strictFunctionTypes": "Enable/disable [strict function types](https://www.typescriptlang.org/tsconfig#strictFunctionTypes) in JavaScript and TypeScript files that are not part of a project. Existing `jsconfig.json` or `tsconfig.json` files override this setting.",
+	"configuration.suggest.jsdoc.generateReturns": "Enable/disable generating `@return` annotations for JSDoc templates. Requires using TypeScript 4.2+ in the workspace.",
 	"configuration.suggest.autoImports": "Enable/disable auto import suggestions.",
 	"taskDefinition.tsconfig.description": "The tsconfig file that defines the TS build.",
 	"javascript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for JavaScript files in the editor.",

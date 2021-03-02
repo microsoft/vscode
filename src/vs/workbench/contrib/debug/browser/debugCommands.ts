@@ -364,6 +364,10 @@ export function registerCommands(): void {
 		handler: async (accessor: ServicesAccessor, session: IDebugSession) => {
 			const debugService = accessor.get(IDebugService);
 			const editorService = accessor.get(IEditorService);
+			const stoppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session && s.state === State.Stopped);
+			if (stoppedChildSession && session.state !== State.Stopped) {
+				session = stoppedChildSession;
+			}
 			await debugService.focusStackFrame(undefined, undefined, session, true);
 			const stackFrame = debugService.getViewModel().focusedStackFrame;
 			if (stackFrame) {

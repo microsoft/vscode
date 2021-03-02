@@ -28,7 +28,6 @@ export function getEmmetHelper() {
 	if (!_emmetHelper) {
 		_emmetHelper = require('vscode-emmet-helper');
 	}
-	updateEmmetExtensionsPath();
 	return _emmetHelper;
 }
 
@@ -36,9 +35,7 @@ export function getEmmetHelper() {
  * Update Emmet Helper to use user snippets from the extensionsPath setting
  */
 export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
-	if (!_emmetHelper) {
-		return;
-	}
+	const helper = getEmmetHelper();
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
@@ -47,7 +44,7 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 		} else {
 			const rootPath = vscode.workspace.workspaceFolders[0].uri;
 			const fileSystem = vscode.workspace.fs;
-			_emmetHelper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).then(null, (err: string) => vscode.window.showErrorMessage(err));
+			helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => vscode.window.showErrorMessage(err.message));
 		}
 	}
 }
@@ -62,18 +59,18 @@ export const LANGUAGE_MODES: { [id: string]: string[] } = {
 	'haml': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xml': ['.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'xsl': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'css': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'scss': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'sass': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'less': [':', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-	'stylus': [':', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'css': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'scss': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'sass': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'less': [':', '!', '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
+	'stylus': [':', '!', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'javascriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
 export function isStyleSheet(syntax: string): boolean {
 	let stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
-	return (stylesheetSyntaxes.indexOf(syntax) > -1);
+	return stylesheetSyntaxes.includes(syntax);
 }
 
 export function validate(allowStylesheet: boolean = true): boolean {
@@ -372,6 +369,16 @@ export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined
 		}
 	}
 	return currentNode;
+}
+
+export function isOffsetInsideOpenOrCloseTag(node: FlatNode, offset: number): boolean {
+	const htmlNode = node as HtmlFlatNode;
+	if ((htmlNode.open && offset > htmlNode.open.start && offset < htmlNode.open.end)
+		|| (htmlNode.close && offset > htmlNode.close.start && offset < htmlNode.close.end)) {
+		return true;
+	}
+
+	return false;
 }
 
 export function offsetRangeToSelection(document: vscode.TextDocument, start: number, end: number): vscode.Selection {

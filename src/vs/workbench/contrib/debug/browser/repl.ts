@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/repl';
 import { URI as uri } from 'vs/base/common/uri';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -62,6 +62,7 @@ import { ReplFilter, ReplFilterState, ReplFilterActionViewItem } from 'vs/workbe
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 const $ = dom.$;
 
@@ -810,7 +811,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: FILTER_ACTION_ID,
 			title: localize('filter', "Filter"),
-			f1: true,
+			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -832,8 +833,7 @@ registerAction2(class extends ViewAction<Repl> {
 			id: selectReplCommandId,
 			viewId: REPL_VIEW_ID,
 			title: localize('selectRepl', "Select Debug Console"),
-			f1: true,
-			icon: debugConsoleClearAll,
+			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -866,7 +866,7 @@ registerAction2(class extends ViewAction<Repl> {
 		super({
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
-			title: localize('clearRepl', "Clear Console"),
+			title: { value: localize('clearRepl', "Clear Console"), original: 'Clear Console' },
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{
@@ -973,11 +973,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const nativeSelection = window.getSelection();
-		if (nativeSelection) {
-			await clipboardService.writeText(nativeSelection.toString());
+		const selectedText = nativeSelection?.toString();
+		if (selectedText && selectedText.length > 0) {
+			await clipboardService.writeText(selectedText);
+		} else if (element) {
+			await clipboardService.writeText(element.toString());
 		}
 	}
 });

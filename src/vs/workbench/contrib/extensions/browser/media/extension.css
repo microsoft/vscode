@@ -76,21 +76,21 @@
 
 .extension-list-item > .details > .header-container > .header > .name {
 	font-weight: bold;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
-}
-
-.extension-list-item > .details > .header-container > .header > .version {
-	opacity: 0.85;
-	font-size: 80%;
-	padding-left: 6px;
-	min-width: fit-content;
-	min-width: -moz-fit-content;
 }
 
 .extension-list-item > .details > .header-container > .header > .version {
 	flex: 1;
+	opacity: 0.85;
+	font-size: 80%;
+	padding: 2px 0px 0px 6px;
+	min-width: 36px;
+}
+
+.extension-list-item > .details > .header-container > .header > .name,
+.extension-list-item > .details > .header-container > .header > .version {
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .extension-list-item > .details > .header-container > .header > .install-count,

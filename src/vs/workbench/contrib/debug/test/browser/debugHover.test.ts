@@ -34,7 +34,7 @@ suite('Debug - Hover', () => {
 			getScopes(): Promise<IScope[]> {
 				return Promise.resolve([scope]);
 			}
-		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 
 		let variableA: Variable;

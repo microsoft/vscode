@@ -46,6 +46,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 interface WorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -85,6 +86,7 @@ export class TaskService extends AbstractTaskService {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IWorkspaceTrustService workspaceTrustService: IWorkspaceTrustService,
 		@ILogService logService: ILogService) {
 		super(configurationService,
 			markerService,
@@ -115,6 +117,7 @@ export class TaskService extends AbstractTaskService {
 			textModelResolverService,
 			preferencesService,
 			viewDescriptorService,
+			workspaceTrustService,
 			logService);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}

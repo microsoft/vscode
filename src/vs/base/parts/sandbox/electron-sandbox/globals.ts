@@ -94,7 +94,23 @@ export interface ISandboxContext {
 	sandbox: boolean;
 }
 
+export interface IpcMessagePort {
+
+	/**
+	 * Establish a connection via `MessagePort` to a target. The main process
+	 * will need to transfer the port over to the `channelResponse` after listening
+	 * to `channelRequest` with a payload of `requestNonce` so that the
+	 * source can correlate the response.
+	 *
+	 * The source should install a `window.on('message')` listener, ensuring `e.data`
+	 * matches `requestNonce`, `e.source` matches `window` and then receiving the
+	 * `MessagePort` via `e.ports[0]`.
+	 */
+	connect(channelRequest: string, channelResponse: string, requestNonce: string): void;
+}
+
 export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
+export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
 export const crashReporter: CrashReporter = globals.vscode.crashReporter;
 export const process: ISandboxNodeProcess = globals.vscode.process;

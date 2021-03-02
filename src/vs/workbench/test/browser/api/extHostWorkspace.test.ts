@@ -23,6 +23,7 @@ import { IPatternInfo } from 'vs/workbench/services/search/common/search';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
@@ -31,7 +32,7 @@ function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData,
 		new class extends mock<IExtHostFileSystemInfo>() { getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
 		logService,
 	);
-	result.$initializeWorkspace(data);
+	result.$initializeWorkspace(data, WorkspaceTrustState.Trusted);
 	return result;
 }
 

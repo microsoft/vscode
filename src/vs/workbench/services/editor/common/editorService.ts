@@ -73,18 +73,6 @@ export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRe
 
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
 
-export interface ICustomEditorInfo {
-	readonly id: string;
-	readonly displayName: string;
-	readonly providerDisplayName: string;
-}
-
-export interface ICustomEditorViewTypesHandler {
-	readonly onDidChangeViewTypes: Event<void>;
-
-	getViewTypes(): ICustomEditorInfo[];
-}
-
 export interface IEditorService {
 
 	readonly _serviceBrand: undefined;
@@ -249,13 +237,6 @@ export interface IEditorService {
 	 * operation to open a different editor.
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
-
-	/**
-	 * Register handlers for custom editor view types.
-	 * The handler will provide all available custom editors registered
-	 * and also notify the editor service when a custom editor view type is registered/unregistered.
-	 */
-	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.

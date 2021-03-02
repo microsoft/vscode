@@ -12,26 +12,27 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
-import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
 }
 
 export class NotebookEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
+
+	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string, options: NotebookEditorInputOptions = {}) {
 		return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType, options);
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
 
-	private _textModel: IReference<INotebookEditorModel> | null = null;
+	private _textModel: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(
 		public readonly resource: URI,
 		public readonly name: string,
-		public readonly viewType: string | undefined,
+		public readonly viewType: string,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
@@ -81,11 +82,11 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._textModel || !this.viewType) {
+		if (!this._textModel) {
 			return undefined;
 		}
 
-		const provider = this._notebookService.getContributedNotebookProvider(this.viewType!);
+		const provider = this._notebookService.getContributedNotebookProvider(this.viewType);
 
 		if (!provider) {
 			return undefined;
@@ -153,18 +154,19 @@ ${patterns}
 		return;
 	}
 
-	async resolve(): Promise<INotebookEditorModel | null> {
-		if (!await this._notebookService.canResolve(this.viewType!)) {
+	async resolve(): Promise<IResolvedNotebookEditorModel | null> {
+		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
-
-			this._register(this._textModel.object.onDidChangeDirty(() => {
-				this._onDidChangeDirty.fire();
-			}));
-
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+			if (this.isDisposed()) {
+				this._textModel.dispose();
+				this._textModel = null;
+				return null;
+			}
+			this._register(this._textModel.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			if (this._textModel.object.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}
@@ -178,17 +180,14 @@ ${patterns}
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
-			return this.viewType === otherInput.viewType
-				&& isEqual(this.resource, otherInput.resource);
+			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
 		}
 		return false;
 	}
 
 	dispose() {
-		if (this._textModel) {
-			this._textModel.dispose();
-			this._textModel = null;
-		}
+		this._textModel?.dispose();
+		this._textModel = null;
 		super.dispose();
 	}
 }

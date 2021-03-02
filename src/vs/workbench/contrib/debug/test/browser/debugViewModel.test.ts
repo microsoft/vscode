@@ -27,7 +27,7 @@ suite('Debug - View Model', () => {
 			sourceReference: 11,
 			presentationHint: 'deemphasize'
 		}, 'aDebugSessionId', mockUriIdentityService);
-		const frame = new StackFrame(thread, 1, source, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, 0);
+		const frame = new StackFrame(thread, 1, source, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, 0, true);
 		model.setFocus(frame, thread, session, false);
 
 		assert.equal(model.focusedStackFrame!.getId(), frame.getId());

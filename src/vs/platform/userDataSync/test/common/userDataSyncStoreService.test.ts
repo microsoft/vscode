@@ -51,6 +51,7 @@ suite('UserDataSyncStoreManagementService', () => {
 
 		const expected: IUserDataSyncStore = {
 			url: URI.parse('http://configureHost:3000'),
+			type: 'stable',
 			defaultUrl: URI.parse('http://configureHost:3000'),
 			stableUrl: URI.parse('http://configureHost:3000'),
 			insidersUrl: URI.parse('http://configureHost:3000'),

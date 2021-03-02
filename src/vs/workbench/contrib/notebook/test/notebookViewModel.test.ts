@@ -15,17 +15,15 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = setupInstantiationService();
 	const textModelService = instantiationService.get(ITextModelService);
 	const blukEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.get(IUndoRedoService);
-	const modeService = instantiationService.get(IModeService);
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', false, URI.parse('test'), [], [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService, modeService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
@@ -35,8 +33,6 @@ suite('NotebookViewModel', () => {
 	test('insert/delete', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }]
@@ -45,7 +41,7 @@ suite('NotebookViewModel', () => {
 				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
 				assert.equal(viewModel.viewCells[1].metadata?.editable, false);
 
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, []);
+				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getCellIndex(cell), 1);
@@ -61,8 +57,6 @@ suite('NotebookViewModel', () => {
 	test('move cells down', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
 				['//b', 'javascript', CellKind.Code, [], { editable: true }],
@@ -92,8 +86,6 @@ suite('NotebookViewModel', () => {
 	test('move cells up', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
 				['//b', 'javascript', CellKind.Code, [], { editable: true }],
@@ -117,8 +109,6 @@ suite('NotebookViewModel', () => {
 	test('index', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
@@ -146,8 +136,6 @@ suite('NotebookViewModel', () => {
 	test('metadata', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
@@ -156,7 +144,7 @@ suite('NotebookViewModel', () => {
 				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
 			],
 			(editor, viewModel) => {
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true, languages: [] };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
 				const defaults = { hasExecutionOrder: true };
 
@@ -190,7 +178,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, cellHasExecutionOrder: true, trusted: true, languages: [] };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
@@ -222,7 +210,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, cellHasExecutionOrder: true, trusted: true, languages: [] };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
@@ -261,14 +249,10 @@ function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 
 suite('NotebookViewModel Decorations', () => {
 	const instantiationService = setupInstantiationService();
-	const blukEditService = instantiationService.get(IBulkEditService);
-	const undoRedoService = instantiationService.get(IUndoRedoService);
 
 	test('tracking range', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
@@ -325,8 +309,6 @@ suite('NotebookViewModel Decorations', () => {
 	test('tracking range 2', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],

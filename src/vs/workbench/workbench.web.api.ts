@@ -201,6 +201,8 @@ interface IDefaultEditor {
 interface IDefaultLayout {
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
+	/** Forces this layout to be applied even if this isn't the first time the workspace has been opened */
+	readonly force?: boolean;
 }
 
 interface IProductQualityChangeHandler {
@@ -347,7 +349,7 @@ interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened.
+	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 

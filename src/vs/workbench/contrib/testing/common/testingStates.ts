@@ -14,12 +14,12 @@ export type TreeStateNode = { statusNode: true; state: TestRunState; priority: n
  */
 export const statePriority: { [K in TestRunState]: number } = {
 	[TestRunState.Running]: 6,
-	[TestRunState.Queued]: 5,
-	[TestRunState.Errored]: 4,
-	[TestRunState.Failed]: 3,
-	[TestRunState.Passed]: 2,
-	[TestRunState.Skipped]: 1,
-	[TestRunState.Unset]: 0,
+	[TestRunState.Errored]: 5,
+	[TestRunState.Failed]: 4,
+	[TestRunState.Passed]: 3,
+	[TestRunState.Queued]: 2,
+	[TestRunState.Unset]: 1,
+	[TestRunState.Skipped]: 0,
 };
 
 export const isFailedState = (s: TestRunState) => s === TestRunState.Errored || s === TestRunState.Failed;

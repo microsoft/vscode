@@ -37,10 +37,10 @@ export function getIconsStyleSheet(): IIconsStyleSheet {
 					const fontContribution = iconRegistry.getIconFont(fontId);
 					if (fontContribution) {
 						usedFontIds[fontId] = fontContribution;
-						return `.codicon-${contribution.id}:before { content: '${definition.character}'; font-family: ${asCSSPropertyValue(fontId)}; }`;
+						return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; font-family: ${asCSSPropertyValue(fontId)}; }`;
 					}
 				}
-				return `.codicon-${contribution.id}:before { content: '${definition.character}'; }`;
+				return `.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; }`;
 			};
 
 			const rules = [];

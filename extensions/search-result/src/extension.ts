@@ -135,6 +135,9 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 	}
 
 	if (pathUtils.isAbsolute(path)) {
+		if (/^[\\\/]Untitled-\d*$/.test(path)) {
+			return vscode.Uri.file(path.slice(1)).with({ scheme: 'untitled', path: path.slice(1) });
+		}
 		return vscode.Uri.file(path);
 	}
 

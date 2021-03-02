@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,7 +16,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
@@ -274,6 +274,8 @@ namespace HotExitState {
 
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
+	#isDisposed = false;
+
 	private _fromBackup: boolean = false;
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
 	private _backupId: string | undefined;
@@ -282,8 +284,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
 	private _isDirtyFromContentChange = false;
+	private _inOrphaned = false;
 
 	private _ongoingSave?: CancelablePromise<void>;
+
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
+	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
 	public static async create(
 		instantiationService: IInstantiationService,
@@ -321,6 +327,8 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 		}
+
+		this._register(_fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 	}
 
 	get editorResource() {
@@ -328,10 +336,14 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	dispose() {
+		this.#isDisposed = true;
+
 		if (this._editable) {
 			this._undoService.removeElements(this._editorResource);
 		}
+
 		this._proxy.$disposeCustomDocument(this._editorResource, this._viewType);
+
 		super.dispose();
 	}
 
@@ -371,6 +383,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		return this._fromBackup;
 	}
 
+	public isOrphaned(): boolean {
+		return this._inOrphaned;
+	}
+
 	private isUntitled() {
 		return this._editorResource.scheme === Schemas.untitled;
 	}
@@ -382,6 +398,58 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	//#endregion
+
+	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
+		let fileEventImpactsModel = false;
+		let newInOrphanModeGuess: boolean | undefined;
+
+		// If we are currently orphaned, we check if the model file was added back
+		if (this._inOrphaned) {
+			const modelFileAdded = e.contains(this.editorResource, FileChangeType.ADDED);
+			if (modelFileAdded) {
+				newInOrphanModeGuess = false;
+				fileEventImpactsModel = true;
+			}
+		}
+
+		// Otherwise we check if the model file was deleted
+		else {
+			const modelFileDeleted = e.contains(this.editorResource, FileChangeType.DELETED);
+			if (modelFileDeleted) {
+				newInOrphanModeGuess = true;
+				fileEventImpactsModel = true;
+			}
+		}
+
+		if (fileEventImpactsModel && this._inOrphaned !== newInOrphanModeGuess) {
+			let newInOrphanModeValidated: boolean = false;
+			if (newInOrphanModeGuess) {
+				// We have received reports of users seeing delete events even though the file still
+				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
+				// Since we do not want to mark the model as orphaned, we have to check if the
+				// file is really gone and not just a faulty file event.
+				await timeout(100);
+
+				if (this.#isDisposed) {
+					newInOrphanModeValidated = true;
+				} else {
+					const exists = await this._fileService.exists(this.editorResource);
+					newInOrphanModeValidated = !exists;
+				}
+			}
+
+			if (this._inOrphaned !== newInOrphanModeValidated && !this.#isDisposed) {
+				this.setOrphaned(newInOrphanModeValidated);
+			}
+		}
+	}
+
+	private setOrphaned(orphaned: boolean): void {
+		if (this._inOrphaned !== orphaned) {
+			this._inOrphaned = orphaned;
+			this._onDidChangeOrphaned.fire();
+		}
+	}
 
 	public isReadonly() {
 		return !this._editable;

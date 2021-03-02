@@ -3,7 +3,7 @@
 	"colors": {
 		"dropdown.background": "#525252",
 		"list.activeSelectionBackground": "#707070",
-		"list.focusBackground": "#707070",
+		"quickInput.list.focusBackground": "#707070",
 		"list.inactiveSelectionBackground": "#4e4e4e",
 		"list.hoverBackground": "#444444",
 		"list.highlightForeground": "#e58520",
