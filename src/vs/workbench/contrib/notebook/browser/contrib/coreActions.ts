@@ -140,7 +140,7 @@ function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
 	const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
 
 	if (editorId) {
-		const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.uri?.toString() === editorId.editor.resource!.toString());
+		const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === (editorId.editor as NotebookEditorInput).viewType && widget.textModel?.uri.toString() === editorId.editor.resource!.toString());
 
 		if (widget && widget.hasModel()) {
 			return widget;

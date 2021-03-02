@@ -323,7 +323,6 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
-	uri: URI;
 	// selection is never undefined when the editor is attached to a document.
 	getSelection(): ICellRange;
 }
@@ -354,8 +353,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
-	readonly onDidScroll: Event<ScrollEvent>;
-
 	isDisposed: boolean;
 
 	getId(): string;

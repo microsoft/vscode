@@ -15,7 +15,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extname } from 'vs/base/common/resources';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -99,11 +98,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocusEmitter.event;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
-
-	set scrollTop(top: number) {
-		this._list.scrollTop = top;
-	}
-
 	private _kernelManger: NotebookEditorKernelManager;
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
 	private _isVisible = false;
@@ -129,10 +123,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	get viewModel() {
 		return this._notebookViewModel;
-	}
-
-	get uri() {
-		return this._notebookViewModel?.uri;
 	}
 
 	get textModel() {
@@ -178,11 +168,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
 	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
-
-	private readonly _onDidScroll = this._register(new Emitter<ScrollEvent>());
-
-	readonly onDidScroll: Event<ScrollEvent> = this._onDidScroll.event;
-
 	private _cursorNavigationMode: boolean = false;
 	get cursorNavigationMode(): boolean {
 		return this._cursorNavigationMode;
@@ -544,10 +529,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.showListContextMenu(e);
 		}));
 
-		this._register(this._list.onDidScroll((e) => {
-			this._onDidScroll.fire(e);
-		}));
-
 		this._register(this._list.onDidChangeVisibleRanges(() => {
 			this._onDidChangeVisibleRanges.fire();
 		}));
@@ -745,8 +726,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.viewModel?.dispose();
 		// avoid event
 		this.viewModel = undefined;
-		// this.webview?.clearInsets();
-		// this.webview?.clearPreloadsCache();
 		this._webview?.dispose();
 		this._webview?.element.remove();
 		this._webview = null;
@@ -1086,15 +1065,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return state;
 	}
 
-	// private saveEditorViewState(input: NotebookEditorInput): void {
-	// 	if (this.group && this.notebookViewModel) {
-	// 	}
-	// }
-
-	// private loadTextEditorViewState(): INotebookEditorViewState | undefined {
-	// 	return this.editorMemento.loadEditorState(this.group, input.resource);
-	// }
-
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
@@ -1134,15 +1104,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
-
-	// protected saveState(): void {
-	// 	if (this.input instanceof NotebookEditorInput) {
-	// 		this.saveEditorViewState(this.input);
-	// 	}
-
-	// 	super.saveState();
-	// }
-
 	//#endregion
 
 	//#region Editor Features
@@ -1906,9 +1867,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
-
-		// this._layoutService.container.removeChild(this.overlayContainer);
-
 		super.dispose();
 	}
 

@@ -92,7 +92,7 @@ registerAction2(class extends Action2 {
 
 		if (selectedKernel) {
 			editor.activeKernel = selectedKernel;
-			return selectedKernel.resolve(editor.uri!, editor.getId(), tokenSource.token);
+			return selectedKernel.resolve(editor.textModel!.uri, editor.getId(), tokenSource.token);
 		} else {
 			picker.show();
 		}
@@ -112,7 +112,7 @@ registerAction2(class extends Action2 {
 				kernelProviderId: a.extension.value,
 				run: async () => {
 					editor.activeKernel = a;
-					a.resolve(editor.uri!, editor.getId(), tokenSource.token);
+					a.resolve(editor.textModel!.uri, editor.getId(), tokenSource.token);
 				},
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(configureKernelIcon),

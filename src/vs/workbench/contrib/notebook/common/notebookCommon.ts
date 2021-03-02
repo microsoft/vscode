@@ -682,7 +682,6 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	getSelection(): ICellRange | undefined;
 	getSelections(): ICellRange[];
 	visibleRanges: ICellRange[];
-	uri?: URI;
 	textModel?: NotebookTextModel;
 	getId(): string;
 	hasFocus(): boolean;

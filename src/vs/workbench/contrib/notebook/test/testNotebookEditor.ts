@@ -38,7 +38,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -132,11 +131,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	multipleKernelsAvailable: boolean = false;
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
-	onDidScroll = new Emitter<ScrollEvent>().event;
 	onDidChangeVisibleRanges: Event<void> = new Emitter<void>().event;
 	onDidChangeSelection: Event<void> = new Emitter<void>().event;
 	visibleRanges: ICellRange[] = [];
-	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
 
 	hasModel(): this is IActiveNotebookEditor {

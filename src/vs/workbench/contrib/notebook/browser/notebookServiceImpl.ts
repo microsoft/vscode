@@ -903,7 +903,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		if (editor) {
 			this._activeEditorDisposables.add(editor.onDidChangeKernel(() => {
 				this._onDidChangeNotebookActiveKernel.fire({
-					uri: editor.uri!,
+					uri: editor.textModel!.uri,
 					providerHandle: editor.activeKernel?.providerHandle,
 					kernelFriendlyId: editor.activeKernel?.friendlyId
 				});
