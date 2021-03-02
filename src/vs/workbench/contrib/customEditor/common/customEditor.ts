@@ -39,7 +39,6 @@ export interface ICustomEditorService {
 	createInput(resource: URI, viewType: string, group: GroupIdentifier | undefined, options?: { readonly customClasses: string }): IEditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
 }
