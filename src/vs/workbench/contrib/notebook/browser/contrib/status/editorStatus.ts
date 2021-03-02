@@ -69,6 +69,10 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		const activeKernel = editor.activeKernel;
 
 		const picker = quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
@@ -92,7 +96,7 @@ registerAction2(class extends Action2 {
 
 		if (selectedKernel) {
 			editor.activeKernel = selectedKernel;
-			return selectedKernel.resolve(editor.textModel!.uri, editor.getId(), tokenSource.token);
+			return selectedKernel.resolve(editor.viewModel.uri, editor.getId(), tokenSource.token);
 		} else {
 			picker.show();
 		}
@@ -112,11 +116,11 @@ registerAction2(class extends Action2 {
 				kernelProviderId: a.extension.value,
 				run: async () => {
 					editor.activeKernel = a;
-					a.resolve(editor.textModel!.uri, editor.getId(), tokenSource.token);
+					a.resolve(editor.viewModel.uri, editor.getId(), tokenSource.token);
 				},
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(configureKernelIcon),
-					tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel!.viewType)
+					tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel.viewType)
 				}]
 			};
 		});
@@ -139,7 +143,7 @@ registerAction2(class extends Action2 {
 
 				// And persist the setting
 				if (pick && id && pick.kernelProviderId) {
-					const newAssociation: NotebookKernelProviderAssociation = { viewType: editor.viewModel!.viewType, kernelProvider: pick.kernelProviderId };
+					const newAssociation: NotebookKernelProviderAssociation = { viewType: editor.viewModel.viewType, kernelProvider: pick.kernelProviderId };
 					const currentAssociations = [...configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId)];
 
 					// First try updating existing association

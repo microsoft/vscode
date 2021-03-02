@@ -301,9 +301,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return [];
 		}
 
+		const viewModel = this.viewModel;
 		const cellsSet = new Set<number>();
 
-		return this.viewModel.getSelections().map(range => this.viewModel!.viewCells.slice(range.start, range.end)).reduce((a, b) => {
+		return this.viewModel.getSelections().map(range => viewModel.viewCells.slice(range.start, range.end)).reduce((a, b) => {
 			b.forEach(cell => {
 				if (!cellsSet.has(cell.handle)) {
 					cellsSet.add(cell.handle);
@@ -774,7 +775,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		if (!this._webview) {
-			this._webview = this.instantiationService.createInstance(BackLayerWebView, this, this.getId(), this.textModel!.uri, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: CELL_OUTPUT_PADDING });
+			this._webview = this.instantiationService.createInstance(BackLayerWebView, this, this.getId(), this.textModel.uri, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: CELL_OUTPUT_PADDING });
 			this._webview.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + (CELL_MARGIN * 2) + CELL_RUN_GUTTER}px)`;
 			this._webview.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
 
