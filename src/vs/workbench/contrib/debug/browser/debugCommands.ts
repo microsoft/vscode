@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -277,43 +277,39 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: DISCONNECT_ID,
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		let session: IDebugSession | undefined;
-		if (isSessionContext(context)) {
-			session = debugService.getModel().getSession(context.sessionId);
-		} else {
-			session = debugService.getViewModel().focusedSession;
-		}
-		await debugService.stopSession(session);
+async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown): Promise<void> {
+	const debugService = accessor.get(IDebugService);
+	let session: IDebugSession | undefined;
+	if (isSessionContext(context)) {
+		session = debugService.getModel().getSession(context.sessionId);
+	} else {
+		session = debugService.getViewModel().focusedSession;
 	}
+
+	const configurationService = accessor.get(IConfigurationService);
+	const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
+	// Stop should be sent to the root parent session
+	while (!showSubSessions && session && session.parentSession) {
+		session = session.parentSession;
+	}
+
+	await debugService.stopSession(session);
+}
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: DISCONNECT_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.Shift | KeyCode.F5,
+	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE),
+	handler: stopHandler
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STOP_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.Shift | KeyCode.F5,
-	when: CONTEXT_IN_DEBUG_MODE,
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		let session: IDebugSession | undefined;
-		if (isSessionContext(context)) {
-			session = debugService.getModel().getSession(context.sessionId);
-		} else {
-			session = debugService.getViewModel().focusedSession;
-		}
-
-		const configurationService = accessor.get(IConfigurationService);
-		const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
-		// Stop should be sent to the root parent session
-		while (!showSubSessions && session && session.parentSession) {
-			session = session.parentSession;
-		}
-
-		await debugService.stopSession(session);
-	}
+	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_IN_DEBUG_MODE),
+	handler: stopHandler
 });
 
 CommandsRegistry.registerCommand({
