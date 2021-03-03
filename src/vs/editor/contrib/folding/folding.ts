@@ -864,15 +864,22 @@ class UnfoldAllAction extends FoldingAction<void> {
 }
 
 class FoldLevelAction extends FoldingAction<void> {
-	private static readonly ID_PREFIX = 'editor.foldLevel';
-	public static readonly ID = (level: number) => FoldLevelAction.ID_PREFIX + level;
-
-	private getFoldingLevel() {
-		return parseInt(this.id.substr(FoldLevelAction.ID_PREFIX.length));
+	constructor(private level: number, private isSelectionAware: boolean) {
+		super({
+			id: `editor.foldLevel${level}${isSelectionAware ? '' : 'IncludingCursor'}`,
+			label: isSelectionAware ? nls.localize('foldLevelAction.label', "Fold Level {0}", level) : nls.localize('foldLevelAction.labelIncludingCursor', "Fold Level {0} Including Cursor", level),
+			alias: `Fold Level ${level}${isSelectionAware ? '' : ' Including Cursor'}`,
+			precondition: CONTEXT_FOLDING_ENABLED,
+			kbOpts: isSelectionAware ? {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + level)),
+				weight: KeybindingWeight.EditorContrib
+			} : undefined
+		});
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		setCollapseStateAtLevel(foldingModel, this.getFoldingLevel(), true, this.getSelectedLines(editor));
+		setCollapseStateAtLevel(foldingModel, this.level, true, this.isSelectionAware ? this.getSelectedLines(editor) : []);
 	}
 }
 
@@ -888,20 +895,13 @@ registerEditorAction(FoldAllRegionsAction);
 registerEditorAction(UnfoldAllRegionsAction);
 registerEditorAction(ToggleFoldAction);
 
-for (let i = 1; i <= 7; i++) {
-	registerInstantiatedEditorAction(
-		new FoldLevelAction({
-			id: FoldLevelAction.ID(i),
-			label: nls.localize('foldLevelAction.label', "Fold Level {0}", i),
-			alias: `Fold Level ${i}`,
-			precondition: CONTEXT_FOLDING_ENABLED,
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i)),
-				weight: KeybindingWeight.EditorContrib
-			}
-		})
-	);
+const MAX_FOLD_LEVEL = 7;
+for (const isSelectionAware of [true, false]) {
+	for (let level = 1; level <= MAX_FOLD_LEVEL; level++) {
+		registerInstantiatedEditorAction(
+			new FoldLevelAction(level, isSelectionAware)
+		);
+	}
 }
 
 export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
