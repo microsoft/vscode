@@ -2051,6 +2051,7 @@ declare module 'vscode' {
 		 */
 		whitespaceAfter?: boolean;
 
+		// todo@API make range first argument
 		constructor(text: string, range: Range, kind?: InlineHintKind);
 	}
 
