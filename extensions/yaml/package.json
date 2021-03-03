@@ -14,6 +14,18 @@
   "contributes": {
     "languages": [
       {
+        "id": "compose",
+        "aliases": [
+          "Compose",
+          "compose"
+        ],
+        "filenamePatterns": [
+          "*compose*.yml",
+          "*compose*.yaml"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
         "id": "yaml",
         "aliases": [
           "YAML",
@@ -30,6 +42,11 @@
       }
     ],
     "grammars": [
+      {
+        "language": "compose",
+        "scopeName": "source.yaml",
+        "path": "./syntaxes/yaml.tmLanguage.json"
+      },
       {
         "language": "yaml",
         "scopeName": "source.yaml",
