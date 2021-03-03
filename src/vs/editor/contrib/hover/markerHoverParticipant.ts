@@ -232,7 +232,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						});
 					}
 				}));
-			});
+			}).catch(onUnexpectedError);
 		}
 
 		return hoverElement;

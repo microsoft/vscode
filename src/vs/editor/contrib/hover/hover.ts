@@ -32,6 +32,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IDimension } from 'vs/base/browser/dom';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -50,6 +51,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _isCurrentSticky: boolean = false;
 
 	private _hoverVisibleKey: IContextKey<boolean>;
+	private _onWidgetResizeEnd: ((dimension: IDimension) => void) | null;
 
 	static get(editor: ICodeEditor): ModesHoverController {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -67,6 +69,10 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget = null;
 		this._glyphWidget = null;
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
+		this._onWidgetResizeEnd = null;
+
+		// To avoid methods getting treeshaken
+		this.onWidgetResizeEnd(null);
 		this.addAdditionalDecorations([]);
 
 		this._hookEvents();
@@ -212,11 +218,10 @@ export class ModesHoverController implements IEditorContribution {
 						: mouseEvent.target.range
 				);
 				if (!this._contentWidget) {
-					this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
-					this._toUnhook.add(this._contentWidget.onBlur(() => this._onWidgetBlur()));
+					this._initContentWidget();
 				}
 				const modifiers = ModesHoverController.getModifiers(mouseEvent);
-				this._contentWidget.startShowingAt(showAtRange, HoverStartMode.Delayed, false, HoverSource.Mouse, modifiers);
+				this._contentWidget?.startShowingAt(showAtRange, HoverStartMode.Delayed, false, HoverSource.Mouse, modifiers);
 			}
 		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this._contentWidget?.hide();
@@ -285,14 +290,30 @@ export class ModesHoverController implements IEditorContribution {
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean, sticky?: boolean): void {
 		this._isCurrentSticky = !!sticky;
 		if (!this._contentWidget) {
-			this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
-			this._toUnhook.add(this._contentWidget.onBlur(() => this._onWidgetBlur()));
+			this._initContentWidget();
 		}
-		this._contentWidget.startShowingAt(range, mode, focus, HoverSource.Action, [], this._isCurrentSticky);
+		this._contentWidget?.startShowingAt(range, mode, focus, HoverSource.Action, [], this._isCurrentSticky);
 	}
 
 	public addAdditionalDecorations(decorations: IModelDeltaDecoration[]) {
 		this._contentWidget?.addAdditionalDecorations(decorations);
+	}
+
+	private _initContentWidget() {
+		this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
+		this._toUnhook.add(this._contentWidget.onBlur(() => this._onWidgetBlur()));
+		if (this._onWidgetResizeEnd) {
+			this._toUnhook.add(this._contentWidget.resizable.onResizeEnd(this._onWidgetResizeEnd));
+			this._onWidgetResizeEnd = null;
+		}
+	}
+
+	public onWidgetResizeEnd(fn: ((dimension: IDimension) => void) | null) {
+		if (fn && this._contentWidget) {
+			this._toUnhook.add(this._contentWidget.resizable.onResizeEnd(fn));
+		} else {
+			this._onWidgetResizeEnd = fn;
+		}
 	}
 
 	public dispose(): void {
