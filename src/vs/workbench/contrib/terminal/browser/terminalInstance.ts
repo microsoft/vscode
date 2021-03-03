@@ -105,6 +105,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
+	private _changedRendererType: boolean = true;
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
@@ -251,6 +252,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
+			}
+			if (e.affectsConfiguration('terminal.integrated.rendererType')) {
+				this._changedRendererType = true;
 			}
 		}));
 
@@ -418,7 +422,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
+			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'dom' : config.rendererType,
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -1318,7 +1322,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
-		if (!this._xterm || this._webglAddon) {
+		if (!this._xterm || this._webglAddon || !this._changedRendererType) {
 			return;
 		}
 		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
@@ -1334,6 +1338,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _disposeOfWebglRenderer(): void {
 		this._webglAddon?.dispose();
 		this._webglAddon = undefined;
+		this._changedRendererType = false;
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
