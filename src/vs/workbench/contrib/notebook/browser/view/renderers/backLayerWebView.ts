@@ -418,7 +418,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div.preview.selected {
-						background: var(--vscode-notebook-selectedCellBackground) !important;
+						background: var(--vscode-notebook-selectedCellBackground);
 					}
 
 					#container > div > div.preview img {
@@ -1116,6 +1116,18 @@ var requirejs = (function() {
 	}
 
 	async updateMarkdownPreviewSelectionState(cellId: any, isSelected: boolean) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'updateMarkdownPreviewSelectionState',
+			id: cellId,
+			isSelected
+		});
+	}
+
+	async updateMarkdownPreviewDecpratopms(cellId: any, isSelected: boolean) {
 		if (this._disposed) {
 			return;
 		}

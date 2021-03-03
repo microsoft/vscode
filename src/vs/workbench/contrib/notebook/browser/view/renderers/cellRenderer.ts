@@ -545,12 +545,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}
 		}));
 
-		elementDisposables.add(this.notebookEditor.onDidChangeSelection(() => {
-			const selectedCells = this.notebookEditor.getSelectionViewModels();
-			const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === element);
-			this.notebookEditor.updateMarkdownPreviewSelectionState(element, isSelected);
-		}));
-
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
