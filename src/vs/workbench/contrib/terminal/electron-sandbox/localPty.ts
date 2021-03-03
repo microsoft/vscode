@@ -97,6 +97,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	handleTitleChanged(e: string) {
 		this._onProcessTitleChanged.fire(e);
 	}
+	handleShellTypeChanged(e: TerminalShellType) {
+		this._onShellTypeChanged.fire(e);
+	}
 	handleOverrideDimensions(e: ITerminalDimensionsOverride | undefined) {
 		this._onProcessOverrideDimensions.fire(e);
 	}
