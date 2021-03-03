@@ -49,7 +49,7 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 		readonly viewCell: MarkdownCellViewModel,
 		readonly container: HTMLElement,
 		readonly markdownContainer: HTMLElement,
-		readonly dataSource: { codeEditor: CodeEditorWidget | null; }
+		readonly editorAccessor: () => CodeEditorWidget | null
 	) {
 		super();
 
@@ -68,7 +68,7 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 			this.markdownContainer.appendChild(renderedHTML);
 		}
 
-		if (this.dataSource.codeEditor) {
+		if (this.editorAccessor()) {
 			// switch from editing mode
 			this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
 			this.relayoutCell();
@@ -102,18 +102,14 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private editor: CodeEditorWidget | null = null;
 
-	get codeEditor() {
-		return this.editor;
-	}
-
 	private markdownContainer: HTMLElement;
 	private editorPart: HTMLElement;
 
 	private localDisposables = new DisposableStore();
 	private foldingState: CellFoldingState;
-	private _activeCellRunPlaceholder: IDisposable | null = null;
-	private _useRenderer: boolean = false;
-	private _renderStrategy: IMarkdownRenderStrategy;
+	private activeCellRunPlaceholder: IDisposable | null = null;
+	private useRenderer: boolean = false;
+	private renderStrategy: IMarkdownRenderStrategy;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditor,
@@ -131,15 +127,15 @@ export class StatefulMarkdownCell extends Disposable {
 		this.markdownContainer = templateData.cellContainer;
 		this.editorPart = templateData.editorPart;
 
-		this._useRenderer = !!(this.configurationSerivce.getValue<string>('notebook.experimental.useMarkdownRenderer'));
-		if (this._useRenderer) {
+		this.useRenderer = !!(this.configurationSerivce.getValue<string>('notebook.experimental.useMarkdownRenderer'));
+		if (this.useRenderer) {
 			this.templateData.container.classList.toggle('webview-backed-markdown-cell', true);
-			this._renderStrategy = new WebviewMarkdownRenderer(this.notebookEditor, this.viewCell);
+			this.renderStrategy = new WebviewMarkdownRenderer(this.notebookEditor, this.viewCell);
 		} else {
-			this._renderStrategy = new BuiltinMarkdownRenderer(this.notebookEditor, this.viewCell, this.templateData.container, this.markdownContainer, this);
+			this.renderStrategy = new BuiltinMarkdownRenderer(this.notebookEditor, this.viewCell, this.templateData.container, this.markdownContainer, () => this.editor);
 		}
 
-		this._register(this._renderStrategy);
+		this._register(this.renderStrategy);
 		this._register(this.localDisposables);
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 
@@ -227,20 +223,20 @@ export class StatefulMarkdownCell extends Disposable {
 				&& !!this.notebookEditor.viewModel.metadata.trusted
 			) {
 				// active cell and no run status
-				if (this._activeCellRunPlaceholder === null) {
+				if (this.activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
 					const placeholder = getExecuteCellPlaceholder(this.viewCell);
 					if (!this.notebookCellStatusBarService.getEntries(this.viewCell.uri).find(entry => entry.text === placeholder.text && entry.command === placeholder.command)) {
-						this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(placeholder);
-						this._register(this._activeCellRunPlaceholder);
+						this.activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(placeholder);
+						this._register(this.activeCellRunPlaceholder);
 					}
 				}
 
 				return;
 			}
 
-			this._activeCellRunPlaceholder?.dispose();
-			this._activeCellRunPlaceholder = null;
+			this.activeCellRunPlaceholder?.dispose();
+			this.activeCellRunPlaceholder = null;
 		};
 
 		this._register(this.notebookEditor.onDidChangeActiveCell(() => {
@@ -373,7 +369,7 @@ export class StatefulMarkdownCell extends Disposable {
 		this.markdownContainer.innerText = '';
 		this.viewCell.clearHTML();
 
-		this._renderStrategy.update();
+		this.renderStrategy.update();
 	}
 
 	private focusEditorIfNeeded() {
