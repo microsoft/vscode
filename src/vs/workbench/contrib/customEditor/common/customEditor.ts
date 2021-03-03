@@ -16,10 +16,15 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier, IEditorInput, IEditorPane, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import * as nls from 'vs/nls';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
-export const CONTEXT_CUSTOM_EDITORS = new RawContextKey<string>('customEditors', '');
+export const CONTEXT_ACTIVE_CUSTOM_EDITOR_ID = new RawContextKey<string>('activeCustomEditorId', '', {
+	type: 'string',
+	description: nls.localize('context.customEditor', "The viewType of the currently active custom editor."),
+});
+
 export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boolean>('focusedCustomEditorIsEditable', false);
 
 export interface CustomEditorCapabilities {
@@ -39,7 +44,6 @@ export interface ICustomEditorService {
 	createInput(resource: URI, viewType: string, group: GroupIdentifier | undefined, options?: { readonly customClasses: string }): IEditorInput;
 
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	promptOpenWith(resource: URI, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
 }

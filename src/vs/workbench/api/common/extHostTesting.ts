@@ -162,7 +162,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
 			if (folder) {
-				method = p => p.createWorkspaceTestHierarchy?.(folder);
+				method = p => p.createWorkspaceTestHierarchy(folder);
 			}
 		}
 
@@ -239,7 +239,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 */
 	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<void> {
 		const provider = this.providers.get(req.providerId);
-		if (!provider || !provider.runTests) {
+		if (!provider) {
 			return;
 		}
 
@@ -323,7 +323,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const workspaceHierarchy = provider.createWorkspaceTestHierarchy?.(folder);
+		const workspaceHierarchy = provider.createWorkspaceTestHierarchy(folder);
 		if (!workspaceHierarchy) {
 			return;
 		}

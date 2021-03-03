@@ -94,7 +94,7 @@ class DocumentAndEditorState {
 	private static _asEditorAddData(add: IEditor): INotebookEditorAddData {
 		return {
 			id: add.getId(),
-			documentUri: add.uri!,
+			documentUri: add.textModel!.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges
 		};

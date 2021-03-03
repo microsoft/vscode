@@ -28,10 +28,10 @@ export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
 export interface IOpenEditorOverrideEntry {
-	id: string;
-	label: string;
-	active: boolean;
-	detail?: string;
+	readonly id: string;
+	readonly label: string;
+	readonly active: boolean;
+	readonly detail?: string;
 }
 
 export interface IOpenEditorOverrideHandler {

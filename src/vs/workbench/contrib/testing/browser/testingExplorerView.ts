@@ -53,7 +53,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
@@ -376,8 +376,8 @@ export class TestingExplorerViewModel extends Disposable {
 	/**
 	 * Re-layout the tree.
 	 */
-	public layout(height: number, width: number): void {
-		this.tree.layout(height, width);
+	public layout(_height: number, _width: number): void {
+		this.tree.layout(); // The tree will measure its container
 	}
 
 	/**
@@ -858,6 +858,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const name = dom.append(wrapper, dom.$('.name'));
 		const label = this.labels.create(name, { supportHighlights: true });
 
+		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(testingHiddenIcon)));
 		const actionBar = new ActionBar(wrapper, {
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
@@ -899,10 +900,6 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 			options.title = title;
 			options.fileKind = FileKind.FILE;
 			label.description = element.description;
-			if (testHidden) {
-				const hidden = localize('testHidden', 'hidden');
-				label.description = label.description ? `${label.description} (${hidden})` : hidden;
-			}
 		} else {
 			options.fileKind = FileKind.ROOT_FOLDER;
 		}
@@ -996,6 +993,8 @@ const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) =>
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
 		percent = Math.min(percent, 99.9);
+	} else if (runSoFar === 0) {
+		percent = 0;
 	}
 
 	if (skipped === 0) {
