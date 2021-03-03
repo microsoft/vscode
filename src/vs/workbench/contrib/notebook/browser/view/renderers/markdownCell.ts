@@ -42,14 +42,14 @@ class WebviewMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 }
 
 class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrategy {
-	private localDisposables = new DisposableStore();
+	private readonly localDisposables = new DisposableStore();
 
 	constructor(
-		readonly notebookEditor: IActiveNotebookEditor,
-		readonly viewCell: MarkdownCellViewModel,
-		readonly container: HTMLElement,
-		readonly markdownContainer: HTMLElement,
-		readonly editorAccessor: () => CodeEditorWidget | null
+		private readonly notebookEditor: IActiveNotebookEditor,
+		private readonly viewCell: MarkdownCellViewModel,
+		private readonly container: HTMLElement,
+		private readonly markdownContainer: HTMLElement,
+		private readonly editorAccessor: () => CodeEditorWidget | null
 	) {
 		super();
 
@@ -58,6 +58,11 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 				this.viewCell.renderedMarkdownHeight = container.clientHeight;
 			}
 		})).startObserving();
+	}
+
+	dispose(): void {
+		this.localDisposables.dispose();
+		super.dispose();
 	}
 
 	update(): void {
@@ -74,6 +79,7 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 			this.relayoutCell();
 		} else {
 			// first time, readonly mode
+			this.localDisposables.clear();
 			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
 				this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
 				this.relayoutCell();
@@ -136,12 +142,10 @@ export class StatefulMarkdownCell extends Disposable {
 		}
 
 		this._register(this.renderStrategy);
-		this._register(this.localDisposables);
 		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 
 		this._register(viewCell.onDidChangeState((e) => {
 			if (e.editStateChanged) {
-				this.localDisposables.clear();
 				this.viewUpdate();
 			} else if (e.contentChanged) {
 				this.viewUpdate();
@@ -254,6 +258,12 @@ export class StatefulMarkdownCell extends Disposable {
 		}));
 
 		updatePlaceholder();
+	}
+
+	dispose() {
+		this.localDisposables.dispose();
+		this.viewCell.detachTextEditor();
+		super.dispose();
 	}
 
 	private viewUpdate(): void {
@@ -426,6 +436,9 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private bindEditorListeners(editor: CodeEditorWidget) {
+
+		this.localDisposables.clear();
+
 		this.localDisposables.add(editor.onDidContentSizeChange(e => {
 			const viewLayout = editor.getLayoutInfo();
 
@@ -472,10 +485,5 @@ export class StatefulMarkdownCell extends Disposable {
 		}));
 
 		updateFocusMode();
-	}
-
-	dispose() {
-		this.viewCell.detachTextEditor();
-		super.dispose();
 	}
 }
