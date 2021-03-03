@@ -9,6 +9,7 @@ import type * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { debounce } from 'vs/base/common/decorators';
+import { timeout } from 'vs/base/common/async';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;
@@ -36,7 +37,8 @@ let windowsProcessTree: typeof WindowsProcessTreeType;
 export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | undefined;
-
+	private _lastShellType: TerminalShellType | undefined;
+	public get lastShellType(): TerminalShellType | undefined { return this._lastShellType; }
 	private readonly _onShellNameChanged = new Emitter<string>();
 	public get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
 	private readonly _onShellTypeChanged = new Emitter<TerminalShellType>();
@@ -64,12 +66,16 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	}
 
 	@debounce(500)
-	checkShell(): void {
+	async checkShell(): Promise<void> {
 		if (platform.isWindows) {
+			await timeout(50);
 			this.getShellName().then(title => {
 				const type = this.getShellType(title);
-				this._onShellTypeChanged.fire(type);
-				this._onShellNameChanged.fire(title);
+				if (!this._lastShellType || type !== this._lastShellType) {
+					this._onShellTypeChanged.fire(type);
+					this._onShellNameChanged.fire(title);
+					this._lastShellType = type;
+				}
 			});
 		}
 	}

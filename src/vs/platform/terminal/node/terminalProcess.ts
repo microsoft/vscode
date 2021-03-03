@@ -203,7 +203,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessReady(() => c());
 		});
-		ptyProcess.onData(data => {
+		ptyProcess.onData(async data => {
 			if (this._shellLaunchConfig.flowControl) {
 				this._unacknowledgedCharCount += data.length;
 				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
