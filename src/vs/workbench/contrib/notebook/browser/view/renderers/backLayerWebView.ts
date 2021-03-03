@@ -327,6 +327,10 @@ export interface INotebookWebviewMessage {
 	forRenderer?: string;
 }
 
+export interface IResolvedBackLayerWebview {
+	webview: WebviewElement;
+}
+
 let version = 0;
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
@@ -638,6 +642,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 		const cellInfo = this.insetMapping.get(output)!.cellInfo;
 		return { cellInfo, output };
+	}
+
+	isResolved(): this is IResolvedBackLayerWebview {
+		return !!this.webview;
 	}
 
 	async createWebview(): Promise<void> {

@@ -73,7 +73,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _body!: HTMLElement;
 	private _overflowContainer!: HTMLElement;
 	private _webview: BackLayerWebView<ICommonCellInfo> | null = null;
-	private _webviewResolved: boolean = false;
 	private _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo> | null> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
 	private _list!: INotebookCellList;
@@ -734,8 +733,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}));
 
-			this._webviewResolved = true;
-
 			resolve(this._webview);
 		});
 
@@ -796,12 +793,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this._localStore.add(this._list.onWillScroll(e => {
-			if (!this._webviewResolved) {
-				return;
+			if (this._webview?.isResolved()) {
+				this._webview.updateViewScrollTop(-e.scrollTop, true, []);
+				this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 			}
-
-			this._webview?.updateViewScrollTop(-e.scrollTop, true, []);
-			this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 		}));
 
 		this._localStore.add(this._list.onDidChangeContentHeight(() => {
@@ -813,7 +808,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const scrollTop = this._list.scrollTop;
 				const scrollHeight = this._list.scrollHeight;
 
-				if (!this._webviewResolved) {
+				if (!this._webview?.isResolved()) {
 					return;
 				}
 
@@ -1716,21 +1711,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	removeInset(output: ICellOutputViewModel) {
 		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
-			if (!this._webview || !this._webviewResolved) {
-				return;
+			if (this._webview?.isResolved()) {
+				this._webview.removeInset(output);
 			}
-			this._webview!.removeInset(output);
 		});
 	}
 
 	hideInset(output: ICellOutputViewModel) {
-		if (!this._webview || !this._webviewResolved) {
-			return;
+		if (this._webview?.isResolved()) {
+			this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
+				this._webview!.hideInset(output);
+			});
 		}
-
-		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
-			this._webview!.hideInset(output);
-		});
 	}
 
 	getOutputRenderer(): OutputRenderer {
@@ -1738,14 +1730,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	postMessage(forRendererId: string | undefined, message: any) {
-		if (!this._webview || !this._webviewResolved) {
-			return;
-		}
-
-		if (forRendererId === undefined) {
-			this._webview.webview?.postMessage(message);
-		} else {
-			this._webview.postRendererMessage(forRendererId, message);
+		if (this._webview?.isResolved()) {
+			if (forRendererId === undefined) {
+				this._webview.webview.postMessage(message);
+			} else {
+				this._webview.postRendererMessage(forRendererId, message);
+			}
 		}
 	}
 
