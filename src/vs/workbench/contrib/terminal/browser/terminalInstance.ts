@@ -1309,7 +1309,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-		if (config.rendererType === 'auto') {
+		if (config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
