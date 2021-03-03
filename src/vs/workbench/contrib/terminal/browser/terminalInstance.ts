@@ -423,7 +423,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'dom' : config.rendererType,
+			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -1333,7 +1333,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xterm.loadAddon(this._webglAddon);
 		} catch {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', 'dom');
+			this._safeSetOption('rendererType', 'canvas');
 		}
 	}
 
