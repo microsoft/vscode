@@ -28,6 +28,11 @@
 	padding: 10px 0px;
 }
 
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-description {
+	cursor: default;
+	user-select: text;
+}
+
 /** Buttons Container */
 .workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-buttons-row {
 	display: flex;
