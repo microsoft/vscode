@@ -89,11 +89,11 @@ export class PtyService extends Disposable implements IPtyService {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
 		});
-		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
-		persistentTerminalProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
-		persistentTerminalProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
-		persistentTerminalProcess.onShellTypeChanged(event => this._onShellTypeChanged.fire({ id, event }));
-		this._ptys.set(id, persistentTerminalProcess);
+		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
+		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
+		persistentProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
+		persistentProcess.onShellTypeChanged(event => this._onShellTypeChanged.fire({ id, event }));
+		this._ptys.set(id, persistentProcess);
 		return id;
 	}
 
