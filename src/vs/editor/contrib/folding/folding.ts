@@ -863,7 +863,24 @@ class UnfoldAllAction extends FoldingAction<void> {
 	}
 }
 
+class FoldAllExceptCursorAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.foldAllExceptCursor',
+			label: nls.localize('foldAllAction.labelExceptCursor', "Fold All Except Cursor"),
+			alias: 'Fold All Except Cursor',
+			precondition: CONTEXT_FOLDING_ENABLED
+		});
+	}
+
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, undefined, this.getSelectedLines(editor));
+	}
+}
+
 class FoldLevelAction extends FoldingAction<void> {
+
 	constructor(private level: number, private isSelectionAware: boolean) {
 		super({
 			id: `editor.foldLevel${level}${isSelectionAware ? '' : 'IncludingCursor'}`,
@@ -889,6 +906,7 @@ registerEditorAction(UnFoldRecursivelyAction);
 registerEditorAction(FoldAction);
 registerEditorAction(FoldRecursivelyAction);
 registerEditorAction(FoldAllAction);
+registerEditorAction(FoldAllExceptCursorAction);
 registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
 registerEditorAction(FoldAllRegionsAction);
