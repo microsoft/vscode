@@ -31,6 +31,7 @@ import { registerCodicon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { isString } from 'vs/base/common/types';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -359,7 +360,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	protected showMessageDecoration(severity: Severity) {
 		this.ui.inputBox.showDecoration(severity);
-		if (severity === Severity.Error) {
+		if (severity !== Severity.Ignore) {
 			const styles = this.ui.inputBox.stylesForType(severity);
 			this.ui.message.style.color = styles.foreground ? `${styles.foreground}` : '';
 			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
@@ -999,6 +1000,7 @@ class InputBox extends QuickInput implements IInputBox {
 	private noValidationMessage = InputBox.noPromptMessage;
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
+	private _severity: Severity = Severity.Ignore;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
@@ -1056,6 +1058,14 @@ class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
+	get severity() {
+		return this._severity;
+	}
+
+	set severity(severity: Severity) {
+		this._severity = severity;
+	}
+
 	readonly onDidChangeValue = this.onDidValueChangeEmitter.event;
 
 	readonly onDidAccept = this.onDidAcceptEmitter.event;
@@ -1104,7 +1114,7 @@ class InputBox extends QuickInput implements IInputBox {
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
 			dom.reset(this.ui.message, ...renderLabelWithIcons(validationMessage));
-			this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
+			this.showMessageDecoration(this.severity);
 		}
 	}
 }
@@ -1438,6 +1448,22 @@ export class QuickInputController extends Disposable {
 		});
 	}
 
+	private setValidationOnInput(input: IInputBox, validationResult: string | {
+		content: string;
+		severity: Severity;
+	} | null | undefined) {
+		if (validationResult && isString(validationResult)) {
+			input.severity = Severity.Error;
+			input.validationMessage = validationResult;
+		} else if (validationResult && !isString(validationResult)) {
+			input.severity = validationResult.severity;
+			input.validationMessage = validationResult.content;
+		} else {
+			input.severity = Severity.Ignore;
+			input.validationMessage = undefined;
+		}
+	}
+
 	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 		return new Promise<string | undefined>((resolve) => {
 			if (token.isCancellationRequested) {
@@ -1458,7 +1484,7 @@ export class QuickInputController extends Disposable {
 					}
 					validation.then(result => {
 						if (value === validationValue) {
-							input.validationMessage = result || undefined;
+							this.setValidationOnInput(input, result);
 						}
 					});
 				}),
@@ -1469,11 +1495,11 @@ export class QuickInputController extends Disposable {
 						validationValue = value;
 					}
 					validation.then(result => {
-						if (!result) {
+						if (!result || (!isString(result) && result.severity !== Severity.Error)) {
 							resolve(value);
 							input.hide();
 						} else if (value === validationValue) {
-							input.validationMessage = result;
+							this.setValidationOnInput(input, result);
 						}
 					});
 				}),
