@@ -13,7 +13,7 @@ import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocume
 import { getRootNode } from './parseDocument';
 
 let _emmetHelper: typeof EmmetHelper;
-let _currentExtensionsPath: string | undefined = undefined;
+let _currentExtensionsPath: string[] | undefined;
 
 let _homeDir: vscode.Uri | undefined;
 
@@ -36,7 +36,10 @@ export function getEmmetHelper() {
  */
 export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	const helper = getEmmetHelper();
-	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+	let extensionsPath = vscode.workspace.getConfiguration('emmet').get<string[]>('extensionsPath');
+	if (!extensionsPath) {
+		extensionsPath = [];
+	}
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
 		if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
