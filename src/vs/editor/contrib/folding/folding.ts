@@ -863,13 +863,13 @@ class UnfoldAllAction extends FoldingAction<void> {
 	}
 }
 
-class FoldAllExceptCursorAction extends FoldingAction<void> {
+class FoldAllExceptSelectionAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
-			id: 'editor.foldAllExceptCursor',
-			label: nls.localize('foldAllAction.labelExceptCursor', "Fold All Except Cursor"),
-			alias: 'Fold All Except Cursor',
+			id: 'editor.foldAllExceptSelection',
+			label: nls.localize('foldAllAction.labelExceptSelection', "Fold All Except Selection"),
+			alias: 'Fold All Except Selection',
 			precondition: CONTEXT_FOLDING_ENABLED
 		});
 	}
@@ -883,9 +883,9 @@ class FoldLevelAction extends FoldingAction<void> {
 
 	constructor(private level: number, private isSelectionAware: boolean) {
 		super({
-			id: `editor.foldLevel${level}${isSelectionAware ? '' : 'IncludingCursor'}`,
-			label: isSelectionAware ? nls.localize('foldLevelAction.label', "Fold Level {0}", level) : nls.localize('foldLevelAction.labelIncludingCursor', "Fold Level {0} Including Cursor", level),
-			alias: `Fold Level ${level}${isSelectionAware ? '' : ' Including Cursor'}`,
+			id: `editor.foldLevel${level}${isSelectionAware ? '' : 'IncludingSelection'}`,
+			label: isSelectionAware ? nls.localize('foldLevelAction.label', "Fold Level {0}", level) : nls.localize('foldLevelAction.labelIncludingSelection', "Fold Level {0} Including Selection", level),
+			alias: `Fold Level ${level}${isSelectionAware ? '' : ' Including Selection'}`,
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: isSelectionAware ? {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -906,7 +906,7 @@ registerEditorAction(UnFoldRecursivelyAction);
 registerEditorAction(FoldAction);
 registerEditorAction(FoldRecursivelyAction);
 registerEditorAction(FoldAllAction);
-registerEditorAction(FoldAllExceptCursorAction);
+registerEditorAction(FoldAllExceptSelectionAction);
 registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
 registerEditorAction(FoldAllRegionsAction);
