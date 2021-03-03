@@ -42,6 +42,10 @@ export class NotebookCellSelectionCollection extends Disposable {
 		return this._selections[0];
 	}
 
+	get focus(): ICellRange {
+		return this._primary ?? { start: 0, end: 0 };
+	}
+
 	setState(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'model') {
 		if (primary !== null) {
 			const primaryRange = primary;

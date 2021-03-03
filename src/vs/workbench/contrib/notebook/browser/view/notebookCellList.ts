@@ -521,7 +521,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
-			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] });
+			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 		}
 	}
 
@@ -609,30 +609,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusNext(() => {
 			super.focusNext(n, loop, browserEvent, filter);
-			const focus = this.getFocus();
-			if (focus.length) {
-				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: focusedElementHandle,
-					selections: [focusedElementHandle]
-				}, 'view');
-			}
 		});
 	}
 
 	focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusPrevious(() => {
 			super.focusPrevious(n, loop, browserEvent, filter);
-			const focus = this.getFocus();
-			if (focus.length) {
-				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: focusedElementHandle,
-					selections: [focusedElementHandle]
-				}, 'view');
-			}
 		});
 	}
 

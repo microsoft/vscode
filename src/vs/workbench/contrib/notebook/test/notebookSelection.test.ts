@@ -83,6 +83,29 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
+	test('notebook cell list setFocus', function () {
+		withTestNotebook(
+			instantiationService,
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+
+				assert.strictEqual(cellList.length, 2);
+				cellList.setFocus([0]);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+
+				cellList.setFocus([1]);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+
+				cellList.setSelection([1]);
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
+			});
+	});
+
 	test('notebook cell list focus/selection with folding regions', function () {
 		withTestNotebook(
 			instantiationService,
@@ -113,15 +136,14 @@ suite('NotebookCellList focus/selection', () => {
 
 				cellList.focusNext(1, false);
 				// focus next should skip the folded items
-				assert.deepStrictEqual(viewModel.getSelection(), { start: 2, end: 3 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 2, end: 3 }]);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
 
 				// unfold
 				updateFoldingStateAtIndex(foldingModel, 2, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);
 				cellList.setHiddenAreas(viewModel.getHiddenRanges(), true);
 				assert.strictEqual(cellList.length, 4);
-				assert.deepStrictEqual(viewModel.getSelection(), { start: 2, end: 3 });
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
 			});
 	});
 
@@ -153,7 +175,7 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 1, end: 2 }, { start: -1, end: 0 }] });
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }, { start: -1, end: 0 }] });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 			});
 	});
@@ -166,7 +188,7 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor, viewModel) => {
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 1, end: 2 }] });
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				viewModel.deleteCell(1, true, false);
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
 			});

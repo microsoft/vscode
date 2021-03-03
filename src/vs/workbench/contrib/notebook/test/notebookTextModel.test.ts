@@ -279,7 +279,7 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-				], true, undefined, () => ({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] }), undefined);
+				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.equal(textModel.cells.length, 4);
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
@@ -318,7 +318,7 @@ suite('NotebookTextModel', () => {
 						editType: CellEditType.Metadata,
 						metadata: { editable: false },
 					}
-				], true, undefined, () => ({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] }), undefined);
+				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.notEqual(changeEvent, undefined);
 				assert.equal(changeEvent!.rawEvents.length, 2);

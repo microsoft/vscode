@@ -353,6 +353,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
+	getFocus() {
+		return this._selectionCollection.focus;
+	}
+
 	getSelection() {
 		return this._selectionCollection.selection;
 	}
@@ -736,7 +740,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				cells: []
 			}],
 			synchronous,
-			{ kind: SelectionStateType.Index, selections: this.getSelections() },
+			{ kind: SelectionStateType.Index, focus: this.getFocus(), selections: this.getSelections() },
 			() => ({ kind: SelectionStateType.Handle, primary: endPrimarySelection, selections: endSelections }),
 			undefined,
 			pushUndoStop
@@ -764,7 +768,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				length,
 				newIdx
 			}
-		], synchronous, { kind: SelectionStateType.Index, selections: this.getSelections() }, () => ({ kind: SelectionStateType.Index, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
+		], synchronous, { kind: SelectionStateType.Index, focus: this.getFocus(), selections: this.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: { start: newIdx, end: newIdx + 1 }, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
 		return true;
 	}
 

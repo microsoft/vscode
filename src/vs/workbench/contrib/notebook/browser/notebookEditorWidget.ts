@@ -914,6 +914,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else if (this._list.length > 0) {
 			this.viewModel?.updateSelectionsState({
 				kind: SelectionStateType.Index,
+				focus: { start: 0, end: 1 },
 				selections: [{ start: 0, end: 1 }]
 			});
 		}
