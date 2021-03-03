@@ -289,7 +289,13 @@ async function main(): Promise<void> {
 	const environmentService = new NativeEnvironmentService(parsedArgs);
 
 	await rimraf(cliServerSocketsPath).catch(() => { });
-	await Promise.all<void | undefined>([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath, cliServerSocketsPath]
+	// see src/vs/code/electron-main/main.ts#182
+	await Promise.all<void | undefined>([
+		environmentService.extensionsPath,
+		environmentService.logsPath,
+		environmentService.globalStorageHome.fsPath,
+		environmentService.workspaceStorageHome.fsPath,
+		cliServerSocketsPath]
 		.map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
 	const onDidClientConnectEmitter = new Emitter<ClientConnectionEvent>();
