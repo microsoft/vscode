@@ -284,7 +284,7 @@ export interface ITerminalChildProcess {
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-	onShellTypeChanged: Event<TerminalShellType | undefined>;
+	onShellTypeChanged: Event<TerminalShellType>;
 
 	/**
 	 * Starts the process.
