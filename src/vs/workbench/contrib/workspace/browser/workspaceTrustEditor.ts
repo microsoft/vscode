@@ -10,11 +10,11 @@ import { Iterable } from 'vs/base/common/iterator';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -38,7 +38,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
@@ -109,7 +109,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		clearNode(this.headerButtons);
 		const buttonBar = this._register(new ButtonBar(this.headerButtons));
 
-		const createButton = (label: string, command: string) => {
+		const createButton = (label: string, callback: () => void) => {
 			const button = buttonBar.addButton();
 			button.label = label;
 			this._register(button.onDidClick(e => {
@@ -117,19 +117,26 @@ export class WorkspaceTrustEditor extends EditorPane {
 					EventHelper.stop(e);
 				}
 
-				this.commandService.executeCommand(command);
+				callback();
 			}));
 		};
 
+
+		const setTrustState = (state: WorkspaceTrustState) => {
+			this.workspaceService.getWorkspace().folders.forEach(folder => {
+				this.workspaceTrustEditorModel.dataModel.setFolderTrustState(folder.uri, state);
+			});
+		};
+
 		if (model.currentWorkspaceTrustState !== WorkspaceTrustState.Trusted) {
-			createButton(localize('trustButton', "Trust"), 'workbench.trust.grant');
+			createButton(localize('trustButton', "Trust"), () => setTrustState(WorkspaceTrustState.Trusted));
 		}
 
 		if (model.currentWorkspaceTrustState !== WorkspaceTrustState.Untrusted) {
-			createButton(localize('doNotTrustButton', "Don't Trust"), 'workbench.trust.deny');
+			createButton(localize('doNotTrustButton', "Don't Trust"), () => setTrustState(WorkspaceTrustState.Untrusted));
 		}
 
-		createButton(localize('learnMore', "Learn More"), 'workbench.trust.learnMore');
+		createButton(localize('learnMore', "Learn More"), () => { });
 
 		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
 
