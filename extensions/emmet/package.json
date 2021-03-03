@@ -85,10 +85,10 @@
         },
         "emmet.extensionsPath": {
           "type": "array",
-			    "items": {
-				    "type": "string"
+          "items": {
+            "type": "string"
           },
-			    "default": [],
+          "default": [],
           "description": "%emmetExtensionsPath%"
         },
         "emmet.triggerExpansionOnTab": {
