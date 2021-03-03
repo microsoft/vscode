@@ -153,7 +153,7 @@ export class BrowserWindow extends Disposable {
 			scheme: Schemas.userData,
 			priority: true,
 			formatting: {
-				label: '${scheme}:${path}',
+				label: '(Settings) ${path}',
 				separator: '/',
 			}
 		});
