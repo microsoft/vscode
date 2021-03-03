@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import type * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsShellHelper, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { debounce } from 'vs/base/common/decorators';
+import { throttle } from 'vs/base/common/decorators';
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
@@ -55,7 +55,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		this.checkShell();
 	}
 
-	@debounce(1000)
+	@throttle(1000)
 	checkShell(): void {
 		if (platform.isWindows) {
 			this.getShellName().then(title => this._onShellNameChange.fire(title));
