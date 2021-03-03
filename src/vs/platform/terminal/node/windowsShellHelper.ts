@@ -27,7 +27,6 @@ const SHELL_EXECUTABLES = [
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
-	// private _onCheckShell: Emitter<Promise<string> | undefined> = this._register(new Emitter<Promise<string> | undefined>());
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | undefined;
 
