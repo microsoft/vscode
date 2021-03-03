@@ -2250,7 +2250,8 @@ declare module 'vscode' {
 		/**
 		 * An event that fires when an existing test `root` changes.  This can be
 		 * a result of a property update, or an update to its children. Changes
-		 * made to tests will not be visible to {@link TestObserver} instances until this event is fired.
+		 * made to tests will not be visible to {@link TestObserver} instances
+		 * until this event is fired.
 		 *
 		 * When a change is signalled, VS Code will check for any new or removed
 		 * direct children of the changed ite, For example, firing the event with
@@ -2272,12 +2273,6 @@ declare module 'vscode' {
 		 * with children will mark the entire subtree as outdated.
 		 */
 		readonly onDidInvalidateTest?: Event<T>;
-
-		/**
-		 * Dispose will be called when there are no longer observers interested
-		 * in the hierarchy.
-		 */
-		dispose(): void;
 	}
 
 	/**
@@ -2295,12 +2290,12 @@ declare module 'vscode' {
 		 * when the user opens the test explorer.
 		 *
 		 * It's guaranteed that this method will not be called again while
-		 * there is a previous undisposed hierarchy for the given workspace folder.
+		 * there is a previous uncancelled hierarchy for the given workspace folder.
 		 *
 		 * @param workspace The workspace in which to observe tests
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		createWorkspaceTestHierarchy(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
+		provideWorkspaceTestHierarchy(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
 
 		/**
 		 * Requests that tests be provided for the given document. This will be
@@ -2316,9 +2311,9 @@ declare module 'vscode' {
 		 * Code will request and use the information from the workspace hierarchy.
 		 *
 		 * @param document The document in which to observe tests
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
+		provideDocumentTestHierarchy?(document: TextDocument, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
@@ -2328,7 +2323,7 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		runTests(options: TestRun<T>, cancellationToken: CancellationToken): ProviderResult<void>;
+		runTests(options: TestRun<T>, token: CancellationToken): ProviderResult<void>;
 	}
 
 	/**

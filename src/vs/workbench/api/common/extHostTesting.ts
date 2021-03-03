@@ -5,10 +5,10 @@
 
 import { mapFind } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepFreeze } from 'vs/base/common/objects';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -136,7 +136,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		let method: undefined | ((p: vscode.TestProvider) => vscode.TestHierarchy<vscode.TestItem> | undefined);
+		const cancellation = new CancellationTokenSource();
+		let method: undefined | ((p: vscode.TestProvider) => vscode.ProviderResult<vscode.TestHierarchy<vscode.TestItem>>);
 		if (resource === ExtHostTestingResource.TextDocument) {
 			let document = this.documents.getDocument(uri);
 
@@ -155,14 +156,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 			if (document) {
 				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
-				method = p => p.createDocumentTestHierarchy
-					? p.createDocumentTestHierarchy(document!.document)
-					: this.createDefaultDocumentTestHierarchy(p, document!.document, folder);
+				method = p => p.provideDocumentTestHierarchy
+					? p.provideDocumentTestHierarchy(document!.document, cancellation.token)
+					: this.createDefaultDocumentTestHierarchy(p, document!.document, folder, cancellation.token);
 			}
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
 			if (folder) {
-				method = p => p.createWorkspaceTestHierarchy(folder);
+				method = p => p.provideWorkspaceTestHierarchy(folder, cancellation.token);
 			}
 		}
 
@@ -170,15 +171,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
+		const subscribeFn = async (id: string, provider: vscode.TestProvider) => {
 			try {
-				const hierarchy = method!(provider);
+				collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, 1]);
+
+				const hierarchy = await method!(provider);
 				if (!hierarchy) {
+					collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]);
 					return;
 				}
 
-				collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, 1]);
-				disposable.add(hierarchy);
 				collection.addRoot(hierarchy.root, id);
 				Promise.resolve(hierarchy.discoveredInitialTests).then(() => collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
@@ -196,7 +198,9 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		};
 
 		const disposable = new DisposableStore();
-		const collection = disposable.add(this.ownedTests.createForHierarchy(diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
+		const collection = disposable.add(this.ownedTests.createForHierarchy(
+			diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
+		disposable.add(toDisposable(() => cancellation.dispose(true)));
 		for (const [id, provider] of this.providers) {
 			subscribeFn(id, provider);
 		}
@@ -318,12 +322,17 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			?? this.textDocumentObservers.getMirroredTestDataByReference(test);
 	}
 
-	private createDefaultDocumentTestHierarchy(provider: vscode.TestProvider, document: vscode.TextDocument, folder: vscode.WorkspaceFolder | undefined): vscode.TestHierarchy<vscode.TestItem> | undefined {
+	private async createDefaultDocumentTestHierarchy(
+		provider: vscode.TestProvider,
+		document: vscode.TextDocument,
+		folder: vscode.WorkspaceFolder | undefined,
+		token: CancellationToken,
+	): Promise<vscode.TestHierarchy<vscode.TestItem> | undefined> {
 		if (!folder) {
 			return;
 		}
 
-		const workspaceHierarchy = provider.createWorkspaceTestHierarchy(folder);
+		const workspaceHierarchy = await provider.provideWorkspaceTestHierarchy(folder, token);
 		if (!workspaceHierarchy) {
 			return;
 		}
@@ -372,12 +381,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			onDidChangeTest.fire(previousParent);
 		});
 
+		token.onCancellationRequested(() => {
+			TestItemFilteredWrapper.removeFilter(document);
+			onDidChangeTest.dispose();
+		});
+
 		return {
 			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
-			dispose: () => {
-				onDidChangeTest.dispose();
-				TestItemFilteredWrapper.removeFilter(document);
-			},
 			discoveredInitialTests: workspaceHierarchy.discoveredInitialTests,
 			onDidInvalidateTest: onDidInvalidateTest.event,
 			onDidChangeTest: onDidChangeTest.event
