@@ -40,16 +40,7 @@ function getLocationLinks<T>(
 			}
 		}
 
-		const uniqueResults: Set<LocationLink> = new Set();
-		let last: LocationLink | undefined;
-		// Preserve result order by sorting a copy and using that to compare with Set contents.
-		for (const link of [...result].sort(compareLocations)) {
-			if (last === undefined || compareLocations(last, link) !== 0) {
-				uniqueResults.add(link);
-				last = link;
-			}
-		}
-		return result.filter(link => uniqueResults.has(link));
+		return sortAndDeduplicate(result);
 	});
 }
 
@@ -92,7 +83,19 @@ export function getReferencesAtPosition(model: ITextModel, position: Position, c
 	});
 }
 
-export function compareLocations(a: Location, b: Location): number {
+export function sortAndDeduplicate(locations: Location[]): Location[] {
+	const result: LocationLink[] = [];
+	let last: LocationLink | undefined;
+	for (const link of locations.sort(compareLocations)) {
+		if (last === undefined || compareLocations(last, link) !== 0) {
+			result.push(link);
+			last = link;
+		}
+	}
+	return result;
+}
+
+function compareLocations(a: Location, b: Location): number {
 	return extUri.compare(a.uri, b.uri) || Range.compareRangesUsingStarts(a.range, b.range);
 }
 

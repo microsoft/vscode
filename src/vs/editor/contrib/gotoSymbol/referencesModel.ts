@@ -19,7 +19,7 @@ import { Constants } from 'vs/base/common/uint';
 import { ResourceMap } from 'vs/base/common/map';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
-import { compareLocations } from './goToSymbol';
+import { sortAndDeduplicate } from './goToSymbol';
 
 export class OneReference {
 
@@ -157,9 +157,9 @@ export class ReferencesModel implements IDisposable {
 		this._links = links;
 		this._title = title;
 
-		// grouping and sorting
+		// grouping, sorting, and de-duplicating
 		const [providersFirst] = links;
-		links.sort(compareLocations);
+		links = sortAndDeduplicate(links);
 
 		let current: FileReferences | undefined;
 		for (let link of links) {
@@ -169,19 +169,15 @@ export class ReferencesModel implements IDisposable {
 				this.groups.push(current);
 			}
 
-			// append, check for equality first!
-			if (current.children.length === 0 || compareLocations(link, current.children[current.children.length - 1]) !== 0) {
-
-				const oneRef = new OneReference(
-					providersFirst === link,
-					current,
-					link.uri,
-					link.targetSelectionRange || link.range,
-					ref => this._onDidChangeReferenceRange.fire(ref)
-				);
-				this.references.push(oneRef);
-				current.children.push(oneRef);
-			}
+			const oneRef = new OneReference(
+				providersFirst === link,
+				current,
+				link.uri,
+				link.targetSelectionRange || link.range,
+				ref => this._onDidChangeReferenceRange.fire(ref)
+			);
+			this.references.push(oneRef);
+			current.children.push(oneRef);
 		}
 	}
 
