@@ -221,12 +221,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			this._addNotebookEditor(e);
 		});
 
-		this._register(this._notebookService.onDidChangeActiveEditor(e => {
+		this._register(this._editorService.onDidActiveEditorChange(e => {
 			this._updateState();
 		}));
 
-		this._register(this._notebookService.onDidChangeVisibleEditors(e => {
-			if (this._notebookProviders.size > 0) {
+		this._register(this._editorService.onDidVisibleEditorsChange(e => {
+			if (this._notebookProviders.size > 0) { // TODO@rebornix propably wrong, what about providers from another host
 				if (!this._currentState) {
 					// no current state means we didn't even create editors in ext host yet.
 					return;
@@ -237,7 +237,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			}
 		}));
 
-		const notebookEditorAddedHandler = (editor: IEditor) => {
+		const notebookEditorAddedHandler = (editor: INotebookEditor) => {
 			if (!this._editorEventListenersMapping.has(editor.getId())) {
 				const disposableStore = new DisposableStore();
 				disposableStore.add(editor.onDidChangeVisibleRanges(() => {
@@ -248,12 +248,26 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: editor.getSelections() } });
 				}));
 
+				disposableStore.add(editor.onDidChangeKernel(() => {
+					if (!editor.hasModel()) {
+						return;
+					}
+					this._proxy.$acceptNotebookActiveKernelChange({
+						uri: editor.viewModel.uri,
+						providerHandle: editor.activeKernel?.providerHandle,
+						kernelFriendlyId: editor.activeKernel?.friendlyId
+					});
+				}));
+
 				this._editorEventListenersMapping.set(editor.getId(), disposableStore);
 			}
 		};
 
+		this._notebookService.listNotebookEditors().forEach(editor => {
+			notebookEditorAddedHandler(editor as INotebookEditor); //TODO@jrieken IEditor vs INotebookEditor
+		});
 		this._register(this._notebookService.onNotebookEditorAdd(editor => {
-			notebookEditorAddedHandler(editor);
+			notebookEditorAddedHandler(editor as INotebookEditor); //TODO@jrieken IEditor vs INotebookEditor
 			this._addNotebookEditor(editor);
 		}));
 
@@ -266,9 +280,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			});
 		}));
 
-		this._notebookService.listNotebookEditors().forEach(editor => {
-			notebookEditorAddedHandler(editor);
-		});
 
 		const cellToDto = (cell: NotebookCellTextModel): IMainCellDto => {
 			return {

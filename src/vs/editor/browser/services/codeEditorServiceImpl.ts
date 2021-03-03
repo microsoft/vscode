@@ -328,7 +328,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 }
 
 
-const _CSS_MAP: { [prop: string]: string; } = {
+export const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
 	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',

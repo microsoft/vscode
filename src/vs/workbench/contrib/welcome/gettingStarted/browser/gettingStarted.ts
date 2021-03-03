@@ -565,7 +565,6 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedTask = undefined;
 			this.selectTask(undefined);
 			this.setSlide('categories');
-			this.focusFirstUncompletedCategory();
 		});
 	}
 
@@ -623,7 +622,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.add('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			(this.container.querySelector('.welcomePageFocusElement') as HTMLElement)?.focus();
+			this.focusFirstUncompletedCategory();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');

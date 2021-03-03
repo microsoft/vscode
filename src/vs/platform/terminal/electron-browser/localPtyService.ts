@@ -70,7 +70,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [Client, IPtyService] {
-		const client = this._register(new Client(
+		const client = new Client(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'Pty Host',
@@ -82,7 +82,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
-		));
+		);
 		this._onPtyHostStart.fire();
 
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));

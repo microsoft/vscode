@@ -467,6 +467,7 @@ export class DeleteCellAction extends MenuItemAction {
 				id: DELETE_CELL_COMMAND_ID,
 				title: localize('notebookActions.deleteCell', "Delete Cell"),
 				icon: icons.deleteCellIcon,
+				precondition: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 			},
 			undefined,
 			{ shouldForwardArgs: true },
@@ -629,7 +630,8 @@ registerAction2(class extends NotebookAction {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellTitle, {
 	submenu: MenuId.NotebookCellInsert,
 	title: localize('notebookMenu.insertCell', "Insert Cell"),
-	group: CellOverflowToolbarGroups.Insert
+	group: CellOverflowToolbarGroups.Insert,
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, {
@@ -880,7 +882,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
 	},
 	order: 0,
-	group: 'inline'
+	group: 'inline',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
@@ -890,7 +893,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
 	},
 	order: 0,
-	group: 'inline'
+	group: 'inline',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
 registerAction2(class extends InsertCellCommand {
@@ -932,7 +936,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
 	},
 	order: 1,
-	group: 'inline'
+	group: 'inline',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
@@ -942,7 +947,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
 	},
 	order: 1,
-	group: 'inline'
+	group: 'inline',
+	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
 });
 
 registerAction2(class extends NotebookCellAction {
@@ -1529,12 +1535,12 @@ registerAction2(class extends NotebookCellAction {
 			title: localize('clearCellOutputs', 'Clear Cell Outputs'),
 			menu: {
 				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_CELL_HAS_OUTPUTS),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 				order: CellToolbarOrder.ClearCellOutput,
 				group: CELL_TITLE_OUTPUT_GROUP_ID
 			},
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_CELL_HAS_OUTPUTS),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 				primary: KeyMod.Alt | KeyCode.Delete,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
