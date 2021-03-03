@@ -246,11 +246,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
 	notebookKernelProviderInfoStore: NotebookKernelProviderInfoStore = new NotebookKernelProviderInfoStore();
 	private readonly _models = new ResourceMap<ModelData>();
-	private _onDidChangeActiveEditor = this._register(new Emitter<string | null>());
-	onDidChangeActiveEditor: Event<string | null> = this._onDidChangeActiveEditor.event;
-	private _activeEditorDisposables = new DisposableStore();
-	private _onDidChangeVisibleEditors = this._register(new Emitter<string[]>());
-	onDidChangeVisibleEditors: Event<string[]> = this._onDidChangeVisibleEditors.event;
+
 	private readonly _onNotebookEditorAdd: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
 	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
 	private readonly _onNotebookEditorsRemove: Emitter<INotebookEditor[]> = this._register(new Emitter<INotebookEditor[]>());
@@ -895,29 +891,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
 		this._onWillDisposeDocument(notebook);
-	}
-
-	updateActiveNotebookEditor(editor: INotebookEditor | null) {
-		this._activeEditorDisposables.clear();
-
-		if (editor) {
-			this._activeEditorDisposables.add(editor.onDidChangeKernel(() => {
-				if (!editor.hasModel()) {
-					return;
-				}
-				this._onDidChangeNotebookActiveKernel.fire({
-					uri: editor.viewModel.uri,
-					providerHandle: editor.activeKernel?.providerHandle,
-					kernelFriendlyId: editor.activeKernel?.friendlyId
-				});
-			}));
-		}
-		this._onDidChangeActiveEditor.fire(editor ? editor.getId() : null);
-	}
-
-	updateVisibleNotebookEditor(editors: string[]) {
-		const alreadyCreated = editors.filter(editorId => this._notebookEditors.has(editorId));
-		this._onDidChangeVisibleEditors.fire(alreadyCreated);
 	}
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean) {

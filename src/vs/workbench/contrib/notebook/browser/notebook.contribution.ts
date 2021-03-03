@@ -35,7 +35,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { getNotebookEditorFromEditorPane, IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -265,25 +265,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			},
 			open: (editor, options, group) => {
 				return this.onEditorOpening(editor, options, group);
-			}
-		}));
-
-		this._register(this.editorService.onDidVisibleEditorsChange(() => {
-			const visibleNotebookEditors = editorService.visibleEditorPanes
-				.map(pane => getNotebookEditorFromEditorPane(pane))
-				.filter(editor => !!editor)
-				.map(editor => editor!.getId());
-
-			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
-		}));
-
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			const notebookEditor = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
-
-			if (notebookEditor) {
-				this.notebookService.updateActiveNotebookEditor(notebookEditor);
-			} else {
-				this.notebookService.updateActiveNotebookEditor(null);
 			}
 		}));
 

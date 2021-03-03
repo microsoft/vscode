@@ -183,7 +183,6 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	registerListeners() {
 		this._register(this._editorService.onDidActiveEditorChange(() => this.updateStatusbar()));
-		this._register(this._notebookService.onDidChangeActiveEditor(() => this.updateStatusbar()));
 		this._register(this._notebookService.onDidChangeKernels(() => this.updateStatusbar()));
 	}
 
