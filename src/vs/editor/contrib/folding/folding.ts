@@ -872,8 +872,7 @@ class FoldLevelAction extends FoldingAction<void> {
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
-		const keepSelectionVisible = editor.getOption(EditorOption.foldLevelCommandsKeepSelectionVisible);
-		setCollapseStateAtLevel(foldingModel, this.getFoldingLevel(), true, keepSelectionVisible ? this.getSelectedLines(editor) : []);
+		setCollapseStateAtLevel(foldingModel, this.getFoldingLevel(), true, this.getSelectedLines(editor));
 	}
 }
 

@@ -549,11 +549,6 @@ export interface IEditorOptions {
 	 */
 	unfoldOnClickAfterEndOfLine?: boolean;
 	/**
-	 * Controls whether folding a specific level will avoid folding the cursor or selection.
-	 * Defaults to true.
-	 */
-	foldLevelCommandsKeepSelectionVisible?: boolean;
-	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to 'always'.
 	 */
@@ -3761,7 +3756,6 @@ export const enum EditorOption {
 	foldingStrategy,
 	foldingHighlight,
 	unfoldOnClickAfterEndOfLine,
-	foldLevelCommandsKeepSelectionVisible,
 	fontFamily,
 	fontInfo,
 	fontLigatures,
@@ -4088,10 +4082,6 @@ export const EditorOptions = {
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,
 		{ description: nls.localize('unfoldOnClickAfterEndOfLine', "Controls whether clicking on the empty content after a folded line will unfold the line.") }
-	)),
-	foldLevelCommandsKeepSelectionVisible: register(new EditorBooleanOption(
-		EditorOption.foldLevelCommandsKeepSelectionVisible, 'foldLevelCommandsKeepSelectionVisible', true,
-		{ description: nls.localize('foldLevelCommandsKeepSelectionVisible', "Controls whether folding a specific level will avoid folding the cursor or selection.") }
 	)),
 	fontFamily: register(new EditorStringOption(
 		EditorOption.fontFamily, 'fontFamily', EDITOR_FONT_DEFAULTS.fontFamily,
