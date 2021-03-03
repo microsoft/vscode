@@ -55,7 +55,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		this.checkShell();
 	}
 
-	@debounce(500)
+	@debounce(1000)
 	checkShell(): void {
 		if (platform.isWindows) {
 			this.getShellName().then(title => this._onShellNameChange.fire(title));
