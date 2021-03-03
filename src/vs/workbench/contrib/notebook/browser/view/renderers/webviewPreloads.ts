@@ -400,7 +400,12 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
 				for (const cell of event.data.cells) {
-					createMarkdownPreview(cell.cellId, cell.content, -10000);
+					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+
+					const cellContainer = document.getElementById(cell.cellId);
+					if (cellContainer) {
+						cellContainer.style.display = 'none';
+					}
 				}
 
 				postNotebookMessage('initializedMarkdownPreview', {});
