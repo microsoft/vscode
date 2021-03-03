@@ -44,8 +44,9 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 		} else {
 			const rootPath = vscode.workspace.workspaceFolders[0].uri;
 			const fileSystem = vscode.workspace.fs;
-			helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir);
-			// .catch(err => vscode.window.showErrorMessage(err.message));
+			helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(_ => {
+				// vscode.window.showErrorMessage(err.message);
+			});
 		}
 	}
 }
