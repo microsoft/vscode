@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension } from 'vs/base/browser/dom';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 
-export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
+export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('workbenchLayoutService');
 
 export const enum Parts {
 	TITLEBAR_PART = 'workbench.parts.titlebar',
@@ -110,6 +110,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emit when notifications (toasts or center) visibility changes.
 	 */
 	readonly onDidChangeNotificationsVisibility: Event<boolean>;
+
+	/**
+	 * True if a default layout with default editors was applied at startup
+	 */
+	readonly openedDefaultEditors: boolean;
 
 	/**
 	 * Run a layout of the workbench.
@@ -225,11 +230,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getMaximumEditorDimensions(): Dimension;
 
 	/**
-	 * Returns the element that is parent of the workbench element.
-	 */
-	getWorkbenchContainer(): HTMLElement;
-
-	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
@@ -268,9 +268,4 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the next visible view part in a given direction
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
-
-	/**
-	 * True if a default layout with default editors was applied at startup
-	 */
-	readonly openedDefaultEditors: boolean;
 }

@@ -296,6 +296,7 @@ export interface INotebookDeltaDecoration {
 export class NotebookEditorOptions extends EditorOptions {
 
 	readonly cellOptions?: IResourceEditorInput;
+	readonly cellSelections?: ICellRange[];
 
 	constructor(options: Partial<NotebookEditorOptions>) {
 		super();
@@ -322,7 +323,6 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
-	uri: URI;
 	// selection is never undefined when the editor is attached to a document.
 	getSelection(): ICellRange;
 }
@@ -353,9 +353,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
-	readonly onDidScroll: Event<ScrollEvent>;
-	readonly onWillDispose: Event<void>;
-
 	isDisposed: boolean;
 
 	getId(): string;

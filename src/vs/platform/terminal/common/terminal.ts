@@ -17,7 +17,7 @@ export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IPtyHos
 
 export interface IRawTerminalTabLayoutInfo<T> {
 	isActive: boolean;
-	activePersistentTerminalId: number | undefined;
+	activePersistentProcessId: number | undefined;
 	terminals: IRawTerminalInstanceLayoutInfo<T>[];
 }
 
@@ -199,7 +199,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentTerminal?: { id: number; pid: number; title: string; cwd: string; };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -229,6 +229,11 @@ export interface IShellLaunchConfig {
 	 * Whether flow control is enabled for this terminal.
 	 */
 	flowControl?: boolean;
+
+	/**
+	 * Whether this terminal was created by an extension.
+	 */
+	isExtensionOwnedTerminal?: boolean;
 }
 
 export interface ITerminalEnvironment {

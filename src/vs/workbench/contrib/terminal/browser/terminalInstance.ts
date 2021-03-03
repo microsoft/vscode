@@ -71,12 +71,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
-	private static _idCounter = 1;
+	private static _instanceIdCounter = 1;
 
 	private _processManager!: ITerminalProcessManager;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
-	private _id: number;
+	private _instanceId: number;
 	private _latestXtermWriteData: number = 0;
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
@@ -120,7 +120,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private hasHadInput: boolean;
 
 	public disableLayout: boolean;
-	public get id(): number { return this._id; }
+	public get instanceId(): number { return this._instanceId; }
 	public get cols(): number {
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
 			if (this._dimensionsOverride.forceExactSize) {
@@ -211,7 +211,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
 		this._isDisposed = false;
-		this._id = TerminalInstance._idCounter++;
+		this._instanceId = TerminalInstance._instanceIdCounter++;
 
 		this.hasHadInput = false;
 
@@ -224,7 +224,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this.disableLayout = false;
 
-		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
+		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 
 		this._initDimensions();
 		this._createProcessManager();
@@ -373,7 +373,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	public get persistentTerminalId(): number | undefined { return this._processManager.persistentTerminalId; }
+	public get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
 	public get shouldPersist(): boolean { return this._processManager.shouldPersist; }
 
 	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
@@ -531,7 +531,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		this._setAriaLabel(xterm, this._id, this._title);
+		this._setAriaLabel(xterm, this._instanceId, this._title);
 
 		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
@@ -772,7 +772,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public dispose(immediate?: boolean): void {
-		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
+		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 
 		dispose(this._windowsShellHelper);
 		this._windowsShellHelper = undefined;
@@ -933,7 +933,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	protected _createProcessManager(): void {
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
+		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(ev => {
@@ -1048,7 +1048,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isExiting = true;
 
 		await this._flushXtermData();
-		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${this._exitCode}`);
+		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
 		let exitCodeMessage: string | undefined;
 
@@ -1091,7 +1091,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				break;
 		}
 
-		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
+		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) state ${this._processManager.processState}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1531,7 +1531,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		if (didTitleChange) {
-			this._setAriaLabel(this._xterm, this._id, this._title);
+			this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
 			if (this._titleReadyComplete) {
 				this._titleReadyComplete(title);
@@ -1574,7 +1574,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
 		if (info.requiresAction) {
-			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._id));
+			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
@@ -1591,7 +1591,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
 		// special terminal (eg. task, extension terminal)
-		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal && !this._shellLaunchConfig.attachPersistentTerminal) {
+		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal && !this._shellLaunchConfig.isExtensionOwnedTerminal && !this._shellLaunchConfig.attachPersistentProcess) {
 			this.relaunch();
 			return;
 		}

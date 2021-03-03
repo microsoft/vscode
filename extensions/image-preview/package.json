@@ -55,12 +55,12 @@
       "commandPalette": [
         {
           "command": "imagePreview.zoomIn",
-          "when": "imagePreviewFocus",
+          "when": "customEditor == 'imagePreview.previewEditor'",
           "group": "1_imagePreview"
         },
         {
           "command": "imagePreview.zoomOut",
-          "when": "imagePreviewFocus",
+          "when": "customEditor == 'imagePreview.previewEditor'",
           "group": "1_imagePreview"
         }
       ]

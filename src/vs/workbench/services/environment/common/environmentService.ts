@@ -9,7 +9,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { URI } from 'vs/base/common/uri';
 
-export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('environmentService');
+export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('workbenchEnvironmentService');
 
 export interface IWorkbenchConfiguration extends IWindowConfiguration { }
 
@@ -24,8 +24,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	//       PUT NON-WEB PROPERTIES INTO THE NATIVE WORKBENCH
 	//       ENVIRONMENT SERVICE
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-	readonly _serviceBrand: undefined;
 
 	readonly options?: IWorkbenchOptions;
 

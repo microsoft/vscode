@@ -26,13 +26,15 @@ import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workb
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export interface WebviewIntialized {
+interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
-	type: 'initialized'
 }
 
-export interface IDimensionMessage {
-	readonly __vscode_notebook_message: true;
+export interface WebviewIntialized extends BaseToWebviewMessage {
+	type: 'initialized';
+}
+
+export interface IDimensionMessage extends BaseToWebviewMessage {
 	type: 'dimension';
 	id: string;
 	init?: boolean;
@@ -40,86 +42,72 @@ export interface IDimensionMessage {
 	isOutput?: boolean;
 }
 
-export interface IMouseEnterMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseEnterMessage extends BaseToWebviewMessage {
 	type: 'mouseenter';
 	id: string;
 }
 
-export interface IMouseLeaveMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseLeaveMessage extends BaseToWebviewMessage {
 	type: 'mouseleave';
 	id: string;
 }
 
-export interface IWheelMessage {
-	readonly __vscode_notebook_message: true;
+export interface IWheelMessage extends BaseToWebviewMessage {
 	type: 'did-scroll-wheel';
 	payload: any;
 }
 
-
-export interface IScrollAckMessage {
-	readonly __vscode_notebook_message: true;
+export interface IScrollAckMessage extends BaseToWebviewMessage {
 	type: 'scroll-ack';
 	data: { top: number };
 	version: number;
 }
 
-export interface IBlurOutputMessage {
-	readonly __vscode_notebook_message: true;
+export interface IBlurOutputMessage extends BaseToWebviewMessage {
 	type: 'focus-editor';
 	id: string;
 	focusNext?: boolean;
 }
 
-export interface IClickedDataUrlMessage {
-	readonly __vscode_notebook_message: true;
+export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	type: 'clicked-data-url';
 	data: string | ArrayBuffer | null;
 	downloadName?: string;
 }
 
-export interface IFocusMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IFocusMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'focusMarkdownPreview';
 	cellId: string;
 }
 
-export interface IMouseEnterMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'mouseEnterMarkdownPreview';
 	cellId: string;
 }
 
-export interface IMouseLeaveMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseLeaveMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'mouseLeaveMarkdownPreview';
 	cellId: string;
 }
 
-export interface IToggleMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'toggleMarkdownPreview';
 	cellId: string;
 }
 
-export interface ICellDragStartMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
-export interface ICellDragMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
-export interface ICellDragEndMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragEndMessage extends BaseToWebviewMessage {
 	readonly type: 'cell-drag-end';
 	readonly cellId: string;
 	readonly ctrlKey: boolean
@@ -129,8 +117,7 @@ export interface ICellDragEndMessage {
 		readonly clientY: number;
 	};
 }
-export interface IInitializedMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkdownPreview';
 }
 
@@ -240,8 +227,7 @@ export interface IUpdateDecorationsMessage {
 	removedClassNames: string[];
 }
 
-export interface ICustomRendererMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICustomRendererMessage extends BaseToWebviewMessage {
 	type: 'customRendererMessage';
 	rendererId: string;
 	message: unknown;

@@ -669,7 +669,7 @@ export class SuggestWidget implements IDisposable {
 			this._details.hide();
 			this.element.domNode.classList.remove('shows-details');
 
-		} else if (canExpandCompletionItem(this._list.getFocusedElements()[0]) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
+		} else if ((canExpandCompletionItem(this._list.getFocusedElements()[0]) || this._explainMode) && (this._state === State.Open || this._state === State.Details || this._state === State.Frozen)) {
 			// show details widget (iff possible)
 			this._ctxSuggestWidgetDetailsVisible.set(true);
 			this._setDetailsVisible(true);
@@ -690,9 +690,13 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	toggleExplainMode(): void {
-		if (this._list.getFocusedElements()[0] && this._isDetailsVisible()) {
+		if (this._list.getFocusedElements()[0]) {
 			this._explainMode = !this._explainMode;
-			this.showDetails(false);
+			if (!this._isDetailsVisible()) {
+				this.toggleDetails();
+			} else {
+				this.showDetails(false);
+			}
 		}
 	}
 

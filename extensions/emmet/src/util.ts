@@ -50,6 +50,34 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 }
 
 /**
+ * Migrate old configuration(string) for extensionsPath to new type(string[])
+ * https://github.com/microsoft/vscode/issues/117517
+ */
+export function migrateEmmetExtensionsPath() {
+	// Get the detail info of emmet.extensionsPath setting
+	let config = vscode.workspace.getConfiguration().inspect('emmet.extensionsPath');
+
+	// Update Global setting if the value type is string or the value is null
+	if (typeof config?.globalValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.globalValue], true);
+	} else if (config?.globalValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], true);
+	}
+	// Update Workspace setting if the value type is string or the value is null
+	if (typeof config?.workspaceValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceValue], false);
+	} else if (config?.workspaceValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], false);
+	}
+	// Update WorkspaceFolder setting if the value type is string or the value is null
+	if (typeof config?.workspaceFolderValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceFolderValue]);
+	} else if (config?.workspaceFolderValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', []);
+	}
+}
+
+/**
  * Mapping between languages that support Emmet and completion trigger characters
  */
 export const LANGUAGE_MODES: { [id: string]: string[] } = {

@@ -1211,7 +1211,6 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
 	const notificationService = accessor.get(INotificationService);
-	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 
@@ -1266,12 +1265,6 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			const pair = sourceTargetPairs[0];
 			await explorerService.select(pair.target);
-			if (sourceTargetPairs.length === 1) {
-				const item = explorerService.findClosest(pair.target);
-				if (item && !item.isDirectory) {
-					await editorService.openEditor({ resource: item.resource, options: { pinned: true, preserveFocus: true } });
-				}
-			}
 		}
 	} catch (e) {
 		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));

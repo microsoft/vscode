@@ -40,7 +40,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	public async createRemoteTerminalProcess(terminalId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
+	public async createRemoteTerminalProcess(instanceId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -53,7 +53,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			});
 		}
 
-		return new RemoteTerminalProcess(terminalId, shouldPersist, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+		return new RemoteTerminalProcess(instanceId, shouldPersist, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, configHelper, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
 	}
 
 	public async listTerminals(isInitialization = false): Promise<IRemoteTerminalAttachTarget[]> {
@@ -103,12 +103,13 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
 
 	private _startBarrier: Barrier;
-	private _persistentTerminalId: number;
+	private _persistentProcessId: number;
+	public get id(): number { return this._persistentProcessId; }
 
 	private _inReplay = false;
 
 	constructor(
-		readonly id: number,
+		private readonly _instanceId: number,
 		readonly shouldPersist: boolean,
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
 		private readonly _activeWorkspaceRootUri: URI | undefined,
@@ -123,7 +124,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 	) {
 		super();
 		this._startBarrier = new Barrier();
-		this._persistentTerminalId = 0;
+		this._persistentProcessId = 0;
 
 		if (this._isPreconnectionTerminal) {
 			// Add a loading title only if this terminal is
@@ -140,7 +141,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 			throw new Error('Could not fetch remote environment');
 		}
 
-		if (!this._shellLaunchConfig.attachPersistentTerminal) {
+		if (!this._shellLaunchConfig.attachPersistentProcess) {
 			const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions(env.os);
 
 			const shellLaunchConfigDto: IShellLaunchConfigDto = {
@@ -151,7 +152,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 				env: this._shellLaunchConfig.env
 			};
 
-			this._logService.trace('Spawning remote agent process', { terminalId: this.id, shellLaunchConfigDto });
+			this._logService.trace('Spawning remote agent process', { terminalId: this._instanceId, shellLaunchConfigDto });
 
 			const result = await this._remoteTerminalChannel.createTerminalProcess(
 				shellLaunchConfigDto,
@@ -162,23 +163,23 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 				isWorkspaceShellAllowed,
 			);
 
-			this._persistentTerminalId = result.terminalId;
+			this._persistentProcessId = result.terminalId;
 			this.setupTerminalEventListener();
 			this._onProcessResolvedShellLaunchConfig.fire(reviveIShellLaunchConfig(result.resolvedShellLaunchConfig));
 
-			const startResult = await this._remoteTerminalChannel.startTerminalProcess(this._persistentTerminalId);
+			const startResult = await this._remoteTerminalChannel.startTerminalProcess(this._persistentProcessId);
 
 			if (typeof startResult !== 'undefined') {
 				// An error occurred
 				return startResult;
 			}
 		} else {
-			this._persistentTerminalId = this._shellLaunchConfig.attachPersistentTerminal.id;
-			this._onProcessReady.fire({ pid: this._shellLaunchConfig.attachPersistentTerminal.pid, cwd: this._shellLaunchConfig.attachPersistentTerminal.cwd });
+			this._persistentProcessId = this._shellLaunchConfig.attachPersistentProcess.id;
+			this._onProcessReady.fire({ pid: this._shellLaunchConfig.attachPersistentProcess.pid, cwd: this._shellLaunchConfig.attachPersistentProcess.cwd });
 			this.setupTerminalEventListener();
 
 			setTimeout(() => {
-				this._onProcessTitleChanged.fire(this._shellLaunchConfig.attachPersistentTerminal!.title);
+				this._onProcessTitleChanged.fire(this._shellLaunchConfig.attachPersistentProcess!.title);
 			}, 0);
 		}
 
@@ -188,7 +189,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 
 	public shutdown(immediate: boolean): void {
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.shutdownTerminalProcess(this._persistentTerminalId, immediate);
+			this._remoteTerminalChannel.shutdownTerminalProcess(this._persistentProcessId, immediate);
 		});
 	}
 
@@ -198,12 +199,12 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		}
 
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.sendInputToTerminalProcess(this._persistentTerminalId, data);
+			this._remoteTerminalChannel.sendInputToTerminalProcess(this._persistentProcessId, data);
 		});
 	}
 
 	private setupTerminalEventListener(): void {
-		this._register(this._remoteTerminalChannel.onTerminalProcessEvent(this._persistentTerminalId)(event => {
+		this._register(this._remoteTerminalChannel.onTerminalProcessEvent(this._persistentProcessId)(event => {
 			switch (event.type) {
 				case 'ready':
 					return this._onProcessReady.fire({ pid: event.pid, cwd: event.cwd });
@@ -236,7 +237,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 				case 'execCommand':
 					return this._execCommand(event);
 				case 'orphan?': {
-					this._remoteTerminalChannel.orphanQuestionReply(this._persistentTerminalId);
+					this._remoteTerminalChannel.orphanQuestionReply(this._persistentProcessId);
 					return;
 				}
 			}
@@ -249,7 +250,7 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		}
 		this._startBarrier.wait().then(_ => {
 
-			this._remoteTerminalChannel.resizeTerminalProcess(this._persistentTerminalId, cols, rows);
+			this._remoteTerminalChannel.resizeTerminalProcess(this._persistentProcessId, cols, rows);
 		});
 	}
 
@@ -260,18 +261,18 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		}
 
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.sendCharCountToTerminalProcess(this._persistentTerminalId, charCount);
+			this._remoteTerminalChannel.sendCharCountToTerminalProcess(this._persistentProcessId, charCount);
 		});
 	}
 
 	public async getInitialCwd(): Promise<string> {
 		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.getTerminalInitialCwd(this._persistentTerminalId);
+		return this._remoteTerminalChannel.getTerminalInitialCwd(this._persistentProcessId);
 	}
 
 	public async getCwd(): Promise<string> {
 		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.getTerminalCwd(this._persistentTerminalId);
+		return this._remoteTerminalChannel.getTerminalCwd(this._persistentProcessId);
 	}
 
 	/**
@@ -286,9 +287,9 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		const commandArgs = event.commandArgs.map(arg => revive(arg));
 		try {
 			const result = await this._commandService.executeCommand(event.commandId, ...commandArgs);
-			this._remoteTerminalChannel.sendCommandResultToTerminalProcess(this._persistentTerminalId, reqId, false, result);
+			this._remoteTerminalChannel.sendCommandResultToTerminalProcess(this._persistentProcessId, reqId, false, result);
 		} catch (err) {
-			this._remoteTerminalChannel.sendCommandResultToTerminalProcess(this._persistentTerminalId, reqId, true, err);
+			this._remoteTerminalChannel.sendCommandResultToTerminalProcess(this._persistentProcessId, reqId, true, err);
 		}
 	}
 }

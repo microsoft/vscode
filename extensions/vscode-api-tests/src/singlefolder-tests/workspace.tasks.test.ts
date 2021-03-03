@@ -20,7 +20,7 @@ import { assertNoRpc } from '../utils';
 			disposables.length = 0;
 		});
 
-		test('CustomExecution task should start and shutdown successfully', (done) => {
+		test('CustomExecution task should start and shutdown successfully', async () => {
 			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -30,7 +30,6 @@ import { assertNoRpc } from '../utils';
 			const taskType: string = 'customTesting';
 			const taskName = 'First custom task';
 			let isPseudoterminalClosed = false;
-			let terminal: Terminal | undefined;
 			// There's a strict order that should be observed here:
 			// 1. The terminal opens
 			// 2. The terminal is written to.
@@ -44,75 +43,69 @@ import { assertNoRpc } from '../utils';
 
 			let testOrder = TestOrder.Start;
 
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					assert.equal(testOrder, TestOrder.Start);
-				} catch (e) {
-					done(e);
-				}
-				testOrder = TestOrder.TerminalOpened;
-				terminal = term;
-			}));
-			disposables.push(window.onDidWriteTerminalData(e => {
-				try {
-					assert.equal(testOrder, TestOrder.TerminalOpened);
-					testOrder = TestOrder.TerminalWritten;
-					assert.notEqual(terminal, undefined);
-					assert.equal(e.data, 'testing\r\n');
-				} catch (e) {
-					done(e);
-				}
+			// Launch the task
+			const terminal = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(e => {
+					assert.strictEqual(testOrder, TestOrder.Start);
+					testOrder = TestOrder.TerminalOpened;
+					r(e);
+				}));
+				disposables.push(tasks.registerTaskProvider(taskType, {
+					provideTasks: () => {
+						const result: Task[] = [];
+						const kind: CustomTestingTaskDefinition = {
+							type: taskType,
+							customProp1: 'testing task one'
+						};
+						const writeEmitter = new EventEmitter<string>();
+						const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
+							const pty: Pseudoterminal = {
+								onDidWrite: writeEmitter.event,
+								open: () => writeEmitter.fire('testing\r\n'),
+								close: () => isPseudoterminalClosed = true
+							};
+							return Promise.resolve(pty);
+						});
+						const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
+						result.push(task);
+						return result;
+					},
+					resolveTask(_task: Task): Task | undefined {
+						assert.fail('resolveTask should not trigger during the test');
+					}
+				}));
+				commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+			});
 
-				if (terminal) {
-					terminal.dispose();
-				}
-			}));
-			disposables.push(window.onDidCloseTerminal(() => {
-				try {
-					assert.equal(testOrder, TestOrder.TerminalWritten);
+			// Verify the output
+			await new Promise<void>(r => {
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (e.terminal !== terminal) {
+						return;
+					}
+					assert.strictEqual(testOrder, TestOrder.TerminalOpened);
+					testOrder = TestOrder.TerminalWritten;
+					assert.notStrictEqual(terminal, undefined);
+					assert.strictEqual(e.data, 'testing\r\n');
+					r();
+				}));
+			});
+
+			// Dispose the terminal
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(() => {
+					assert.strictEqual(testOrder, TestOrder.TerminalWritten);
 					testOrder = TestOrder.TerminalClosed;
 					// Pseudoterminal.close should have fired by now, additionally we want
 					// to make sure all events are flushed before continuing with more tests
 					assert.ok(isPseudoterminalClosed);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				done();
-			}));
-			disposables.push(tasks.registerTaskProvider(taskType, {
-				provideTasks: () => {
-					const result: Task[] = [];
-					const kind: CustomTestingTaskDefinition = {
-						type: taskType,
-						customProp1: 'testing task one'
-					};
-					const writeEmitter = new EventEmitter<string>();
-					const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
-						const pty: Pseudoterminal = {
-							onDidWrite: writeEmitter.event,
-							open: () => writeEmitter.fire('testing\r\n'),
-							close: () => isPseudoterminalClosed = true
-						};
-						return Promise.resolve(pty);
-					});
-					const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
-					result.push(task);
-					return result;
-				},
-				resolveTask(_task: Task): Task | undefined {
-					try {
-						assert.fail('resolveTask should not trigger during the test');
-					} catch (e) {
-						done(e);
-					}
-					return undefined;
-				}
-			}));
-			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+					r();
+				}));
+				terminal.dispose();
+			});
 		});
 
-		test('sync CustomExecution task should flush all data on close', (done) => {
+		test('sync CustomExecution task should flush all data on close', async () => {
 			interface CustomTestingTaskDefinition extends TaskDefinition {
 				/**
 				 * One of the task properties. This can be used to customize the task in the tasks.json
@@ -121,52 +114,58 @@ import { assertNoRpc } from '../utils';
 			}
 			const taskType: string = 'customTesting';
 			const taskName = 'First custom task';
-			disposables.push(window.onDidOpenTerminal(term => {
-				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						assert.equal(e.data, 'exiting');
-					} catch (e) {
-						done(e);
-					}
-					disposables.push(window.onDidCloseTerminal(() => done()));
-					term.dispose();
-				}));
-			}));
-			disposables.push(tasks.registerTaskProvider(taskType, {
-				provideTasks: () => {
-					const result: Task[] = [];
-					const kind: CustomTestingTaskDefinition = {
-						type: taskType,
-						customProp1: 'testing task one'
-					};
-					const writeEmitter = new EventEmitter<string>();
-					const closeEmitter = new EventEmitter<void>();
-					const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
-						const pty: Pseudoterminal = {
-							onDidWrite: writeEmitter.event,
-							onDidClose: closeEmitter.event,
-							open: () => {
-								writeEmitter.fire('exiting');
-								closeEmitter.fire();
-							},
-							close: () => { }
+
+			// Launch the task
+			const terminal = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(e => r(e)));
+				disposables.push(tasks.registerTaskProvider(taskType, {
+					provideTasks: () => {
+						const result: Task[] = [];
+						const kind: CustomTestingTaskDefinition = {
+							type: taskType,
+							customProp1: 'testing task one'
 						};
-						return Promise.resolve(pty);
-					});
-					const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
-					result.push(task);
-					return result;
-				},
-				resolveTask(_task: Task): Task | undefined {
-					try {
+						const writeEmitter = new EventEmitter<string>();
+						const closeEmitter = new EventEmitter<void>();
+						const execution = new CustomExecution((): Thenable<Pseudoterminal> => {
+							const pty: Pseudoterminal = {
+								onDidWrite: writeEmitter.event,
+								onDidClose: closeEmitter.event,
+								open: () => {
+									writeEmitter.fire('exiting');
+									closeEmitter.fire();
+								},
+								close: () => { }
+							};
+							return Promise.resolve(pty);
+						});
+						const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
+						result.push(task);
+						return result;
+					},
+					resolveTask(_task: Task): Task | undefined {
 						assert.fail('resolveTask should not trigger during the test');
-					} catch (e) {
-						done(e);
 					}
-					return undefined;
-				}
-			}));
-			commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+				}));
+				commands.executeCommand('workbench.action.tasks.runTask', `${taskType}: ${taskName}`);
+			});
+
+			// Verify the output
+			await new Promise<void>(r => {
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (e.terminal !== terminal) {
+						return;
+					}
+					assert.strictEqual(e.data, 'exiting');
+					r();
+				}));
+			});
+
+			// Dispose the terminal
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(() => r()));
+				terminal.dispose();
+			});
 		});
 
 		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
