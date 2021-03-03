@@ -6,9 +6,16 @@
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import type * as WindowsProcessTreeType from 'windows-process-tree';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWindowsShellHelper, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { throttle } from 'vs/base/common/decorators';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { debounce } from 'vs/base/common/decorators';
+
+export interface IWindowsShellHelper extends IDisposable {
+	readonly onShellNameChanged: Event<string>;
+	readonly onShellTypeChanged: Event<TerminalShellType>;
+	getShellType(title: string): TerminalShellType;
+	getShellName(): Promise<string>;
+}
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
@@ -30,8 +37,10 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | undefined;
 
-	private readonly _onShellNameChange = new Emitter<string>();
-	public get onShellNameChange(): Event<string> { return this._onShellNameChange.event; }
+	private readonly _onShellNameChanged = new Emitter<string>();
+	public get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
+	private readonly _onShellTypeChanged = new Emitter<TerminalShellType>();
+	public get onShellTypeChanged(): Event<TerminalShellType> { return this._onShellTypeChanged.event; }
 
 	public constructor(
 		private _rootProcessId: number
@@ -54,10 +63,14 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		this.checkShell();
 	}
 
-	@throttle(1000)
+	@debounce(500)
 	checkShell(): void {
 		if (platform.isWindows) {
-			this.getShellName().then(title => this._onShellNameChange.fire(title));
+			this.getShellName().then(title => {
+				const type = this.getShellType(title);
+				this._onShellTypeChanged.fire(type);
+				this._onShellNameChanged.fire(title);
+			});
 		}
 	}
 

@@ -132,12 +132,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => {
 				if (this._ptyProcess?.pid) {
 					this._windowsShellHelper = this._register(new WindowsShellHelper(this._ptyProcess.pid));
-					const helper = this._windowsShellHelper;
-					this._register(this._windowsShellHelper.onShellNameChange(title => {
-						this._shellType = helper.getShellType(title);
-						this._onProcessShellTypeChanged.fire(this._shellType);
-						this._onProcessTitleChanged.fire(title);
-					}));
+					this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
+					this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
 				}
 			});
 		}

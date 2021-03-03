@@ -13,7 +13,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess, IWindowsShellHelper } from 'vs/platform/terminal/common/terminal';
+import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 let Terminal: typeof XTermTerminal;
@@ -57,10 +57,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}
 		return WebglAddon;
-	}
-
-	public createWindowsShellHelper(): IWindowsShellHelper {
-		throw new Error('Not implemented');
 	}
 
 	public createTerminalProcess(): Promise<ITerminalChildProcess> {

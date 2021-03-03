@@ -47,7 +47,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, IWindowsShellHelper, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -99,7 +99,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _cols: number = 0;
 	private _rows: number = 0;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _windowsShellHelper: IWindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
@@ -773,8 +772,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 
-		dispose(this._windowsShellHelper);
-		this._windowsShellHelper = undefined;
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
@@ -967,10 +964,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		this._processManager.onProcessShellTypeChanged(type => {
-			if (this._shellType !== type) {
-				this.setShellType(type);
-				this.setTitle(type, TitleEventSource.Process);
-			}
+			this.setShellType(type);
+			this.setTitle(type, TitleEventSource.Process);
 		});
 	}
 
@@ -1487,8 +1482,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// automatically updates the terminal name
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
-				dispose(this._windowsShellHelper);
-				this._windowsShellHelper = undefined;
 				break;
 		}
 		const didTitleChange = title !== this._title;
