@@ -1309,13 +1309,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-		if (config.rendererType === 'experimentalWebgl') {
+		if (config.rendererType === 'auto') {
 			this._enableWebglRenderer();
 		} else {
-			this._webglAddon?.dispose();
-			this._webglAddon = undefined;
+			this._disposeOfWebglRenderer();
 			// Never set webgl as it's an addon not a rendererType
-			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
+			this._safeSetOption('rendererType', config.rendererType);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
@@ -1326,7 +1325,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
 		this._webglAddon = new Addon();
-		this._xterm.loadAddon(this._webglAddon);
+		try {
+			this._xterm.loadAddon(this._webglAddon);
+		} catch {
+			this._disposeOfWebglRenderer();
+			this._safeSetOption('rendererType', 'dom');
+		}
+	}
+
+	private _disposeOfWebglRenderer(): void {
+		this._webglAddon?.dispose();
+		this._webglAddon = undefined;
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
