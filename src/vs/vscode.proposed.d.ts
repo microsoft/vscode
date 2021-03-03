@@ -2774,6 +2774,17 @@ declare module 'vscode' {
 		currentTrustState: WorkspaceTrustState;
 	}
 
+	/**
+	 * The object describing the properties of the workspace trust request
+	 */
+	export interface WorkspaceTrustRequest {
+		/**
+		 * When true, a modal dialog will be used to request workspace trust.
+		 * When false, a badge will be displayed on the Setting activity bar item
+		 */
+		modal: boolean;
+	}
+
 	export namespace workspace {
 		/**
 		 * The trust state of the current workspace
@@ -2782,11 +2793,10 @@ declare module 'vscode' {
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
-		 * @param modal When true, a modal dialog is used to prompt the user for workspace
-		 * trust, otherwise a badge will be shown on the Settings activity bar item.
-		 * Default value is true.
+		 * @param request Optional object describing the properties of the
+		 * workspace trust request
 		 */
-		export function requireWorkspaceTrust(modal?: boolean): Thenable<WorkspaceTrustState>;
+		export function requireWorkspaceTrust(request?: WorkspaceTrustRequest): Thenable<WorkspaceTrustState>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes

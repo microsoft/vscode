@@ -39,7 +39,7 @@ export class TypeScriptVersionManager extends Disposable {
 				}
 			} else {
 				setImmediate(() => {
-					vscode.workspace.requireWorkspaceTrust(false)
+					vscode.workspace.requireWorkspaceTrust({ modal: false })
 						.then(trustState => {
 							if (trustState === vscode.WorkspaceTrustState.Trusted && this.versionProvider.localVersion) {
 								this.updateActiveVersion(this.versionProvider.localVersion);

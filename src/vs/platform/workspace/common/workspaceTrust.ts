@@ -44,18 +44,17 @@ export interface IWorkspaceTrustModel {
 	getTrustStateInfo(): IWorkspaceTrustStateInfo;
 }
 
-export interface IWorkspaceTrustRequest {
+export interface WorkspaceTrustRequest {
 	modal: boolean;
-	message?: string;
 }
 
 export interface IWorkspaceTrustRequestModel {
-	readonly trustRequest: IWorkspaceTrustRequest | undefined;
+	readonly trustRequest: WorkspaceTrustRequest | undefined;
 
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
 
-	initiateRequest(request?: IWorkspaceTrustRequest): void;
+	initiateRequest(request?: WorkspaceTrustRequest): void;
 	completeRequest(trustState?: WorkspaceTrustState): void;
 }
 
@@ -76,7 +75,7 @@ export interface IWorkspaceTrustService {
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState>;
+	requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState>;
 }
 
 export interface IWorkspaceTrustStateInfo {

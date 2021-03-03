@@ -165,16 +165,14 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		const result = await Promises.settled(extensions.map(e => {
 			if (this._isDisabledByTrustRequirement(e)) {
-				return this.workspaceTrustService.requireWorkspaceTrust({
-					modal: true,
-					message: 'Enabling this extension requires you to trust the contents of this workspace.'
-				}).then(trustState => {
-					if (trustState === WorkspaceTrustState.Trusted) {
-						return this._setEnablement(e, newState);
-					} else {
-						return Promise.resolve(false);
-					}
-				});
+				return this.workspaceTrustService.requireWorkspaceTrust()
+					.then(trustState => {
+						if (trustState === WorkspaceTrustState.Trusted) {
+							return this._setEnablement(e, newState);
+						} else {
+							return Promise.resolve(false);
+						}
+					});
 			} else {
 				return this._setEnablement(e, newState);
 			}
@@ -455,10 +453,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _onDidInstallExtension({ local, error }: DidInstallExtensionEvent): void {
 		if (local && !error && this._isDisabledByTrustRequirement(local)) {
-			this.workspaceTrustService.requireWorkspaceTrust({
-				modal: true,
-				message: 'Enabling this extension requires you to trust the contents of this workspace.'
-			});
+			this.workspaceTrustService.requireWorkspaceTrust();
 		}
 	}
 
