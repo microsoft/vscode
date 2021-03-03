@@ -1497,7 +1497,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	onProcessExit = Event.None;
 	onProcessReady = Event.None;
 	onProcessTitleChanged = Event.None;
-	onShellTypeChanged = Event.None;
+	onProcessShellTypeChanged = Event.None;
 	async start(): Promise<undefined> { return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }

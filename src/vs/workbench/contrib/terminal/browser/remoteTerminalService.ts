@@ -101,8 +101,8 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
-	private readonly _onShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
-	public readonly onShellTypeChanged = this._onShellTypeChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	private _startBarrier: Barrier;
 	private _persistentProcessId: number;

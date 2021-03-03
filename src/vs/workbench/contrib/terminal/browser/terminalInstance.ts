@@ -966,8 +966,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', TitleEventSource.Process));
 			}
 		}
-		this._processManager.onShellTypeChanged(type => {
-			// only set if it's changed
+		this._processManager.onProcessShellTypeChanged(type => {
 			if (this._shellType !== type) {
 				this.setShellType(type);
 				this.setTitle(type, TitleEventSource.Process);

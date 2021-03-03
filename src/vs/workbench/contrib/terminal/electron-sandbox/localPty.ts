@@ -30,8 +30,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	public readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-	private readonly _onShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	public readonly onShellTypeChanged = this._onShellTypeChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	constructor(
 		readonly id: number,
@@ -98,7 +98,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._onProcessTitleChanged.fire(e);
 	}
 	handleShellTypeChanged(e: TerminalShellType) {
-		this._onShellTypeChanged.fire(e);
+		this._onProcessShellTypeChanged.fire(e);
 	}
 	handleOverrideDimensions(e: ITerminalDimensionsOverride | undefined) {
 		this._onProcessOverrideDimensions.fire(e);

@@ -78,8 +78,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
-	private readonly _onShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	public readonly onShellTypeChanged = this._onShellTypeChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	public get shellType(): TerminalShellType { return this._shellType; }
 
@@ -118,27 +118,29 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
-		if (platform.isWindows && useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-			this._delayedResizer = new DelayedResizer();
-			this._register(this._delayedResizer.onTrigger(dimensions => {
-				this._delayedResizer?.dispose();
-				this._delayedResizer = undefined;
-				if (dimensions.cols && dimensions.rows) {
-					this.resize(dimensions.cols, dimensions.rows);
-				}
-			}));
-		}
-		this.onProcessReady(() => {
-			if (platform.isWindows && this._ptyProcess?.pid) {
-				this._windowsShellHelper = this._register(new WindowsShellHelper(this._ptyProcess.pid));
-				const helper = this._windowsShellHelper;
-				this._register(this._windowsShellHelper.onShellNameChange(title => {
-					this._shellType = helper.getShellType(title);
-					this._onShellTypeChanged.fire(this._shellType);
-					this._onProcessTitleChanged.fire(title);
+		if (platform.isWindows) {
+			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+				this._delayedResizer = new DelayedResizer();
+				this._register(this._delayedResizer.onTrigger(dimensions => {
+					this._delayedResizer?.dispose();
+					this._delayedResizer = undefined;
+					if (dimensions.cols && dimensions.rows) {
+						this.resize(dimensions.cols, dimensions.rows);
+					}
 				}));
 			}
-		});
+			this.onProcessReady(() => {
+				if (this._ptyProcess?.pid) {
+					this._windowsShellHelper = this._register(new WindowsShellHelper(this._ptyProcess.pid));
+					const helper = this._windowsShellHelper;
+					this._register(this._windowsShellHelper.onShellNameChange(title => {
+						this._shellType = helper.getShellType(title);
+						this._onProcessShellTypeChanged.fire(this._shellType);
+						this._onProcessTitleChanged.fire(title);
+					}));
+				}
+			});
+		}
 	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
@@ -235,11 +237,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			clearInterval(this._titleInterval);
 		}
 		this._titleInterval = null;
-		this._onProcessData.dispose();
-		this._onProcessExit.dispose();
-		this._onProcessReady.dispose();
-		this._onProcessTitleChanged.dispose();
-		this._onShellTypeChanged.dispose();
 		super.dispose();
 	}
 

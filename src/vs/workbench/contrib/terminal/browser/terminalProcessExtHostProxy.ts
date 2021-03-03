@@ -42,8 +42,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
 	private readonly _onRequestLatency = this._register(new Emitter<void>());
 	public readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
-	private readonly _onShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	public readonly onShellTypeChanged = this._onShellTypeChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
