@@ -691,12 +691,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		if (!this._webview) {
-			this._webview = this.instantiationService.createInstance(BackLayerWebView, this, this.getId(), this.textModel!.uri, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: CELL_OUTPUT_PADDING });
-			this._webview.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + (CELL_MARGIN * 2) + CELL_RUN_GUTTER}px)`;
-			this._webview.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
-
-			// attach the webview container to the DOM tree first
-			this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
+			this._createWebview(this.getId(), this.textModel.uri);
 		}
 
 		this._webviewResolvePromise = new Promise(async resolve => {
@@ -740,9 +735,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _createWebview(id: string, resource: URI): Promise<void> {
-		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: CELL_OUTPUT_PADDING });
-		this._webview.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + (CELL_MARGIN * 2) + CELL_RUN_GUTTER}px)`;
-		this._webview.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
+		this._webview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, {
+			outputNodePadding: CELL_OUTPUT_PADDING,
+			outputNodeLeftPadding: CELL_OUTPUT_PADDING,
+			leftMargin: CODE_CELL_LEFT_MARGIN,
+			cellMargin: CELL_MARGIN,
+			runGutter: CELL_RUN_GUTTER,
+		});
+		this._webview.element.style.width = '100%';
+
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._webview.element);
 	}

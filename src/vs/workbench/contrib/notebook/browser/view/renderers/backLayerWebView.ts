@@ -355,7 +355,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public documentUri: URI,
 		public options: {
 			outputNodePadding: number,
-			outputNodeLeftPadding: number
+			outputNodeLeftPadding: number,
+			leftMargin: number,
+			cellMargin: number,
+			runGutter: number,
 		},
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
@@ -381,7 +384,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<base href="${baseUrl}/"/>
 				<style>
 					#container > div > div.output {
-						width: 100%;
+						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
+						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
@@ -396,13 +400,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-webkit-user-select: text;
 						-ms-user-select: text;
 						white-space: initial;
-						padding-left: 0px !important;
 						cursor: grab;
 					}
 
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
+						width: calc(100% - ${this.options.leftMargin + this.options.cellMargin}px);
+						padding-left: ${this.options.leftMargin}px;
 					}
 
 					#container > div > div.preview img {
@@ -601,7 +606,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding, 8)}</script>
+				<script>${preloadsScriptStr({
+			outputNodePadding: this.options.outputNodePadding,
+			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
+			previewNodePadding: 8,
+			leftMargin: this.options.leftMargin
+		})}</script>
 				${markdownRenderersSrc}
 			</body>
 		</html>`;
