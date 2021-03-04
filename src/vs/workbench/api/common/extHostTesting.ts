@@ -17,7 +17,7 @@ import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTes
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { TestItem, TestResults, TestState } from 'vs/workbench/api/common/extHostTypeConverters';
+import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
@@ -106,7 +106,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Implements vscode.test.publishTestResults
 	 */
 	public publishExtensionProvidedResults(results: vscode.TestResults, persist: boolean): void {
-		this.proxy.$publishExtensionProvidedResults(TestResults.from(generateUuid(), results), persist);
+		this.proxy.$publishExtensionProvidedResults(Convert.TestResults.from(generateUuid(), results), persist);
 	}
 
 	/**
@@ -116,7 +116,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public $publishTestResults(results: ISerializedTestResults[]): void {
 		this.results = Object.freeze(
 			results
-				.map(r => deepFreeze(TestResults.to(r)))
+				.map(r => deepFreeze(Convert.TestResults.to(r)))
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
@@ -272,7 +272,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					}
 
 					this.flushCollectionDiffs();
-					this.proxy.$updateTestStateInRun(req.runId, test.id, TestState.from(state));
+					this.proxy.$updateTestStateInRun(req.runId, test.id, Convert.TestState.from(state));
 				},
 				tests: includeTests.map(t => TestItemFilteredWrapper.unwrap(t.actual)),
 				exclude: excludeTests.map(([, t]) => TestItemFilteredWrapper.unwrap(t.actual)),
@@ -499,9 +499,9 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
  * @private
  */
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
-	revived: vscode.TestItem;
+	revived: Omit<vscode.TestItem, 'children'>;
 	depth: number;
-	wrapped?: vscode.ObservedTestItem;
+	wrapped?: TestItemFromMirror;
 }
 
 class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
@@ -530,7 +530,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	 * @override
 	 */
 	public update(node: MirroredCollectionTestItem): void {
-		Object.assign(node.revived, TestItem.toShallow(node.item));
+		Object.assign(node.revived, Convert.TestItem.toPlainShallow(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
 		}
@@ -597,7 +597,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
 	public getAllAsTestItem(itemIds: Iterable<string>) {
-		let output: vscode.ObservedTestItem[] = [];
+		let output: vscode.TestItem[] = [];
 		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
 			if (item) {
@@ -627,7 +627,12 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 * @override
 	 */
 	protected createItem(item: InternalTestItem, parent?: MirroredCollectionTestItem): MirroredCollectionTestItem {
-		return { ...item, revived: TestItem.toShallow(item.item), depth: parent ? parent.depth + 1 : 0, children: new Set() };
+		return {
+			...item,
+			revived: Convert.TestItem.toPlainShallow(item.item),
+			depth: parent ? parent.depth + 1 : 0,
+			children: new Set(),
+		};
 	}
 
 	/**
@@ -640,7 +645,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Gets the public test item instance for the given mirrored record.
 	 */
-	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.ObservedTestItem {
+	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.TestItem {
 		if (!item.wrapped) {
 			item.wrapped = new TestItemFromMirror(item, this);
 		}
@@ -649,7 +654,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	}
 }
 
-class TestItemFromMirror implements vscode.ObservedTestItem {
+class TestItemFromMirror implements vscode.TestItem {
 	readonly #internal: MirroredCollectionTestItem;
 	readonly #collection: MirroredTestCollection;
 
@@ -669,7 +674,7 @@ class TestItemFromMirror implements vscode.ObservedTestItem {
 	}
 
 	public toJSON() {
-		const serialized: vscode.ObservedTestItem & TestIdWithProvider = {
+		const serialized: vscode.TestItem & TestIdWithProvider = {
 			id: this.id,
 			label: this.label,
 			description: this.description,

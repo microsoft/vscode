@@ -6,25 +6,24 @@
 import * as assert from 'assert';
 import { MirroredTestCollection, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestItem as TestItemImpl } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { stubTest, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { ObservedTestItem, TestChangeEvent, TestItem, TextDocument } from 'vscode';
+import { TestChangeEvent, TestItem, TextDocument } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 
-const simplify = (item: TestItem | ObservedTestItem) => {
-	if ('toJSON' in item) {
-		item = (item as any).toJSON();
-		delete (item as any).providerId;
-		delete (item as any).testId;
-	}
+const simplify = (item: TestItem) => ({
+	id: item.id,
+	label: item.label,
+	location: item.location,
+	runnable: item.runnable,
+	debuggable: item.debuggable,
+});
 
-	return { ...item, children: undefined };
-};
-
-const assertTreesEqual = (a: TestItem | ObservedTestItem, b: TestItem | ObservedTestItem) => {
+const assertTreesEqual = (a: TestItem, b: TestItem) => {
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
 	const aChildren = (a.children ?? []).slice().sort();
@@ -33,7 +32,7 @@ const assertTreesEqual = (a: TestItem | ObservedTestItem, b: TestItem | Observed
 	aChildren.forEach((_, i) => assertTreesEqual(aChildren[i], bChildren[i]));
 };
 
-const assertTreeListEqual = (a: ReadonlyArray<TestItem | ObservedTestItem>, b: ReadonlyArray<TestItem | ObservedTestItem>) => {
+const assertTreeListEqual = (a: ReadonlyArray<TestItem>, b: ReadonlyArray<TestItem>) => {
 	assert.strictEqual(a.length, b.length, `expected a.length == n.length`);
 	a.forEach((_, i) => assertTreesEqual(a[i], b[i]));
 };
@@ -90,8 +89,11 @@ suite('ExtHost Testing', () => {
 			single.collectDiff();
 			tests.children![0].description = 'Hello world'; /* item a */
 			single.onItemChange(tests, 'pid');
+
+			const expected = stubTest('a');
+			expected.description = 'Hello world';
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.Update, { parent: 'id-root', providerId: 'pid', item: convert.TestItem.from({ ...stubTest('a'), description: 'Hello world' }) }],
+				[TestDiffOpType.Update, { parent: 'id-root', providerId: 'pid', item: convert.TestItem.from(expected) }],
 			]);
 
 			single.onItemChange(tests, 'pid');
@@ -263,8 +265,8 @@ suite('ExtHost Testing', () => {
 		});
 
 		suite('TestItemFilteredWrapper', () => {
-			const stubTestWithLocation = (label: string, location: Location): TestItem => {
-				const t = stubTest(label);
+			const stubTestWithLocation = (label: string, location: Location, children: TestItemImpl[] = []) => {
+				const t = stubTest(label, undefined, children);
 				t.location = location as any;
 				return t;
 			};
@@ -290,22 +292,12 @@ suite('ExtHost Testing', () => {
 
 			let testsWithLocation: TestItem;
 			setup(() => {
-				testsWithLocation = {
-					...stubTest('root'),
-					children: [
-						{
-							...stubTestWithLocation('a', location1),
-							children: [stubTestWithLocation('aa', location1), stubTestWithLocation('ab', location1)]
-						},
-						{
-							...stubTestWithLocation('b', location2),
-							children: [stubTestWithLocation('ba', location2), stubTestWithLocation('bb', location2)]
-						},
-						{
-							...stubTestWithLocation('b', location3),
-						}
-					],
-				};
+				testsWithLocation =
+					stubTest('root', undefined, [
+						stubTestWithLocation('a', location1, [stubTestWithLocation('aa', location1), stubTestWithLocation('ab', location1)]),
+						stubTestWithLocation('b', location2, [stubTestWithLocation('ba', location2), stubTestWithLocation('bb', location2)]),
+						stubTestWithLocation('b', location3),
+					]);
 			});
 
 			teardown(() => {

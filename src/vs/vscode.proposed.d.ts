@@ -2200,7 +2200,7 @@ declare module 'vscode' {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<ObservedTestItem>;
+		readonly tests: ReadonlyArray<TestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -2230,17 +2230,17 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<ObservedTestItem>;
+		readonly added: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<ObservedTestItem>;
+		readonly updated: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<ObservedTestItem>;
+		readonly removed: ReadonlyArray<TestItem>;
 	}
 
 	/**
@@ -2377,7 +2377,7 @@ declare module 'vscode' {
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export interface TestItem {
+	export class TestItem {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2396,22 +2396,20 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Whether this test item can be run individually, defaults to `true`
-		 * if not provided.
+		 * Whether this test item can be run individually, defaults to `true`.
 		 *
 		 * In some cases, like Go's tests, test can have children but these
 		 * children cannot be run independently.
 		 */
-		runnable?: boolean;
+		runnable: boolean;
 
 		/**
-		 * Whether this test item can be debugged individually, defaults to `false`
-		 * if not provided.
+		 * Whether this test item can be debugged individually, defaults to `false`.
 		 *
 		 * In some cases, like Go's tests, test can have children but these
 		 * children cannot be run independently.
 		 */
-		debuggable?: boolean;
+		debuggable: boolean;
 
 		/**
 		 * Location of the test in the workspace. This is used to show line
@@ -2422,54 +2420,20 @@ declare module 'vscode' {
 		/**
 		 * Optional list of nested tests for this item.
 		 */
-		children?: TestItem[];
-	}
-
-	/**
-	 * A readonly {@link TestItem}-like interface with its defaults filled in,
-	 * exposed in the {@link TestObserver} interface.
-	 */
-	export interface ObservedTestItem {
-		/**
-		 * See {@link TestItem.id}
-		 */
-		readonly id: string;
+		children: TestItem[];
 
 		/**
-		 * See {@link TestItem.label}
+		 * Creates a new TestItem instance.
+		 * @param id Value of the "id" property
+		 * @param label Value of the "label" property.
 		 */
-		readonly label: string;
-
-		/**
-		 * Optional description that appears next to the label.
-		 */
-		readonly description?: string;
-
-		/**
-		 * See {@link TestItem.runnable}
-		 */
-		readonly runnable: boolean;
-
-		/**
-		 * See {@link TestItem.debuggable}
-		 */
-		readonly debuggable: boolean;
-
-		/**
-		 * See {@link TestItem.location}
-		 */
-		readonly location?: Location;
-
-		/**
-		 * See {@link TestItem.children}
-		 */
-		readonly children: ReadonlyArray<ObservedTestItem>;
+		constructor(id: string, label: string);
 	}
 
 	/**
 	 * Possible states of tests in a test run.
 	 */
-	export enum TestRunState {
+	export enum TestResult {
 		// Initial state
 		Unset = 0,
 		// Test will be run, but is not currently running.
@@ -2489,22 +2453,27 @@ declare module 'vscode' {
 	/**
 	 * TestState associated with a test in its results.
 	 */
-	export interface TestState {
+	export class TestState {
 		/**
 		 * Current state of the test.
 		 */
-		readonly state: TestRunState;
+		readonly state: TestResult;
 
 		/**
 		 * Optional duration of the test run, in milliseconds.
 		 */
-		readonly duration?: number;
+		duration?: number;
 
 		/**
 		 * Associated test run message. Can, for example, contain assertion
 		 * failure information if the test fails.
 		 */
-		readonly messages?: ReadonlyArray<Readonly<TestMessage>>;
+		messages: TestMessage[];
+
+		/**
+		 * Creates a new TestState instance.
+		 */
+		constructor(state: TestResult);
 	}
 
 	/**
@@ -2521,16 +2490,16 @@ declare module 'vscode' {
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
 	 */
-	export interface TestMessage {
+	export class TestMessage {
 		/**
 		 * Human-readable message text to display.
 		 */
 		message: string | MarkdownString;
 
 		/**
-		 * Message severity. Defaults to "Error", if not provided.
+		 * Message severity. Defaults to "Error".
 		 */
-		severity?: TestMessageSeverity;
+		severity: TestMessageSeverity;
 
 		/**
 		 * Expected test output. If given with `actualOutput`, a diff view will be shown.
@@ -2546,6 +2515,20 @@ declare module 'vscode' {
 		 * Associated file location.
 		 */
 		location?: Location;
+
+		/**
+		 * Creates a new TestMessage that will present as a diff in the editor.
+		 * @param message Message to display to the user.
+		 * @param expected Expected output.
+		 * @param actual Actual output.
+		 */
+		static diff(message: string | MarkdownString, expected: string, actual: string): TestMessage;
+
+		/**
+		 * Creates a new TestMessage instance.
+		 * @param message The message to show to the user.
+		 */
+		constructor(message: string | MarkdownString);
 	}
 
 	/**
@@ -2584,7 +2567,7 @@ declare module 'vscode' {
 		/**
 		 * Optional list of nested tests for this item.
 		 */
-		children?: Readonly<TestItemWithResults>[];
+		children: Readonly<TestItemWithResults>[];
 	}
 
 	//#endregion

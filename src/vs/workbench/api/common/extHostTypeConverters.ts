@@ -32,7 +32,7 @@ import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ISerializedTestResults, ITestItem, ITestState, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -1597,35 +1597,41 @@ export namespace TestState {
 		return {
 			state: item.state,
 			duration: item.duration,
-			messages: item.messages?.map(message => ({
-				message: MarkdownString.fromStrict(message.message) || '',
-				severity: message.severity,
-				expectedOutput: message.expectedOutput,
-				actualOutput: message.actualOutput,
-				location: message.location ? location.from(message.location) as any : undefined,
-			})) ?? [],
+			messages: item.messages.map(TestMessage.from),
 		};
 	}
 
 	export function to(item: ITestState): vscode.TestState {
+		const ts = new types.TestState(item.state);
+		ts.duration = item.duration;
+		ts.messages = item.messages.map(TestMessage.to);
+		return ts;
+	}
+}
+
+export namespace TestMessage {
+	export function from(message: vscode.TestMessage): ITestMessage {
 		return {
-			state: item.state,
-			messages: item.messages.map(message => ({
-				message: typeof message.message === 'string' ? message.message : MarkdownString.to(message.message),
-				severity: message.severity,
-				expectedOutput: message.expectedOutput,
-				actualOutput: message.actualOutput,
-				location: message.location && location.to({
-					range: message.location.range,
-					uri: URI.revive(message.location.uri)
-				}),
-			})),
-			duration: item.duration,
+			message: MarkdownString.fromStrict(message.message) || '',
+			severity: message.severity,
+			expectedOutput: message.expectedOutput,
+			actualOutput: message.actualOutput,
+			location: message.location ? location.from(message.location) as any : undefined,
 		};
+	}
+
+	export function to(item: ITestMessage): vscode.TestMessage {
+		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
+		message.severity = item.severity;
+		message.actualOutput = item.actualOutput;
+		message.expectedOutput = item.expectedOutput;
+		return message;
 	}
 }
 
 export namespace TestItem {
+	export type Raw = vscode.TestItem;
+
 	export function from(item: vscode.TestItem): ITestItem {
 		return {
 			extId: item.id,
@@ -1637,7 +1643,7 @@ export namespace TestItem {
 		};
 	}
 
-	export function toShallow(item: ITestItem): Omit<types.RequiredTestItem, 'children'> {
+	export function toPlainShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
 		return {
 			id: item.extId,
 			label: item.label,
@@ -1649,6 +1655,21 @@ export namespace TestItem {
 			description: item.description,
 			runnable: item.runnable,
 		};
+	}
+
+	export function toShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
+		const testItem = new types.TestItem(item.extId, item.label);
+		if (item.location) {
+			testItem.location = location.to({
+				range: item.location.range,
+				uri: URI.revive(item.location.uri)
+			});
+		}
+
+		testItem.debuggable = item.debuggable;
+		testItem.description = item.description;
+		testItem.runnable = item.runnable;
+		return testItem;
 	}
 }
 
@@ -1689,7 +1710,7 @@ export namespace TestResults {
 	}
 
 	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestItemWithResults => ({
-		...TestItem.toShallow(item.item),
+		...TestItem.toPlainShallow(item.item),
 		result: TestState.to(item.state),
 		children: item.children
 			.map(c => byInternalId.get(c))

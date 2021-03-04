@@ -3277,7 +3277,7 @@ export class LinkedEditingRanges {
 }
 
 //#region Testing
-export enum TestRunState {
+export enum TestResult {
 	Unset = 0,
 	Queued = 1,
 	Running = 2,
@@ -3294,13 +3294,44 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export type RequiredTestItem = {
-	[K in keyof Required<TestItem>]: K extends 'children'
-	? RequiredTestItem[]
-	: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
-};
+export class TestItem implements vscode.TestItem {
+	public id!: string;
+	public location?: Location;
+	public description?: string;
+	public runnable = true;
+	public debuggable = false;
+	public children: vscode.TestItem[] = [];
 
-export type TestItem = vscode.TestItem;
+	constructor(id: string, public label: string) {
+		Object.defineProperty(this, 'id', {
+			value: id,
+			enumerable: true,
+			writable: false,
+		});
+	}
+}
+
+export class TestState implements vscode.TestState {
+	public messages: TestMessage[] = [];
+	public duration?: number;
+
+	constructor(public state: TestResult) { }
+}
+
+export class TestMessage implements vscode.TestMessage {
+	public severity = TestMessageSeverity.Error;
+	public expectedOutput?: string;
+	public actualOutput?: string;
+
+	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
+		const msg = new TestMessage(message);
+		msg.expectedOutput = expected;
+		msg.actualOutput = actual;
+		return msg;
+	}
+
+	constructor(public message: string | vscode.MarkdownString) { }
+}
 
 //#endregion
 
