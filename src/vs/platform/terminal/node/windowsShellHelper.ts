@@ -71,7 +71,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			await timeout(50);
 			this.getShellName().then(title => {
 				const type = this.getShellType(title);
-				if (!this._lastShellType || type !== this._lastShellType) {
+				if (type !== this._lastShellType) {
 					this._onShellTypeChanged.fire(type);
 					this._onShellNameChanged.fire(title);
 					this._lastShellType = type;

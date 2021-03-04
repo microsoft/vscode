@@ -70,6 +70,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 	public get currentTitle(): string { return this._currentTitle; }
 
+	public get lastShellType(): TerminalShellType { return this._windowsShellHelper?.lastShellType; }
+
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number>());
