@@ -128,6 +128,7 @@ import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTr
 import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -229,6 +230,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustService, new TestWorkspaceTrustService());
+	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ILocalTerminalService, new TestLocalTerminalService());
 
 	return instantiationService;
@@ -1453,6 +1455,26 @@ export class TestWorkspacesService implements IWorkspacesService {
 	async getDirtyWorkspaces(): Promise<(URI | IWorkspaceIdentifier)[]> { return []; }
 	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> { throw new Error('Method not implemented.'); }
 	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalInstanceService implements ITerminalInstanceService {
+	declare readonly _serviceBrand: undefined;
+
+	async getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }> {
+		return {
+			shell: 'bash',
+			args: undefined
+		};
+	}
+	async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
+		return {};
+	}
+
+	async getXtermConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
+	async getXtermSearchConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
+	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
+	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
+	createWindowsShellHelper(shellProcessId: number, xterm: any): any { throw new Error('Method not implemented.'); }
 }
 
 export class TestLocalTerminalService implements ILocalTerminalService {
