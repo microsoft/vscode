@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { ICellOutputViewModel, IRenderOutput, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -122,42 +122,35 @@ export class OutputElement extends Disposable {
 			outputItemDiv.classList.add('foreground', 'output-element');
 			outputItemDiv.style.position = 'absolute';
 		}
-
-		if (outputHasDynamicHeight(result)) {
-			// this.viewCell.selfSizeMonitoring = true;
-			const clientHeight = outputItemDiv.clientHeight;
-			// TODO, set an inital dimension to avoid force reflow
-			// const dimension = {
-			// 	width: this.cellViewModel.,
-			// 	height: clientHeight
-			// };
-
-			const elementSizeObserver = getResizesObserver(outputItemDiv, undefined, () => {
-				if (this._outputContainer && document.body.contains(this._outputContainer)) {
-					const height = Math.ceil(elementSizeObserver.getHeight());
-
-					if (clientHeight === height) {
-						return;
-					}
-
-					const currIndex = this.getCellOutputCurrentIndex();
-					if (currIndex < 0) {
-						return;
-					}
-
-					this.updateHeight(currIndex, height);
-				}
-			});
-			elementSizeObserver.startObserving();
-			this.resizeListener.add(elementSizeObserver);
-			this.updateHeight(index, clientHeight);
-		} else if (result.type === RenderOutputType.Mainframe) { // no-op if it's a webview
-			const clientHeight = Math.ceil(outputItemDiv.clientHeight);
-			this.updateHeight(index, clientHeight);
-
-			const top = this.getOutputOffsetInContainer(index);
-			outputItemDiv.style.top = `${top}px`;
+		if (result.type === RenderOutputType.Html || result.type === RenderOutputType.Extension) {
+			return;
 		}
+
+
+
+		const clientHeight = Math.ceil(outputItemDiv.clientHeight);
+		const elementSizeObserver = getResizesObserver(outputItemDiv, undefined, () => {
+			if (this._outputContainer && document.body.contains(this._outputContainer)) {
+				const height = Math.ceil(elementSizeObserver.getHeight());
+
+				if (clientHeight === height) {
+					return;
+				}
+
+				const currIndex = this.getCellOutputCurrentIndex();
+				if (currIndex < 0) {
+					return;
+				}
+
+				this.updateHeight(currIndex, height);
+			}
+		});
+		elementSizeObserver.startObserving();
+		this.resizeListener.add(elementSizeObserver);
+		this.updateHeight(index, clientHeight);
+
+		const top = this.getOutputOffsetInContainer(index);
+		outputItemDiv.style.top = `${top}px`;
 	}
 
 	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {

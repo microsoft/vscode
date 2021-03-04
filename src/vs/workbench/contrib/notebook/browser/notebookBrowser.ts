@@ -82,7 +82,6 @@ export const enum RenderOutputType {
 
 export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
-	hasDynamicHeight: boolean;
 	supportAppend?: boolean;
 }
 
@@ -90,7 +89,6 @@ export interface IRenderPlainHtmlOutput {
 	type: RenderOutputType.Html;
 	source: IDisplayOutputViewModel;
 	htmlContent: string;
-	hasDynamicHeight: boolean;
 }
 
 export interface IRenderOutputViaExtension {
@@ -102,9 +100,6 @@ export interface IRenderOutputViaExtension {
 
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
 export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
-
-export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
-
 
 export interface ICellOutputViewModel {
 	cellViewModel: IGenericCellViewModel;

@@ -71,7 +71,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -97,8 +97,7 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: scriptVal,
-			hasDynamicHeight: false
+			htmlContent: scriptVal
 		};
 	}
 }
@@ -146,7 +145,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -173,7 +172,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 			container.appendChild(contentNode);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -197,7 +196,7 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 			ErrorTransform.render(data, container, this.themeService);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -222,7 +221,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		truncatedArrayOfString(contentNode, str, this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false, supportAppend: true };
+		return { type: RenderOutputType.Mainframe, supportAppend: true };
 	}
 }
 
@@ -245,8 +244,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: str,
-			hasDynamicHeight: false
+			htmlContent: str
 		};
 	}
 }
@@ -268,8 +266,7 @@ class SVGRendererContrib extends Disposable implements IOutputRendererContributi
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: str,
-			hasDynamicHeight: false
+			htmlContent: str
 		};
 	}
 }
@@ -297,7 +294,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 			container.appendChild(mdOutput);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -323,7 +320,7 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 			display.appendChild(image);
 			container.appendChild(display);
 		});
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -350,7 +347,7 @@ class JPEGRendererContrib extends Disposable implements IOutputRendererContribut
 			container.appendChild(display);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
