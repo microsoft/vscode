@@ -14,14 +14,18 @@
   "contributes": {
     "languages": [
       {
-        "id": "compose",
+        "id": "dockercompose",
         "aliases": [
           "Compose",
           "compose"
         ],
         "filenamePatterns": [
-          "*compose*.yml",
-          "*compose*.yaml"
+          "compose.yml",
+          "compose.yaml",
+          "compose.*.yml",
+          "compose.*.yaml",
+          "*docker*compose*.yml",
+          "*docker*compose*.yaml"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -43,7 +47,7 @@
     ],
     "grammars": [
       {
-        "language": "compose",
+        "language": "dockercompose",
         "scopeName": "source.yaml",
         "path": "./syntaxes/yaml.tmLanguage.json"
       },
