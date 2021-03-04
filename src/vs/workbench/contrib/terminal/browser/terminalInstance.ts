@@ -1308,7 +1308,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-		if (suggestedRendererType === 'auto' || config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl') {
+		if ((suggestedRendererType === 'auto' && config.rendererType === 'auto') || config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
