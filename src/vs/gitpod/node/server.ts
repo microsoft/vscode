@@ -381,6 +381,7 @@ async function main(): Promise<void> {
 				}
 				const result: IExtensionDescription[] = [];
 				const skipExtensions = new Set<string>(args.skipExtensions.map(ExtensionIdentifier.toKey));
+				skipExtensions.add('vscode.github-authentication');
 				for (const extensions of await Promise.all([...pendingDev, pendingUser, pendingSystem])) {
 					for (let i = extensions.length - 1; i >= 0; i--) {
 						const extension = extensions[i];

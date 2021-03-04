@@ -41,7 +41,7 @@ const compilations = [
 	'extension-editing/tsconfig.json',
 	'git-ui/tsconfig.json',
 	'git/tsconfig.json',
-	'github-authentication/tsconfig.json',
+	// 'github-authentication/tsconfig.json',
 	'github/tsconfig.json',
 	'grunt/tsconfig.json',
 	'gulp/tsconfig.json',
