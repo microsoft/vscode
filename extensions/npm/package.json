@@ -63,7 +63,7 @@
           "id": "npm",
           "name": "%view.name%",
           "when": "npm:showScriptExplorer",
-          "icon": "$(code)",
+          "icon": "$(json)",
           "visibility": "hidden"
         }
       ]
