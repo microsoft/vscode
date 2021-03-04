@@ -1218,85 +1218,27 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
 			// proposed api types
-			get InlineHint() {
-				return extHostTypes.InlineHint;
-			},
-			get InlineHintKind() {
-				return extHostTypes.InlineHintKind;
-			},
-			get RemoteAuthorityResolverError() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.RemoteAuthorityResolverError;
-			},
-			get ResolvedAuthority() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.ResolvedAuthority;
-			},
-			get SourceControlInputBoxValidationType() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.SourceControlInputBoxValidationType;
-			},
-			get ExtensionRuntime() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.ExtensionRuntime;
-			},
-			get TimelineItem() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.TimelineItem;
-			},
-			get NotebookCellRange() {
-				return extHostTypes.NotebookCellRange;
-			},
-			get NotebookCellKind() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.NotebookCellKind;
-			},
-			get NotebookCellRunState() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.NotebookCellRunState;
-			},
-			get NotebookDocumentMetadata() {
-				return extHostTypes.NotebookDocumentMetadata;
-			},
-			get NotebookCellMetadata() {
-				return extHostTypes.NotebookCellMetadata;
-			},
-			get NotebookRunState() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.NotebookRunState;
-			},
-			get NotebookCellStatusBarAlignment() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.NotebookCellStatusBarAlignment;
-			},
-			get NotebookEditorRevealType() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.NotebookEditorRevealType;
-			},
-			get NotebookCellOutput() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.NotebookCellOutput;
-			},
-			get NotebookCellOutputItem() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.NotebookCellOutputItem;
-			},
-			get LinkedEditingRanges() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.LinkedEditingRanges;
-			},
-			get TestRunState() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.TestRunState;
-			},
-			get TestMessageSeverity() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.TestMessageSeverity;
-			},
-			get WorkspaceTrustState() {
-				// checkProposedApiEnabled(extension);
-				return extHostTypes.WorkspaceTrustState;
-			}
+			InlineHint: extHostTypes.InlineHint,
+			InlineHintKind: extHostTypes.InlineHintKind,
+			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
+			ResolvedAuthority: extHostTypes.ResolvedAuthority,
+			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
+			ExtensionRuntime: extHostTypes.ExtensionRuntime,
+			TimelineItem: extHostTypes.TimelineItem,
+			NotebookCellRange: extHostTypes.NotebookCellRange,
+			NotebookCellKind: extHostTypes.NotebookCellKind,
+			NotebookCellRunState: extHostTypes.NotebookCellRunState,
+			NotebookDocumentMetadata: extHostTypes.NotebookDocumentMetadata,
+			NotebookCellMetadata: extHostTypes.NotebookCellMetadata,
+			NotebookRunState: extHostTypes.NotebookRunState,
+			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment,
+			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
+			NotebookCellOutput: extHostTypes.NotebookCellOutput,
+			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
+			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
+			TestRunState: extHostTypes.TestRunState,
+			TestMessageSeverity: extHostTypes.TestMessageSeverity,
+			WorkspaceTrustState: extHostTypes.WorkspaceTrustState
 		};
 	};
 }
