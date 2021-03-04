@@ -35,7 +35,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	) {
 		super(extHostRpc, _uriTransformer, _logService);
 
-		const outputChannel = new OutputChannel(this._logService);
+		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
 		this.registerTextSearchProvider(Schemas.userData, new RipgrepSearchProvider(outputChannel));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
@@ -43,7 +43,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	}
 
 	private _registerEHSearchProviders(): void {
-		const outputChannel = new OutputChannel(this._logService);
+		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
 		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
 		this.registerInternalFileSearchProvider(Schemas.file, new SearchService());
 	}
