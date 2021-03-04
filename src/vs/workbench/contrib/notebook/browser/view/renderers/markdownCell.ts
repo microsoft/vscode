@@ -192,25 +192,46 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		}));
 
+		// Update for selection
+		if (this.useRenderer) {
+			this._register(this.notebookEditor.onDidChangeSelection(() => {
+				const selectedCells = this.notebookEditor.getSelectionViewModels();
+				const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === viewCell);
+				this.notebookEditor.updateMarkdownPreviewSelectionState(viewCell, isSelected);
+			}));
+		}
+
+		// apply decorations
+
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					templateData.rootContainer.classList.add(options.className);
+					if (this.useRenderer) {
+						this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+					} else {
+						templateData.rootContainer.classList.add(options.className);
+					}
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					templateData.rootContainer.classList.remove(options.className);
+					if (this.useRenderer) {
+						this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.className]);
+					} else {
+						templateData.rootContainer.classList.remove(options.className);
+					}
 				}
 			});
 		}));
 
-		// apply decorations
-
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				templateData.rootContainer.classList.add(options.className);
+				if (this.useRenderer) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+				} else {
+					templateData.rootContainer.classList.add(options.className);
+				}
 			}
 		});
 
