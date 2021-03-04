@@ -599,9 +599,10 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		if (!this.dimension) {
 			return;
 		}
-		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/ + 30 /*list header*/);
-		this.keybindingsTableContainer.style.height = `${listHeight}px`;
-		this.keybindingsTable.layout(listHeight);
+
+		const tableHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
+		this.keybindingsTableContainer.style.height = `${tableHeight}px`;
+		this.keybindingsTable.layout(tableHeight);
 	}
 
 	private getIndexOf(listEntry: IKeybindingItemEntry): number {
