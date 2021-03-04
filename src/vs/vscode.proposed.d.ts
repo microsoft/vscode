@@ -700,7 +700,7 @@ declare module 'vscode' {
 	export interface InlineValueContext {
 
 		/**
-		 * Debug Adapter Protocol ID of the the stack frame.
+		 * The stack frame (as a DAP Id) where the execution has stopped.
 		 */
 		readonly frameId: number;
 
