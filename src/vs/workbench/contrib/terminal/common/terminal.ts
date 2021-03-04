@@ -55,7 +55,7 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
 
-export const HAS_CHANGED_RENDERER_TYPE = 'terminal.integrated.hasChangedRendererType';
+export const SUGGESTED_RENDERER_TYPE = 'terminal.integrated.suggestedRendererType';
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
