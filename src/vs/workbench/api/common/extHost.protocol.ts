@@ -457,7 +457,7 @@ export interface TerminalLaunchConfig {
 	waitOnExit?: boolean;
 	strictEnv?: boolean;
 	hideFromUser?: boolean;
-	isExtensionTerminal?: boolean;
+	isExtensionCustomPtyTerminal?: boolean;
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 }

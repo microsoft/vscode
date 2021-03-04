@@ -1591,7 +1591,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
 		// special terminal (eg. task, extension terminal)
-		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal && !this._shellLaunchConfig.isExtensionOwnedTerminal && !this._shellLaunchConfig.attachPersistentProcess) {
+		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionCustomPtyTerminal && !this._shellLaunchConfig.isExtensionOwnedTerminal && !this._shellLaunchConfig.attachPersistentProcess) {
 			this.relaunch();
 			return;
 		}

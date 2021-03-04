@@ -127,7 +127,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			env: launchConfig.env,
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
-			isExtensionTerminal: launchConfig.isExtensionTerminal,
+			isExtensionCustomPtyTerminal: launchConfig.isExtensionCustomPtyTerminal,
 			extHostTerminalId: extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal

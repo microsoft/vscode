@@ -101,7 +101,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
-		if (!this._shellLaunchConfig.isExtensionTerminal) {
+		if (!this._shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			throw new Error('Attempt to start an ext host process that is not an extension terminal');
 		}
 		return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
