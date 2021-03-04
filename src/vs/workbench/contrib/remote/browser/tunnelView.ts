@@ -237,9 +237,15 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
-		const label = row.privacy === TunnelPrivacy.Public ? nls.localize('tunnel.privacyPublic', "Public") : nls.localize('tunnel.privacyPrivate', "Private");
+		let label: string = '';
+		if (row.privacy === TunnelPrivacy.Public) {
+			label = nls.localize('tunnel.privacyPublic', "Public");
+		} else if (row.tunnelType !== TunnelType.Add) {
+			label = nls.localize('tunnel.privacyPrivate', "Private");
+		}
+
 		let tooltip: string = '';
-		if (row instanceof TunnelItem) {
+		if (row instanceof TunnelItem && row.tunnelType !== TunnelType.Add) {
 			tooltip = `${row.privacyTooltip} ${row.tooltipPostfix}`;
 		}
 		return { label, tunnel: row, icon: row.icon, editId: TunnelEditId.None, tooltip };
@@ -522,8 +528,13 @@ class TunnelItem implements ITunnelItem {
 	get icon(): ThemeIcon | undefined {
 		switch (this.privacy) {
 			case TunnelPrivacy.Public: return publicPortIcon;
-			default: return privatePortIcon;
-
+			default: {
+				if (this.tunnelType !== TunnelType.Add) {
+					return privatePortIcon;
+				} else {
+					return undefined;
+				}
+			}
 		}
 	}
 
