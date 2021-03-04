@@ -614,6 +614,7 @@ export class SimpleFileDialog {
 		} else {
 			this.userEnteredPathSegment = inputBasename;
 			this.autoCompletePathSegment = '';
+			this.filePickBox.activeItems = [];
 		}
 	}
 
