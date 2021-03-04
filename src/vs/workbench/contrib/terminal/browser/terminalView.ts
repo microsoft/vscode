@@ -397,9 +397,15 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 }
 
 function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
-	const items = terminalService.connectionState === TerminalConnectionState.Connected ?
-		terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label }) :
-		[{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
+	let items: ISelectOptionItem[];
+
+	if (terminalService.connectionState === TerminalConnectionState.Connected) {
+		items = terminalService.getTabLabels().map(label => {
+			return { text: label };
+		});
+	} else {
+		items = [{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
+	}
 
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 

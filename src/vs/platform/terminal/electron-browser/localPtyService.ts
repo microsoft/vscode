@@ -43,6 +43,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onPtyHostStart = this._onPtyHostStart.event;
 	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
 	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
+	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
+	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
@@ -186,6 +188,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	private _handleHeartbeat() {
 		this._clearHeartbeatTimeouts();
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
+		this._onPtyHostResponsive.fire();
 	}
 
 	private _handleHeartbeatFirstTimeout() {
