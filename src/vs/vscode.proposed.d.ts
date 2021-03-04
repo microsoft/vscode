@@ -1167,6 +1167,7 @@ declare module 'vscode' {
 		readonly trusted: boolean;
 
 		// todo@API how does glob apply to mime times?
+		// todo@API remove displayOrder
 		readonly displayOrder: GlobPattern[];
 
 		// todo@API is this a kernel property?
