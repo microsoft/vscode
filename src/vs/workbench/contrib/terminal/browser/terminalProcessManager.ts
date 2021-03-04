@@ -21,7 +21,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -57,6 +57,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public remoteAuthority: string | undefined;
 	public os: platform.OperatingSystem | undefined;
 	public userHome: string | undefined;
+	public isDisconnected: boolean = false;
 
 	private _process: ITerminalChildProcess | null = null;
 	private _processType: ProcessType = ProcessType.Process;
@@ -68,9 +69,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
+	private _ptyResponsiveListener: IDisposable | undefined;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
+	private readonly _onPtyReconnect = this._register(new Emitter<void>());
+	public get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
+
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -323,7 +328,20 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 
-		this._terminalInstanceService.onPtyHostUnresponsive(() => this._onPtyDisconnect.fire());
+		this._register(this._terminalInstanceService.onPtyHostUnresponsive(() => {
+			this.isDisconnected = true;
+			this._onPtyDisconnect.fire();
+		}));
+		this._ptyResponsiveListener = this._terminalInstanceService.onPtyHostResponsive(() => {
+			this.isDisconnected = false;
+			this._onPtyReconnect.fire();
+		});
+		this._register(toDisposable(() => this._ptyResponsiveListener?.dispose()));
+		this._register(this._terminalInstanceService.onPtyHostRestart(() => {
+			// When the pty host restarts, reconnect is no longer possible
+			this._ptyResponsiveListener?.dispose();
+			this._ptyResponsiveListener = undefined;
+		}));
 		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}
 

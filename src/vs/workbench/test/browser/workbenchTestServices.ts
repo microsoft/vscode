@@ -1461,6 +1461,8 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 
 	onPtyHostExit = Event.None;
 	onPtyHostUnresponsive = Event.None;
+	onPtyHostResponsive = Event.None;
+	onPtyHostRestart = Event.None;
 
 	async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		return new TestTerminalChildProcess(shouldPersist);
