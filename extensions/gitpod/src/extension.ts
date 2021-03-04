@@ -11,120 +11,54 @@ import { ControlServiceClient } from '@gitpod/supervisor-api-grpc/lib/control_gr
 import { ExposePortRequest, ExposePortResponse } from '@gitpod/supervisor-api-grpc/lib/control_pb';
 import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
 import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
+import { NotificationServiceClient } from '@gitpod/supervisor-api-grpc/lib/notification_grpc_pb';
+import { NotifyRequest, NotifyResponse, RespondRequest, SubscribeRequest, SubscribeResponse } from '@gitpod/supervisor-api-grpc/lib/notification_pb';
 import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
 import { ExposedPortInfo, OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_pb';
 import { GetTokenRequest, GetTokenResponse } from '@gitpod/supervisor-api-grpc/lib/token_pb';
-import { NotificationServiceClient } from '@gitpod/supervisor-api-grpc/lib/notification_grpc_pb';
 import * as grpc from '@grpc/grpc-js';
 import * as fs from 'fs';
 import type * as keytarType from 'keytar';
+import fetch from 'node-fetch';
 import * as path from 'path';
 import ReconnectingWebSocket from 'reconnecting-websocket';
 import { URL } from 'url';
 import * as util from 'util';
-import * as uuid from 'uuid';
 import * as vscode from 'vscode';
 import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
 import { GitpodPluginModel } from './gitpod-plugin-model';
 import WebSocket = require('ws');
-import { NotifyRequest, NotifyResponse, RespondRequest, SubscribeRequest, SubscribeResponse } from '@gitpod/supervisor-api-grpc/lib/notification_pb';
 
 export async function activate(context: vscode.ExtensionContext) {
+	const pendingActivate: Promise<void>[] = [];
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
 	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const controlServiceClient = new ControlServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const notificationServiceClient = new NotificationServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-
-	//#region notifications
-	function observeNotifications(): vscode.Disposable {
-		let run = true;
-		let stopUpdates: Function | undefined;
-		(async () => {
-			while (run) {
-				try {
-					console.info('connecting to notification service');
-					const evts = notificationServiceClient.subscribe(new SubscribeRequest());
-					stopUpdates = evts.cancel.bind(evts);
-
-					await new Promise((resolve, reject) => {
-						evts.on('end', resolve);
-						evts.on('error', reject);
-						evts.on('data', async (result: SubscribeResponse) => {
-							const request = result.getRequest();
-							if (request) {
-								console.info('received notification request', request);
-								const level = request.getLevel();
-								const message = request.getMessage();
-								const actions = request.getActionsList();
-								let choice: string | undefined;
-								switch (level) {
-									case NotifyRequest.Level.ERROR:
-										choice = await vscode.window.showErrorMessage(message, ...actions);
-										break;
-									case NotifyRequest.Level.WARNING:
-										choice = await vscode.window.showWarningMessage(message, ...actions);
-										break;
-									case NotifyRequest.Level.INFO:
-									default:
-										choice = await vscode.window.showInformationMessage(message, ...actions);
-								}
-								const respondRequest = new RespondRequest();
-								const notifyResponse = new NotifyResponse();
-								notifyResponse.setAction(choice || '');
-								respondRequest.setResponse(notifyResponse);
-								respondRequest.setRequestid(result.getRequestid());
-								console.info('sending notification response', request);
-								notificationServiceClient.respond(respondRequest, (error, _) => {
-									if (error?.code !== grpc.status.DEADLINE_EXCEEDED) {
-										reject(error);
-									}
-								});
-							}
-						});
-					});
-				} catch (err) {
-					if (!('code' in err && err.code === grpc.status.CANCELLED)) {
-						console.error('cannot maintain connection to supervisor', err);
-					}
-				} finally {
-					stopUpdates = undefined;
-				}
-				await new Promise(resolve => setTimeout(resolve, 1000));
-			}
-		})();
-		return new vscode.Disposable(() => {
-			run = false;
-			if (stopUpdates) {
-				stopUpdates();
-			}
-		});
-	}
-	context.subscriptions.push(observeNotifications());
-	//#endregion
-
+	const tokenServiceClient = new TokenServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
 	const checkoutLocation = workspaceInfoResponse.getCheckoutLocation();
 	const workspaceId = workspaceInfoResponse.getWorkspaceId();
 	const gitpodHost = workspaceInfoResponse.getGitpodHost();
 	const gitpodApi = workspaceInfoResponse.getGitpodApi()!;
+	const workspaceContextUrl = workspaceInfoResponse.getWorkspaceContextUrl();
 
 	//#region server connection
 	const factory = new JsonRpcProxyFactory<GitpodServer>();
 	const gitpodService = new GitpodServiceImpl<GitpodClient, GitpodServer>(factory.createProxy());
 	const gitpodScopes = new Set<string>([
 		'function:getWorkspace',
-		'function:getToken',
 		'function:openPort',
 		'function:stopWorkspace',
+		'function:setWorkspaceTimeout',
+		'function:getWorkspaceTimeout',
 		'resource:workspace::' + workspaceId + '::get/update',
 		'function:accessCodeSyncStorage',
 		'function:getLoggedInUser'
 	]);
 	const pendingServerToken = (async () => {
-		const tokenServiceClient = new TokenServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-
 		const getTokenRequest = new GetTokenRequest();
 		getTokenRequest.setKind('gitpod');
 		getTokenRequest.setHost(gitpodApi.getHost());
@@ -168,7 +102,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		});
 	})();
 
-	const pendingGetWorkspace = gitpodService.server.getWorkspace(workspaceId);
+	const pendingGetLoggedInUser = gitpodService.server.getLoggedInUser();
 	const pendingInstanceListener = gitpodService.listenToInstance(workspaceId);
 	//#endregion
 
@@ -182,10 +116,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.settings', () =>
 		vscode.env.openExternal(vscode.Uri.parse(new GitpodHostUrl(gitpodHost).asSettings().toString()))
 	));
-	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.context', async () => {
-		const { workspace } = await pendingGetWorkspace;
-		vscode.env.openExternal(vscode.Uri.parse(workspace.contextURL));
-	}));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.context', () =>
+		vscode.env.openExternal(vscode.Uri.parse(workspaceContextUrl))
+	));
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.documentation', () =>
 		vscode.env.openExternal(vscode.Uri.parse('https://www.gitpod.io/docs'))
 	));
@@ -547,7 +480,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	}));
 	//#endregion
 
-	//#region auth
+	//#region auth util
 	type Keytar = {
 		getPassword: typeof keytarType['getPassword'];
 		setPassword: typeof keytarType['setPassword'];
@@ -563,94 +496,150 @@ export async function activate(context: vscode.ExtensionContext) {
 		scopes: string[];
 		accessToken: string;
 	}
-	const sessions: vscode.AuthenticationSession[] = [];
-	const onDidChangeSessionsEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	(async () => {
-		const keytar: Keytar = require('keytar');
-		const value = await keytar.getPassword(`${vscode.env.uriScheme}-gitpod.login`, 'account');
-		if (!value) {
-			return;
-		}
-		await keytar.deletePassword(`${vscode.env.uriScheme}-gitpod.login`, 'account');
-		const sessionData: SessionData[] = JSON.parse(value);
-		if (!sessionData.length) {
-			return;
-		}
-		const session = sessionData[0];
-		const needsUserInfo = !session.account;
-		let userInfo: { id: string, accountName: string };
-		if (needsUserInfo) {
-			const user = await gitpodService.server.getLoggedInUser();
-			userInfo = {
-				id: user.id,
-				accountName: user.name!
-			};
-		}
-		sessions.push({
-			id: session.id,
+	interface UserInfo {
+		id: string;
+		accountName: string;
+	}
+	async function resolveAuthenticationSession(data: SessionData, resolveUser: (data: SessionData) => Promise<UserInfo>): Promise<vscode.AuthenticationSession> {
+		const needsUserInfo = !data.account;
+		const userInfo = needsUserInfo ? await resolveUser(data) : undefined;
+		return {
+			id: data.id,
 			account: {
-				label: session.account
-					? session.account.label || session.account.displayName!
+				label: data.account
+					? data.account.label || data.account.displayName!
 					: userInfo!.accountName,
-				id: session.account?.id ?? userInfo!.id
+				id: data.account?.id ?? userInfo!.id
 			},
-			scopes: session.scopes,
-			accessToken: session.accessToken
-		});
-		onDidChangeSessionsEmitter.fire({ added: [sessions[0]] });
-	})();
-	context.subscriptions.push(onDidChangeSessionsEmitter);
-	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('gitpod', 'Gitpod', {
-		onDidChangeSessions: onDidChangeSessionsEmitter.event,
-		getSessions: scopes => {
-			if (!scopes) {
-				return Promise.resolve(sessions);
-			}
-			const session = sessions[0];
-			if (!session || scopes.some(scope => session.scopes.indexOf(scope) === -1)) {
-				return Promise.resolve([]);
-			}
-			return Promise.resolve([{
-				...session,
-				scopes
-			}]);
-		},
-		createSession: async () => {
-			throw new Error('not supported');
-		},
-		removeSession: async () => {
-			throw new Error('not supported');
-		},
-	}, { supportsMultipleAccounts: false }));
+			scopes: data.scopes,
+			accessToken: data.accessToken
+		};
+	}
+	function hasScopes(session: vscode.AuthenticationSession, scopes?: string[]): boolean {
+		return !scopes || scopes.every(scope => session.scopes.indexOf(scope) !== -1);
+	}
+	//#endregion
 
-	const githubSessionId = uuid.v4();
-	const githubAuthService = `${vscode.env.uriScheme}-github.login`;
-	context.subscriptions.push(vscode.commands.registerCommand('gitpod.getPassword', async (service: string, account: string) => {
+	//#region gitpod auth
+	pendingActivate.push((async () => {
+		const sessions: vscode.AuthenticationSession[] = [];
+		const onDidChangeSessionsEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 		try {
-			if (service !== githubAuthService && account !== 'account') {
-				return undefined;
+			const keytar: Keytar = require('keytar');
+			const value = await keytar.getPassword(`${vscode.env.uriScheme}-gitpod.login`, 'account');
+			if (value) {
+				await keytar.deletePassword(`${vscode.env.uriScheme}-gitpod.login`, 'account');
+				const sessionData: SessionData[] = JSON.parse(value);
+				if (sessionData.length) {
+					const session = await resolveAuthenticationSession(sessionData[0], async () => {
+						const user = await pendingGetLoggedInUser;
+						return {
+							id: user.id,
+							accountName: user.name!
+						};
+					});
+					sessions.push(session);
+				}
 			}
-			const token = await gitpodService.server.getToken({
-				host: 'github.com'
-			});
-			if (!token) {
-				return undefined;
-			}
-			// see https://github.com/gitpod-io/vscode/blob/gp-code/extensions/github-authentication/src/github.ts#L88
-			// TODO server should provide proper username and id, right now it is always ouath2
-			// luckily GH extension is smart enough to fetch it if missing
-			const session: Omit<vscode.AuthenticationSession, 'account'> = {
-				id: githubSessionId,
-				accessToken: token.value,
-				scopes: token.scopes
-			};
-			return JSON.stringify([session]);
 		} catch (e) {
-			console.error('Failed to fetch password', e);
-			return undefined;
+			console.error('Failed to restore Gitpod session:', e);
 		}
-	}));
-	vscode.extensions.getExtension('vscode.github-authentication')?.activate();
+		context.subscriptions.push(onDidChangeSessionsEmitter);
+		context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('gitpod', 'Gitpod', {
+			onDidChangeSessions: onDidChangeSessionsEmitter.event,
+			getSessions: scopes => {
+				if (!scopes) {
+					return Promise.resolve(sessions);
+				}
+				return Promise.resolve(sessions.filter(session => hasScopes(session, scopes)));
+			},
+			createSession: async () => {
+				throw new Error('not supported');
+			},
+			removeSession: async () => {
+				throw new Error('not supported');
+			},
+		}, { supportsMultipleAccounts: false }));
+	})());
+	//#endregion gitpod auth
+
+	//#region github auth
+	pendingActivate.push((async () => {
+		const onDidChangeGitHubSessionsEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+		let gitHubSessionID = 'github-session';
+		let gitHubSession: vscode.AuthenticationSession | undefined;
+
+		async function resolveGitHubUser(data: SessionData): Promise<UserInfo> {
+			const userResponse = await fetch('https://api.github.com/user', {
+				headers: {
+					Authorization: `token ${data.accessToken}`,
+					'User-Agent': 'Gitpod-Code'
+				}
+			});
+			if (!userResponse.ok) {
+				throw new Error(`Getting GitHub account info failed: ${userResponse.statusText}`);
+			}
+			const user: { id: string, login: string } = await userResponse.json();
+			return {
+				id: user.id,
+				accountName: user.login
+			};
+		}
+
+		async function loginGitHub(scopes?: string[]): Promise<vscode.AuthenticationSession> {
+			const getTokenRequest = new GetTokenRequest();
+			getTokenRequest.setKind('git');
+			getTokenRequest.setHost('github.com');
+			if (scopes) {
+				for (const scope of scopes) {
+					getTokenRequest.addScope(scope);
+				}
+			}
+			const getTokenResponse = await util.promisify<GetTokenRequest, GetTokenResponse>(tokenServiceClient.getToken.bind(tokenServiceClient))(getTokenRequest);
+			const accessToken = getTokenResponse.getToken();
+			gitHubSession = await resolveAuthenticationSession({
+				id: gitHubSessionID,
+				accessToken,
+				scopes: getTokenResponse.getScopeList()
+			}, resolveGitHubUser);
+			onDidChangeGitHubSessionsEmitter.fire({ added: [gitHubSession] });
+			return gitHubSession;
+		}
+
+		try {
+			await loginGitHub();
+		} catch (e) {
+			console.error('Failed an initial GitHub login:', e);
+		}
+
+		context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('github', 'GitHub', {
+			onDidChangeSessions: onDidChangeGitHubSessionsEmitter.event,
+			getSessions: scopes => {
+				const sessions = [];
+				if (gitHubSession && hasScopes(gitHubSession, scopes)) {
+					sessions.push(gitHubSession);
+				}
+				return Promise.resolve(sessions);
+			},
+			createSession: async scopes => {
+				try {
+					const session = await loginGitHub(scopes);
+					return session;
+				} catch (e) {
+					vscode.window.showErrorMessage(`Sign in failed: ${e}`);
+					console.error(e);
+					throw e;
+				}
+			},
+			removeSession: async id => {
+				if (id === gitHubSession?.id) {
+					const session = gitHubSession;
+					gitHubSession = undefined;
+					onDidChangeGitHubSessionsEmitter.fire({ removed: [session] });
+				}
+			},
+		}, { supportsMultipleAccounts: false }));
+	})());
 	//#endregion
 
 	//#region cli
@@ -695,6 +684,75 @@ export async function activate(context: vscode.ExtensionContext) {
 		await vscode.workspace.applyEdit(edit);
 	}));
 	//#endregion
+
+	//#region notifications
+	function observeNotifications(): vscode.Disposable {
+		let run = true;
+		let stopUpdates: Function | undefined;
+		(async () => {
+			while (run) {
+				try {
+					console.info('connecting to notification service');
+					const evts = notificationServiceClient.subscribe(new SubscribeRequest());
+					stopUpdates = evts.cancel.bind(evts);
+
+					await new Promise((resolve, reject) => {
+						evts.on('end', resolve);
+						evts.on('error', reject);
+						evts.on('data', async (result: SubscribeResponse) => {
+							const request = result.getRequest();
+							if (request) {
+								console.info('received notification request', request);
+								const level = request.getLevel();
+								const message = request.getMessage();
+								const actions = request.getActionsList();
+								let choice: string | undefined;
+								switch (level) {
+									case NotifyRequest.Level.ERROR:
+										choice = await vscode.window.showErrorMessage(message, ...actions);
+										break;
+									case NotifyRequest.Level.WARNING:
+										choice = await vscode.window.showWarningMessage(message, ...actions);
+										break;
+									case NotifyRequest.Level.INFO:
+									default:
+										choice = await vscode.window.showInformationMessage(message, ...actions);
+								}
+								const respondRequest = new RespondRequest();
+								const notifyResponse = new NotifyResponse();
+								notifyResponse.setAction(choice || '');
+								respondRequest.setResponse(notifyResponse);
+								respondRequest.setRequestid(result.getRequestid());
+								console.info('sending notification response', request);
+								notificationServiceClient.respond(respondRequest, (error, _) => {
+									if (error?.code !== grpc.status.DEADLINE_EXCEEDED) {
+										reject(error);
+									}
+								});
+							}
+						});
+					});
+				} catch (err) {
+					if (!('code' in err && err.code === grpc.status.CANCELLED)) {
+						console.error('cannot maintain connection to supervisor', err);
+					}
+				} finally {
+					stopUpdates = undefined;
+				}
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			}
+		})();
+		return new vscode.Disposable(() => {
+			run = false;
+			if (stopUpdates) {
+				stopUpdates();
+			}
+		});
+	}
+	context.subscriptions.push(observeNotifications());
+	//#endregion
+
+	await Promise.all(pendingActivate.map(p => p.catch(console.error)));
 }
 
 export function deactivate() { }

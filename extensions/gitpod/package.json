@@ -15,7 +15,9 @@
     "workspace"
   ],
   "activationEvents": [
-    "*"
+    "*",
+    "onAuthenticationRequest:gitpod",
+    "onAuthenticationRequest:github"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -227,6 +229,10 @@
       {
         "id": "gitpod",
         "label": "Gitpod"
+      },
+      {
+        "id": "github",
+        "label": "GitHub"
       }
     ]
   },
@@ -237,15 +243,17 @@
   },
   "devDependencies": {
     "@types/node": "^10.12.21",
+    "@types/node-fetch": "^2.5.8",
     "@types/ps-tree": "^1.1.0",
     "@types/uuid": "^8.3.0",
     "@types/ws": "^7.2.6"
   },
   "dependencies": {
     "@gitpod/gitpod-protocol": "master",
-    "@gitpod/supervisor-api-grpc": "jankoehnlein-supervisor-support-3038",
+    "@gitpod/supervisor-api-grpc": "ak-github-auth",
     "@grpc/grpc-js": "latest",
     "bufferutil": "^4.0.1",
+    "node-fetch": "^2.6.1",
     "reconnecting-websocket": "^4.4.0",
     "utf-8-validate": "^5.0.2",
     "uuid": "^8.3.1",

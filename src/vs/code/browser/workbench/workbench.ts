@@ -64,11 +64,6 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 			}
 		}
 
-		const password = (await commands.executeCommand('gitpod.getPassword', service, account)) as any as string | undefined;
-		if (password) {
-			return password;
-		}
-
 		return null;
 	}
 
@@ -237,6 +232,9 @@ async function doStart(): Promise<IDisposable> {
 	const infoResponse = await fetch(window.location.protocol + '//' + supervisorHost + '/_supervisor/v1/info/workspace', {
 		credentials: 'include'
 	});
+	if (!infoResponse.ok) {
+		throw new Error(`Getting workspace info failed: ${infoResponse.statusText}`);
+	}
 	if (_state === 'terminated') {
 		return Disposable.None;
 	}
@@ -348,6 +346,12 @@ async function doStart(): Promise<IDisposable> {
 	const gitpodDomain = gitpodHostURL.protocol + '//*.' + gitpodHostURL.host;
 	const syncStoreURL = info.gitpodHost + '/code-sync';
 
+	const credentialsProvider = new LocalStorageCredentialsProvider();
+	interface GetTokenResponse {
+		token: string
+		user?: string
+		scope?: string[]
+	}
 	const scopes = [
 		'function:accessCodeSyncStorage'
 	];
@@ -357,34 +361,36 @@ async function doStart(): Promise<IDisposable> {
 	if (_state as any === 'terminated') {
 		return Disposable.None;
 	}
+	if (!tokenResponse.ok) {
+		console.warn(`Getting Gitpod token failed: ${tokenResponse.statusText}`);
+	} else {
+		const getToken: GetTokenResponse = await tokenResponse.json();
+		if (_state as any === 'terminated') {
+			return Disposable.None;
+		}
 
-	const getToken: {
-		token: string
-		user?: string
-	} = await tokenResponse.json();
+		// see https://github.com/gitpod-io/vscode/blob/gp-code/src/vs/workbench/services/authentication/browser/authenticationService.ts#L34
+		type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
+		const currentSession: AuthenticationSessionInfo = {
+			// current session ID should remain stable between window reloads
+			// otherwise setting sync will log out
+			id: 'gitpod-current-session',
+			accessToken: getToken.token,
+			providerId: 'gitpod',
+			canSignOut: false
+		};
+		// Settings Sync Entry
+		await credentialsProvider.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(currentSession));
+		// Auth extension Entry
+		await credentialsProvider.setPassword(`${product.urlProtocol}-gitpod.login`, 'account', JSON.stringify([{
+			id: currentSession.id,
+			scopes: getToken.scope || scopes,
+			accessToken: currentSession.accessToken
+		}]));
+	}
 	if (_state as any === 'terminated') {
 		return Disposable.None;
 	}
-
-	// see src/vs/workbench/services/authentication/browser/authenticationService.ts#L84
-	type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
-	const currentSession: AuthenticationSessionInfo = {
-		// current session ID should remain stable between window reloads
-		// otherwise setting sync will log out
-		id: 'gitpod-current-session',
-		accessToken: getToken.token,
-		providerId: 'gitpod',
-		canSignOut: false
-	};
-	const credentialsProvider = new LocalStorageCredentialsProvider();
-	// Settings Sync Entry
-	await credentialsProvider.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(currentSession));
-	// Auth extension Entry
-	await credentialsProvider.setPassword(`${product.urlProtocol}-gitpod.login`, 'account', JSON.stringify([{
-		id: currentSession.id,
-		scopes,
-		accessToken: currentSession.accessToken
-	}]));
 
 	return create(document.body, {
 		remoteAuthority,

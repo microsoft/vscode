@@ -6,10 +6,12 @@ import type { ResolvedPlugins } from '@gitpod/gitpod-protocol';
 import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
 import { TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
+import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
 import * as grpc from '@grpc/grpc-js';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as util from 'util';
 import * as http from 'http';
 import * as net from 'net';
 import * as os from 'os';
@@ -45,7 +47,7 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -75,6 +77,7 @@ import { ExtensionScanner, ExtensionScannerInput, IExtensionReference } from 'vs
 import { IGetEnvironmentDataArguments, IRemoteAgentEnvironmentDTO, IScanExtensionsArguments, IScanSingleExtensionArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
 
 const uriTransformerPath = path.join(__dirname, '../../../gitpodUriTransformer');
 const rawURITransformerFactory: (remoteAuthority: string) => IRawURITransformer = <any>require.__$__nodeRequire(uriTransformerPath);
@@ -206,12 +209,42 @@ function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCo
 }
 
 async function installExtensionsFromServer(
+	infoServiceClient: InfoServiceClient,
+	extensionGalleryService: IExtensionGalleryService,
 	extensionManagementService: IExtensionManagementService,
 	requestService: IRequestService,
 	fileService: IFileService,
 	logService: ILogService
 ): Promise<void> {
 	const pending: Promise<void>[] = [];
+	pending.push((async () => {
+		const ids = [
+			// 'eamodio.gitlens'
+		];
+		try {
+			const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
+			const workspaceContextUrl = URI.parse(workspaceInfoResponse.getWorkspaceContextUrl());
+			if (workspaceContextUrl.authority === 'github.com') {
+				ids.push('github.vscode-pull-request-github');
+			}
+		} catch (e) {
+			logService.error('code server: failed to detect workspace context dependent extensions:', e);
+		}
+		const extensions = await extensionGalleryService.getExtensions(ids, CancellationToken.None).catch(e => {
+			logService.error('code server: failed to resolve extensions:', e);
+			return [] as IGalleryExtension[];
+		});
+		await Promise.all(extensions.map(extension => (async () => {
+			try {
+				await extensionManagementService.installFromGallery(extension, {
+					isMachineScoped: true,
+					isBuiltin: false
+				});
+			} catch (e) {
+				logService.error(`code server: failed to install '${extension.identifier.id}' extension:`, e);
+			}
+		})()));
+	})());
 	if (process.env.GITPOD_RESOLVED_EXTENSIONS) {
 		let resolvedPlugins: ResolvedPlugins = {};
 		try {
@@ -406,6 +439,7 @@ async function main(): Promise<void> {
 	channelServer.registerChannel('remoteextensionsenvironment', new RemoteExtensionsEnvironment());
 
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
+	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
 
@@ -625,9 +659,12 @@ async function main(): Promise<void> {
 	// Startup
 	const instantiationService = new InstantiationService(services);
 	instantiationService.invokeFunction(accessor => {
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		channelServer.registerChannel('extensions', new ExtensionManagementChannel(extensionManagementService, requestContext => new URITransformer(rawURITransformerFactory(requestContext))));
 		installExtensionsFromServer(
+			infoServiceClient,
+			extensionGalleryService,
 			extensionManagementService,
 			accessor.get(IRequestService),
 			accessor.get(IFileService),

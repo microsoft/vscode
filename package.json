@@ -59,7 +59,7 @@
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci"
   },
   "dependencies": {
-    "@gitpod/supervisor-api-grpc": "master",
+    "@gitpod/supervisor-api-grpc": "ak-github-auth",
     "@grpc/grpc-js": "latest",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",

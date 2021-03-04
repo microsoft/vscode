@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@gitpod/supervisor-api-grpc": "master",
+    "@gitpod/supervisor-api-grpc": "ak-github-auth",
     "@grpc/grpc-js": "latest",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",

@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-"@gitpod/supervisor-api-grpc@master":
-  version "0.1.5-master.398"
-  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-master.398.tgz#95a0eb49c32dc3a6c732664c63b2cc41f1382b92"
-  integrity sha512-7ylqDCX2ccnKtxmDqaO3cDACtqikNrfpGwwiif2BV1nFQOAKF16KEBwUg0cY/gwhoMqNS8lh0fLZRi1gdyS2rg==
+"@gitpod/supervisor-api-grpc@ak-github-auth":
+  version "0.1.5-ak-github-auth.16"
+  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpc/-/supervisor-api-grpc-0.1.5-ak-github-auth.16.tgz#e18507e59ff2309a3a830392fb1418dc215ac935"
+  integrity sha512-K+CnL5fvzkBOqP3/4Pu53NLEj+bWV7UI913c+Wro4X1jb4XE+JUkUG4TEIx3QX3RJ5DV7hgLfCABWblHtsaqkQ==
   dependencies:
     "@grpc/grpc-js" "^1.1.5"
     google-protobuf "^3.8.0-rc.1"
