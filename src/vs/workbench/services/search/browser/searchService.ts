@@ -12,7 +12,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
@@ -21,10 +20,9 @@ export class RemoteSearchService extends SearchService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IFileService fileService: IFileService
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
 	}
 }
 

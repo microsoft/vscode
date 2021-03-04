@@ -12,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
@@ -183,24 +183,18 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	};
 	focusSearch?: boolean;
 
-	static create(options: ISettingsEditorOptions): SettingsEditorOptions {
-		const newOptions = new SettingsEditorOptions();
-		options = {
-			...<IEditorOptions>{
-				override: EditorOverride.DISABLED,
-				pinned: true
-			},
-			...options
-		};
-		newOptions.overwrite(options);
+	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
+		const options = new SettingsEditorOptions();
+		options.overwrite(settings);
 
-		newOptions.target = options.target;
-		newOptions.folderUri = options.folderUri;
-		newOptions.query = options.query;
-		newOptions.revealSetting = options.revealSetting;
-		newOptions.focusSearch = options.focusSearch;
+		options.target = settings.target;
+		options.folderUri = settings.folderUri;
+		options.query = settings.query;
+		options.revealSetting = settings.revealSetting;
+		options.pinned = true;
+		options.focusSearch = settings.focusSearch;
 
-		return newOptions;
+		return options;
 	}
 }
 
