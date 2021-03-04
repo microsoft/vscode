@@ -206,14 +206,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(async data => {
-		    // Handle flow control
-				this._unacknowledgedCharCount += data.length;
-				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
-					this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
-					this._isPtyPaused = true;
-					ptyProcess.pause();
-				}
+			// Handle flow control
+			this._unacknowledgedCharCount += data.length;
+			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
+				this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
+				this._isPtyPaused = true;
+				ptyProcess.pause();
 			}
+
 
 			// Refire the data event
 			this._onProcessData.fire(data);
