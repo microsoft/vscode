@@ -318,10 +318,10 @@ export class CellOutputContainer extends Disposable {
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
 		private templateData: CodeCellRenderTemplate,
-		@INotebookService private notebookService: INotebookService,
+		@INotebookService private readonly notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ITextFileService readonly textFileService: ITextFileService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super();
 
@@ -472,19 +472,18 @@ export class CellOutputContainer extends Disposable {
 			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
 		});
 
-		const removedKeys: ICellOutputViewModel[] = [];
+		const removedOutputs: ICellOutputViewModel[] = [];
 
 		this.outputEntries.forEach((value, key) => {
 			if (this.viewCell.outputsViewModels.indexOf(key) < 0) {
-				// already removed
-				removedKeys.push(key);
+				removedOutputs.push(key);
 				// remove element from DOM
 				value.detach();
 				this.notebookEditor.removeInset(key);
 			}
 		});
 
-		removedKeys.forEach(key => {
+		removedOutputs.forEach(key => {
 			this.outputEntries.get(key)?.dispose();
 			this.outputEntries.delete(key);
 		});
