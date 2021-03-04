@@ -17,6 +17,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { decorateFileEditorLabel } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -63,9 +64,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return true;
 	}
 
-	@memoize
 	getName(): string {
-		return basename(this.labelService.getUriLabel(this.resource));
+		const name = basename(this.labelService.getUriLabel(this.resource));
+		return this.decorateLabel(name);
 	}
 
 	matches(other: IEditorInput): boolean {
@@ -92,17 +93,30 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.shortTitle;
+				return this.decorateLabel(this.shortTitle);
 			default:
 			case Verbosity.MEDIUM:
-				return this.mediumTitle;
+				return this.decorateLabel(this.mediumTitle);
 			case Verbosity.LONG:
-				return this.longTitle;
+				return this.decorateLabel(this.longTitle);
 		}
 	}
 
+	private decorateLabel(label: string): string {
+		const orphaned = !!this._modelRef?.object.isOrphaned();
+
+		const readonly = this._modelRef
+			? !this._modelRef.object.isEditable() || this._modelRef.object.isOnReadonlyFileSystem()
+			: false;
+
+		return decorateFileEditorLabel(label, {
+			orphaned,
+			readonly
+		});
+	}
+
 	public isReadonly(): boolean {
-		return this._modelRef ? this._modelRef.object.isReadonly() : false;
+		return this._modelRef ? !this._modelRef.object.isEditable() : false;
 	}
 
 	public isUntitled(): boolean {
@@ -169,6 +183,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		if (!this._modelRef) {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 
 			if (this.isDirty()) {
 				this._onDidChangeDirty.fire();

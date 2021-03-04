@@ -958,10 +958,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return new Dimension(availableWidth, availableHeight);
 	}
 
-	getWorkbenchContainer(): HTMLElement {
-		return this.parent;
-	}
-
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
 		this.state.zenMode.active = !this.state.zenMode.active;
 		this.state.zenMode.transitionDisposables.clear();

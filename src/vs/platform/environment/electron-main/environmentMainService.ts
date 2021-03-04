@@ -11,7 +11,7 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/common/product';
 
-export const IEnvironmentMainService = createDecorator<IEnvironmentMainService>('nativeEnvironmentService');
+export const IEnvironmentMainService = createDecorator<IEnvironmentMainService>('environmentMainService');
 
 /**
  * A subclass of the `INativeEnvironmentService` to be used only in electron-main

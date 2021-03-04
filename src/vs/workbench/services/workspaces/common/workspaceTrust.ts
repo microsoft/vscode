@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustModel, IWorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustModel, WorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { EditorModel } from 'vs/workbench/common/editor';
 
@@ -178,7 +178,7 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 }
 
 export class WorkspaceTrustRequestModel extends Disposable implements IWorkspaceTrustRequestModel {
-	trustRequest: IWorkspaceTrustRequest | undefined;
+	trustRequest: WorkspaceTrustRequest | undefined;
 
 	private readonly _onDidInitiateRequest = this._register(new Emitter<void>());
 	readonly onDidInitiateRequest: Event<void> = this._onDidInitiateRequest.event;
@@ -186,7 +186,7 @@ export class WorkspaceTrustRequestModel extends Disposable implements IWorkspace
 	private readonly _onDidCompleteRequest = this._register(new Emitter<WorkspaceTrustState | undefined>());
 	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
 
-	initiateRequest(request: IWorkspaceTrustRequest): void {
+	initiateRequest(request: WorkspaceTrustRequest): void {
 		if (this.trustRequest && (!request.modal || this.trustRequest.modal)) {
 			return;
 		}
@@ -319,16 +319,16 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
 	}
 
-	async requireWorkspaceTrust(request?: IWorkspaceTrustRequest): Promise<WorkspaceTrustState> {
+	async requireWorkspaceTrust(request: WorkspaceTrustRequest = { modal: true }): Promise<WorkspaceTrustState> {
 		if (this.currentTrustState === WorkspaceTrustState.Trusted) {
 			return this.currentTrustState;
 		}
-		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request?.modal) {
+		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request.modal) {
 			return this.currentTrustState;
 		}
 
 		if (this._trustRequestPromise) {
-			if (request?.modal &&
+			if (request.modal &&
 				this.requestModel.trustRequest &&
 				!this.requestModel.trustRequest.modal) {
 				this.requestModel.initiateRequest(request);

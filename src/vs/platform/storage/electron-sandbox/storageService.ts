@@ -14,7 +14,7 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
 import { joinPath } from 'vs/base/common/resources';
 
-export class NativeStorageService2 extends AbstractStorageService {
+export class NativeStorageService extends AbstractStorageService {
 
 	// Global Storage is readonly and shared across windows
 	private readonly globalStorage: IStorage;
@@ -85,7 +85,7 @@ export class NativeStorageService2 extends AbstractStorageService {
 	}
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath} [!!! Experimental Main Storage !!!]` : undefined;
+		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
 	}
 
 	async close(): Promise<void> {

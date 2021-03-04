@@ -289,9 +289,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		this._onWillShutdown.fire({
 			join(promise) {
-				if (promise) {
-					joiners.push(promise);
-				}
+				joiners.push(promise);
 			}
 		});
 

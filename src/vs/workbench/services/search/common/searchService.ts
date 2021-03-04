@@ -14,7 +14,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI as uri } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -500,18 +499,3 @@ export class SearchService extends Disposable implements ISearchService {
 			.then(() => { });
 	}
 }
-
-export class RemoteSearchService extends SearchService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@IEditorService editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService
-	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
-	}
-}
-
-registerSingleton(ISearchService, RemoteSearchService, true);

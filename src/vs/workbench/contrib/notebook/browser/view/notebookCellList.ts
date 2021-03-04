@@ -49,7 +49,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	readonly onDidRemoveOutput: Event<ICellOutputViewModel> = this._onDidRemoveOutput.event;
 	private readonly _onDidHideOutput = new Emitter<ICellOutputViewModel>();
 	readonly onDidHideOutput: Event<ICellOutputViewModel> = this._onDidHideOutput.event;
-
+	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
+	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
 	private _viewModel: NotebookViewModel | null = null;
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
@@ -383,7 +384,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const newRanges = reduceCellRanges(hiddenRanges);
 		const viewCells = model.viewCells.slice(0) as CellViewModel[];
 		newRanges.reverse().forEach(range => {
-			viewCells.splice(range.start, range.end - range.start + 1);
+			const removedCells = viewCells.splice(range.start, range.end - range.start + 1);
+			removedCells.forEach(cell => {
+				this._onDidRemoveCellFromView.fire(cell);
+			});
 		});
 
 		this.splice2(0, 0, viewCells);
@@ -473,6 +477,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// remove output in the webview
 			const hideOutputs: ICellOutputViewModel[] = [];
 			const deletedOutputs: ICellOutputViewModel[] = [];
+			const removedMarkdownCells: ICellViewModel[] = [];
 
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
@@ -482,6 +487,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					} else {
 						deletedOutputs.push(...cell?.outputsViewModels);
 					}
+				} else {
+					removedMarkdownCells.push(cell);
 				}
 			}
 
@@ -489,6 +496,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
 			deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
+			removedMarkdownCells.forEach(cell => this._onDidRemoveCellFromView.fire(cell));
 		});
 	}
 
@@ -513,7 +521,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
-			this._viewModel!.updateSelectionsFromEdits({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] });
+			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] });
 		}
 	}
 
@@ -580,7 +588,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (index >= 0 && this._viewModel) {
 			// update view model first, which will update both `focus` and `selection` in a single transaction
 			const focusedElementHandle = this.element(index).handle;
-			this._viewModel.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+			this._viewModel.updateSelectionsState({
+				kind: SelectionStateType.Handle,
+				primary: focusedElementHandle,
+				selections: [focusedElementHandle]
+			}, 'view');
 
 			// update the view as previous model update will not trigger event
 			this.setFocus([index], undefined, false);
@@ -600,7 +612,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocus();
 			if (focus.length) {
 				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+				this._viewModel?.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: focusedElementHandle,
+					selections: [focusedElementHandle]
+				}, 'view');
 			}
 		});
 	}
@@ -611,7 +627,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const focus = this.getFocus();
 			if (focus.length) {
 				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsFromView(focusedElementHandle, [focusedElementHandle]);
+				this._viewModel?.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: focusedElementHandle,
+					selections: [focusedElementHandle]
+				}, 'view');
 			}
 		});
 	}
@@ -624,12 +644,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!indexes.length) {
 			if (this._viewModel) {
-				this._viewModel.updateSelectionsFromView(null, []);
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: null,
+					selections: []
+				}, 'view');
 			}
 		} else {
 			if (this._viewModel) {
 				const focusedElementHandle = this.element(indexes[0]).handle;
-				this._viewModel.updateSelectionsFromView(focusedElementHandle, this.getSelection().map(selection => this.element(selection).handle));
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: focusedElementHandle,
+					selections: this.getSelection().map(selection => this.element(selection).handle)
+				}, 'view');
 			}
 		}
 
@@ -644,11 +672,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!indexes.length) {
 			if (this._viewModel) {
-				this._viewModel.updateSelectionsFromView(this.getFocusedElements()[0]?.handle ?? null, []);
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: this.getFocusedElements()[0]?.handle ?? null,
+					selections: []
+				}, 'view');
 			}
 		} else {
 			if (this._viewModel) {
-				this._viewModel.updateSelectionsFromView(this.getFocusedElements()[0]?.handle ?? null, indexes.map(index => this.element(index)).map(cell => cell.handle));
+				this._viewModel.updateSelectionsState({
+					kind: SelectionStateType.Handle,
+					primary: this.getFocusedElements()[0]?.handle ?? null,
+					selections: indexes.map(index => this.element(index)).map(cell => cell.handle)
+				}, 'view');
 			}
 		}
 

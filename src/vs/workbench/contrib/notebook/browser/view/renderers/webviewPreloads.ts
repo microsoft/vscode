@@ -29,6 +29,7 @@ declare class ResizeObserver {
 declare const __outputNodePadding__: number;
 declare const __outputNodeLeftPadding__: number;
 declare const __previewNodePadding__: number;
+declare const __leftMargin__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -145,9 +146,8 @@ function webviewPreloads() {
 				if (entry.target.id === id && entry.contentRect) {
 					if (entry.contentRect.height !== 0) {
 						const padding = output ? __outputNodePadding__ : __previewNodePadding__;
-						const paddingLeft = output ? __outputNodeLeftPadding__ : 0;
 
-						entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${paddingLeft}px`;
+						entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
@@ -479,7 +479,7 @@ function webviewPreloads() {
 					outputNode.style.position = 'absolute';
 					outputNode.style.top = data.top + 'px';
 					outputNode.style.left = data.left + 'px';
-					outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
+					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					// outputNode.style.minHeight = '32px';
 					outputNode.style.padding = '0px';
 					outputNode.id = outputId;
@@ -777,8 +777,15 @@ function webviewPreloads() {
 	}
 }
 
-export const preloadsScriptStr = (outputNodePadding: number, outputNodeLeftPadding: number, previewNodePadding: number) =>
-	`(${webviewPreloads})()`
-		.replace(/__outputNodePadding__/g, `${outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${outputNodeLeftPadding}`)
-		.replace(/__previewNodePadding__/g, `${previewNodePadding}`);
+export function preloadsScriptStr(values: {
+	outputNodePadding: number;
+	outputNodeLeftPadding: number;
+	previewNodePadding: number;
+	leftMargin: number;
+}) {
+	return `(${webviewPreloads})()`
+		.replace(/__outputNodePadding__/g, `${values.outputNodePadding}`)
+		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`)
+		.replace(/__previewNodePadding__/g, `${values.previewNodePadding}`)
+		.replace(/__leftMargin__/g, `${values.leftMargin}`);
+}

@@ -25,7 +25,7 @@ export class CellContextKeyManager extends Disposable {
 
 	private markdownEditMode!: IContextKey<boolean>;
 
-	private elementDisposables = new DisposableStore();
+	private readonly elementDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly contextKeyService: IContextKeyService,

@@ -33,8 +33,6 @@ suite('NotebookViewModel', () => {
 	test('insert/delete', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }]
@@ -59,8 +57,6 @@ suite('NotebookViewModel', () => {
 	test('move cells down', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
 				['//b', 'javascript', CellKind.Code, [], { editable: true }],
@@ -90,8 +86,6 @@ suite('NotebookViewModel', () => {
 	test('move cells up', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
 				['//b', 'javascript', CellKind.Code, [], { editable: true }],
@@ -115,8 +109,6 @@ suite('NotebookViewModel', () => {
 	test('index', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
@@ -144,8 +136,6 @@ suite('NotebookViewModel', () => {
 	test('metadata', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
@@ -259,14 +249,10 @@ function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 
 suite('NotebookViewModel Decorations', () => {
 	const instantiationService = setupInstantiationService();
-	const blukEditService = instantiationService.get(IBulkEditService);
-	const undoRedoService = instantiationService.get(IUndoRedoService);
 
 	test('tracking range', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],
@@ -323,8 +309,6 @@ suite('NotebookViewModel Decorations', () => {
 	test('tracking range 2', function () {
 		withTestNotebook(
 			instantiationService,
-			blukEditService,
-			undoRedoService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true, runnable: true }],

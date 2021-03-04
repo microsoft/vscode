@@ -78,7 +78,8 @@ function removeEmbeddedSVGs(documentContent: string): string {
 		allowedAttributes: {
 			'*': [
 				'align',
-			]
+			],
+			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
 		},
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';

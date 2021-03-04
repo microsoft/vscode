@@ -69,7 +69,7 @@ export class PtyService extends Disposable implements IPtyService {
 		workspaceId: string,
 		workspaceName: string
 	): Promise<number> {
-		if (shellLaunchConfig.attachPersistentTerminal) {
+		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
 		const id = ++this._lastPtyId;
@@ -82,24 +82,24 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService);
 		process.onProcessExit(() => {
-			persistentTerminalProcess.dispose();
+			persistentProcess.dispose();
 			this._ptys.delete(id);
 		});
-		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
-		persistentTerminalProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
-		persistentTerminalProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
-		this._ptys.set(id, persistentTerminalProcess);
+		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
+		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
+		persistentProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
+		this._ptys.set(id, persistentProcess);
 		return id;
 	}
 
 	async attachToProcess(id: number): Promise<void> {
 		try {
 			this._throwIfNoPty(id).attach();
-			this._logService.trace(`Persistent terminal reconnection "${id}"`);
+			this._logService.trace(`Persistent process reconnection "${id}"`);
 		} catch (e) {
-			this._logService.trace(`Persistent terminal reconnection "${id}" failed`, e.message);
+			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
 		}
 	}
 
@@ -153,15 +153,15 @@ export class PtyService extends Disposable implements IPtyService {
 		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto>[];
 		return {
 			isActive: tab.isActive,
-			activePersistentTerminalId: tab.activePersistentTerminalId,
+			activePersistentProcessId: tab.activePersistentProcessId,
 			terminals: filtered
 		};
 	}
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
 		try {
-			const persistentTerminalProcess = this._throwIfNoPty(t.terminal);
-			const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
+			const persistentProcess = this._throwIfNoPty(t.terminal);
+			const termDto = persistentProcess && await this._terminalToDto(t.terminal, persistentProcess);
 			return {
 				terminal: termDto ?? null,
 				relativeSize: t.relativeSize
@@ -176,14 +176,14 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	private async _terminalToDto(id: number, persistentTerminalProcess: PersistentTerminalProcess): Promise<IPtyHostDescriptionDto> {
-		const [cwd, isOrphan] = await Promise.all([persistentTerminalProcess.getCwd(), persistentTerminalProcess.isOrphaned()]);
+	private async _terminalToDto(id: number, persistentProcess: PersistentTerminalProcess): Promise<IPtyHostDescriptionDto> {
+		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), persistentProcess.isOrphaned()]);
 		return {
 			id,
-			title: persistentTerminalProcess.title,
-			pid: persistentTerminalProcess.pid,
-			workspaceId: persistentTerminalProcess.workspaceId,
-			workspaceName: persistentTerminalProcess.workspaceName,
+			title: persistentProcess.title,
+			pid: persistentProcess.pid,
+			workspaceId: persistentProcess.workspaceId,
+			workspaceName: persistentProcess.workspaceName,
 			cwd,
 			isOrphan
 		};
@@ -233,7 +233,7 @@ export class PersistentTerminalProcess extends Disposable {
 	get title(): string { return this._terminalProcess.currentTitle; }
 
 	constructor(
-		private _persistentTerminalId: number,
+		private _persistentProcessId: number,
 		private readonly _terminalProcess: TerminalProcess,
 		public readonly workspaceId: string,
 		public readonly workspaceName: string,
@@ -246,11 +246,11 @@ export class PersistentTerminalProcess extends Disposable {
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent terminal "${this._persistentTerminalId}": The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, so the process (pid=${this._pid}) will be shutdown.`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, shutting down pid "${this._pid}"`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionGraceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent terminal "${this._persistentTerminalId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the process (pid=${this._pid}) will be shutdown.`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
@@ -271,10 +271,10 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
-		// this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
+		// this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessData(e => this._recorder.recordData(e)));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			// this._bufferer.stopBuffering(this._persistentTerminalId);
+			// this._bufferer.stopBuffering(this._persistentProcessId);
 		}));
 	}
 
@@ -344,7 +344,7 @@ export class PersistentTerminalProcess extends Disposable {
 			dataLength += e.data.length;
 		}
 
-		this._logService.info(`Persistent terminal "${this._persistentTerminalId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
+		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
 	}

@@ -14,22 +14,35 @@ type Remote = { getChannel(channelName: string): IChannel; };
 abstract class RemoteServiceStub<T> {
 	constructor(
 		channelName: string,
-		channelClientCtor: ChannelClientCtor<T> | undefined,
+		options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined,
 		remote: Remote
 	) {
 		const channel = remote.getChannel(channelName);
 
-		if (channelClientCtor) {
-			return new channelClientCtor(channel);
-		} else {
-			return ProxyChannel.toService(channel);
+		if (isRemoteServiceWithChannelClientOptions(options)) {
+			return new options.channelClientCtor(channel);
 		}
+
+		return ProxyChannel.toService(channel, options?.proxyOptions);
 	}
 }
 
-export interface IRemoteServiceOptions<T> {
-	readonly channelClientCtor?: ChannelClientCtor<T>;
+export interface IBaseRemoteServiceOptions {
 	readonly supportsDelayedInstantiation?: boolean;
+}
+
+export interface IRemoteServiceWithChannelClientOptions<T> extends IBaseRemoteServiceOptions {
+	readonly channelClientCtor: ChannelClientCtor<T>;
+}
+
+export interface IRemoteServiceWithProxyOptions extends IBaseRemoteServiceOptions {
+	readonly proxyOptions?: ProxyChannel.ICreateProxyServiceOptions;
+}
+
+function isRemoteServiceWithChannelClientOptions<T>(obj: unknown): obj is IRemoteServiceWithChannelClientOptions<T> {
+	const candidate = obj as IRemoteServiceWithChannelClientOptions<T> | undefined;
+
+	return !!candidate?.channelClientCtor;
 }
 
 //#region Main Process
@@ -43,13 +56,13 @@ export interface IMainProcessService {
 }
 
 class MainProcessRemoteServiceStub<T> extends RemoteServiceStub<T> {
-	constructor(channelName: string, channelClientCtor: ChannelClientCtor<T> | undefined, @IMainProcessService ipcService: IMainProcessService) {
-		super(channelName, channelClientCtor, ipcService);
+	constructor(channelName: string, options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined, @IMainProcessService ipcService: IMainProcessService) {
+		super(channelName, options, ipcService);
 	}
 }
 
-export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options: IRemoteServiceOptions<T> = {}): void {
-	registerSingleton(id, new SyncDescriptor(MainProcessRemoteServiceStub, [channelName, options.channelClientCtor], options.supportsDelayedInstantiation));
+export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options?: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions): void {
+	registerSingleton(id, new SyncDescriptor(MainProcessRemoteServiceStub, [channelName, options], options?.supportsDelayedInstantiation));
 }
 
 //#endregion
@@ -65,13 +78,13 @@ export interface ISharedProcessService {
 }
 
 class SharedProcessRemoteServiceStub<T> extends RemoteServiceStub<T> {
-	constructor(channelName: string, channelClientCtor: ChannelClientCtor<T> | undefined, @ISharedProcessService ipcService: ISharedProcessService) {
-		super(channelName, channelClientCtor, ipcService);
+	constructor(channelName: string, options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined, @ISharedProcessService ipcService: ISharedProcessService) {
+		super(channelName, options, ipcService);
 	}
 }
 
-export function registerSharedProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options: IRemoteServiceOptions<T> = {}): void {
-	registerSingleton(id, new SyncDescriptor(SharedProcessRemoteServiceStub, [channelName, options.channelClientCtor], options.supportsDelayedInstantiation));
+export function registerSharedProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options?: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions): void {
+	registerSingleton(id, new SyncDescriptor(SharedProcessRemoteServiceStub, [channelName, options], options?.supportsDelayedInstantiation));
 }
 
 //#endregion

@@ -35,7 +35,7 @@ import { ITestItem, ITestMessage, ITestState, TestResultItem } from 'vs/workbenc
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResult, ITestResultService, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult, ITestResultService, ResultChangeEvent, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface ITestDto {
@@ -176,7 +176,8 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
 		this._register(editor.onDidChangeModel(() => this.peek.clear()));
-		this._register(testResults.onTestChanged((evt) => this.closePeekOnTestChange(evt)));
+		this._register(testResults.onResultsChanged(this.closePeekOnRunStart, this));
+		this._register(testResults.onTestChanged(this.closePeekOnTestChange, this));
 	}
 
 	/**
@@ -244,6 +245,12 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 		const displayed = this.peek.value?.currentTest();
 		if (displayed?.extId === evt.item.item.extId) {
+			this.peek.clear();
+		}
+	}
+
+	private closePeekOnRunStart(evt: ResultChangeEvent) {
+		if ('started' in evt) {
 			this.peek.clear();
 		}
 	}

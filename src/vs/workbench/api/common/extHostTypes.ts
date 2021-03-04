@@ -1178,7 +1178,7 @@ export class DocumentSymbol {
 }
 
 
-export enum CodeActionTrigger {
+export enum CodeActionTriggerKind {
 	Automatic = 1,
 	Manual = 2,
 }
@@ -2907,13 +2907,12 @@ export class NotebookCellRange {
 	}
 
 	constructor(start: number, end: number) {
-		// todo@rebornix
-		// if (start < 0) {
-		// 	throw illegalArgument('start must be positive');
-		// }
-		// if (end < start) {
-		// 	throw illegalArgument('end cannot be smaller than start');
-		// }
+		if (start < 0) {
+			throw illegalArgument('start must be positive');
+		}
+		if (end < start) {
+			throw illegalArgument('end cannot be smaller than start');
+		}
 		this._start = start;
 		this._end = end;
 	}

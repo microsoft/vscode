@@ -11,6 +11,7 @@ import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/comm
 
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	readonly id = 0;
+	readonly shouldPersist = false;
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
@@ -47,7 +48,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
 
 	constructor(
-		public terminalId: number,
+		public instanceId: number,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		private _cols: number,
 		private _rows: number,
@@ -100,7 +101,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
-		if (!this._shellLaunchConfig.isExtensionTerminal) {
+		if (!this._shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			throw new Error('Attempt to start an ext host process that is not an extension terminal');
 		}
 		return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);

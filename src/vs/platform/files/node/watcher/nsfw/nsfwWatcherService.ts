@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nsfw from 'vscode-nsfw';
+import * as nsfw from 'nsfw';
 import * as glob from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -247,6 +247,6 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	}
 
 	private debug(message: string) {
-		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (chokidar)] ` + message });
+		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (nsfw)] ` + message });
 	}
 }

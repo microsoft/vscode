@@ -178,15 +178,17 @@
 }
 
 /* Rotate icons when panel is on right */
-.monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.right .title-actions .codicon-panel-maximize,
-.monaco-workbench .part.panel.right .title-actions .codicon-panel-restore {
+.monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-restore::before {
+	display: inline-block;
 	transform: rotate(-90deg);
 }
 
 /* Rotate icons when panel is on left */
-.monaco-workbench .part.panel.left .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.left .title-actions .codicon-panel-maximize,
-.monaco-workbench .part.panel.left .title-actions .codicon-panel-restore {
+.monaco-workbench .part.panel.left .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-restore::before {
+	display: inline-block;
 	transform: rotate(90deg);
 }

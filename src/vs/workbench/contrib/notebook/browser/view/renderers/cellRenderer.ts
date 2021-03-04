@@ -341,11 +341,11 @@ abstract class AbstractCellRenderer {
 			}
 
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
-				textModel.applyEdits(textModel.versionId, [
+				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
-				textModel.applyEdits(textModel.versionId, [
+				textModel.applyEdits([
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
 				], true, undefined, () => undefined, undefined);
 			}
@@ -467,10 +467,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		DOM.reset(dragImageContainer, templateData.container.cloneNode(true));
 
 		// Remove all rendered content nodes after the
-		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
-		const contentNodes = markdownContent.children[0].children;
-		for (let i = contentNodes.length - 1; i >= 1; i--) {
-			contentNodes.item(i)!.remove();
+		const markdownContent = dragImageContainer.querySelector('.cell.markdown');
+		const contentNodes = markdownContent?.children[0].children;
+		if (contentNodes) {
+			for (let i = contentNodes.length - 1; i >= 1; i--) {
+				contentNodes.item(i)!.remove();
+			}
 		}
 
 		return dragImageContainer;

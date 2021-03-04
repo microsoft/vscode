@@ -1064,19 +1064,12 @@ export class ChangeModeAction extends Action {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(actionId, actionLabel);
 	}
 
 	async run(event: any, data: ITelemetryData): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-		if (activeEditorPane?.isNotebookEditor) { // TODO@rebornix TODO@jrieken debt: https://github.com/microsoft/vscode/issues/114554
-			// it's inside notebook editor
-			return this.commandService.executeCommand('notebook.cell.changeLanguage');
-		}
-
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
