@@ -107,7 +107,7 @@ export class StatefulMarkdownCell extends Disposable {
 	private markdownContainer: HTMLElement;
 	private editorPart: HTMLElement;
 
-	private localDisposables = new DisposableStore();
+	private readonly localDisposables = new DisposableStore();
 	private foldingState: CellFoldingState;
 	private activeCellRunPlaceholder: IDisposable | null = null;
 	private useRenderer: boolean = false;
