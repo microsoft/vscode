@@ -41,7 +41,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { CELL_MARGIN, CELL_OUTPUT_PADDING, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 
 const $ = DOM.$;
@@ -392,9 +392,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private readonly webviewOptions = {
 		outputNodePadding: CELL_OUTPUT_PADDING,
 		outputNodeLeftPadding: 32,
-		leftMargin: CODE_CELL_LEFT_MARGIN,
-		cellMargin: CELL_MARGIN,
-		runGutter: CELL_RUN_GUTTER
+		leftMargin: 0,
+		cellMargin: 0,
+		runGutter: 0
 	};
 
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
