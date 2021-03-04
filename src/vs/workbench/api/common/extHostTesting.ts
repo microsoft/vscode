@@ -17,7 +17,7 @@ import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTes
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { TestItem, TestResults, TestState } from 'vs/workbench/api/common/extHostTypeConverters';
+import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
@@ -106,7 +106,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Implements vscode.test.publishTestResults
 	 */
 	public publishExtensionProvidedResults(results: vscode.TestResults, persist: boolean): void {
-		this.proxy.$publishExtensionProvidedResults(TestResults.from(generateUuid(), results), persist);
+		this.proxy.$publishExtensionProvidedResults(Convert.TestResults.from(generateUuid(), results), persist);
 	}
 
 	/**
@@ -116,7 +116,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public $publishTestResults(results: ISerializedTestResults[]): void {
 		this.results = Object.freeze(
 			results
-				.map(r => deepFreeze(TestResults.to(r)))
+				.map(r => deepFreeze(Convert.TestResults.to(r)))
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
@@ -272,7 +272,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					}
 
 					this.flushCollectionDiffs();
-					this.proxy.$updateTestStateInRun(req.runId, test.id, TestState.from(state));
+					this.proxy.$updateTestStateInRun(req.runId, test.id, Convert.TestState.from(state));
 				},
 				tests: includeTests.map(t => TestItemFilteredWrapper.unwrap(t.actual)),
 				exclude: excludeTests.map(([, t]) => TestItemFilteredWrapper.unwrap(t.actual)),
@@ -499,9 +499,9 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
  * @private
  */
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
-	revived: vscode.TestItem;
+	revived: Omit<vscode.TestItem, 'children'>;
 	depth: number;
-	wrapped?: vscode.RequiredTestItem;
+	wrapped?: TestItemFromMirror;
 }
 
 class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
@@ -530,7 +530,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	 * @override
 	 */
 	public update(node: MirroredCollectionTestItem): void {
-		Object.assign(node.revived, TestItem.toShallow(node.item));
+		Object.assign(node.revived, Convert.TestItem.toPlainShallow(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
 		}
@@ -564,74 +564,6 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 			get added() { return [...added].map(collection.getPublicTestItem, collection); },
 			get updated() { return [...updated].map(collection.getPublicTestItem, collection); },
 			get removed() { return [...removed].map(collection.getPublicTestItem, collection); },
-			get commonChangeAncestor() {
-				let ancestorPath: MirroredCollectionTestItem[] | undefined;
-				const buildAncestorPath = (node: MirroredCollectionTestItem | undefined) => {
-					if (!node) {
-						return undefined;
-					}
-
-					// add the node and all its parents to the list of ancestors. If
-					// the node is detached, do not return a path (its parent will
-					// also have been passed to remove() and be present)
-					const path: MirroredCollectionTestItem[] = new Array(node.depth + 1);
-					for (let i = node.depth; i >= 0; i--) {
-						if (!node) {
-							return undefined; // detached child
-						}
-
-						path[node.depth] = node;
-						node = node.parent ? collection.getMirroredTestDataById(node.parent) : undefined;
-					}
-
-					return path;
-				};
-
-				const addAncestorPath = (node: MirroredCollectionTestItem) => {
-					// fast path: if the common ancestor is already the root, no more work to do
-					if (ancestorPath && ancestorPath.length === 0) {
-						return;
-					}
-
-					const thisPath = buildAncestorPath(node);
-					if (!thisPath) {
-						return;
-					}
-
-					if (!ancestorPath) {
-						ancestorPath = thisPath;
-						return;
-					}
-
-					// removes node from the path to the ancestor that don't match
-					// the corresponding node in *this* path.
-					for (let i = ancestorPath.length - 1; i >= 0; i--) {
-						if (ancestorPath[i] !== thisPath[i]) {
-							ancestorPath.pop();
-						}
-					}
-				};
-
-				const addParentAncestor = (node: MirroredCollectionTestItem) => {
-					if (ancestorPath && ancestorPath.length === 0) {
-						// no-op
-					} else if (node.parent === null) {
-						ancestorPath = [];
-					} else {
-						const parent = collection.getMirroredTestDataById(node.parent);
-						if (parent) {
-							addAncestorPath(parent);
-						}
-					}
-				};
-
-				for (const node of added) { addParentAncestor(node); }
-				for (const node of updated) { addAncestorPath(node); }
-				for (const node of removed) { addParentAncestor(node); }
-
-				const ancestor = ancestorPath && ancestorPath[ancestorPath.length - 1];
-				return ancestor ? collection.getPublicTestItem(ancestor) : null;
-			},
 		};
 	}
 
@@ -664,8 +596,8 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
-	public getAllAsTestItem(itemIds: Iterable<string>): vscode.RequiredTestItem[] {
-		let output: vscode.RequiredTestItem[] = [];
+	public getAllAsTestItem(itemIds: Iterable<string>) {
+		let output: vscode.TestItem[] = [];
 		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
 			if (item) {
@@ -695,7 +627,12 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 * @override
 	 */
 	protected createItem(item: InternalTestItem, parent?: MirroredCollectionTestItem): MirroredCollectionTestItem {
-		return { ...item, revived: TestItem.toShallow(item.item), depth: parent ? parent.depth + 1 : 0, children: new Set() };
+		return {
+			...item,
+			revived: Convert.TestItem.toPlainShallow(item.item),
+			depth: parent ? parent.depth + 1 : 0,
+			children: new Set(),
+		};
 	}
 
 	/**
@@ -708,7 +645,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Gets the public test item instance for the given mirrored record.
 	 */
-	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.RequiredTestItem {
+	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.TestItem {
 		if (!item.wrapped) {
 			item.wrapped = new TestItemFromMirror(item, this);
 		}
@@ -717,7 +654,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	}
 }
 
-class TestItemFromMirror implements vscode.RequiredTestItem {
+class TestItemFromMirror implements vscode.TestItem {
 	readonly #internal: MirroredCollectionTestItem;
 	readonly #collection: MirroredTestCollection;
 
@@ -737,7 +674,7 @@ class TestItemFromMirror implements vscode.RequiredTestItem {
 	}
 
 	public toJSON() {
-		const serialized: vscode.RequiredTestItem & TestIdWithProvider = {
+		const serialized: vscode.TestItem & TestIdWithProvider = {
 			id: this.id,
 			label: this.label,
 			description: this.description,

@@ -1236,7 +1236,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
-			TestRunState: extHostTypes.TestRunState,
+			TestItem: extHostTypes.TestItem,
+			TestState: extHostTypes.TestState,
+			TestResult: extHostTypes.TestResult,
+			TestMessage: extHostTypes.TestMessage,
 			TestMessageSeverity: extHostTypes.TestMessageSeverity,
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState
 		};
