@@ -150,6 +150,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _validationMessage: string | undefined;
 	private _lastValidationMessage: string | undefined;
 	private _severity: Severity = Severity.Ignore;
+	private _lastSeverity: Severity | undefined;
 	private buttonsUpdated = false;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
@@ -357,6 +358,9 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (this._lastValidationMessage !== validationMessage) {
 			this._lastValidationMessage = validationMessage;
 			dom.reset(this.ui.message, ...renderLabelWithIcons(escape(validationMessage)));
+		}
+		if (this._lastSeverity !== this.severity) {
+			this._lastSeverity = this.severity;
 			this.showMessageDecoration(this.severity);
 		}
 	}
