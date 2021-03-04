@@ -29,24 +29,6 @@ export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('r
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
 
-	/** Fired when the ptyHost process goes down, losing all connections to the service's ptys. */
-	onPtyHostExit: Event<void>;
-	/**
-	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
-	 * terminals using this pty host connection and mark them as disconnected.
-	 */
-	onPtyHostUnresponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
-	 * previously disconnected terminals to reconnect.
-	 */
-	onPtyHostResponsive: Event<void>;
-	/**
-	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
-	 * that its pty has been lost and will remain disconnected.
-	 */
-	onPtyHostRestart: Event<void>;
-
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
 
@@ -58,9 +40,6 @@ export interface ITerminalInstanceService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
-	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {

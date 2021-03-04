@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { Schemas } from 'vs/base/common/network';
@@ -103,6 +103,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return this._hasWrittenData;
 	}
 
+	private readonly _localTerminalService?: ILocalTerminalService;
+
 	constructor(
 		private readonly _instanceId: number,
 		private readonly _configHelper: ITerminalConfigHelper,
@@ -119,8 +121,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IPathService private readonly _pathService: IPathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
+		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService,
 	) {
 		super();
+		this._localTerminalService = localTerminalService;
+
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
@@ -192,10 +197,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
 				this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._instanceId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 			} else {
+				if (!this._localTerminalService) {
+					this._logService.trace(`Tried to launch a local terminal which is not supported in this window`);
+					return undefined;
+				}
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
 				if (shellLaunchConfig.attachPersistentProcess) {
-					const result = await this._terminalInstanceService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
+					const result = await this._localTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						this._process = result;
 					} else {
@@ -203,7 +212,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						return undefined;
 					}
 				} else {
-					this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
 			}
 		}
@@ -287,6 +296,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private async _launchLocalProcess(
+		localTerminalService: ILocalTerminalService,
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
@@ -328,21 +338,22 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 
-		this._register(this._terminalInstanceService.onPtyHostUnresponsive(() => {
+		this._register(localTerminalService.onPtyHostUnresponsive(() => {
 			this.isDisconnected = true;
 			this._onPtyDisconnect.fire();
 		}));
-		this._ptyResponsiveListener = this._terminalInstanceService.onPtyHostResponsive(() => {
+		this._ptyResponsiveListener = localTerminalService.onPtyHostResponsive(() => {
 			this.isDisconnected = false;
 			this._onPtyReconnect.fire();
 		});
 		this._register(toDisposable(() => this._ptyResponsiveListener?.dispose()));
-		this._register(this._terminalInstanceService.onPtyHostRestart(() => {
+		this._register(localTerminalService.onPtyHostRestart(() => {
 			// When the pty host restarts, reconnect is no longer possible
 			this._ptyResponsiveListener?.dispose();
 			this._ptyResponsiveListener = undefined;
 		}));
-		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
+
+		return await localTerminalService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}
 
 	public setDimensions(cols: number, rows: number): void {
