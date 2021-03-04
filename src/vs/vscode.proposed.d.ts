@@ -1003,13 +1003,12 @@ declare module 'vscode' {
 		// run related API, will be removed
 		readonly hasExecutionOrder?: boolean;
 		readonly executionOrder?: number;
-		readonly runState?: NotebookCellRunState;
 		readonly runStartTime?: number;
 		readonly lastRunDuration?: number;
 
-		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runState?: NotebookCellRunState, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
+		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
-		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, executionOrder?: number | null, runState?: NotebookCellRunState | null, runStartTime?: number | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, executionOrder?: number | null, runStartTime?: number | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1048,7 +1047,6 @@ declare module 'vscode' {
 		// todo@API is this a kernel property?
 		readonly cellHasExecutionOrder: boolean;
 
-		// todo@API remove
 		readonly runState: NotebookRunState;
 
 		constructor(editable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
@@ -1543,7 +1541,7 @@ declare module 'vscode' {
 	// exec.dispose();
 
 	export interface NotebookCellExecution {
-		start(): void; // Alternative to Pending object
+		start(context?: { executionOrder?: number }): void;
 		resolve(result: NotebookCellPreviousRunResult): void;
 		token: CancellationToken;
 
@@ -1562,7 +1560,6 @@ declare module 'vscode' {
 
 	export interface NotebookCellExecutionStartContext {
 		startTime?: number;
-		executionOrder?: number;
 	}
 
 	export namespace notebook {
