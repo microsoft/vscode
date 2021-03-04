@@ -147,6 +147,8 @@
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
 
+			get withShellEnv() { return shellEnv; },
+
 			/**
 			 * @param {{[key: string]: string}} userEnv
 			 * @returns {Promise<void>}
@@ -226,8 +228,8 @@
 		return true;
 	}
 
-	/** @type {Promise<void> | undefined} */
-	let resolvedEnv = undefined;
+	/** @type {Promise<typeof process.env> | undefined} */
+	let shellEnv = undefined;
 
 	/**
 	 * If VSCode is not run from a terminal, we should resolve additional
@@ -238,28 +240,33 @@
 	 * @param {{[key: string]: string}} userEnv
 	 * @returns {Promise<void>}
 	 */
-	function resolveEnv(userEnv) {
-		if (!resolvedEnv) {
+	async function resolveEnv(userEnv) {
+		if (!shellEnv) {
 
 			// Apply `userEnv` directly
 			Object.assign(process.env, userEnv);
 
 			// Resolve `shellEnv` from the main side
-			resolvedEnv = new Promise(function (resolve) {
-				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
+			shellEnv = new Promise(function (resolve) {
+				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnvResult) {
+					if (process.env['VSCODE_IGNORE_SHELL_ENV'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+						// Resolve with all keys of the shell environment and our process environment
+						// But make sure that the user environment wins in the end over shell environment
+						resolve({ ...process.env, ...shellEnvResult, ...userEnv });
+					} else {
+						// Assign all keys of the shell environment to our process environment
+						// But make sure that the user environment wins in the end over shell environment
+						Object.assign(process.env, shellEnvResult, userEnv);
 
-					// Assign all keys of the shell environment to our process environment
-					// But make sure that the user environment wins in the end
-					Object.assign(process.env, shellEnv, userEnv);
-
-					resolve();
+						resolve(process.env);
+					}
 				});
 
 				ipcRenderer.send('vscode:fetchShellEnv');
 			});
 		}
 
-		return resolvedEnv;
+		await shellEnv;
 	}
 
 	//#endregion

@@ -61,6 +61,7 @@ import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreMan
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
 import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
 import 'vs/workbench/services/timer/electron-sandbox/timerService';
+import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
