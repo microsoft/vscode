@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, HAS_CHANGED_RENDERER_TYPE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -105,7 +105,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
-	private _changedRendererType: boolean = true;
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
@@ -255,7 +254,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.updateAccessibilitySupport();
 			}
 			if (e.affectsConfiguration('terminal.integrated.rendererType')) {
-				this._changedRendererType = true;
+				this._storageService.store(HAS_CHANGED_RENDERER_TYPE, true, StorageScope.GLOBAL, StorageTarget.USER);
 			}
 		}));
 
@@ -423,7 +422,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
+			rendererType: (config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl') ? 'canvas' : config.rendererType,
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -1319,7 +1318,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
-		if (!this._xterm || this._webglAddon || !this._changedRendererType) {
+		const hasChangedRendererType = this._storageService.getBoolean(HAS_CHANGED_RENDERER_TYPE, StorageScope.GLOBAL, true);
+		if (!this._xterm || this._webglAddon || !hasChangedRendererType) {
 			return;
 		}
 		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
@@ -1339,7 +1339,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _disposeOfWebglRenderer(): void {
 		this._webglAddon?.dispose();
 		this._webglAddon = undefined;
-		this._changedRendererType = false;
+		this._storageService.store(HAS_CHANGED_RENDERER_TYPE, false, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
