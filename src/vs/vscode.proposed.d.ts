@@ -695,18 +695,20 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A value-object that contains additional information when requesting inline values from a InlineValuesProvider.
-	 * A minimal context containes just the document location where the debugger has stopped.
-	 * Additional optional information might be scope information or variables and their values.
+	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
 	 */
 	export interface InlineValueContext {
+
+		/**
+		 * Debug Adapter Protocol ID of the the stack frame.
+		 */
+		readonly frameId: number;
+
 		/**
 		 * The document range where execution has stopped.
 		 * Typically the end position of the range denotes the line where the inline values are shown.
 		 */
-		stoppedLocation: Range;
-
-		// ... more to come, e.g. Scope information or variable/value candidate information
+		readonly stoppedLocation: Range;
 	}
 
 	/**

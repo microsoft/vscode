@@ -901,12 +901,13 @@ export namespace InlineValue {
 export namespace InlineValueContext {
 	export function from(inlineValueContext: vscode.InlineValueContext): extHostProtocol.IInlineValueContextDto {
 		return <extHostProtocol.IInlineValueContextDto>{
+			frameId: inlineValueContext.frameId,
 			stoppedLocation: Range.from(inlineValueContext.stoppedLocation)
 		};
 	}
 
 	export function to(inlineValueContext: extHostProtocol.IInlineValueContextDto): types.InlineValueContext {
-		return new types.InlineValueContext(Range.to(inlineValueContext.stoppedLocation));
+		return new types.InlineValueContext(inlineValueContext.frameId, Range.to(inlineValueContext.stoppedLocation));
 	}
 }
 

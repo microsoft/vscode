@@ -1474,6 +1474,7 @@ export interface ILinkedEditingRangesDto {
 }
 
 export interface IInlineValueContextDto {
+	frameId: number;
 	stoppedLocation: IRange;
 }
 

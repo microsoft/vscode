@@ -2476,9 +2476,11 @@ export class InlineValueEvaluatableExpression implements vscode.InlineValueEvalu
 @es5ClassCompat
 export class InlineValueContext implements vscode.InlineValueContext {
 
+	readonly frameId: number;
 	readonly stoppedLocation: vscode.Range;
 
-	constructor(range: vscode.Range) {
+	constructor(frameId: number, range: vscode.Range) {
+		this.frameId = frameId;
 		this.stoppedLocation = range;
 	}
 }

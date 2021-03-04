@@ -297,11 +297,11 @@ export interface EvaluatableExpressionProvider {
 }
 
 /**
- * An open ended information bag passed to the inline value provider.
- * A minimal context containes just the document location where the debugger has stopped.
+	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
  * @internal
  */
 export interface InlineValueContext {
+	frameId: number;
 	stoppedLocation: Range;
 }
 
