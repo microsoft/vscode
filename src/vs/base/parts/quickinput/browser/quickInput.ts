@@ -31,6 +31,7 @@ import { registerCodicon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { isString } from 'vs/base/common/types';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -133,6 +134,7 @@ type Visibilities = {
 };
 
 class QuickInput extends Disposable implements IQuickInput {
+	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _title: string | undefined;
 	private _description: string | undefined;
@@ -144,6 +146,11 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _busy = false;
 	private _ignoreFocusOut = false;
 	private _buttons: IQuickInputButton[] = [];
+	protected noValidationMessage = QuickInput.noPromptMessage;
+	private _validationMessage: string | undefined;
+	private _lastValidationMessage: string | undefined;
+	private _severity: Severity = Severity.Ignore;
+	private _lastSeverity: Severity | undefined;
 	private buttonsUpdated = false;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
 	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
@@ -241,6 +248,24 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
+	get validationMessage() {
+		return this._validationMessage;
+	}
+
+	set validationMessage(validationMessage: string | undefined) {
+		this._validationMessage = validationMessage;
+		this.update();
+	}
+
+	get severity() {
+		return this._severity;
+	}
+
+	set severity(severity: Severity) {
+		this._severity = severity;
+		this.update();
+	}
+
 	readonly onDidTriggerButton = this.onDidTriggerButtonEmitter.event;
 
 	show(): void {
@@ -328,6 +353,16 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
 		this.ui.setContextKey(this.contextKey);
+
+		const validationMessage = this.validationMessage || this.noValidationMessage;
+		if (this._lastValidationMessage !== validationMessage) {
+			this._lastValidationMessage = validationMessage;
+			dom.reset(this.ui.message, ...renderLabelWithIcons(escape(validationMessage)));
+		}
+		if (this._lastSeverity !== this.severity) {
+			this._lastSeverity = this.severity;
+			this.showMessageDecoration(this.severity);
+		}
 	}
 
 	private getTitle() {
@@ -359,7 +394,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	protected showMessageDecoration(severity: Severity) {
 		this.ui.inputBox.showDecoration(severity);
-		if (severity === Severity.Error) {
+		if (severity !== Severity.Ignore) {
 			const styles = this.ui.inputBox.stylesForType(severity);
 			this.ui.message.style.color = styles.foreground ? `${styles.foreground}` : '';
 			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
@@ -414,8 +449,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private readonly onDidTriggerItemButtonEmitter = this._register(new Emitter<IQuickPickItemButtonEvent<T>>());
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
-	private _validationMessage: string | undefined;
-	private _lastValidationMessage: string | undefined;
 	private _ok: boolean | 'default' = 'default';
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
@@ -584,15 +617,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set valueSelection(valueSelection: Readonly<[number, number]>) {
 		this._valueSelection = valueSelection;
 		this.valueSelectionUpdated = true;
-		this.update();
-	}
-
-	get validationMessage() {
-		return this._validationMessage;
-	}
-
-	set validationMessage(validationMessage: string | undefined) {
-		this._validationMessage = validationMessage;
 		this.update();
 	}
 
@@ -964,12 +988,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.selectedItemsToConfirm = null;
 			}
 		}
-		const validationMessage = this.validationMessage || '';
-		if (this._lastValidationMessage !== validationMessage) {
-			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderLabelWithIcons(escape(validationMessage)));
-			this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
-		}
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		this.ui.setComboboxAccessibility(true);
@@ -987,18 +1005,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 }
 
 class InputBox extends QuickInput implements IInputBox {
-
-	private static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
-
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
 	private _password = false;
 	private _prompt: string | undefined;
-	private noValidationMessage = InputBox.noPromptMessage;
-	private _validationMessage: string | undefined;
-	private _lastValidationMessage: string | undefined;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
@@ -1043,16 +1055,7 @@ class InputBox extends QuickInput implements IInputBox {
 		this._prompt = prompt;
 		this.noValidationMessage = prompt
 			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
-			: InputBox.noPromptMessage;
-		this.update();
-	}
-
-	get validationMessage() {
-		return this._validationMessage;
-	}
-
-	set validationMessage(validationMessage: string | undefined) {
-		this._validationMessage = validationMessage;
+			: QuickInput.noPromptMessage;
 		this.update();
 	}
 
@@ -1100,12 +1103,7 @@ class InputBox extends QuickInput implements IInputBox {
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
 		}
-		const validationMessage = this.validationMessage || this.noValidationMessage;
-		if (this._lastValidationMessage !== validationMessage) {
-			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderLabelWithIcons(validationMessage));
-			this.showMessageDecoration(this.validationMessage ? Severity.Error : Severity.Ignore);
-		}
+
 	}
 }
 
@@ -1438,6 +1436,22 @@ export class QuickInputController extends Disposable {
 		});
 	}
 
+	private setValidationOnInput(input: IInputBox, validationResult: string | {
+		content: string;
+		severity: Severity;
+	} | null | undefined) {
+		if (validationResult && isString(validationResult)) {
+			input.severity = Severity.Error;
+			input.validationMessage = validationResult;
+		} else if (validationResult && !isString(validationResult)) {
+			input.severity = validationResult.severity;
+			input.validationMessage = validationResult.content;
+		} else {
+			input.severity = Severity.Ignore;
+			input.validationMessage = undefined;
+		}
+	}
+
 	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 		return new Promise<string | undefined>((resolve) => {
 			if (token.isCancellationRequested) {
@@ -1458,7 +1472,7 @@ export class QuickInputController extends Disposable {
 					}
 					validation.then(result => {
 						if (value === validationValue) {
-							input.validationMessage = result || undefined;
+							this.setValidationOnInput(input, result);
 						}
 					});
 				}),
@@ -1469,11 +1483,11 @@ export class QuickInputController extends Disposable {
 						validationValue = value;
 					}
 					validation.then(result => {
-						if (!result) {
+						if (!result || (!isString(result) && result.severity !== Severity.Error)) {
 							resolve(value);
 							input.hide();
 						} else if (value === validationValue) {
-							input.validationMessage = result;
+							this.setValidationOnInput(input, result);
 						}
 					});
 				}),
