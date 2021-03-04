@@ -36,6 +36,16 @@ export interface ITerminalInstanceService {
 	 * terminals using this pty host connection and mark them as disconnected.
 	 */
 	onPtyHostUnresponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
+	 * previously disconnected terminals to reconnect.
+	 */
+	onPtyHostResponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
+	 * that its pty has been lost and will remain disconnected.
+	 */
+	onPtyHostRestart: Event<void>;
 
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
@@ -284,6 +294,11 @@ export interface ITerminalInstance {
 	 * Whether the process should be persisted across reloads.
 	 */
 	readonly shouldPersist: boolean;
+
+	/**
+	 * Whether the process communication channel has been disconnected.
+	 */
+	readonly isDisconnected: boolean;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
