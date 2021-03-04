@@ -20,6 +20,7 @@ type TCell = any;
 
 interface RowTemplateData {
 	readonly container: HTMLElement;
+	readonly rowContainer: HTMLElement;
 	readonly cellContainers: HTMLElement[];
 	readonly cellTemplateData: unknown[];
 }
@@ -64,13 +65,14 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 			cellTemplateData.push(renderer.renderTemplate(cellContainer));
 		}
 
-		const result = { container, cellContainers, cellTemplateData };
+		const result = { container, rowContainer, cellContainers, cellTemplateData };
 		this.renderedTemplates.add(result);
 
 		return result;
 	}
 
 	renderElement(element: TRow, index: number, templateData: RowTemplateData, height: number | undefined): void {
+		templateData.rowContainer.classList.toggle('odd', index % 2 === 1);
 		for (let i = 0; i < this.columns.length; i++) {
 			const column = this.columns[i];
 			const cell = column.project(element);
@@ -315,6 +317,10 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 
 	getFocus(): number[] {
 		return this.list.getFocus();
+	}
+
+	getFocusedElements(): TRow[] {
+		return this.list.getFocusedElements();
 	}
 
 	reveal(index: number, relativeTop?: number): void {
