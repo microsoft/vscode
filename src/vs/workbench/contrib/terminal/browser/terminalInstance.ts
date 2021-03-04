@@ -1327,13 +1327,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xterm.loadAddon(this._webglAddon);
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch {
-			this._disposeOfWebglRenderer();
 			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
-			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
+			// if it's already set to dom, no need to measure render time
+			if (!neverMeasureRenderTime && this._configHelper.config.rendererType !== 'dom') {
 				this._measureRenderTime();
 			}
 			this._safeSetOption('rendererType', 'canvas');
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'canvas', StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this._disposeOfWebglRenderer();
 		}
 	}
 
