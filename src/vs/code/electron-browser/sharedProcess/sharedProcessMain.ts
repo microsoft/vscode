@@ -81,7 +81,7 @@ import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/err
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { join } from 'vs/base/common/path';
 import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
-import { LocalPtyService } from 'vs/platform/terminal/electron-browser/localPtyService';
+import { LocalPtyService } from 'vs/platform/terminal/node/localPtyService';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 
