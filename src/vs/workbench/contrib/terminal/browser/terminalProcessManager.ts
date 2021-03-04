@@ -335,16 +335,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 
-		this._register(this._terminalInstanceService.onPtyHostUnresponsive(() => {
+		this._register(localTerminalService.onPtyHostUnresponsive(() => {
 			this.isDisconnected = true;
 			this._onPtyDisconnect.fire();
 		}));
-		this._ptyResponsiveListener = this._terminalInstanceService.onPtyHostResponsive(() => {
+		this._ptyResponsiveListener = localTerminalService.onPtyHostResponsive(() => {
 			this.isDisconnected = false;
 			this._onPtyReconnect.fire();
 		});
 		this._register(toDisposable(() => this._ptyResponsiveListener?.dispose()));
-		this._register(this._terminalInstanceService.onPtyHostRestart(() => {
+		this._register(localTerminalService.onPtyHostRestart(() => {
 			// When the pty host restarts, reconnect is no longer possible
 			this._ptyResponsiveListener?.dispose();
 			this._ptyResponsiveListener = undefined;
