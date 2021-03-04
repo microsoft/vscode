@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -64,6 +65,27 @@ export enum TerminalIpcChannels {
 	 */
 	Heartbeat = 'heartbeat'
 }
+
+export interface IOffProcessTerminalService {
+	readonly _serviceBrand: undefined;
+
+	/** Fired when the ptyHost process goes down, losing all connections to the service's ptys. */
+	onPtyHostExit: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
+
+	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+}
+
+export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
+export interface ILocalTerminalService extends IOffProcessTerminalService { }
 
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
