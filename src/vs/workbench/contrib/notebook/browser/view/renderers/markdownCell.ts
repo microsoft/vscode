@@ -36,13 +36,14 @@ class WebviewMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 	) {
 		super();
 	}
+
 	update(): void {
 		this.notebookEditor.createMarkdownPreview(this.viewCell);
 	}
 }
 
 class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrategy {
-	private readonly localDisposables = new DisposableStore();
+	private readonly localDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditor,
@@ -58,11 +59,6 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 				this.viewCell.renderedMarkdownHeight = container.clientHeight;
 			}
 		})).startObserving();
-	}
-
-	dispose(): void {
-		this.localDisposables.dispose();
-		super.dispose();
 	}
 
 	update(): void {
