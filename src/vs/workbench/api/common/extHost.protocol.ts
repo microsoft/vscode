@@ -1549,7 +1549,6 @@ export interface IShellLaunchConfigDto {
 	cwd?: string | UriComponents;
 	env?: { [key: string]: string | null; };
 	hideFromUser?: boolean;
-	flowControl?: boolean;
 }
 
 export interface IShellDefinitionDto {

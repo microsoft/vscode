@@ -55,7 +55,6 @@ export interface ICompleteTerminalConfiguration {
 	'terminal.integrated.inheritEnv': boolean;
 	'terminal.integrated.cwd': string;
 	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
-	'terminal.flowControl': boolean;
 }
 
 export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
@@ -241,8 +240,7 @@ export class RemoteTerminalChannelClient {
 			'terminal.integrated.env.linux': this._readSingleTerminalConfiguration('terminal.integrated.env.linux'),
 			'terminal.integrated.inheritEnv': terminalConfig.inheritEnv,
 			'terminal.integrated.cwd': terminalConfig.cwd,
-			'terminal.integrated.detectLocale': terminalConfig.detectLocale,
-			'terminal.flowControl': terminalConfig.flowControl
+			'terminal.integrated.detectLocale': terminalConfig.detectLocale
 		};
 
 		// We will use the resolver service to resolve all the variables in the config / launch config

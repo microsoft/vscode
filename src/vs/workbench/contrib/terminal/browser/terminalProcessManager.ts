@@ -153,10 +153,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		rows: number,
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalLaunchError | undefined> {
-		shellLaunchConfig.flowControl = this._configHelper.config.flowControl;
 		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
-			// Flow control is not supported for extension terminals
-			shellLaunchConfig.flowControl = false;
 			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
 		} else {

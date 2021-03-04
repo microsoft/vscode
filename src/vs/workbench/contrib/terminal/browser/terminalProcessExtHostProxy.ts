@@ -119,8 +119,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onResize.fire({ cols, rows });
 	}
 
-	public acknowledgeDataEvent(charCount: number): void {
-		this._onAcknowledgeDataEvent.fire(charCount);
+	public acknowledgeDataEvent(): void {
+		// Flow control is disabled for extension terminals
 	}
 
 	public getInitialCwd(): Promise<string> {

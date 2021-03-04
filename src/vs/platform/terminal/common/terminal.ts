@@ -227,11 +227,6 @@ export interface IShellLaunchConfig {
 	isFeatureTerminal?: boolean;
 
 	/**
-	 * Whether flow control is enabled for this terminal.
-	 */
-	flowControl?: boolean;
-
-	/**
 	 * Whether this terminal was created by an extension.
 	 */
 	isExtensionOwnedTerminal?: boolean;
