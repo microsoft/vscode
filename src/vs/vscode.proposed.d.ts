@@ -1354,6 +1354,7 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
+	// todo@API make class
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCellData {
 		readonly cellKind: NotebookCellKind;
@@ -1364,6 +1365,7 @@ declare module 'vscode' {
 		readonly metadata: NotebookCellMetadata | undefined;
 	}
 
+	// todo@API make class
 	export interface NotebookData {
 		readonly cells: NotebookCellData[];
 		readonly metadata: NotebookDocumentMetadata;
@@ -1622,20 +1624,28 @@ declare module 'vscode' {
 	// export const onDidStopNotebookCellExecution: Event<any>;
 
 	export interface NotebookKernel {
+
+		// todo@API make this mandatory?
 		readonly id?: string;
+
 		label: string;
 		description?: string;
 		detail?: string;
 		isPreferred?: boolean;
+
+		// todo@API is this maybe an output property?
 		preloads?: Uri[];
 
-		// TODO@API control runnable state of cell
 		/**
 		 * languages supported by kernel
 		 * - first is preferred
 		 * - `undefined` means all languages available in the editor
 		 */
 		supportedLanguages?: string[];
+
+		// todo@API kernel updating itself
+		// fired when properties like the supported languages etc change
+		// onDidChangeProperties?: Event<void>
 
 		// @roblourens
 		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
