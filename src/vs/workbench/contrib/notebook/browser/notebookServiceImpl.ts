@@ -238,9 +238,14 @@ class ModelData implements IDisposable {
 	}
 }
 
+interface INotebookProviderData {
+	controller: IMainNotebookController;
+	extensionData: NotebookExtensionDescription;
+}
+
 export class NotebookService extends Disposable implements INotebookService, IEditorTypesHandler {
 	declare readonly _serviceBrand: undefined;
-	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription; }>();
+	private readonly _notebookProviders = new Map<string, INotebookProviderData>();
 	notebookProviderInfoStore: NotebookProviderInfoStore;
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	private readonly markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
@@ -735,13 +740,48 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return Array.from(this.markdownRenderersInfos);
 	}
 
+	// --- notebook documents: IO
+
+	private _withProvider(viewType: string): INotebookProviderData {
+		const result = this._notebookProviders.get(viewType);
+		if (!result) {
+			throw new Error(`having NO provider for ${viewType}`);
+		}
+		return result;
+	}
+
 	async fetchNotebookRawData(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
 		if (!await this.canResolve(viewType)) {
 			throw new Error(`CANNOT fetch notebook data, there is NO provider for '${viewType}'`);
 		}
-		const provider = this._notebookProviders.get(viewType)!;
+		const provider = this._withProvider(viewType)!;
 		return await provider.controller.openNotebook(viewType, uri, backupId);
 	}
+
+	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {
+		const provider = this._withProvider(viewType);
+		const ret = await provider.controller.save(resource, token);
+		if (ret) {
+			this._onNotebookDocumentSaved.fire(resource);
+		}
+		return ret;
+	}
+
+	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
+		const provider = this._withProvider(viewType);
+		const ret = await provider.controller.saveAs(resource, target, token);
+		if (ret) {
+			this._onNotebookDocumentSaved.fire(resource);
+		}
+		return ret;
+	}
+
+	async backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined> {
+		const provider = this._withProvider(viewType);
+		return provider.controller.backup(uri, token);
+	}
+
+	// --- notebook documents: create, destory, retrieve, enumerate
 
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel {
 		if (this._models.has(uri)) {
@@ -759,6 +799,37 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	getNotebookTextModels(): Iterable<NotebookTextModel> {
 		return Iterable.map(this._models.values(), data => data.model);
+	}
+
+	listNotebookDocuments(): NotebookTextModel[] {
+		return [...this._models].map(e => e[1].model);
+	}
+
+	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
+		this._onWillDisposeDocument(notebook);
+	}
+
+	private _onWillDisposeDocument(model: INotebookTextModel): void {
+
+		const modelData = this._models.get(model.uri);
+		this._models.delete(model.uri);
+
+		if (modelData) {
+			// delete editors and documents
+			const willRemovedEditors: INotebookEditor[] = [];
+			for (const editor of this._notebookEditors.values()) {
+				if (editor.textModel === modelData.model) {
+					willRemovedEditors.push(editor);
+				}
+			}
+
+			modelData.model.dispose();
+			modelData.dispose();
+
+			willRemovedEditors.forEach(e => this._notebookEditors.delete(e.getId()));
+			this._onNotebookEditorsRemove.fire(willRemovedEditors.map(e => e));
+			this._onDidRemoveNotebookDocument.fire(modelData.model.uri);
+		}
 	}
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[] {
@@ -885,13 +956,15 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return [...this._notebookEditors].map(e => e[1]);
 	}
 
-	listNotebookDocuments(): NotebookTextModel[] {
-		return [...this._models].map(e => e[1].model);
+	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
+		const provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
+		}
 	}
 
-	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
-		this._onWillDisposeDocument(notebook);
-	}
+	// --- copy & paste ?
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean) {
 		this.cutItems = items;
@@ -906,74 +979,4 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return undefined;
 	}
 
-	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			const ret = await provider.controller.save(resource, token);
-			if (ret) {
-				this._onNotebookDocumentSaved.fire(resource);
-			}
-
-			return ret;
-		}
-
-		return false;
-	}
-
-	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			const ret = await provider.controller.saveAs(resource, target, token);
-			if (ret) {
-				this._onNotebookDocumentSaved.fire(resource);
-			}
-
-			return ret;
-		}
-
-		return false;
-	}
-
-	async backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.backup(uri, token);
-		}
-
-		return;
-	}
-
-	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
-		}
-	}
-
-	private _onWillDisposeDocument(model: INotebookTextModel): void {
-
-		const modelData = this._models.get(model.uri);
-		this._models.delete(model.uri);
-
-		if (modelData) {
-			// delete editors and documents
-			const willRemovedEditors: INotebookEditor[] = [];
-			for (const editor of this._notebookEditors.values()) {
-				if (editor.textModel === modelData.model) {
-					willRemovedEditors.push(editor);
-				}
-			}
-
-			modelData.model.dispose();
-			modelData.dispose();
-
-			willRemovedEditors.forEach(e => this._notebookEditors.delete(e.getId()));
-			this._onNotebookEditorsRemove.fire(willRemovedEditors.map(e => e));
-			this._onDidRemoveNotebookDocument.fire(modelData.model.uri);
-		}
-	}
 }
