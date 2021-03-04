@@ -1151,7 +1151,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CandidatePortSource: CandidatePortSource,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
-			CodeActionTrigger: extHostTypes.CodeActionTrigger,
+			CodeActionTriggerKind: extHostTypes.CodeActionTriggerKind,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorInformation: extHostTypes.ColorInformation,

@@ -1178,7 +1178,7 @@ export class DocumentSymbol {
 }
 
 
-export enum CodeActionTrigger {
+export enum CodeActionTriggerKind {
 	Automatic = 1,
 	Manual = 2,
 }

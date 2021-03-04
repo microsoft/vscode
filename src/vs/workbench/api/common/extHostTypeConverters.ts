@@ -1712,3 +1712,16 @@ export namespace TestResults {
 		};
 	}
 }
+
+export namespace CodeActionTriggerKind {
+
+	export function to(value: modes.CodeActionTriggerType): types.CodeActionTriggerKind {
+		switch (value) {
+			case modes.CodeActionTriggerType.Auto:
+				return types.CodeActionTriggerKind.Automatic;
+
+			case modes.CodeActionTriggerType.Manual:
+				return types.CodeActionTriggerKind.Manual;
+		}
+	}
+}

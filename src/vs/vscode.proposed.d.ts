@@ -2800,4 +2800,32 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/118084
+
+	/**
+	 * The reason why code actions were requested.
+	 */
+	export enum CodeActionTriggerKind {
+		/**
+		 * Code actions were requested automatically.
+		 *
+		 * This typically happens when current selection in a file changes, but can
+		 * also be triggered when file content changes.
+		 */
+		Automatic = 1,
+
+		/**
+		 * Code actions were requested maually by the user or an extension.
+		 */
+		Manual = 2,
+	}
+
+	export interface CodeActionContext {
+		/**
+		 * The reason why code actions were requested.
+		 */
+		readonly triggerKind: CodeActionTriggerKind;
+	}
+	//#endregion
 }
