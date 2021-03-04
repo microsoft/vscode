@@ -26,13 +26,15 @@ import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workb
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export interface WebviewIntialized {
+interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
-	type: 'initialized'
 }
 
-export interface IDimensionMessage {
-	readonly __vscode_notebook_message: true;
+export interface WebviewIntialized extends BaseToWebviewMessage {
+	type: 'initialized';
+}
+
+export interface IDimensionMessage extends BaseToWebviewMessage {
 	type: 'dimension';
 	id: string;
 	init?: boolean;
@@ -40,86 +42,72 @@ export interface IDimensionMessage {
 	isOutput?: boolean;
 }
 
-export interface IMouseEnterMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseEnterMessage extends BaseToWebviewMessage {
 	type: 'mouseenter';
 	id: string;
 }
 
-export interface IMouseLeaveMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseLeaveMessage extends BaseToWebviewMessage {
 	type: 'mouseleave';
 	id: string;
 }
 
-export interface IWheelMessage {
-	readonly __vscode_notebook_message: true;
+export interface IWheelMessage extends BaseToWebviewMessage {
 	type: 'did-scroll-wheel';
 	payload: any;
 }
 
-
-export interface IScrollAckMessage {
-	readonly __vscode_notebook_message: true;
+export interface IScrollAckMessage extends BaseToWebviewMessage {
 	type: 'scroll-ack';
 	data: { top: number };
 	version: number;
 }
 
-export interface IBlurOutputMessage {
-	readonly __vscode_notebook_message: true;
+export interface IBlurOutputMessage extends BaseToWebviewMessage {
 	type: 'focus-editor';
 	id: string;
 	focusNext?: boolean;
 }
 
-export interface IClickedDataUrlMessage {
-	readonly __vscode_notebook_message: true;
+export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	type: 'clicked-data-url';
 	data: string | ArrayBuffer | null;
 	downloadName?: string;
 }
 
-export interface IFocusMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IFocusMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'focusMarkdownPreview';
 	cellId: string;
 }
 
-export interface IMouseEnterMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'mouseEnterMarkdownPreview';
 	cellId: string;
 }
 
-export interface IMouseLeaveMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseLeaveMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'mouseLeaveMarkdownPreview';
 	cellId: string;
 }
 
-export interface IToggleMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'toggleMarkdownPreview';
 	cellId: string;
 }
 
-export interface ICellDragStartMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
-export interface ICellDragMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
 	cellId: string;
 	position: { clientX: number, clientY: number };
 }
 
-export interface ICellDragEndMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragEndMessage extends BaseToWebviewMessage {
 	readonly type: 'cell-drag-end';
 	readonly cellId: string;
 	readonly ctrlKey: boolean
@@ -129,8 +117,7 @@ export interface ICellDragEndMessage {
 		readonly clientY: number;
 	};
 }
-export interface IInitializedMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkdownPreview';
 }
 
@@ -240,8 +227,7 @@ export interface IUpdateDecorationsMessage {
 	removedClassNames: string[];
 }
 
-export interface ICustomRendererMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICustomRendererMessage extends BaseToWebviewMessage {
 	type: 'customRendererMessage';
 	rendererId: string;
 	message: unknown;
@@ -341,6 +327,10 @@ export interface INotebookWebviewMessage {
 	forRenderer?: string;
 }
 
+export interface IResolvedBackLayerWebview {
+	webview: WebviewElement;
+}
+
 let version = 0;
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
@@ -365,7 +355,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public documentUri: URI,
 		public options: {
 			outputNodePadding: number,
-			outputNodeLeftPadding: number
+			outputNodeLeftPadding: number,
+			leftMargin: number,
+			cellMargin: number,
+			runGutter: number,
 		},
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
@@ -391,7 +384,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<base href="${baseUrl}/"/>
 				<style>
 					#container > div > div.output {
-						width: 100%;
+						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
+						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
@@ -406,13 +400,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-webkit-user-select: text;
 						-ms-user-select: text;
 						white-space: initial;
-						padding-left: 0px !important;
 						cursor: grab;
 					}
 
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
+						width: calc(100% - ${this.options.leftMargin + this.options.cellMargin}px);
+						padding-left: ${this.options.leftMargin}px;
 					}
 
 					#container > div > div.preview img {
@@ -611,7 +606,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding, 8)}</script>
+				<script>${preloadsScriptStr({
+			outputNodePadding: this.options.outputNodePadding,
+			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
+			previewNodePadding: 8,
+			leftMargin: this.options.leftMargin
+		})}</script>
 				${markdownRenderersSrc}
 			</body>
 		</html>`;
@@ -652,6 +652,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 		const cellInfo = this.insetMapping.get(output)!.cellInfo;
 		return { cellInfo, output };
+	}
+
+	isResolved(): this is IResolvedBackLayerWebview {
+		return !!this.webview;
 	}
 
 	async createWebview(): Promise<void> {

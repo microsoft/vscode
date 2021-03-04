@@ -151,15 +151,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		const configPathDir = dirname(configPath);
-		if (!existsSync(configPathDir)) {
-			const configPathDirDir = dirname(configPathDir);
-			if (!existsSync(configPathDirDir)) {
-				mkdirSync(configPathDirDir);
-			}
-			mkdirSync(configPathDir);
-		}
-
+		mkdirSync(dirname(configPath), { recursive: true });
 		writeFileSync(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;

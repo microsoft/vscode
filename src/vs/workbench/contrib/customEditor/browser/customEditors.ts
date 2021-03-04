@@ -4,34 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename, extname, isEqual } from 'vs/base/common/resources';
+import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorActivation, IEditorOptions, ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEditorAssociationsRegistry, EditorsAssociations, editorsAssociationsSettingId, EditorAssociation } from 'vs/workbench/browser/editor';
+import { EditorsAssociations, editorsAssociationsSettingId, Extensions as EditorExtensions, IEditorAssociationsRegistry, IEditorType, IEditorTypesHandler } from 'vs/workbench/browser/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
 
@@ -43,10 +41,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 	private readonly _models = new CustomEditorModelManager();
 
-	private readonly _customEditorContextKey: IContextKey<string>;
+	private readonly _activeCustomEditorId: IContextKey<string>;
 	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
+
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
-	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
+	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
 
 	private readonly _fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
 
@@ -58,12 +57,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWebviewService private readonly webviewService: IWebviewService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
-		this._customEditorContextKey = CONTEXT_CUSTOM_EDITORS.bindTo(contextKeyService);
+		this._activeCustomEditorId = CONTEXT_ACTIVE_CUSTOM_EDITOR_ID.bindTo(contextKeyService);
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
@@ -76,7 +75,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		this._register(fileService.onDidRunOperation(e => {
 			if (e.isOperation(FileOperation.MOVE)) {
-				this.handleMovedFileInOpenedFileEditors(e.resource, e.target.resource);
+				this.handleMovedFileInOpenedFileEditors(e.resource, this.uriIdentityService.asCanonicalUri(e.target.resource));
 			}
 		}));
 
@@ -132,84 +131,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		]);
 	}
 
-	public async promptOpenWith(
-		resource: URI,
-		options?: ITextEditorOptions,
-		group?: IEditorGroup,
-	): Promise<IEditorPane | undefined> {
-		const pick = await this.showOpenWithPrompt(resource, group);
-		if (!pick) {
-			return;
-		}
-
-		return this.openWith(resource, pick, options, group);
-	}
-
-	private showOpenWithPrompt(
-		resource: URI,
-		group?: IEditorGroup,
-	): Promise<string | undefined> {
-		const customEditors = new CustomEditorInfoCollection([
-			defaultCustomEditor,
-			...this.getAllCustomEditors(resource).allEditors,
-		]);
-
-		const existingEditorForResource = group && firstOrDefault(this.editorService.findEditors(resource, group));
-		const currentlyOpenedEditorType: undefined | string = existingEditorForResource instanceof CustomEditorInput ? existingEditorForResource.viewType : defaultCustomEditor.id;
-
-		const resourceExt = extname(resource);
-
-		const items = customEditors.allEditors.map((editorDescriptor): IQuickPickItem => ({
-			label: editorDescriptor.displayName,
-			id: editorDescriptor.id,
-			description: editorDescriptor.id === currentlyOpenedEditorType
-				? nls.localize('openWithCurrentlyActive', "Currently Active")
-				: undefined,
-			detail: editorDescriptor.providerDisplayName,
-			buttons: resourceExt ? [{
-				iconClass: Codicon.settingsGear.classNames,
-				tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
-			}] : undefined
-		}));
-
-		const picker = this.quickInputService.createQuickPick();
-		picker.items = items;
-		picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", basename(resource));
-
-		return new Promise<string | undefined>(resolve => {
-			picker.onDidAccept(() => {
-				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0].id : undefined);
-				picker.dispose();
-			});
-			picker.onDidTriggerItemButton(e => {
-				const pick = e.item.id;
-				resolve(pick); // open the view
-				picker.dispose();
-
-				// And persist the setting
-				if (pick) {
-					const newAssociation: EditorAssociation = { viewType: pick, filenamePattern: '*' + resourceExt };
-					const currentAssociations = [...this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId)];
-
-					// First try updating existing association
-					for (let i = 0; i < currentAssociations.length; ++i) {
-						const existing = currentAssociations[i];
-						if (existing.filenamePattern === newAssociation.filenamePattern) {
-							currentAssociations.splice(i, 1, newAssociation);
-							this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
-							return;
-						}
-					}
-
-					// Otherwise, create a new one
-					currentAssociations.unshift(newAssociation);
-					this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
-				}
-			});
-			picker.show();
-		});
-	}
-
 	public async openWith(
 		resource: URI,
 		viewType: string,
@@ -222,7 +143,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		if (!this._contributedEditors.get(viewType)) {
-			return this.promptOpenWith(resource, options, group);
+			// Prompt the user
+			const input = this.editorService.createEditorInput({ resource });
+			return this.editorService.openEditor(input, { override: EditorOverride.PICK });
 		}
 
 		const capabilities = this.getCustomEditorCapabilities(viewType) || {};
@@ -307,19 +230,17 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const activeEditorPane = this.editorService.activeEditorPane;
 		const resource = activeEditorPane?.input?.resource;
 		if (!resource) {
-			this._customEditorContextKey.reset();
+			this._activeCustomEditorId.reset();
 			this._focusedCustomEditorIsEditable.reset();
 			return;
 		}
 
-		const possibleEditors = this.getAllCustomEditors(resource).allEditors;
-
-		this._customEditorContextKey.set(possibleEditors.map(x => x.id).join(','));
+		this._activeCustomEditorId.set(activeEditorPane?.input instanceof CustomEditorInput ? activeEditorPane.input.viewType : '');
 		this._focusedCustomEditorIsEditable.set(activeEditorPane?.input instanceof CustomEditorInput);
 	}
 
 	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {
-		if (extname(oldResource) === extname(newResource)) {
+		if (extname(oldResource).toLowerCase() === extname(newResource).toLowerCase()) {
 			return;
 		}
 
@@ -352,25 +273,16 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return;
 		}
 
-		let viewType: string | undefined;
-		if (possibleEditors.defaultEditor) {
-			viewType = possibleEditors.defaultEditor.id;
-		} else {
-			// If there is, show a single prompt for all editors to see if the user wants to re-open them
-			//
-			// TODO: instead of prompting eagerly, it'd likely be better to replace all the editors with
-			// ones that would prompt when they first become visible
-			await new Promise(resolve => setTimeout(resolve, 50));
-			viewType = await this.showOpenWithPrompt(newResource);
-		}
-
-		if (!viewType) {
-			return;
-		}
-
 		for (const [group, entries] of editorsToReplace) {
 			this.editorService.replaceEditors(entries.map(editor => {
-				const replacement = this.createInput(newResource, viewType!, group);
+				let replacement: IEditorInput;
+				if (possibleEditors.defaultEditor) {
+					const viewType = possibleEditors.defaultEditor.id;
+					replacement = this.createInput(newResource, viewType!, group);
+				} else {
+					replacement = this.editorService.createEditorInput({ resource: newResource });
+				}
+
 				return {
 					editor,
 					replacement,
@@ -577,19 +489,16 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		return {
 			override: (async () => {
 				const standardEditor = await this.editorService.openEditor(editor, { ...options, override: EditorOverride.DISABLED }, group);
+				if (!standardEditor?.input) {
+					return;
+				}
+
 				// Give a moment to make sure the editor is showing.
 				// Otherwise the focus shift can cause the prompt to be dismissed right away.
 				await new Promise(resolve => setTimeout(resolve, 20));
-				const selectedEditor = await this.customEditorService.promptOpenWith(resource, options, group);
-				if (selectedEditor && selectedEditor.input) {
-					await group.replaceEditors([{
-						editor,
-						replacement: selectedEditor.input
-					}]);
-					return selectedEditor;
-				}
 
-				return standardEditor;
+				// Prompt the user
+				return this.editorService.openEditor(standardEditor.input, { override: EditorOverride.PICK });
 			})()
 		};
 	}

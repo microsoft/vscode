@@ -464,9 +464,7 @@ export class RawDebugSession implements IDisposable {
 	async stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('stepBack', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('stepBack not supported'));
@@ -475,9 +473,7 @@ export class RawDebugSession implements IDisposable {
 	async reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('reverseContinue', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('reverseContinue not supported'));

@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
 
-export interface IDisplayMainService {
-	readonly _serviceBrand: undefined;
-	readonly onDidDisplayChanged: Event<void>;
+export class TestJSONEditingService implements IJSONEditingService {
+	_serviceBrand: any;
+
+	async write(resource: URI, values: IJSONValue[], save: boolean): Promise<void> { }
 }

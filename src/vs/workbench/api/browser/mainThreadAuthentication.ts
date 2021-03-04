@@ -136,12 +136,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(info => {
 			this._proxy.$onDidChangeAuthenticationProviders([], [info]);
 		}));
-
-		this._proxy.$setProviders(this.authenticationService.declaredProviders);
-
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(e => {
-			this._proxy.$setProviders(e);
-		}));
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {

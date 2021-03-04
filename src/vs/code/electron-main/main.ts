@@ -23,7 +23,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleMainLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -130,16 +130,17 @@ class CodeMain {
 		const services = new ServiceCollection();
 
 		// Environment
-		const environmentService = new EnvironmentMainService(args);
-		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
-		services.set(IEnvironmentService, environmentService);
-		services.set(IEnvironmentMainService, environmentService);
+		const environmentMainService = new EnvironmentMainService(args);
+		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
+		services.set(IEnvironmentService, environmentMainService);
+		services.set(INativeEnvironmentService, environmentMainService);
+		services.set(IEnvironmentMainService, environmentMainService);
 
 		// Log: We need to buffer the spdlog logs until we are sure
 		// we are the only instance running, otherwise we'll have concurrent
 		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
-		const logService = new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentService)), bufferLogService]);
+		const logService = new MultiplexLogService([new ConsoleMainLogger(getLogLevel(environmentMainService)), bufferLogService]);
 		process.once('exit', () => logService.dispose());
 		services.set(ILogService, logService);
 
@@ -153,14 +154,14 @@ class CodeMain {
 		services.set(ILoggerService, new LoggerService(logService, fileService));
 
 		// Configuration
-		const configurationService = new ConfigurationService(environmentService.settingsResource, fileService);
+		const configurationService = new ConfigurationService(environmentMainService.settingsResource, fileService);
 		services.set(IConfigurationService, configurationService);
 
 		// Lifecycle
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// State
-		const stateService = new StateService(environmentService, logService);
+		const stateService = new StateService(environmentMainService, logService);
 		services.set(IStateService, stateService);
 
 		// Request
@@ -178,7 +179,7 @@ class CodeMain {
 		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentService, configurationService, stateService, bufferLogService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {

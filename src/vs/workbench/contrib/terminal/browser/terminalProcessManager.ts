@@ -89,15 +89,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
-	public get persistentTerminalId(): number | undefined { return this._process?.id; }
-	public get shouldPersist(): boolean { return this._process?.shouldPersist || false; }
+	public get persistentProcessId(): number | undefined { return this._process?.id; }
+	public get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
 
 	public get hasWrittenData(): boolean {
 		return this._hasWrittenData;
 	}
 
 	constructor(
-		private readonly _terminalId: number,
+		private readonly _instanceId: number,
 		private readonly _configHelper: ITerminalConfigHelper,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -149,11 +149,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalLaunchError | undefined> {
 		shellLaunchConfig.flowControl = this._configHelper.config.flowControl;
-		if (shellLaunchConfig.isExtensionTerminal) {
+		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			// Flow control is not supported for extension terminals
 			shellLaunchConfig.flowControl = false;
 			this._processType = ProcessType.ExtensionTerminal;
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._terminalId, shellLaunchConfig, cols, rows);
+			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
@@ -185,16 +185,17 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				// this is a copy of what the merged environment collection is on the remote side
 				await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
-				this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._terminalId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, this._configHelper);
+				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
+				this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._instanceId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 			} else {
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
-				if (shellLaunchConfig.attachPersistentTerminal) {
-					const result = await this._terminalInstanceService.attachToProcess(shellLaunchConfig.attachPersistentTerminal.id);
+				if (shellLaunchConfig.attachPersistentProcess) {
+					const result = await this._terminalInstanceService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						this._process = result;
 					} else {
-						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentTerminal}`);
+						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
 						return undefined;
 					}
 				} else {
@@ -407,7 +408,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (diff === undefined) {
 			return;
 		}
-		this._environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._terminalId);
+		this._environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId);
 		this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
 	}
 }

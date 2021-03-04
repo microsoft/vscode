@@ -28,9 +28,7 @@ export interface IActionViewItemProvider {
 
 export const enum ActionsOrientation {
 	HORIZONTAL,
-	HORIZONTAL_REVERSE,
 	VERTICAL,
-	VERTICAL_REVERSE,
 }
 
 export interface ActionTrigger {
@@ -135,20 +133,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 				previousKeys = [KeyCode.LeftArrow];
 				nextKeys = [KeyCode.RightArrow];
 				break;
-			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKeys = [KeyCode.RightArrow];
-				nextKeys = [KeyCode.LeftArrow];
-				this.domNode.className += ' reverse';
-				break;
 			case ActionsOrientation.VERTICAL:
 				previousKeys = [KeyCode.UpArrow];
 				nextKeys = [KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
-				break;
-			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKeys = [KeyCode.DownArrow];
-				nextKeys = [KeyCode.UpArrow];
-				this.domNode.className += ' vertical reverse';
 				break;
 		}
 
@@ -163,8 +151,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 				eventHandled = this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
+			} else if (event.equals(KeyCode.Home)) {
+				eventHandled = this.focusFirst();
+			} else if (event.equals(KeyCode.End)) {
+				eventHandled = this.focusLast();
 			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
-				this.focusNext();
+				eventHandled = this.focusNext();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this._triggerKeys.keyDown) {
@@ -425,9 +417,21 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
+	private focusFirst(): boolean {
+		this.focusedItem = this.length() > 1 ? 1 : 0;
+		return this.focusPrevious();
+	}
+
+	private focusLast(): boolean {
+		this.focusedItem = this.length() < 2 ? 0 : this.length() - 2;
+		return this.focusNext();
+	}
+
 	protected focusNext(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;
@@ -450,6 +454,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected focusPrevious(): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;

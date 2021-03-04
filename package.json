@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.55.0",
-  "distro": "1ba8297fd1677135b1a04c508b9c31d33b673fef",
+  "distro": "554eb3a374b57363e730dd1aacc561a4c9da5780",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -72,11 +72,11 @@
     "native-keymap": "2.2.1",
     "native-watchdog": "1.3.0",
     "node-pty": "0.10.0-beta19",
+    "nsfw": "^2.1.1",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
     "tas-client-umd": "0.1.2",
     "v8-inspect-profiler": "^0.0.20",
-    "vscode-nsfw": "1.2.9",
     "vscode-oniguruma": "1.3.1",
     "vscode-proxy-agent": "^0.5.2",
     "vscode-regexpp": "^3.1.0",
@@ -154,7 +154,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.6.5",
     "gulp-sourcemaps": "^3.0.0",
-    "gulp-tsb": "4.0.5",
+    "gulp-tsb": "4.0.6",
     "gulp-untar": "^0.0.7",
     "gulp-vinyl-zip": "^2.1.2",
     "husky": "^0.13.1",

@@ -2360,6 +2360,13 @@
         "when": "config.git.enabled",
         "enablement": "git.state == initialized",
         "group": "5_scm@1"
+      },
+      {
+        "view": "explorer",
+        "contents": "%view.workbench.learnMore%",
+        "when": "config.git.enabled",
+        "enablement": "git.state == initialized",
+        "group": "5_scm@10"
       }
     ]
   },

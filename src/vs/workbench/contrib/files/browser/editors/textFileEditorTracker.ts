@@ -59,8 +59,10 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must not be pending to save
 			}
 
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-				return false; // resource must not be pending to be auto saved
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY && !model?.hasState(TextFileEditorModelState.ERROR)) {
+				// leave models auto saved after short delay unless
+				// the save resulted in an error
+				return false;
 			}
 
 			if (this.editorService.isOpen({ resource })) {

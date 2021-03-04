@@ -1287,7 +1287,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
 		if (nextActiveEditor) {
-			const options = EditorOptions.create({ preserveFocus: !focusNext });
+			const preserveFocus = !focusNext;
+
+			let activation: EditorActivation | undefined = undefined;
+			if (preserveFocus && this.accessor.activeGroup !== this) {
+				// If we are opening the next editor in an inactive group
+				// without focussing it, ensure we preserve the editor
+				// group sizes in case that group is minimized.
+				// https://github.com/microsoft/vscode/issues/117686
+				activation = EditorActivation.PRESERVE;
+			}
+
+			const options = EditorOptions.create({ preserveFocus, activation });
 
 			// When closing an editor due to an error we can end up in a loop where we continue closing
 			// editors that fail to open (e.g. when the file no longer exists). We do not want to show

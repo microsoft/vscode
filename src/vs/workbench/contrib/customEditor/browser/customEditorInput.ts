@@ -11,13 +11,13 @@ import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { decorateFileEditorLabel } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -103,26 +103,20 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	private decorateLabel(label: string): string {
-		const orphaned = this._modelRef?.object.isOrphaned();
-		const readonly = this.isReadonly();
+		const orphaned = !!this._modelRef?.object.isOrphaned();
 
-		if (orphaned && readonly) {
-			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-		}
+		const readonly = this._modelRef
+			? !this._modelRef.object.isEditable() || this._modelRef.object.isOnReadonlyFileSystem()
+			: false;
 
-		if (orphaned) {
-			return localize('orphanedFile', "{0} (deleted)", label);
-		}
-
-		if (readonly) {
-			return localize('readonlyFile', "{0} (read-only)", label);
-		}
-
-		return label;
+		return decorateFileEditorLabel(label, {
+			orphaned,
+			readonly
+		});
 	}
 
 	public isReadonly(): boolean {
-		return this._modelRef ? this._modelRef.object.isReadonly() : false;
+		return this._modelRef ? !this._modelRef.object.isEditable() : false;
 	}
 
 	public isUntitled(): boolean {

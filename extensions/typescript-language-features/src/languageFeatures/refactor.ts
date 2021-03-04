@@ -284,7 +284,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<TsCodeAction[] | undefined> {
-		if (!this.shouldTrigger(rangeOrSelection, context)) {
+		if (!this.shouldTrigger(context)) {
 			return undefined;
 		}
 		if (!this.client.toOpenedFilePath(document)) {
@@ -335,10 +335,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
-		if (!context.only) {
-			return;
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Manual) {
+			return 'invoked';
 		}
-		return 'invoked';
+		return undefined;
 	}
 
 	private convertApplicableRefactors(
@@ -384,12 +384,12 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		return codeAction;
 	}
 
-	private shouldTrigger(rangeOrSelection: vscode.Range | vscode.Selection, context: vscode.CodeActionContext) {
+	private shouldTrigger(context: vscode.CodeActionContext) {
 		if (context.only && !vscode.CodeActionKind.Refactor.contains(context.only)) {
 			return false;
 		}
 
-		return rangeOrSelection instanceof vscode.Selection;
+		return context.triggerKind === vscode.CodeActionTriggerKind.Manual;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {

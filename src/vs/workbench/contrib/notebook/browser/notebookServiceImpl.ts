@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { CellEditState, getActiveNotebookEditor, ICellViewModel, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -246,11 +246,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
 	notebookKernelProviderInfoStore: NotebookKernelProviderInfoStore = new NotebookKernelProviderInfoStore();
 	private readonly _models = new ResourceMap<ModelData>();
-	private _onDidChangeActiveEditor = this._register(new Emitter<string | null>());
-	onDidChangeActiveEditor: Event<string | null> = this._onDidChangeActiveEditor.event;
-	private _activeEditorDisposables = new DisposableStore();
-	private _onDidChangeVisibleEditors = this._register(new Emitter<string[]>());
-	onDidChangeVisibleEditors: Event<string[]> = this._onDidChangeVisibleEditors.event;
+
 	private readonly _onNotebookEditorAdd: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
 	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
 	private readonly _onNotebookEditorsRemove: Emitter<INotebookEditor[]> = this._register(new Emitter<INotebookEditor[]>());
@@ -413,7 +409,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		}));
 
 		const getContext = () => {
-			const editor = getActiveNotebookEditor(this._editorService);
+			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 			const activeCell = editor?.getActiveCell();
 
 			return {
@@ -608,7 +604,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 					? firstSelectIndex
 					: viewModel.notebookDocument.cells.length - 1;
 
-				viewModel.notebookDocument.applyEdits(viewModel.notebookDocument.versionId, edits, true, { kind: SelectionStateType.Index, selections: viewModel.getSelections() }, () => {
+				viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, selections: viewModel.getSelections() }, () => {
 					return {
 						kind: SelectionStateType.Index,
 						selections: [{ start: newFocusedCellIndex, end: newFocusedCellIndex + 1 }]
@@ -889,40 +885,12 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return [...this._notebookEditors].map(e => e[1]);
 	}
 
-	listVisibleNotebookEditors(): INotebookEditor[] {
-		return this._editorService.visibleEditorPanes
-			.filter(pane => (pane as unknown as { isNotebookEditor?: boolean; }).isNotebookEditor)
-			.map(pane => pane.getControl() as INotebookEditor)
-			.filter(editor => !!editor)
-			.filter(editor => this._notebookEditors.has(editor.getId()));
-	}
-
 	listNotebookDocuments(): NotebookTextModel[] {
 		return [...this._models].map(e => e[1].model);
 	}
 
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
 		this._onWillDisposeDocument(notebook);
-	}
-
-	updateActiveNotebookEditor(editor: INotebookEditor | null) {
-		this._activeEditorDisposables.clear();
-
-		if (editor) {
-			this._activeEditorDisposables.add(editor.onDidChangeKernel(() => {
-				this._onDidChangeNotebookActiveKernel.fire({
-					uri: editor.uri!,
-					providerHandle: editor.activeKernel?.providerHandle,
-					kernelFriendlyId: editor.activeKernel?.friendlyId
-				});
-			}));
-		}
-		this._onDidChangeActiveEditor.fire(editor ? editor.getId() : null);
-	}
-
-	updateVisibleNotebookEditor(editors: string[]) {
-		const alreadyCreated = editors.filter(editorId => this._notebookEditors.has(editorId));
-		this._onDidChangeVisibleEditors.fire(alreadyCreated);
 	}
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean) {

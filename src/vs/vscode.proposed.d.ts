@@ -1134,10 +1134,12 @@ declare module 'vscode' {
 	export interface NotebookCell {
 		readonly index: number;
 		readonly notebook: NotebookDocument;
-		readonly uri: Uri;
 		readonly cellKind: NotebookCellKind;
-		readonly document: TextDocument;
+		// todo@API duplicates #document.uri
+		readonly uri: Uri;
+		// todo@API duplicates #document.languageId
 		readonly language: string;
+		readonly document: TextDocument;
 		readonly outputs: readonly NotebookCellOutput[];
 		readonly metadata: NotebookCellMetadata
 	}
@@ -2049,6 +2051,7 @@ declare module 'vscode' {
 		 */
 		whitespaceAfter?: boolean;
 
+		// todo@API make range first argument
 		constructor(text: string, range: Range, kind?: InlineHintKind);
 	}
 
@@ -2130,9 +2133,7 @@ declare module 'vscode' {
 	*/
 	export namespace test {
 		/**
-		 * Registers a provider that discovers tests for the given document
-		 * selectors. It is activated when either tests need to be enumerated, or
-		 * a document matching the selector is opened.
+		 * Registers a provider that discovers and runs tests.
 		 */
 		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
 
@@ -2196,7 +2197,7 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<TestChangeEvent>;
 
 		/**
-		 * An event the fires when all test providers have signalled that the tests
+		 * An event that fires when all test providers have signalled that the tests
 		 * the observer references have been discovered. Providers may continue to
 		 * watch for changes and cause {@link onDidChangeTest} to fire as files
 		 * change, until the observer is disposed.
@@ -2249,7 +2250,8 @@ declare module 'vscode' {
 		/**
 		 * An event that fires when an existing test `root` changes.  This can be
 		 * a result of a property update, or an update to its children. Changes
-		 * made to tests will not be visible to {@link TestObserver} instances until this event is fired.
+		 * made to tests will not be visible to {@link TestObserver} instances
+		 * until this event is fired.
 		 *
 		 * When a change is signalled, VS Code will check for any new or removed
 		 * direct children of the changed ite, For example, firing the event with
@@ -2271,12 +2273,6 @@ declare module 'vscode' {
 		 * with children will mark the entire subtree as outdated.
 		 */
 		readonly onDidInvalidateTest?: Event<T>;
-
-		/**
-		 * Dispose will be called when there are no longer observers interested
-		 * in the hierarchy.
-		 */
-		dispose(): void;
 	}
 
 	/**
@@ -2294,12 +2290,12 @@ declare module 'vscode' {
 		 * when the user opens the test explorer.
 		 *
 		 * It's guaranteed that this method will not be called again while
-		 * there is a previous undisposed watcher for the given workspace folder.
+		 * there is a previous uncancelled hierarchy for the given workspace folder.
 		 *
 		 * @param workspace The workspace in which to observe tests
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		createWorkspaceTestHierarchy?(workspace: WorkspaceFolder): TestHierarchy<T> | undefined;
+		provideWorkspaceTestHierarchy(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
 
 		/**
 		 * Requests that tests be provided for the given document. This will be
@@ -2315,9 +2311,9 @@ declare module 'vscode' {
 		 * Code will request and use the information from the workspace hierarchy.
 		 *
 		 * @param document The document in which to observe tests
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		createDocumentTestHierarchy?(document: TextDocument): TestHierarchy<T> | undefined;
+		provideDocumentTestHierarchy?(document: TextDocument, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
 
 		/**
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
@@ -2327,7 +2323,7 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		runTests?(options: TestRun<T>, cancellationToken: CancellationToken): ProviderResult<void>;
+		runTests(options: TestRun<T>, token: CancellationToken): ProviderResult<void>;
 	}
 
 	/**
@@ -2378,8 +2374,7 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This must not change for the
-		 * lifetime of a test instance.
+		 * (test explorer). This must not change for the lifetime of the TestItem.
 		 */
 		readonly id: string;
 
@@ -2403,8 +2398,11 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
-		 * Whether this test item can be debugged.
-		 * Defaults to `false` if not provided.
+		 * Whether this test item can be debugged individually, defaults to `false`
+		 * if not provided.
+		 *
+		 * In some cases, like Go's tests, test can have children but these
+		 * children cannot be run independently.
 		 */
 		debuggable?: boolean;
 
@@ -2496,12 +2494,12 @@ declare module 'vscode' {
 		severity?: TestMessageSeverity;
 
 		/**
-		 * Expected test output. If given with `actual`, a diff view will be shown.
+		 * Expected test output. If given with `actualOutput`, a diff view will be shown.
 		 */
 		expectedOutput?: string;
 
 		/**
-		 * Actual test output. If given with `actual`, a diff view will be shown.
+		 * Actual test output. If given with `expectedOutput`, a diff view will be shown.
 		 */
 		actualOutput?: string;
 
@@ -2704,8 +2702,16 @@ declare module 'vscode' {
 		readonly allowContributedOpeners?: boolean | string;
 	}
 
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/110267
+
 	namespace env {
 		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
+
+		export const isTelemetryEnabled: boolean;
+
+		export const onDidChangeTelemetryEnabled: Event<boolean>;
 	}
 
 	//#endregion
@@ -2763,6 +2769,17 @@ declare module 'vscode' {
 		currentTrustState: WorkspaceTrustState;
 	}
 
+	/**
+	 * The object describing the properties of the workspace trust request
+	 */
+	export interface WorkspaceTrustRequest {
+		/**
+		 * When true, a modal dialog will be used to request workspace trust.
+		 * When false, a badge will be displayed on the Setting activity bar item
+		 */
+		modal: boolean;
+	}
+
 	export namespace workspace {
 		/**
 		 * The trust state of the current workspace
@@ -2771,11 +2788,10 @@ declare module 'vscode' {
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
-		 * @param modal When true, a modal dialog is used to prompt the user for workspace
-		 * trust, otherwise a badge will be shown on the Settings activity bar item.
-		 * Default value is true.
+		 * @param request Optional object describing the properties of the
+		 * workspace trust request
 		 */
-		export function requireWorkspaceTrust(modal?: boolean): Thenable<WorkspaceTrustState>;
+		export function requireWorkspaceTrust(request?: WorkspaceTrustRequest): Thenable<WorkspaceTrustState>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes
@@ -2783,5 +2799,33 @@ declare module 'vscode' {
 		export const onDidChangeWorkspaceTrustState: Event<WorkspaceTrustStateChangeEvent>;
 	}
 
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/118084
+
+	/**
+	 * The reason why code actions were requested.
+	 */
+	export enum CodeActionTriggerKind {
+		/**
+		 * Code actions were requested automatically.
+		 *
+		 * This typically happens when current selection in a file changes, but can
+		 * also be triggered when file content changes.
+		 */
+		Automatic = 1,
+
+		/**
+		 * Code actions were requested maually by the user or an extension.
+		 */
+		Manual = 2,
+	}
+
+	export interface CodeActionContext {
+		/**
+		 * The reason why code actions were requested.
+		 */
+		readonly triggerKind: CodeActionTriggerKind;
+	}
 	//#endregion
 }
