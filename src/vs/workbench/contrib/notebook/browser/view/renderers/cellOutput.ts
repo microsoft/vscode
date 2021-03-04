@@ -347,7 +347,7 @@ export class CellOutputContainer extends Disposable {
 				this._relayoutCell();
 			}
 
-			this.templateData.outputContainer.style.display = 'block';
+			DOM.show(this.templateData.outputContainer);
 			const outputsToRender = this._calcuateOutputsToRender();
 			for (let index = 0; index < outputsToRender.length; index++) {
 				const currOutput = this.viewCell.outputsViewModels[index];
@@ -358,7 +358,7 @@ export class CellOutputContainer extends Disposable {
 
 			this.viewCell.editorHeight = editorHeight;
 			if (this.viewCell.outputsViewModels.length > OUTPUT_COUNT_LIMIT) {
-				this.templateData.outputShowMoreContainer.style.display = 'block';
+				DOM.show(this.templateData.outputShowMoreContainer);
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
 			}
 
@@ -368,7 +368,7 @@ export class CellOutputContainer extends Disposable {
 			// noop
 			this.viewCell.editorHeight = editorHeight;
 			this._relayoutCell();
-			this.templateData.outputContainer.style.display = 'none';
+			DOM.hide(this.templateData.outputContainer);
 		}
 
 		this.templateData.outputShowMoreContainer.innerText = '';
@@ -376,7 +376,7 @@ export class CellOutputContainer extends Disposable {
 		// this.templateData.outputShowMoreContainer.style.top = `${this.viewCell.layoutInfo.outputShowMoreContainerOffset}px`;
 
 		if (this.viewCell.outputsViewModels.length < OUTPUT_COUNT_LIMIT) {
-			this.templateData.outputShowMoreContainer.style.display = 'none';
+			DOM.hide(this.templateData.outputShowMoreContainer);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
 		}
 	}
@@ -461,9 +461,9 @@ export class CellOutputContainer extends Disposable {
 		this.viewCell.outputMinHeight = previousOutputHeight;
 
 		if (this.viewCell.outputsViewModels.length) {
-			this.templateData.outputContainer.style.display = 'block';
+			DOM.show(this.templateData.outputContainer);
 		} else {
-			this.templateData.outputContainer.style.display = 'none';
+			DOM.hide(this.templateData.outputContainer);
 		}
 
 		const reversedSplices = splices.reverse();
@@ -511,10 +511,10 @@ export class CellOutputContainer extends Disposable {
 		});
 
 		if (this.viewCell.outputsViewModels.length > OUTPUT_COUNT_LIMIT) {
-			this.templateData.outputShowMoreContainer.style.display = 'block';
+			DOM.show(this.templateData.outputShowMoreContainer);
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {
-			this.templateData.outputShowMoreContainer.style.display = 'none';
+			DOM.hide(this.templateData.outputShowMoreContainer);
 		}
 
 		const editorHeight = this.templateData.editor.getContentHeight();
