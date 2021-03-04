@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: file_changes
-        uses: trilom/file-changes-action@v1.2.4
+        uses: trilom/file-changes-action@ce38c8ce2459ca3c303415eec8cb0409857b4272
       - name: Check for yarn.lock changes
         run: |
           cat $HOME/files.json | jq -e '.[] | test("yarn\\.lock$") | not' \
