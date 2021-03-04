@@ -74,7 +74,6 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 			this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
 			this.relayoutCell();
 		} else {
-			// first time, readonly mode
 			this.localDisposables.clear();
 			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
 				this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
