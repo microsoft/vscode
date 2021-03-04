@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
@@ -21,11 +21,16 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	public _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, LocalPty> = new Map();
+	private _isPtyHostUnresponsive: boolean = false;
 
 	private readonly _onPtyHostExit = this._register(new Emitter<void>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
 	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
 	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
+	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
+	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
+	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
+	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -54,25 +59,43 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
-			this._localPtyService.onPtyHostExit(e => {
+			this._register(this._localPtyService.onPtyHostExit(() => {
 				this._onPtyHostExit.fire();
 				notificationService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
-			});
+			}));
 		}
+		let unresponsiveNotification: INotificationHandle | undefined;
 		if (this._localPtyService.onPtyHostStart) {
-			this._localPtyService.onPtyHostStart(() => {
+			this._register(this._localPtyService.onPtyHostStart(() => {
 				this._logService.info(`ptyHost restarted`);
-			});
+				this._onPtyHostRestart.fire();
+				unresponsiveNotification?.close();
+				unresponsiveNotification = undefined;
+				this._isPtyHostUnresponsive = false;
+			}));
 		}
 		if (this._localPtyService.onPtyHostUnresponsive) {
-			this._localPtyService.onPtyHostUnresponsive(() => {
+			this._register(this._localPtyService.onPtyHostUnresponsive(() => {
 				const choices: IPromptChoice[] = [{
 					label: localize('restartPtyHost', "Restart pty host"),
 					run: () => this._localPtyService.restartPtyHost!()
 				}];
-				notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
+				unresponsiveNotification = notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
+				this._isPtyHostUnresponsive = true;
 				this._onPtyHostUnresponsive.fire();
-			});
+			}));
+		}
+		if (this._localPtyService.onPtyHostResponsive) {
+			this._register(this._localPtyService.onPtyHostResponsive(() => {
+				if (!this._isPtyHostUnresponsive) {
+					return;
+				}
+				this._logService.info('The pty host became responsive again');
+				unresponsiveNotification?.close();
+				unresponsiveNotification = undefined;
+				this._isPtyHostUnresponsive = false;
+				this._onPtyHostResponsive.fire();
+			}));
 		}
 	}
 
