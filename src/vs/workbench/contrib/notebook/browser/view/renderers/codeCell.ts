@@ -20,6 +20,7 @@ import { ClickTargetType, getExecuteCellPlaceholder } from 'vs/workbench/contrib
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 export class CodeCell extends Disposable {
@@ -31,8 +32,7 @@ export class CodeCell extends Disposable {
 		private notebookEditor: IActiveNotebookEditor,
 		private viewCell: CodeCellViewModel,
 		private templateData: CodeCellRenderTemplate,
-		@INotebookService notebookService: INotebookService,
-		@IQuickInputService quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@ITextFileService readonly textFileService: ITextFileService,
@@ -221,7 +221,7 @@ export class CodeCell extends Disposable {
 		updateFocusMode();
 
 		// Render Outputs
-		this._outputContainerRenderer = new CellOutputContainer(notebookEditor, viewCell, templateData, notebookService, quickInputService, openerService, textFileService);
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData);
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
 		updateForCollapseState();

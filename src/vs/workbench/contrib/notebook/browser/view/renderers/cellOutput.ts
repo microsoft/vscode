@@ -23,6 +23,7 @@ import { applyEdits } from 'vs/base/common/jsonEdit';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const OUTPUT_COUNT_LIMIT = 500;
 
@@ -318,6 +319,7 @@ export class CellOutputContainer extends Disposable {
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
 		private templateData: CodeCellRenderTemplate,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IOpenerService private readonly openerService: IOpenerService,
