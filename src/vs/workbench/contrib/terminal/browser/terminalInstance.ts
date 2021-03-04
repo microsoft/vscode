@@ -665,11 +665,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (xterm.getOption('disableStdin')) {
 			this._attachPressAnyKeyToCloseListener(xterm);
 		}
-
-		const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
-		if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
-			this._measureRenderTime();
-		}
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -1333,6 +1328,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xterm.loadAddon(this._webglAddon);
 		} catch {
 			this._disposeOfWebglRenderer();
+			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
+				this._measureRenderTime();
+			}
 			this._safeSetOption('rendererType', 'canvas');
 		}
 	}
