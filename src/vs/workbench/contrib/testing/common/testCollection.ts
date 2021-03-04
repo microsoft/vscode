@@ -71,11 +71,18 @@ export interface ITestItem {
 	debuggable: boolean;
 }
 
+export const enum TestItemExpandable {
+	NotExpandable,
+	Expandable,
+	Expanded,
+}
+
 /**
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
 	providerId: string;
+	expand: TestItemExpandable;
 	parent: string | null;
 	item: ITestItem;
 }
@@ -190,6 +197,16 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	protected readonly roots = new Set<string>();
 
 	/**
+	 * Number of 'busy' providers.
+	 */
+	protected busyProviderCount = 0;
+
+	/**
+	 * Number of pending roots.
+	 */
+	protected pendingRootCount = 0;
+
+	/**
 	 * Applies the diff to the collection.
 	 */
 	public apply(diff: TestsDiff) {
@@ -252,11 +269,11 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 				}
 
 				case TestDiffOpType.DeltaDiscoverComplete:
-					this.updateBusyProviders(op[1]);
+					this.busyProviderCount += op[1];
 					break;
 
 				case TestDiffOpType.DeltaRootsComplete:
-					this.updatePendingRoots(op[1]);
+					this.pendingRootCount += op[1];
 					break;
 			}
 		}

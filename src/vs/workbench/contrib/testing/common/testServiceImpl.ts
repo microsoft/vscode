@@ -316,20 +316,19 @@ export class TestService extends Disposable implements ITestService {
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private pendingRootChangeEmitter = new Emitter<number>();
 	private busyProvidersChangeEmitter = new Emitter<number>();
-	private _busyProviders = 0;
 
 	/**
 	 * @inheritdoc
 	 */
 	public get pendingRootProviders() {
-		return this._pendingRootProviders;
+		return this.pendingRootCount;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	public get busyProviders() {
-		return this._busyProviders;
+		return this.busyProviderCount;
 	}
 
 	/**
@@ -346,12 +345,12 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 		return this.getIterator();
 	}
 
-
 	public readonly onPendingRootProvidersChange = this.pendingRootChangeEmitter.event;
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
 
-	constructor(private _pendingRootProviders: number) {
+	constructor(pendingRootProviders: number) {
 		super();
+		this.pendingRootCount = pendingRootProviders;
 	}
 
 	/**
@@ -366,20 +365,42 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 */
 	public getReviverDiff() {
 		const ops: TestsDiff = [
-			[TestDiffOpType.DeltaDiscoverComplete, this._busyProviders],
-			[TestDiffOpType.DeltaRootsComplete, this._pendingRootProviders],
+			[TestDiffOpType.DeltaDiscoverComplete, this.busyProviderCount],
+			[TestDiffOpType.DeltaRootsComplete, this.pendingRootCount],
 		];
 
 		const queue = [this.roots];
 		while (queue.length) {
 			for (const child of queue.pop()!) {
 				const item = this.items.get(child)!;
-				ops.push([TestDiffOpType.Add, { providerId: item.providerId, item: item.item, parent: item.parent }]);
+				ops.push([TestDiffOpType.Add, {
+					providerId: item.providerId,
+					expand: item.expand,
+					item: item.item,
+					parent: item.parent,
+				}]);
 				queue.push(item.children);
 			}
 		}
 
 		return ops;
+	}
+
+
+	/**
+	 * Applies the diff to the collection.
+	 */
+	public apply(diff: TestsDiff) {
+		let prevBusy = this.busyProviderCount;
+		let prevPendingRoots = this.pendingRootCount;
+		super.apply(diff);
+
+		if (prevBusy !== this.busyProviderCount) {
+			this.busyProvidersChangeEmitter.fire(this.busyProviderCount);
+		}
+		if (prevPendingRoots !== this.pendingRootCount) {
+			this.pendingRootChangeEmitter.fire(this.pendingRootCount);
+		}
 	}
 
 	/**
@@ -396,22 +417,6 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 		this.items.clear();
 
 		return ops;
-	}
-
-	/**
-	 * @override
-	 */
-	protected updateBusyProviders(delta: number) {
-		this._busyProviders += delta;
-		this.busyProvidersChangeEmitter.fire(this._busyProviders);
-	}
-
-	/**
-	 * @override
-	 */
-	public updatePendingRoots(delta: number) {
-		this._pendingRootProviders = Math.max(0, this._pendingRootProviders + delta);
-		this.pendingRootChangeEmitter.fire(this._pendingRootProviders);
 	}
 
 	/**

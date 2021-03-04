@@ -2263,13 +2263,6 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<T>;
 
 		/**
-		 * Promise that should be resolved when all tests that are initially
-		 * defined have been discovered. The provider should continue to watch for
-		 * changes and fire `onDidChangeTest` until the hierarchy is disposed.
-		 */
-		readonly discoveredInitialTests?: Thenable<unknown>;
-
-		/**
 		 * An event that fires when a test becomes outdated, as a result of
 		 * file changes, for example. In "auto run" mode, tests that are outdated
 		 * will be automatically re-run after a short delay. Firing a test
@@ -2392,6 +2385,12 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
+		 * Location of the test in the workspace. This is used to show line
+		 * decorations and code lenses for the test.
+		 */
+		location?: Location;
+
+		/**
 		 * Whether this test item can be run individually, defaults to `true`.
 		 *
 		 * In some cases, like Go's tests, test can have children but these
@@ -2408,15 +2407,22 @@ declare module 'vscode' {
 		debuggable: boolean;
 
 		/**
-		 * Location of the test in the workspace. This is used to show line
-		 * decorations and code lenses for the test.
+		 * Gets the chilren of this test item. Implementing this method is optional
+		 * and it should only be implemented if there are likely going to be
+		 * children of the node, since VS Code will show UI to allow the user to
+		 * expand the children if so.
+		 *
+		 * VS Code will try to call this method lazily, particularly when working
+		 * in the test tree. Once called, the provider is expected to watch the
+		 * test and fires the {@link TestHierarchy.onDidChangeTest} method if they
+		 * update. After being called once, this method will be called each time
+		 * this test is fired in {@link TestHierarchy.onDidChangeTest}.
+		 *
+		 * @param token Cancellation for the request. Cancellation will be
+		 * requested if the test changes before the previous call completes.
+		 * @returns a provider result of child test items
 		 */
-		location?: Location;
-
-		/**
-		 * Optional list of nested tests for this item.
-		 */
-		children: TestItem[];
+		getChildren?(token: CancellationToken): ProviderResult<TestItem[]>;
 
 		/**
 		 * Creates a new TestItem instance.
@@ -2547,23 +2553,46 @@ declare module 'vscode' {
 		 * List of test results. The items in this array are the items that
 		 * were passed in the {@link test.runTests} method.
 		 */
-		results: ReadonlyArray<Readonly<TestItemWithResults>>;
+		results: ReadonlyArray<Readonly<TestResultSnapshot>>;
 	}
 
 	/**
-	 * A {@link TestItem} with an associated result, which appear or can be
-	 * provided in {@link TestResult} interfaces.
+	 * A {@link TestItem}-like interface with an associated result, which appear
+	 * or can be provided in {@link TestResult} interfaces.
 	 */
-	export interface TestItemWithResults extends TestItem {
+	export interface TestResultSnapshot {
+		/**
+		 * Unique identifier that matches that of the associated TestItem.
+		 * This is used to correlate test results and tests in the document with
+		 * those in the workspace (test explorer).
+		 */
+		readonly id: string;
+
+		/**
+		 * Display name describing the test case.
+		 */
+		readonly label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		readonly description?: string;
+
+		/**
+		 * Location of the test in the workspace. This is used to show line
+		 * decorations and code lenses for the test.
+		 */
+		readonly location?: Location;
+
 		/**
 		 * Current result of the test.
 		 */
-		result: TestState;
+		readonly result: TestState;
 
 		/**
 		 * Optional list of nested tests for this item.
 		 */
-		children: Readonly<TestItemWithResults>[];
+		readonly children: Readonly<TestResultSnapshot>[];
 	}
 
 	//#endregion

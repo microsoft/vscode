@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout, isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -173,16 +173,12 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		const subscribeFn = async (id: string, provider: vscode.TestProvider) => {
 			try {
-				collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, 1]);
-
 				const hierarchy = await method!(provider);
 				if (!hierarchy) {
-					collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]);
 					return;
 				}
 
 				collection.addRoot(hierarchy.root, id);
-				Promise.resolve(hierarchy.discoveredInitialTests).then(() => collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]));
 				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
 				hierarchy.onDidInvalidateTest?.(e => {
 					const internal = collection.getTestByReference(e);
@@ -210,6 +206,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		// diff to signal that roots have been discovered.
 		collection.pushDiff([TestDiffOpType.DeltaRootsComplete, -1]);
 		this.testSubscriptions.set(subscriptionKey, { store: disposable, collection, subscribeFn });
+	}
+
+	/**
+	 * Expands the nodes in the test tree. If levels is less than zero, it will
+	 * be treated as infinite.
+	 * @override
+	 */
+	public $expandTest(resource: ExtHostTestingResource, uri: UriComponents, testId: string, levels: number) {
+		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
+		sub?.collection.expand(testId, levels < 0 ? Infinity : levels);
 	}
 
 	/**
@@ -388,7 +394,6 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		return {
 			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
-			discoveredInitialTests: workspaceHierarchy.discoveredInitialTests,
 			onDidInvalidateTest: onDidInvalidateTest.event,
 			onDidChangeTest: onDidChangeTest.event
 		};
@@ -451,14 +456,12 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		return this.actual.runnable;
 	}
 
-	public get children() {
-		// We only want children that match the filter.
-		return this.getWrappedChildren().filter(child => child.hasNodeMatchingFilter);
-	}
-
 	public get visibleParent(): TestItemFilteredWrapper {
 		return this.hasNodeMatchingFilter ? this : this.parent!.visibleParent;
 	}
+
+	public getChildren?: (token: CancellationToken) => vscode.ProviderResult<vscode.TestItem[]>;
+	private wrappedChildren: TestItemFilteredWrapper[] = [];
 
 	private matchesFilter: boolean | undefined;
 
@@ -470,7 +473,7 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		if (this.matchesFilter === undefined) {
 			this.matchesFilter = !this.parent
 				|| this.actual.location?.uri.toString() === this.filterDocument.uri.toString()
-				|| this.getWrappedChildren().some(child => child.hasNodeMatchingFilter);
+				|| this.wrappedChildren.some(child => child.hasNodeMatchingFilter);
 		}
 
 		return this.matchesFilter;
@@ -485,13 +488,23 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		this.matchesFilter = undefined;
 	}
 
-
 	private constructor(public readonly actual: vscode.TestItem, private filterDocument: vscode.TextDocument, private readonly parent?: TestItemFilteredWrapper) {
-		this.getWrappedChildren();
-	}
-
-	private getWrappedChildren() {
-		return this.actual.children?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this)) || [];
+		if (actual.getChildren) {
+			this.getChildren = token => {
+				const children = this.actual.getChildren?.(token);
+				if (isThenable<vscode.TestItem[] | null | undefined>(children)) {
+					return children.then(c => {
+						this.wrappedChildren = c?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this)) ?? [];
+						return this.wrappedChildren;
+					});
+				} else if (children instanceof Array) {
+					this.wrappedChildren = children.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this));
+					return this.wrappedChildren;
+				} else {
+					return undefined;
+				}
+			};
+		}
 	}
 }
 
@@ -673,8 +686,8 @@ class TestItemFromMirror implements vscode.TestItem {
 		this.#collection = collection;
 	}
 
-	public toJSON() {
-		const serialized: vscode.TestItem & TestIdWithProvider = {
+	public toJSON(): object {
+		return {
 			id: this.id,
 			label: this.label,
 			description: this.description,
@@ -686,8 +699,6 @@ class TestItemFromMirror implements vscode.TestItem {
 			providerId: this.#internal.providerId,
 			testId: this.id,
 		};
-
-		return serialized;
 	}
 }
 
