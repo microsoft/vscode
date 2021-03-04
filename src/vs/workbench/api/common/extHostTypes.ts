@@ -3294,7 +3294,11 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export type RequiredTestItem = vscode.RequiredTestItem;
+export type RequiredTestItem = {
+	[K in keyof Required<TestItem>]: K extends 'children'
+	? RequiredTestItem[]
+	: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
+};
 
 export type TestItem = vscode.TestItem;
 

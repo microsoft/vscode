@@ -9,12 +9,12 @@ import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { stubTest, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { TestChangeEvent, TestItem, TextDocument } from 'vscode';
+import { ObservedTestItem, TestChangeEvent, TestItem, TextDocument } from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 
-const simplify = (item: TestItem) => {
+const simplify = (item: TestItem | ObservedTestItem) => {
 	if ('toJSON' in item) {
 		item = (item as any).toJSON();
 		delete (item as any).providerId;
@@ -24,16 +24,16 @@ const simplify = (item: TestItem) => {
 	return { ...item, children: undefined };
 };
 
-const assertTreesEqual = (a: Readonly<TestItem>, b: Readonly<TestItem>) => {
+const assertTreesEqual = (a: TestItem | ObservedTestItem, b: TestItem | ObservedTestItem) => {
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = (a.children ?? []).sort();
-	const bChildren = (b.children ?? []).sort();
+	const aChildren = (a.children ?? []).slice().sort();
+	const bChildren = (b.children ?? []).slice().sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
 	aChildren.forEach((_, i) => assertTreesEqual(aChildren[i], bChildren[i]));
 };
 
-const assertTreeListEqual = (a: ReadonlyArray<Readonly<TestItem>>, b: ReadonlyArray<Readonly<TestItem>>) => {
+const assertTreeListEqual = (a: ReadonlyArray<TestItem | ObservedTestItem>, b: ReadonlyArray<TestItem | ObservedTestItem>) => {
 	assert.strictEqual(a.length, b.length, `expected a.length == n.length`);
 	a.forEach((_, i) => assertTreesEqual(a[i], b[i]));
 };
@@ -187,7 +187,6 @@ suite('ExtHost Testing', () => {
 			});
 
 			test('creates change for root', () => {
-				assert.deepStrictEqual(m.changeEvent.commonChangeAncestor, null);
 				assertTreeListEqual(m.changeEvent.added, [
 					tests,
 					tests.children[0],
@@ -204,7 +203,6 @@ suite('ExtHost Testing', () => {
 				single.onItemChange(tests, 'pid');
 				m.apply(single.collectDiff());
 
-				assertTreesEqual(m.changeEvent.commonChangeAncestor!, tests);
 				assertTreeListEqual(m.changeEvent.added, []);
 				assertTreeListEqual(m.changeEvent.removed, [
 					{ ...rm, children: [] },
@@ -219,7 +217,6 @@ suite('ExtHost Testing', () => {
 				single.onItemChange(tests, 'pid');
 				m.apply(single.collectDiff());
 
-				assert.deepStrictEqual(m.changeEvent.commonChangeAncestor?.label, 'updated!');
 				assertTreeListEqual(m.changeEvent.added, []);
 				assertTreeListEqual(m.changeEvent.removed, []);
 				assertTreeListEqual(m.changeEvent.updated, [tests.children[0]]);
@@ -244,7 +241,6 @@ suite('ExtHost Testing', () => {
 				single.onItemChange(tests, 'pid');
 				m.apply(single.collectDiff());
 
-				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
 				assertTreeListEqual(m.changeEvent.added, [child]);
 				assertTreeListEqual(m.changeEvent.removed, []);
 				assertTreeListEqual(m.changeEvent.updated, []);
@@ -256,7 +252,6 @@ suite('ExtHost Testing', () => {
 				single.onItemChange(tests, 'pid');
 				m.apply(single.collectDiff());
 
-				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'a');
 			});
 
 			test('gets the common ancestor (2)', () => {
@@ -264,8 +259,6 @@ suite('ExtHost Testing', () => {
 				tests.children![1].label = 'ab';
 				single.onItemChange(tests, 'pid');
 				m.apply(single.collectDiff());
-
-				assert.strictEqual(m.changeEvent.commonChangeAncestor?.label, 'root');
 			});
 		});
 

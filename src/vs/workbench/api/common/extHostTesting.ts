@@ -501,7 +501,7 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
 	revived: vscode.TestItem;
 	depth: number;
-	wrapped?: vscode.RequiredTestItem;
+	wrapped?: vscode.ObservedTestItem;
 }
 
 class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
@@ -564,74 +564,6 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 			get added() { return [...added].map(collection.getPublicTestItem, collection); },
 			get updated() { return [...updated].map(collection.getPublicTestItem, collection); },
 			get removed() { return [...removed].map(collection.getPublicTestItem, collection); },
-			get commonChangeAncestor() {
-				let ancestorPath: MirroredCollectionTestItem[] | undefined;
-				const buildAncestorPath = (node: MirroredCollectionTestItem | undefined) => {
-					if (!node) {
-						return undefined;
-					}
-
-					// add the node and all its parents to the list of ancestors. If
-					// the node is detached, do not return a path (its parent will
-					// also have been passed to remove() and be present)
-					const path: MirroredCollectionTestItem[] = new Array(node.depth + 1);
-					for (let i = node.depth; i >= 0; i--) {
-						if (!node) {
-							return undefined; // detached child
-						}
-
-						path[node.depth] = node;
-						node = node.parent ? collection.getMirroredTestDataById(node.parent) : undefined;
-					}
-
-					return path;
-				};
-
-				const addAncestorPath = (node: MirroredCollectionTestItem) => {
-					// fast path: if the common ancestor is already the root, no more work to do
-					if (ancestorPath && ancestorPath.length === 0) {
-						return;
-					}
-
-					const thisPath = buildAncestorPath(node);
-					if (!thisPath) {
-						return;
-					}
-
-					if (!ancestorPath) {
-						ancestorPath = thisPath;
-						return;
-					}
-
-					// removes node from the path to the ancestor that don't match
-					// the corresponding node in *this* path.
-					for (let i = ancestorPath.length - 1; i >= 0; i--) {
-						if (ancestorPath[i] !== thisPath[i]) {
-							ancestorPath.pop();
-						}
-					}
-				};
-
-				const addParentAncestor = (node: MirroredCollectionTestItem) => {
-					if (ancestorPath && ancestorPath.length === 0) {
-						// no-op
-					} else if (node.parent === null) {
-						ancestorPath = [];
-					} else {
-						const parent = collection.getMirroredTestDataById(node.parent);
-						if (parent) {
-							addAncestorPath(parent);
-						}
-					}
-				};
-
-				for (const node of added) { addParentAncestor(node); }
-				for (const node of updated) { addAncestorPath(node); }
-				for (const node of removed) { addParentAncestor(node); }
-
-				const ancestor = ancestorPath && ancestorPath[ancestorPath.length - 1];
-				return ancestor ? collection.getPublicTestItem(ancestor) : null;
-			},
 		};
 	}
 
@@ -664,8 +596,8 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
-	public getAllAsTestItem(itemIds: Iterable<string>): vscode.RequiredTestItem[] {
-		let output: vscode.RequiredTestItem[] = [];
+	public getAllAsTestItem(itemIds: Iterable<string>) {
+		let output: vscode.ObservedTestItem[] = [];
 		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
 			if (item) {
@@ -708,7 +640,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Gets the public test item instance for the given mirrored record.
 	 */
-	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.RequiredTestItem {
+	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.ObservedTestItem {
 		if (!item.wrapped) {
 			item.wrapped = new TestItemFromMirror(item, this);
 		}
@@ -717,7 +649,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	}
 }
 
-class TestItemFromMirror implements vscode.RequiredTestItem {
+class TestItemFromMirror implements vscode.ObservedTestItem {
 	readonly #internal: MirroredCollectionTestItem;
 	readonly #collection: MirroredTestCollection;
 
@@ -737,7 +669,7 @@ class TestItemFromMirror implements vscode.RequiredTestItem {
 	}
 
 	public toJSON() {
-		const serialized: vscode.RequiredTestItem & TestIdWithProvider = {
+		const serialized: vscode.ObservedTestItem & TestIdWithProvider = {
 			id: this.id,
 			label: this.label,
 			description: this.description,

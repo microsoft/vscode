@@ -1637,7 +1637,7 @@ export namespace TestItem {
 		};
 	}
 
-	export function toShallow(item: ITestItem): Omit<vscode.RequiredTestItem, 'children'> {
+	export function toShallow(item: ITestItem): Omit<types.RequiredTestItem, 'children'> {
 		return {
 			id: item.extId,
 			label: item.label,

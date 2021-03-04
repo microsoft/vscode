@@ -2200,7 +2200,7 @@ declare module 'vscode' {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<RequiredTestItem>;
+		readonly tests: ReadonlyArray<ObservedTestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -2230,23 +2230,17 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<RequiredTestItem>;
+		readonly added: ReadonlyArray<ObservedTestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<RequiredTestItem>;
+		readonly updated: ReadonlyArray<ObservedTestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<RequiredTestItem>;
-
-		/**
-		 * Highest node in the test tree under which changes were made. This can
-		 * be easily plugged into events like the TreeDataProvider update event.
-		 */
-		readonly commonChangeAncestor: RequiredTestItem | null;
+		readonly removed: ReadonlyArray<ObservedTestItem>;
 	}
 
 	/**
@@ -2432,13 +2426,45 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A {@link TestItem} with its defaults filled in.
+	 * A readonly {@link TestItem}-like interface with its defaults filled in,
+	 * exposed in the {@link TestObserver} interface.
 	 */
-	export type RequiredTestItem = {
-		[K in keyof Required<TestItem>]: K extends 'children'
-		? RequiredTestItem[]
-		: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
-	};
+	export interface ObservedTestItem {
+		/**
+		 * See {@link TestItem.id}
+		 */
+		readonly id: string;
+
+		/**
+		 * See {@link TestItem.label}
+		 */
+		readonly label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		readonly description?: string;
+
+		/**
+		 * See {@link TestItem.runnable}
+		 */
+		readonly runnable: boolean;
+
+		/**
+		 * See {@link TestItem.debuggable}
+		 */
+		readonly debuggable: boolean;
+
+		/**
+		 * See {@link TestItem.location}
+		 */
+		readonly location?: Location;
+
+		/**
+		 * See {@link TestItem.children}
+		 */
+		readonly children: ReadonlyArray<ObservedTestItem>;
+	}
 
 	/**
 	 * Possible states of tests in a test run.
