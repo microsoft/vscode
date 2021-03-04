@@ -24,7 +24,7 @@ enum Constants {
  */
 let lastPtyId = 0;
 
-export class LocalPtyService extends Disposable implements IPtyService {
+export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private _client: Client;

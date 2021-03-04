@@ -81,7 +81,7 @@ import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/err
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { join } from 'vs/base/common/path';
 import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
-import { LocalPtyService } from 'vs/platform/terminal/node/localPtyService';
+import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 
@@ -262,8 +262,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
 		// Terminal
-		const localPtyService = this._register(new LocalPtyService(logService));
-		services.set(ILocalPtyService, localPtyService);
+		services.set(ILocalPtyService, this._register(new PtyHostService(logService)));
 
 		return new InstantiationService(services);
 	}
