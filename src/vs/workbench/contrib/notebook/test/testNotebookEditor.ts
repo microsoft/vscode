@@ -68,7 +68,7 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(readonly viewModel: NotebookViewModel) { }
 
-	getSelection(): ICellRange | undefined {
+	getFocus(): ICellRange | undefined {
 		throw new Error('Method not implemented.');
 	}
 	getSelections(): ICellRange[] {

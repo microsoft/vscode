@@ -10,28 +10,12 @@ import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/comm
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookSelection', () => {
-	test('selection is never empty', function () {
+	test('focus is never empty', function () {
 		const selectionCollection = new NotebookCellSelectionCollection();
-		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 0 }]);
+		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
 
 		selectionCollection.setState(null, [], true, 'model');
-		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 0 }]);
-	});
-
-	test('selections[0] is primary selection', function () {
-		const selectionCollection = new NotebookCellSelectionCollection();
-		selectionCollection.setState(null, [{ start: 0, end: 1 }, { start: 3, end: 5 }], true, 'model');
-		assert.deepStrictEqual(selectionCollection.selection, { start: 0, end: 1 });
-		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 1 }, { start: 3, end: 5 }]);
-
-		selectionCollection.setState({ start: 0, end: 1 }, [{ start: 3, end: 5 }], true, 'model');
-		assert.deepStrictEqual(selectionCollection.selection, { start: 0, end: 1 });
-		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 1 }, { start: 3, end: 5 }]);
-
-		selectionCollection.setState({ start: 0, end: 1 }, [], true, 'model');
-		assert.deepStrictEqual(selectionCollection.selection, { start: 0, end: 1 });
-		assert.deepStrictEqual(selectionCollection.selections, [{ start: 0, end: 1 }]);
-
+		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
 	});
 });
 
@@ -51,10 +35,10 @@ suite('NotebookCellList focus/selection', () => {
 
 				assert.strictEqual(cellList.length, 2);
 				cellList.setFocus([0]);
-				assert.deepStrictEqual(viewModel.getSelection(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
 
 				cellList.setFocus([1]);
-				assert.deepStrictEqual(viewModel.getSelection(), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
 				cellList.detachViewModel();
 			});
 	});
@@ -73,13 +57,11 @@ suite('NotebookCellList focus/selection', () => {
 				assert.strictEqual(cellList.length, 2);
 				cellList.setSelection([0]);
 				// the only selection is also the focus
-				assert.deepStrictEqual(viewModel.getSelection(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
 
 				// set selection does not modify focus
 				cellList.setSelection([1]);
-				assert.deepStrictEqual(viewModel.getSelection(), { start: 0, end: 1 });
-				// `getSelections()` now returns all focus/selection ranges
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }, { start: 1, end: 2 }]);
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 			});
 	});
 
@@ -123,6 +105,8 @@ suite('NotebookCellList focus/selection', () => {
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 				assert.strictEqual(cellList.length, 5);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
 				cellList.setFocus([0]);
 
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -131,12 +115,14 @@ suite('NotebookCellList focus/selection', () => {
 				cellList.setHiddenAreas(viewModel.getHiddenRanges(), true);
 				assert.strictEqual(cellList.length, 3);
 
-				// currently, focus on a folded cell will only select the cell itself, excluding its "inner" cells
-				assert.deepStrictEqual(viewModel.getSelection(), { start: 0, end: 1 });
+				// currently, focus on a folded cell will only focus the cell itself, excluding its "inner" cells
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
 
 				cellList.focusNext(1, false);
 				// focus next should skip the folded items
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
 
 				// unfold
 				updateFoldingStateAtIndex(foldingModel, 2, false);
@@ -190,7 +176,8 @@ suite('NotebookCellList focus/selection', () => {
 			(editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				viewModel.deleteCell(1, true, false);
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), []);
 			});
 	});
 });

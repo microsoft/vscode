@@ -357,10 +357,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._selectionCollection.focus;
 	}
 
-	getSelection() {
-		return this._selectionCollection.selection;
-	}
-
 	getSelections() {
 		return this._selectionCollection.selections;
 	}
@@ -719,14 +715,14 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean = true) {
-		const primarySelectionIndex = this.getSelection()?.start ?? null;
+		const focusSelectionIndex = this.getFocus()?.start ?? null;
 		let endPrimarySelection: number | null = null;
 
-		if (index === primarySelectionIndex) {
-			if (primarySelectionIndex < this.length - 1) {
-				endPrimarySelection = this._viewCells[primarySelectionIndex + 1].handle;
-			} else if (primarySelectionIndex === this.length - 1 && this.length > 1) {
-				endPrimarySelection = this._viewCells[primarySelectionIndex - 1].handle;
+		if (index === focusSelectionIndex) {
+			if (focusSelectionIndex < this.length - 1) {
+				endPrimarySelection = this._viewCells[focusSelectionIndex + 1].handle;
+			} else if (focusSelectionIndex === this.length - 1 && this.length > 1) {
+				endPrimarySelection = this._viewCells[focusSelectionIndex - 1].handle;
 			}
 		}
 

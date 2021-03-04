@@ -294,8 +294,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.getSelections() ?? [];
 	}
 
-	getSelection() {
-		return this.viewModel?.getSelection();
+	getFocus() {
+		return this.viewModel?.getFocus() ?? { start: 0, end: 0 };
 	}
 
 	getSelectionViewModels(): ICellViewModel[] {

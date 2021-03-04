@@ -319,7 +319,7 @@ export interface INotebookEditorCreationOptions {
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
 	// selection is never undefined when the editor is attached to a document.
-	getSelection(): ICellRange;
+	getFocus(): ICellRange;
 }
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
