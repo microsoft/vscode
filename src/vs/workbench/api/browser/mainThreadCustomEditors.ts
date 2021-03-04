@@ -16,7 +16,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
@@ -451,8 +451,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 	}
 
-	public isReadonly() {
-		return !this._editable;
+	public isEditable(): boolean {
+		return this._editable;
+	}
+
+	public isOnReadonlyFileSystem(): boolean {
+		return this._fileService.hasCapability(this.editorResource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	public get viewType() {

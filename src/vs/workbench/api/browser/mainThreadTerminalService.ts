@@ -127,7 +127,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			env: launchConfig.env,
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
-			isExtensionTerminal: launchConfig.isExtensionTerminal,
+			isExtensionCustomPtyTerminal: launchConfig.isExtensionCustomPtyTerminal,
 			extHostTerminalId: extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal
@@ -246,6 +246,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _onInstanceMaximumDimensionsChanged(instance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalMaximumDimensions(instance.instanceId, instance.maxCols, instance.maxRows);
 	}
+
 
 	private _onRequestStartExtensionTerminal(request: IStartExtensionTerminalRequest): void {
 		const proxy = request.proxy;

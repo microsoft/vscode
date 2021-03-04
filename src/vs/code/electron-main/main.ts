@@ -23,7 +23,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleMainLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -132,8 +131,6 @@ class CodeMain {
 		// Environment
 		const environmentMainService = new EnvironmentMainService(args);
 		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
-		services.set(IEnvironmentService, environmentMainService);
-		services.set(INativeEnvironmentService, environmentMainService);
 		services.set(IEnvironmentMainService, environmentMainService);
 
 		// Log: We need to buffer the spdlog logs until we are sure

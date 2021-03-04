@@ -155,6 +155,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get shellType(): TerminalShellType { return this._shellType; }
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
+	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -941,8 +942,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
-			// Use api source so it cannot be overridden
-			this.setTitle(nls.localize('ptyDisconnected', "{0} (disconnected)", this._title), TitleEventSource.Api);
+			this._onTitleChanged.fire(this);
+		});
+		this._processManager.onPtyReconnect(() => {
+			this._safeSetOption('disableStdin', false);
+			this._onTitleChanged.fire(this);
 		});
 
 		if (this._shellLaunchConfig.name) {
@@ -984,9 +988,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
-				if (this._shellLaunchConfig.flowControl) {
-					this._processManager.acknowledgeDataEvent(ev.data.length);
-				}
+				this._processManager.acknowledgeDataEvent(ev.data.length);
 			});
 		}
 	}
@@ -1547,7 +1549,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
 		// special terminal (eg. task, extension terminal)
-		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal && !this._shellLaunchConfig.isExtensionOwnedTerminal && !this._shellLaunchConfig.attachPersistentProcess) {
+		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionCustomPtyTerminal && !this._shellLaunchConfig.isExtensionOwnedTerminal && !this._shellLaunchConfig.attachPersistentProcess) {
 			this.relaunch();
 			return;
 		}

@@ -2271,10 +2271,14 @@ declare module 'vscode' {
 		 * there is a currently active editor.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 *
+		 * @return An array of code actions, such as quick fixes or refactorings. The lack of a result can be signaled
+		 * by returning `undefined`, `null`, or an empty array.
+		 *
+		 * We also support returning `Command` for legacy reasons, however all new extensions should return
+		 * `CodeAction` object instead.
 		 */
-		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | T)[]>;
 
 		/**
 		 * Given a code action fill in its [`edit`](#CodeAction.edit)-property. Changes to

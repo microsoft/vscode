@@ -321,7 +321,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => {
+			return `${index + 1}: ${tab.title ? tab.title : ''}`;
+		});
 	}
 
 	public getFindState(): FindReplaceState {

@@ -288,7 +288,8 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 
-		this.update(session);
+		const selectedSession = session ? this.mapFocusedSessionToSelected(session) : undefined;
+		this.update(selectedSession);
 	}
 
 	protected getActionContext(_: string, index: number): any {

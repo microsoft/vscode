@@ -39,8 +39,7 @@ export interface INotebookRawData {
 export interface INotebookService {
 	readonly _serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
-	onDidChangeActiveEditor: Event<string | null>;
-	onDidChangeVisibleEditors: Event<string[]>;
+
 	onNotebookEditorAdd: Event<IEditor>;
 	onNotebookEditorsRemove: Event<IEditor[]>;
 	onDidRemoveNotebookDocument: Event<URI>;
@@ -62,12 +61,12 @@ export interface INotebookService {
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
+	listNotebookDocuments(): readonly NotebookTextModel[];
+
 	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
-	updateActiveNotebookEditor(editor: IEditor | null): void;
-	updateVisibleNotebookEditor(editors: string[]): void;
 
 	fetchNotebookRawData(viewType: string, uri: URI, backupId?: string): Promise<INotebookRawData>;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
@@ -79,12 +78,13 @@ export interface INotebookService {
 	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
 
 	// editor events
+
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
+
 	addNotebookEditor(editor: IEditor): void;
 	removeNotebookEditor(editor: IEditor): void;
 	getNotebookEditor(editorId: string): IEditor | undefined;
 	listNotebookEditors(): readonly IEditor[];
-	listNotebookDocuments(): readonly NotebookTextModel[];
 	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
 	removeEditorDecorationType(key: string): void;
 	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;

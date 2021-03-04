@@ -51,12 +51,12 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'workbench.editor.decorations.badges': {
 				'type': 'boolean',
 				'markdownDescription': localize('decorations.badges', "Controls whether editor file decorations should use badges."),
-				'default': false
+				'default': true
 			},
 			'workbench.editor.decorations.colors': {
 				'type': 'boolean',
 				'markdownDescription': localize('decorations.colors', "Controls whether editor file decorations should use colors."),
-				'default': false
+				'default': true
 			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',

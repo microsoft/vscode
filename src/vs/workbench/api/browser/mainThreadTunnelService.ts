@@ -103,7 +103,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
 				return forward.then(tunnel => {
-					this.logService.trace(`MainThreadTunnelService: New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
+					this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
 					if (!tunnel) {
 						return undefined;
 					}
@@ -114,7 +114,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 						tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
 						public: tunnel.public,
 						dispose: async (silent?: boolean) => {
-							this.logService.trace(`MainThreadTunnelService: Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
+							this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
 							return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
 						}
 					};

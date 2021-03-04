@@ -35,7 +35,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { getNotebookEditorFromEditorPane, IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -57,15 +57,16 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 
 // Editor Contribution
-
+import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
-import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
-// import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
+import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
+
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -265,25 +266,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			},
 			open: (editor, options, group) => {
 				return this.onEditorOpening(editor, options, group);
-			}
-		}));
-
-		this._register(this.editorService.onDidVisibleEditorsChange(() => {
-			const visibleNotebookEditors = editorService.visibleEditorPanes
-				.map(pane => getNotebookEditorFromEditorPane(pane))
-				.filter(editor => !!editor)
-				.map(editor => editor!.getId());
-
-			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
-		}));
-
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			const notebookEditor = getNotebookEditorFromEditorPane(this.editorService.activeEditorPane);
-
-			if (notebookEditor) {
-				this.notebookService.updateActiveNotebookEditor(notebookEditor);
-			} else {
-				this.notebookService.updateActiveNotebookEditor(null);
 			}
 		}));
 

@@ -210,10 +210,6 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	toggleClassName(className: string): void {
-		throw new Error('Method not implemented.');
-	}
-
 	addClassName(className: string): void {
 		throw new Error('Method not implemented.');
 	}
@@ -222,7 +218,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	setCellSelection(cell: CellViewModel, selection: Range): void {
+	setCellEditorSelection(cell: CellViewModel, selection: Range): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -239,10 +235,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	async moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null> {
-		throw new Error('Method not implemented.');
-	}
-
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 
