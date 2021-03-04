@@ -89,7 +89,7 @@ export interface ISandboxNodeProcess extends IPartialNodeProcess {
 	 * Returns a process environment that includes any shell environment even if the application
 	 * was not started from a shell / terminal / console.
 	 */
-	readonly withShellEnv: Promise<IProcessEnvironment>;
+	getShellEnv(): Promise<IProcessEnvironment>;
 }
 
 export interface ISandboxContext {

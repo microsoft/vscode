@@ -160,7 +160,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
 				this._tryFindDebugPort(),
-				this._shellEnvironmentService.withShellEnv
+				this._shellEnvironmentService.getShellEnv()
 			]).then(([pipeName, portNumber, processEnv]) => {
 				const env = objects.mixin(processEnv, {
 					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',

@@ -147,7 +147,12 @@
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
 
-			get withShellEnv() { return shellEnv; },
+			/**
+			 * @returns {Promise<typeof process.env>}
+			 */
+			getShellEnv() {
+				return shellEnv;
+			},
 
 			/**
 			 * @param {{[key: string]: string}} userEnv

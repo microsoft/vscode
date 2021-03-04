@@ -14,14 +14,16 @@ export interface IShellEnvironmentService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly withShellEnv: Promise<IProcessEnvironment>;
+	getShellEnv(): Promise<IProcessEnvironment>;
 }
 
 export class ShellEnvironmentService implements IShellEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly withShellEnv = process.withShellEnv;
+	getShellEnv(): Promise<IProcessEnvironment> {
+		return process.getShellEnv();
+	}
 }
 
 registerSingleton(IShellEnvironmentService, ShellEnvironmentService);
