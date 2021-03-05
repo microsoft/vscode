@@ -254,7 +254,7 @@
 			// Resolve `shellEnv` from the main side
 			shellEnv = new Promise(function (resolve) {
 				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnvResult) {
-					if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+					if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero remove me for https://github.com/microsoft/vscode/issues/108804 */) {
 						// Assign all keys of the shell environment to our process environment
 						// But make sure that the user environment wins in the end over shell environment
 						Object.assign(process.env, shellEnvResult, userEnv);
