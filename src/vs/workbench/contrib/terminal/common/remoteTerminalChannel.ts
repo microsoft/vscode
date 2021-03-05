@@ -298,7 +298,7 @@ export class RemoteTerminalChannelClient {
 			isWorkspaceShellAllowed,
 			resolverEnv
 		};
-		return await this._channel.call<ICreateTerminalProcessResult>('$createTerminalProcess', args);
+		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
 
 	public async attachToProcess(id: number): Promise<void> {
