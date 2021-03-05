@@ -19,14 +19,14 @@ import { getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
 import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_VIEW_ID, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_IPAD } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, TERMINAL_VIEW_ID, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { setupTerminalMenu } from 'vs/workbench/contrib/terminal/common/terminalMenu';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteTerminalService, ITerminalService, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -36,6 +36,7 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
 import { isIPad } from 'vs/base/browser/browser';
+import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
