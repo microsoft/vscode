@@ -1370,7 +1370,6 @@ declare module 'vscode' {
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
-
 	/**
 	 * Communication object passed to the {@link NotebookContentProvider} and
 	 * {@link NotebookOutputRenderer} to communicate with the webview.
@@ -1474,6 +1473,7 @@ declare module 'vscode' {
 	}
 
 	// @jrieken
+	// todo@API think about readonly...
 	//TODO@API add execution count to cell output?
 	export class NotebookCellOutput {
 		readonly id: string;
