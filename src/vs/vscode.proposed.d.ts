@@ -1423,7 +1423,6 @@ declare module 'vscode' {
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 
-		// todo@API really needed?
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
