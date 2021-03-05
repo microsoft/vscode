@@ -39,6 +39,8 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	private _currentRequest: Promise<string> | undefined;
 	private _lastShellType: TerminalShellType | undefined;
 	public get lastShellType(): TerminalShellType | undefined { return this._lastShellType; }
+	private _lastShellTitle: string = '';
+	public get lastShellTitle(): string { return this._lastShellTitle; }
 	private readonly _onShellNameChanged = new Emitter<string>();
 	public get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
 	private readonly _onShellTypeChanged = new Emitter<TerminalShellType>();
@@ -71,10 +73,15 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			await timeout(300);
 			this.getShellName().then(title => {
 				const type = this.getShellType(title);
-				if (type !== this._lastShellType) {
+				console.trace(type);
+				console.trace(title);
+				console.trace(this._lastShellType);
+				console.trace(this._lastShellTitle);
+				if (type !== this._lastShellType || title !== this._lastShellTitle) {
 					this._onShellTypeChanged.fire(type);
 					this._onShellNameChanged.fire(title);
 					this._lastShellType = type;
+					this._lastShellTitle = title;
 				}
 			});
 		}

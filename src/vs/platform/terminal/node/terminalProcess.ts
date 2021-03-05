@@ -66,11 +66,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
-
 	public get exitMessage(): string | undefined { return this._exitMessage; }
-	public get currentTitle(): string { return this._currentTitle; }
 
-	public get lastShellType(): TerminalShellType { return this._windowsShellHelper?.lastShellType; }
+	public get currentTitle(): string { return this._currentTitle; }
+	public get lastTitle(): string { return this._windowsShellHelper?.lastShellTitle || this._currentTitle; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -83,7 +82,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
-	public get shellType(): TerminalShellType { return this._shellType; }
+	public get shellType(): TerminalShellType { return this._shellType || this._windowsShellHelper?.lastShellType; }
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -131,12 +130,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					}
 				}));
 			}
-			this.onProcessReady(() => {
-				if (this._ptyProcess?.pid) {
-					this._windowsShellHelper = this._register(new WindowsShellHelper(this._ptyProcess.pid));
-					this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-					this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
-				}
+			this.onProcessReady(e => {
+				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
+				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
+				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
 			});
 		}
 	}
