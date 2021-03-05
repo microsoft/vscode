@@ -87,13 +87,6 @@ export interface ICreateTerminalProcessResult {
 	resolvedShellLaunchConfig: IShellLaunchConfigDto;
 }
 
-export interface ISendCommandResultToTerminalProcessArguments {
-	id: number;
-	reqId: number;
-	isError: boolean;
-	payload: any;
-}
-
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
 
 export interface ITriggerTerminalDataReplayArguments {
@@ -136,29 +129,9 @@ export interface IRemoteTerminalProcessExecCommandEvent {
 export interface IRemoteTerminalProcessOrphanQuestionEvent {
 	type: 'orphan?';
 }
-export type IRemoteTerminalProcessEvent = (
-	IRemoteTerminalProcessReadyEvent
-	| IRemoteTerminalProcessTitleChangedEvent
-	| IRemoteTerminalProcessDataEvent
-	| IRemoteTerminalProcessReplayEvent
-	| IRemoteTerminalProcessExitEvent
-	| IRemoteTerminalProcessExecCommandEvent
-	| IRemoteTerminalProcessOrphanQuestionEvent
-);
-
-export interface IOnTerminalProcessEventArguments {
-	id: number;
-}
 
 export class RemoteTerminalChannelClient {
 
-	// TODO: Replace this with regular events
-	public onTerminalProcessEvent(terminalId: number): Event<IRemoteTerminalProcessEvent> {
-		const args: IOnTerminalProcessEventArguments = {
-			id: terminalId
-		};
-		return this._channel.listen<IRemoteTerminalProcessEvent>('$onTerminalProcessEvent', args);
-	}
 	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
@@ -182,6 +155,9 @@ export class RemoteTerminalChannelClient {
 	}
 	public get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
+	}
+	public get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
+		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
 	}
 
 	constructor(
@@ -319,14 +295,8 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$orphanQuestionReply', [id]);
 	}
 
-	public sendCommandResultToTerminalProcess(id: number, reqId: number, isError: boolean, payload: any): Promise<void> {
-		const args: ISendCommandResultToTerminalProcessArguments = {
-			id,
-			reqId,
-			isError,
-			payload
-		};
-		return this._channel.call<void>('$sendCommandResultToTerminalProcess', args);
+	public sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
+		return this._channel.call<void>('$sendCommandResult', [reqId, isError, payload]);
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

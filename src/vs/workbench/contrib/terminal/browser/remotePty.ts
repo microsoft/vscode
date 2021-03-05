@@ -6,13 +6,11 @@
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
-import { IRemoteTerminalProcessExecCommandEvent, RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
@@ -42,8 +40,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		private readonly _isPreconnectionTerminal: boolean,
 		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
 		private readonly _remoteAgentService: IRemoteAgentService,
-		private readonly _logService: ILogService,
-		private readonly _commandService: ICommandService,
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._startBarrier = new Barrier();
@@ -87,7 +84,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		// );
 
 		// this._id = result.terminalId;
-		this.setupTerminalEventListener();
 		// TODO: Does this get fired?
 		// this._onProcessResolvedShellLaunchConfig.fire(reviveIShellLaunchConfig(result.resolvedShellLaunchConfig));
 
@@ -126,17 +122,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._startBarrier.wait().then(_ => {
 			this._remoteTerminalChannel.input(this._id, data);
 		});
-	}
-
-	private setupTerminalEventListener(): void {
-		this._register(this._remoteTerminalChannel.onTerminalProcessEvent(this._id)(event => {
-			switch (event.type) {
-				case 'execCommand':
-					return this._execCommand(event);
-				default:
-					throw new Error('NYI');
-			}
-		}));
 	}
 
 	public resize(cols: number, rows: number): void {
@@ -219,17 +204,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	 */
 	public async getLatency(): Promise<number> {
 		return 0;
-	}
-
-	private async _execCommand(event: IRemoteTerminalProcessExecCommandEvent): Promise<void> {
-		const reqId = event.reqId;
-		const commandArgs = event.commandArgs.map(arg => revive(arg));
-		try {
-			const result = await this._commandService.executeCommand(event.commandId, ...commandArgs);
-			this._remoteTerminalChannel.sendCommandResultToTerminalProcess(this._id, reqId, false, result);
-		} catch (err) {
-			this._remoteTerminalChannel.sendCommandResultToTerminalProcess(this._id, reqId, true, err);
-		}
 	}
 }
 

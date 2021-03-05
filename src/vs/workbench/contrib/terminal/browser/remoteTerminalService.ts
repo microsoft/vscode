@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -50,6 +51,17 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 			this._remoteTerminalChannel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+
+			this._remoteTerminalChannel.onExecuteCommand(async e => {
+				const reqId = e.reqId;
+				const commandArgs = e.commandArgs.map(arg => revive(arg));
+				try {
+					const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
+					this._remoteTerminalChannel!.sendCommandResult(reqId, false, result);
+				} catch (err) {
+					this._remoteTerminalChannel!.sendCommandResult(reqId, true, err);
+				}
+			});
 		} else {
 			this._remoteTerminalChannel = null;
 		}
@@ -87,7 +99,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			isWorkspaceShellAllowed,
 		);
 		// const id = await this._remoteTerminalChannel.createTerminalProcess(shellLaunchConfig, cwd, cols, rows, env, processEnv as IProcessEnvironment, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 		this._ptys.set(result.persistentTerminalId, pty);
 		return pty;
 	}
@@ -108,7 +120,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 
 		try {
 			await this._remoteTerminalChannel.attachToProcess(id);
-			const pty = new RemotePty(id, true, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+			const pty = new RemotePty(id, true, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {

@@ -380,7 +380,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._pendingCommands.delete(reqId);
 	}
 
-	async orphanQuestionReply(): Promise<void> {
+	orphanQuestionReply(): void {
 		this._orphanQuestionReplyTime = Date.now();
 		if (this._orphanQuestionBarrier) {
 			const barrier = this._orphanQuestionBarrier;
