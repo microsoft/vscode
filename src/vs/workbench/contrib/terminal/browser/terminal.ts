@@ -189,7 +189,7 @@ export interface IRemoteTerminalService {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess>;
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 

@@ -87,8 +87,7 @@ export interface IOffProcessTerminalService {
 
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
