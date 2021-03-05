@@ -120,6 +120,14 @@ if (platform.isWindows) {
 	});
 }
 
+// send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)
+if (isIPad) {
+	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
+		when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS),
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_C
+	});
+}
+
 // Delete word left: ctrl+w
 registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
