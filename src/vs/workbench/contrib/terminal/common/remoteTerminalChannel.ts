@@ -286,15 +286,15 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
 
-	public async attachToProcess(id: number): Promise<void> {
-		return await this._channel.call('$attachToProcess', [id]);
+	public attachToProcess(id: number): Promise<void> {
+		return this._channel.call('$attachToProcess', [id]);
 	}
 
-	public async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
+	public listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses', [reduceGraceTime]);
 	}
 
-	public async start(id: number): Promise<ITerminalLaunchError | void> {
+	public start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}
 	public input(id: number, data: string): Promise<void> {
