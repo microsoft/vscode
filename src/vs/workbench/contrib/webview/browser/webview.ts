@@ -95,7 +95,7 @@ export interface Webview extends IDisposable {
 
 	html: string;
 	contentOptions: WebviewContentOptions;
-	localResourcesRoot: URI[];
+	localResourcesRoot: readonly URI[];
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
