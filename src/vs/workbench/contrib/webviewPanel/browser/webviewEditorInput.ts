@@ -6,7 +6,8 @@
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 
 export class WebviewInput extends EditorInput {
 
@@ -32,7 +33,7 @@ export class WebviewInput extends EditorInput {
 		public readonly viewType: string,
 		name: string,
 		webview: WebviewOverlay,
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		private readonly _iconManager: WebviewIconManager,
 	) {
 		super();
 		this._name = name;
@@ -83,7 +84,7 @@ export class WebviewInput extends EditorInput {
 
 	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		this._webviewService.setIcons(this.id, value);
+		this._iconManager.setIcons(this.id, value);
 	}
 
 	public matches(other: IEditorInput): boolean {

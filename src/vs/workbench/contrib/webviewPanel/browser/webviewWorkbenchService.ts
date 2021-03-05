@@ -14,7 +14,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput } from './webviewEditorInput';
@@ -45,6 +46,8 @@ export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewIn
 
 export interface IWebviewWorkbenchService {
 	readonly _serviceBrand: undefined;
+
+	readonly iconManager: WebviewIconManager;
 
 	createWebview(
 		id: string,
@@ -102,19 +105,20 @@ function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
 
 
 export class LazilyResolvedWebviewEditorInput extends WebviewInput {
+
+	#resolved = false;
+	#resolvePromise?: CancelablePromise<void>;
+
+
 	constructor(
 		id: string,
 		viewType: string,
 		name: string,
 		webview: WebviewOverlay,
-		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
-		super(id, viewType, name, webview, webviewService);
+		super(id, viewType, name, webview, _webviewWorkbenchService.iconManager);
 	}
-
-	#resolved = false;
-	#resolvePromise?: CancelablePromise<void>;
 
 	dispose() {
 		super.dispose();
@@ -173,12 +177,20 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	private readonly _revivers = new Set<WebviewResolver>();
 	private readonly _revivalPool = new RevivalPool();
 
+	private readonly _iconManager: WebviewIconManager;
+
 	constructor(
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
-	) { }
+	) {
+		this._iconManager = this._instantiationService.createInstance(WebviewIconManager);
+	}
+
+	get iconManager() {
+		return this._iconManager;
+	}
 
 	public createWebview(
 		id: string,
@@ -189,7 +201,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
 		const webview = this.createWebviewElement(id, extension, options);
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview);
+		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview, this.iconManager);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -294,6 +306,10 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 				return promise;
 			}
 		});
+	}
+
+	public setIcons(id: string, iconPath: WebviewIcons | undefined): void {
+		this._iconManager.setIcons(id, iconPath);
 	}
 
 	private createWebviewElement(

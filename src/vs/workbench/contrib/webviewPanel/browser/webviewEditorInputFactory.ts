@@ -7,7 +7,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewInputOptions } from './webviewWorkbenchService';
 

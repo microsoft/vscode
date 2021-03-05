@@ -17,7 +17,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { decorateFileEditorLabel } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -40,7 +40,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		id: string,
 		webview: WebviewOverlay,
 		options: { startsDirty?: boolean, backupId?: string },
-		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -49,7 +48,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@IEditorService private readonly editorService: IEditorService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
-		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
+		super(id, viewType, '', webview, webviewWorkbenchService);
 		this._editorResource = resource;
 		this._defaultDirtyState = options.startsDirty;
 		this._backupId = options.backupId;

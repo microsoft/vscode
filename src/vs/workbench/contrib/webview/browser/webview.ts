@@ -22,11 +22,6 @@ export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
-export interface WebviewIcons {
-	readonly light: URI;
-	readonly dark: URI;
-}
-
 /**
  * Handles the creation of webview elements.
  */
@@ -48,8 +43,6 @@ export interface IWebviewService {
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay;
-
-	setIcons(id: string, value: WebviewIcons | undefined): void;
 }
 
 export const enum WebviewContentPurpose {
