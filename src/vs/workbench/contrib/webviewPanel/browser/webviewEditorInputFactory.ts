@@ -69,7 +69,16 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
-		return this._webviewWorkbenchService.reviveWebview(data.id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extension, data.group);
+		return this._webviewWorkbenchService.reviveWebview({
+			id: data.id,
+			viewType: data.viewType,
+			title: data.title,
+			iconPath: data.iconPath,
+			state: data.state,
+			options: data.options,
+			extension: data.extension,
+			group: data.group
+		});
 	}
 
 	protected fromJson(data: SerializedWebview): DeserializedWebview {

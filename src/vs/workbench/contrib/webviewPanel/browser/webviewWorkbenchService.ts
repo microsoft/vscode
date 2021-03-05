@@ -56,7 +56,7 @@ export interface IWebviewWorkbenchService {
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput;
 
-	reviveWebview(
+	reviveWebview(options: {
 		id: string,
 		viewType: string,
 		title: string,
@@ -65,7 +65,7 @@ export interface IWebviewWorkbenchService {
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined
-	): WebviewInput;
+	}): WebviewInput;
 
 	revealWebview(
 		webview: WebviewInput,
@@ -221,7 +221,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		}
 	}
 
-	public reviveWebview(
+	public reviveWebview(options: {
 		id: string,
 		viewType: string,
 		title: string,
@@ -230,18 +230,18 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined,
-	): WebviewInput {
+	}): WebviewInput {
 		const webview = new Lazy(() => {
-			const webview = this.createWebviewElement(id, extension, options);
-			webview.state = state;
+			const webview = this.createWebviewElement(options.id, options.extension, options.options);
+			webview.state = options.state;
 			return webview;
 		});
 
-		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, id, viewType, title, webview);
-		webviewInput.iconPath = iconPath;
+		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.id, options.viewType, options.title, webview);
+		webviewInput.iconPath = options.iconPath;
 
-		if (typeof group === 'number') {
-			webviewInput.updateGroup(group);
+		if (typeof options.group === 'number') {
+			webviewInput.updateGroup(options.group);
 		}
 		return webviewInput;
 	}
