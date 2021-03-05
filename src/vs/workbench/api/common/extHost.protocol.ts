@@ -1141,6 +1141,7 @@ export interface ExtHostAuthenticationShape {
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
+	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
 }
 
 export interface ExtHostSecretStateShape {
@@ -1751,12 +1752,12 @@ export interface INotebookVisibleRangesEvent {
 }
 
 export interface INotebookEditorPropertiesChangeData {
-	visibleRanges: INotebookVisibleRangesEvent | null;
-	selections: INotebookSelectionChangeEvent | null;
+	visibleRanges?: INotebookVisibleRangesEvent;
+	selections?: INotebookSelectionChangeEvent;
 }
 
 export interface INotebookDocumentPropertiesChangeData {
-	metadata: NotebookDocumentMetadata | null;
+	metadata?: NotebookDocumentMetadata;
 }
 
 export interface INotebookModelAddedData {
@@ -1773,6 +1774,7 @@ export interface INotebookEditorAddData {
 	documentUri: UriComponents;
 	selections: ICellRange[];
 	visibleRanges: ICellRange[];
+	viewColumn?: number
 }
 
 export interface INotebookDocumentsAndEditorsDelta {

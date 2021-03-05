@@ -36,7 +36,7 @@ export interface ColorDefaults {
 }
 
 /**
- * A Color Value is either a color literal, a refence to other color or a derived color
+ * A Color Value is either a color literal, a reference to an other color or a derived color
  */
 export type ColorValue = Color | string | ColorIdentifier | ColorFunction;
 

@@ -10,7 +10,6 @@ import type * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
-import { mergeSort } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ResourceMap } from 'vs/base/common/map';
@@ -78,7 +77,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			let lastUri: vscode.Uri | undefined;
 
 			// ensure stable-sort
-			first = mergeSort([...first], DiagnosticCollection._compareIndexedTuplesByUri);
+			first = [...first].sort(DiagnosticCollection._compareIndexedTuplesByUri);
 
 			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;

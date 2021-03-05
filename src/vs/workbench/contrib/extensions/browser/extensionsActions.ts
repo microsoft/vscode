@@ -15,7 +15,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensioManagementService, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
@@ -316,7 +316,7 @@ export class InstallAction extends AbstractInstallAction {
 		@IWorkbenchThemeService workbenchThemeService: IWorkbenchThemeService,
 		@ILabelService labelService: ILabelService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IWorkbenchExtensioManagementService private readonly workbenchExtensioManagementService: IWorkbenchExtensioManagementService,
+		@IWorkbenchExtensionManagementService private readonly workbenchExtensioManagementService: IWorkbenchExtensionManagementService,
 		@IUserDataAutoSyncEnablementService protected readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService protected readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 	) {

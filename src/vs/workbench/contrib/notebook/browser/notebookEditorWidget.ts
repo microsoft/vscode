@@ -7,7 +7,7 @@ import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { SequencerByKey } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -25,6 +25,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -46,6 +47,7 @@ import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewMod
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/notebookEditorDecorations';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IKernelManagerDelegate, NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -196,6 +198,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private notebookService: INotebookService,
+		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -246,7 +249,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		});
 
-		this.notebookService.addNotebookEditor(this);
+		this.notebookEditorService.addNotebookEditor(this);
 
 		const id = generateUuid();
 		this._overlayContainer.id = `notebook-${id}`;
@@ -492,16 +495,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			getActions: () => {
 				const result: IAction[] = [];
 				const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.scopedContextKeyService);
-				const groups = menu.getActions();
+				createAndFillInContextMenuActions(menu, undefined, result);
 				menu.dispose();
-
-				for (let group of groups) {
-					const [, actions] = group;
-					result.push(...actions);
-					result.push(new Separator());
-				}
-
-				result.pop(); // remove last separator
 				return result;
 			},
 			getAnchor: () => e.anchor
@@ -1183,7 +1178,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _decortionKeyToIds = new Map<string, string[]>();
 
 	private _registerDecorationType(key: string) {
-		const options = this.notebookService.resolveEditorDecorationOptions(key);
+		const options = this.notebookEditorService.resolveEditorDecorationOptions(key);
 
 		if (options) {
 			const styleElement = DOM.createStyleSheet(this._body);
@@ -1688,6 +1683,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		await this._webview?.removeMarkdownPreview(cell.id);
 	}
 
+	async updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
+		if (!this._webview) {
+			return;
+		}
+
+		await this._resolveWebview();
+
+		await this._webview?.updateMarkdownPreviewSelectionState(cell.id, isSelected);
+	}
+
 	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
 			if (!this._webview) {
@@ -1818,7 +1823,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webview?.dispose();
 		this._webview = null;
 
-		this.notebookService.removeNotebookEditor(this);
+		this.notebookEditorService.removeNotebookEditor(this);
 		dispose(this._contributions.values());
 		this._contributions.clear();
 
@@ -2187,7 +2192,7 @@ registerThemingParticipant((theme, collector) => {
 
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell .run-button-container { width: 20px; margin: 0px ${Math.floor(CELL_RUN_GUTTER - 20) / 2}px; }`);
-	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top { height: ${CELL_TOP_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row :not(.webview-backed-markdown-cell) .cell-focus-indicator-top { height: ${CELL_TOP_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${BOTTOM_CELL_TOOLBAR_GAP}px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left,
 	.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-drag-handle { width: ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px; }`);

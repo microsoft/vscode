@@ -22,19 +22,17 @@ export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<
 
 export const IWebviewService = createDecorator<IWebviewService>('webviewService');
 
-export interface WebviewIcons {
-	readonly light: URI;
-	readonly dark: URI;
-}
-
-/**
- * Handles the creation of webview elements.
- */
 export interface IWebviewService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * The currently focused webview.
+	 */
 	readonly activeWebview: Webview | undefined;
 
+	/**
+	 * Create a basic webview dom element.
+	 */
 	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
@@ -42,14 +40,18 @@ export interface IWebviewService {
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement;
 
+	/**
+	 * Create a lazily created webview element that is overlaid on top of another element.
+	 *
+	 * Allows us to avoid re-parenting the webview (which destroys its contents) when
+	 * moving webview around the workbench.
+	 */
 	createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay;
-
-	setIcons(id: string, value: WebviewIcons | undefined): void;
 }
 
 export const enum WebviewContentPurpose {
@@ -93,7 +95,7 @@ export interface Webview extends IDisposable {
 
 	html: string;
 	contentOptions: WebviewContentOptions;
-	localResourcesRoot: URI[];
+	localResourcesRoot: readonly URI[];
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;

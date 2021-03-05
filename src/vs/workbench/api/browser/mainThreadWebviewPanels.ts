@@ -11,8 +11,8 @@ import { MainThreadWebviews, reviveWebviewExtension, reviveWebviewOptions } from
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorGroupColumn, IEditorInput, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

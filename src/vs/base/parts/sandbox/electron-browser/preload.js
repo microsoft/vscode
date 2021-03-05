@@ -148,6 +148,13 @@
 			get execPath() { return process.execPath; },
 
 			/**
+			 * @returns {Promise<typeof process.env>}
+			 */
+			getShellEnv() {
+				return shellEnv;
+			},
+
+			/**
 			 * @param {{[key: string]: string}} userEnv
 			 * @returns {Promise<void>}
 			 */
@@ -226,8 +233,8 @@
 		return true;
 	}
 
-	/** @type {Promise<void> | undefined} */
-	let resolvedEnv = undefined;
+	/** @type {Promise<typeof process.env> | undefined} */
+	let shellEnv = undefined;
 
 	/**
 	 * If VSCode is not run from a terminal, we should resolve additional
@@ -238,28 +245,29 @@
 	 * @param {{[key: string]: string}} userEnv
 	 * @returns {Promise<void>}
 	 */
-	function resolveEnv(userEnv) {
-		if (!resolvedEnv) {
+	async function resolveEnv(userEnv) {
+		if (!shellEnv) {
 
 			// Apply `userEnv` directly
 			Object.assign(process.env, userEnv);
 
 			// Resolve `shellEnv` from the main side
-			resolvedEnv = new Promise(function (resolve) {
-				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
+			shellEnv = new Promise(function (resolve) {
+				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnvResult) {
+					if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+						// Assign all keys of the shell environment to our process environment
+						// But make sure that the user environment wins in the end over shell environment
+						Object.assign(process.env, shellEnvResult, userEnv);
+					}
 
-					// Assign all keys of the shell environment to our process environment
-					// But make sure that the user environment wins in the end
-					Object.assign(process.env, shellEnv, userEnv);
-
-					resolve();
+					resolve({ ...process.env, ...shellEnvResult, ...userEnv });
 				});
 
 				ipcRenderer.send('vscode:fetchShellEnv');
 			});
 		}
 
-		return resolvedEnv;
+		await shellEnv;
 	}
 
 	//#endregion

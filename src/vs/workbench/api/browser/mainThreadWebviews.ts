@@ -42,6 +42,10 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public addWebview(handle: extHostProtocol.WebviewHandle, webview: WebviewOverlay): void {
+		if (this._webviews.has(handle)) {
+			throw new Error('Webview already registered');
+		}
+
 		this._webviews.set(handle, webview);
 		this.hookupWebviewEventDelegate(handle, webview);
 	}

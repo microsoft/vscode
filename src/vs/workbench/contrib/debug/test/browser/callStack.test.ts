@@ -84,7 +84,7 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 
-		assert.equal(model.getSessions(true).length, 1);
+		assert.strictEqual(model.getSessions(true).length, 1);
 		model.rawUpdate({
 			sessionId: session.getId(),
 			threads: [{
@@ -93,11 +93,11 @@ suite('Debug - CallStack', () => {
 			}]
 		});
 
-		assert.equal(session.getThread(threadId)!.name, threadName);
+		assert.strictEqual(session.getThread(threadId)!.name, threadName);
 
 		model.clearThreads(session.getId(), true);
-		assert.equal(session.getThread(threadId), undefined);
-		assert.equal(model.getSessions(true).length, 1);
+		assert.strictEqual(session.getThread(threadId), undefined);
+		assert.strictEqual(model.getSessions(true).length, 1);
 	});
 
 	test('threads multiple wtih allThreadsStopped', async () => {
@@ -142,23 +142,23 @@ suite('Debug - CallStack', () => {
 		const thread2 = session.getThread(threadId2)!;
 
 		// at the beginning, callstacks are obtainable but not available
-		assert.equal(session.getAllThreads().length, 2);
-		assert.equal(thread1.name, threadName1);
-		assert.equal(thread1.stopped, true);
-		assert.equal(thread1.getCallStack().length, 0);
-		assert.equal(thread1.stoppedDetails!.reason, stoppedReason);
-		assert.equal(thread2.name, threadName2);
-		assert.equal(thread2.stopped, true);
-		assert.equal(thread2.getCallStack().length, 0);
-		assert.equal(thread2.stoppedDetails!.reason, undefined);
+		assert.strictEqual(session.getAllThreads().length, 2);
+		assert.strictEqual(thread1.name, threadName1);
+		assert.strictEqual(thread1.stopped, true);
+		assert.strictEqual(thread1.getCallStack().length, 0);
+		assert.strictEqual(thread1.stoppedDetails!.reason, stoppedReason);
+		assert.strictEqual(thread2.name, threadName2);
+		assert.strictEqual(thread2.stopped, true);
+		assert.strictEqual(thread2.getCallStack().length, 0);
+		assert.strictEqual(thread2.stoppedDetails!.reason, undefined);
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
 		await thread1.fetchCallStack();
-		assert.notEqual(thread1.getCallStack().length, 0);
+		assert.notStrictEqual(thread1.getCallStack().length, 0);
 
 		await thread2.fetchCallStack();
-		assert.notEqual(thread2.getCallStack().length, 0);
+		assert.notStrictEqual(thread2.getCallStack().length, 0);
 
 		// calling multiple times getCallStack doesn't result in multiple calls
 		// to the debug adapter
@@ -167,17 +167,17 @@ suite('Debug - CallStack', () => {
 
 		// clearing the callstack results in the callstack not being available
 		thread1.clearCallStack();
-		assert.equal(thread1.stopped, true);
-		assert.equal(thread1.getCallStack().length, 0);
+		assert.strictEqual(thread1.stopped, true);
+		assert.strictEqual(thread1.getCallStack().length, 0);
 
 		thread2.clearCallStack();
-		assert.equal(thread2.stopped, true);
-		assert.equal(thread2.getCallStack().length, 0);
+		assert.strictEqual(thread2.stopped, true);
+		assert.strictEqual(thread2.getCallStack().length, 0);
 
 		model.clearThreads(session.getId(), true);
-		assert.equal(session.getThread(threadId1), undefined);
-		assert.equal(session.getThread(threadId2), undefined);
-		assert.equal(session.getAllThreads().length, 0);
+		assert.strictEqual(session.getThread(threadId1), undefined);
+		assert.strictEqual(session.getThread(threadId2), undefined);
+		assert.strictEqual(session.getAllThreads().length, 0);
 	});
 
 	test('threads mutltiple without allThreadsStopped', async () => {
@@ -224,39 +224,39 @@ suite('Debug - CallStack', () => {
 
 		// the callstack for the stopped thread is obtainable but not available
 		// the callstack for the running thread is not obtainable nor available
-		assert.equal(stoppedThread.name, stoppedThreadName);
-		assert.equal(stoppedThread.stopped, true);
-		assert.equal(session.getAllThreads().length, 2);
-		assert.equal(stoppedThread.getCallStack().length, 0);
-		assert.equal(stoppedThread.stoppedDetails!.reason, stoppedReason);
-		assert.equal(runningThread.name, runningThreadName);
-		assert.equal(runningThread.stopped, false);
-		assert.equal(runningThread.getCallStack().length, 0);
-		assert.equal(runningThread.stoppedDetails, undefined);
+		assert.strictEqual(stoppedThread.name, stoppedThreadName);
+		assert.strictEqual(stoppedThread.stopped, true);
+		assert.strictEqual(session.getAllThreads().length, 2);
+		assert.strictEqual(stoppedThread.getCallStack().length, 0);
+		assert.strictEqual(stoppedThread.stoppedDetails!.reason, stoppedReason);
+		assert.strictEqual(runningThread.name, runningThreadName);
+		assert.strictEqual(runningThread.stopped, false);
+		assert.strictEqual(runningThread.getCallStack().length, 0);
+		assert.strictEqual(runningThread.stoppedDetails, undefined);
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
 		await stoppedThread.fetchCallStack();
-		assert.notEqual(stoppedThread.getCallStack().length, 0);
-		assert.equal(runningThread.getCallStack().length, 0);
-		assert.equal(sessionStub.callCount, 1);
+		assert.notStrictEqual(stoppedThread.getCallStack().length, 0);
+		assert.strictEqual(runningThread.getCallStack().length, 0);
+		assert.strictEqual(sessionStub.callCount, 1);
 
 		// calling getCallStack on the running thread returns empty array
 		// and does not return in a request for the callstack in the debug
 		// adapter
 		await runningThread.fetchCallStack();
-		assert.equal(runningThread.getCallStack().length, 0);
-		assert.equal(sessionStub.callCount, 1);
+		assert.strictEqual(runningThread.getCallStack().length, 0);
+		assert.strictEqual(sessionStub.callCount, 1);
 
 		// clearing the callstack results in the callstack not being available
 		stoppedThread.clearCallStack();
-		assert.equal(stoppedThread.stopped, true);
-		assert.equal(stoppedThread.getCallStack().length, 0);
+		assert.strictEqual(stoppedThread.stopped, true);
+		assert.strictEqual(stoppedThread.getCallStack().length, 0);
 
 		model.clearThreads(session.getId(), true);
-		assert.equal(session.getThread(stoppedThreadId), undefined);
-		assert.equal(session.getThread(runningThreadId), undefined);
-		assert.equal(session.getAllThreads().length, 0);
+		assert.strictEqual(session.getThread(stoppedThreadId), undefined);
+		assert.strictEqual(session.getThread(runningThreadId), undefined);
+		assert.strictEqual(session.getAllThreads().length, 0);
 	});
 
 	test('stack frame get specific source name', () => {
@@ -264,8 +264,8 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 
-		assert.equal(getSpecificSourceName(firstStackFrame), '.../b/c/d/internalModule.js');
-		assert.equal(getSpecificSourceName(secondStackFrame), '.../x/c/d/internalModule.js');
+		assert.strictEqual(getSpecificSourceName(firstStackFrame), '.../b/c/d/internalModule.js');
+		assert.strictEqual(getSpecificSourceName(secondStackFrame), '.../x/c/d/internalModule.js');
 	});
 
 	test('stack frame toString()', () => {
@@ -277,11 +277,11 @@ suite('Debug - CallStack', () => {
 			sourceReference: 10,
 		}, 'aDebugSessionId', mockUriIdentityService);
 		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
-		assert.equal(stackFrame.toString(), 'app (internalModule.js:1)');
+		assert.strictEqual(stackFrame.toString(), 'app (internalModule.js:1)');
 
 		const secondSource = new Source(undefined, 'aDebugSessionId', mockUriIdentityService);
 		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2, true);
-		assert.equal(stackFrame2.toString(), 'module');
+		assert.strictEqual(stackFrame2.toString(), 'module');
 	});
 
 	test('debug child sessions are added in correct order', () => {
@@ -299,12 +299,12 @@ suite('Debug - CallStack', () => {
 		model.addSession(anotherChild);
 
 		const sessions = model.getSessions();
-		assert.equal(sessions[0].getId(), session.getId());
-		assert.equal(sessions[1].getId(), firstChild.getId());
-		assert.equal(sessions[2].getId(), secondChild.getId());
-		assert.equal(sessions[3].getId(), secondSession.getId());
-		assert.equal(sessions[4].getId(), anotherChild.getId());
-		assert.equal(sessions[5].getId(), thirdSession.getId());
+		assert.strictEqual(sessions[0].getId(), session.getId());
+		assert.strictEqual(sessions[1].getId(), firstChild.getId());
+		assert.strictEqual(sessions[2].getId(), secondChild.getId());
+		assert.strictEqual(sessions[3].getId(), secondSession.getId());
+		assert.strictEqual(sessions[4].getId(), anotherChild.getId());
+		assert.strictEqual(sessions[5].getId(), thirdSession.getId());
 	});
 
 	test('decorations', () => {
@@ -312,31 +312,31 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range, true);
-		assert.equal(decorations.length, 2);
-		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
-		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
-		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
-		assert.equal(decorations[1].options.isWholeLine, true);
+		assert.strictEqual(decorations.length, 2);
+		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
+		assert.deepStrictEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
+		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
 		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range, true);
-		assert.equal(decorations.length, 2);
-		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
-		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
-		assert.equal(decorations[1].options.className, 'debug-focused-stack-frame-line');
-		assert.equal(decorations[1].options.isWholeLine, true);
+		assert.strictEqual(decorations.length, 2);
+		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
+		assert.deepStrictEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.strictEqual(decorations[1].options.className, 'debug-focused-stack-frame-line');
+		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
 		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6), true);
-		assert.equal(decorations.length, 3);
-		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
-		assert.equal(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
-		assert.deepEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
-		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
-		assert.equal(decorations[1].options.isWholeLine, true);
+		assert.strictEqual(decorations.length, 3);
+		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
+		assert.deepStrictEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
+		assert.strictEqual(decorations[1].options.isWholeLine, true);
 		// Inline decoration gets rendered in this case
-		assert.equal(decorations[2].options.beforeContentClassName, 'debug-top-stack-frame-column');
-		assert.deepEqual(decorations[2].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.strictEqual(decorations[2].options.beforeContentClassName, 'debug-top-stack-frame-column');
+		assert.deepStrictEqual(decorations[2].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 	});
 
 	test('contexts', () => {
@@ -344,26 +344,26 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 		let context = getContext(firstStackFrame);
-		assert.equal(context.sessionId, firstStackFrame.thread.session.getId());
-		assert.equal(context.threadId, firstStackFrame.thread.getId());
-		assert.equal(context.frameId, firstStackFrame.getId());
+		assert.strictEqual(context.sessionId, firstStackFrame.thread.session.getId());
+		assert.strictEqual(context.threadId, firstStackFrame.thread.getId());
+		assert.strictEqual(context.frameId, firstStackFrame.getId());
 
 		context = getContext(secondStackFrame.thread);
-		assert.equal(context.sessionId, secondStackFrame.thread.session.getId());
-		assert.equal(context.threadId, secondStackFrame.thread.getId());
-		assert.equal(context.frameId, undefined);
+		assert.strictEqual(context.sessionId, secondStackFrame.thread.session.getId());
+		assert.strictEqual(context.threadId, secondStackFrame.thread.getId());
+		assert.strictEqual(context.frameId, undefined);
 
 		context = getContext(session);
-		assert.equal(context.sessionId, session.getId());
-		assert.equal(context.threadId, undefined);
-		assert.equal(context.frameId, undefined);
+		assert.strictEqual(context.sessionId, session.getId());
+		assert.strictEqual(context.threadId, undefined);
+		assert.strictEqual(context.frameId, undefined);
 
 		let contributedContext = getContextForContributedActions(firstStackFrame);
-		assert.equal(contributedContext, firstStackFrame.source.raw.path);
+		assert.strictEqual(contributedContext, firstStackFrame.source.raw.path);
 		contributedContext = getContextForContributedActions(firstStackFrame.thread);
-		assert.equal(contributedContext, firstStackFrame.thread.threadId);
+		assert.strictEqual(contributedContext, firstStackFrame.thread.threadId);
 		contributedContext = getContextForContributedActions(session);
-		assert.equal(contributedContext, session.getId());
+		assert.strictEqual(contributedContext, session.getId());
 	});
 
 	test('focusStackFrameThreadAndSesion', () => {
@@ -416,19 +416,19 @@ suite('Debug - CallStack', () => {
 
 		let toFocus = getStackFrameThreadAndSessionToFocus(model, undefined);
 		// Verify stopped session and stopped thread get focused
-		assert.deepEqual(toFocus, { stackFrame: undefined, thread: thread, session: session });
+		assert.deepStrictEqual(toFocus, { stackFrame: undefined, thread: thread, session: session });
 
 		toFocus = getStackFrameThreadAndSessionToFocus(model, undefined, undefined, runningSession);
-		assert.deepEqual(toFocus, { stackFrame: undefined, thread: undefined, session: runningSession });
+		assert.deepStrictEqual(toFocus, { stackFrame: undefined, thread: undefined, session: runningSession });
 
 		toFocus = getStackFrameThreadAndSessionToFocus(model, undefined, thread);
-		assert.deepEqual(toFocus, { stackFrame: undefined, thread: thread, session: session });
+		assert.deepStrictEqual(toFocus, { stackFrame: undefined, thread: thread, session: session });
 
 		toFocus = getStackFrameThreadAndSessionToFocus(model, undefined, runningThread);
-		assert.deepEqual(toFocus, { stackFrame: undefined, thread: runningThread, session: session });
+		assert.deepStrictEqual(toFocus, { stackFrame: undefined, thread: runningThread, session: session });
 
 		const stackFrame = new StackFrame(thread, 5, undefined!, 'stackframename2', undefined, undefined!, 1, true);
 		toFocus = getStackFrameThreadAndSessionToFocus(model, stackFrame);
-		assert.deepEqual(toFocus, { stackFrame: stackFrame, thread: thread, session: session });
+		assert.deepStrictEqual(toFocus, { stackFrame: stackFrame, thread: thread, session: session });
 	});
 });

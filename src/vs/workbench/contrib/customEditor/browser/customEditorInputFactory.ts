@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICustomEditorInputFactory, IEditorInput } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { IWebviewService, WebviewExtensionDescription, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
-import { reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory, DeserializedWebview } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputFactory';
+import { IWebviewService, WebviewContentPurpose, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { DeserializedWebview, reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputFactory';
 import { IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
@@ -95,15 +94,13 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 }
 
 function reviveWebview(data: { id: string, state: any, options: WebviewInputOptions, extension?: WebviewExtensionDescription, }, webviewService: IWebviewService) {
-	return new Lazy(() => {
-		const webview = webviewService.createWebviewOverlay(data.id, {
-			purpose: WebviewContentPurpose.CustomEditor,
-			enableFindWidget: data.options.enableFindWidget,
-			retainContextWhenHidden: data.options.retainContextWhenHidden
-		}, data.options, data.extension);
-		webview.state = data.state;
-		return webview;
-	});
+	const webview = webviewService.createWebviewOverlay(data.id, {
+		purpose: WebviewContentPurpose.CustomEditor,
+		enableFindWidget: data.options.enableFindWidget,
+		retainContextWhenHidden: data.options.retainContextWhenHidden
+	}, data.options, data.extension);
+	webview.state = data.state;
+	return webview;
 }
 
 export const customEditorInputFactory = new class implements ICustomEditorInputFactory {
