@@ -81,7 +81,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
-
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
