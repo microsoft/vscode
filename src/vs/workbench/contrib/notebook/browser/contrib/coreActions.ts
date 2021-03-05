@@ -23,7 +23,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, SelectionStateType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1079,58 +1079,6 @@ registerAction2(class extends NotebookCellAction {
 	constructor() {
 		super(
 			{
-				id: 'notebook.cell.focusDown',
-				title: localize('notebookActions.focusDown', "Notebook Cell Focus Down"),
-				icon: icons.moveUpIcon,
-				keybinding: {
-					primary: KeyCode.DownArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const viewModel = context.notebookEditor.viewModel;
-		const primaryIndex = viewModel.getSelection().start;
-		const nextIndex = Math.min(primaryIndex + 1, viewModel.length - 1);
-		viewModel.updateSelectionsState({
-			kind: SelectionStateType.Index,
-			selections: [{ start: nextIndex, end: nextIndex + 1 }]
-		});
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: 'notebook.cell.focusUp',
-				title: localize('notebookActions.focusUp', "Notebook Cell Focus Up"),
-				icon: icons.moveDownIcon,
-				keybinding: {
-					primary: KeyCode.UpArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const viewModel = context.notebookEditor.viewModel;
-		const primaryIndex = viewModel.getSelection().start;
-		const nextIndex = Math.max(primaryIndex - 1, 0);
-		viewModel.updateSelectionsState({
-			kind: SelectionStateType.Index,
-			selections: [{ start: nextIndex, end: nextIndex + 1 }]
-		});
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
 				id: MOVE_CELL_UP_COMMAND_ID,
 				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
 				icon: icons.moveUpIcon,
@@ -1143,6 +1091,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		return moveCell(context, 'up');
 	}
 });
 
