@@ -35,6 +35,7 @@ import { terminalConfiguration } from 'vs/workbench/contrib/terminal/common/term
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { RemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
+import { isIPad } from 'vs/base/browser/browser';
 import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
 
 // Register services

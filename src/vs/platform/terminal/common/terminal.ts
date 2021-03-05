@@ -16,7 +16,6 @@ export enum WindowsShellType {
 	GitBash = 'gitbash'
 }
 export type TerminalShellType = WindowsShellType | undefined;
-
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
 	terminal: T;
