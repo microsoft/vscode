@@ -5,7 +5,6 @@
 
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -171,9 +170,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		const id = generateUuid();
-		const webview = new Lazy(() => {
-			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
-		});
+		const webview = this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
 		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, {});
 		if (typeof group !== 'undefined') {
 			input.updateGroup(group);

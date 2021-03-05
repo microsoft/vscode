@@ -9,7 +9,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { memoize } from 'vs/base/common/decorators';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
-import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
@@ -107,7 +106,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		id: string,
 		viewType: string,
 		name: string,
-		webview: Lazy<WebviewOverlay>,
+		webview: WebviewOverlay,
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
@@ -189,7 +188,7 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		options: WebviewInputOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
-		const webview = new Lazy(() => this.createWebviewElement(id, extension, options));
+		const webview = this.createWebviewElement(id, extension, options);
 		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
@@ -231,11 +230,8 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined,
 	}): WebviewInput {
-		const webview = new Lazy(() => {
-			const webview = this.createWebviewElement(options.id, options.extension, options.options);
-			webview.state = options.state;
-			return webview;
-		});
+		const webview = this.createWebviewElement(options.id, options.extension, options.options);
+		webview.state = options.state;
 
 		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.id, options.viewType, options.title, webview);
 		webviewInput.iconPath = options.iconPath;

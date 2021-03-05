@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { Schemas } from 'vs/base/common/network';
 
 export class WebviewInput extends EditorInput {
 
@@ -17,7 +16,7 @@ export class WebviewInput extends EditorInput {
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
-	private _webview: Lazy<WebviewOverlay>;
+	private _webview: WebviewOverlay;
 
 	private _hasTransfered = false;
 
@@ -32,7 +31,7 @@ export class WebviewInput extends EditorInput {
 		public readonly id: string,
 		public readonly viewType: string,
 		name: string,
-		webview: Lazy<WebviewOverlay>,
+		webview: WebviewOverlay,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
@@ -43,7 +42,7 @@ export class WebviewInput extends EditorInput {
 	dispose() {
 		if (!this.isDisposed()) {
 			if (!this._hasTransfered) {
-				this._webview.rawValue?.dispose();
+				this._webview?.dispose();
 			}
 		}
 		super.dispose();
@@ -71,7 +70,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public get webview(): WebviewOverlay {
-		return this._webview.getValue();
+		return this._webview;
 	}
 
 	public get extension() {

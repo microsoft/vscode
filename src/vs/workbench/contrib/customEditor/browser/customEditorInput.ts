@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { Lazy } from 'vs/base/common/lazy';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
@@ -39,7 +38,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: Lazy<WebviewOverlay>,
+		webview: WebviewOverlay,
 		options: { startsDirty?: boolean, backupId?: string },
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
@@ -213,8 +212,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			newResource,
 			this.viewType,
 			this.id,
-			new Lazy(() => undefined!),
-			{ startsDirty: this._defaultDirtyState, backupId: this._backupId }); // this webview is replaced in the transfer call
+			undefined!,  // this webview is replaced in the transfer call
+			{ startsDirty: this._defaultDirtyState, backupId: this._backupId });
 		this.transfer(newEditor);
 		newEditor.updateGroup(group);
 		return newEditor;
