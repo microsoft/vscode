@@ -270,6 +270,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
+		if (!this.isWorkspaceTrustEnabled()) {
+			return;
+		}
+
 		type WorkspaceTrustInfoEventClassification = {
 			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			untrustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -287,6 +291,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	private logWorkspaceTrustFolderInfo(workspaceFolder: string, trustedFolder: string): void {
+		if (!this.isWorkspaceTrustEnabled()) {
+			return;
+		}
+
 		type WorkspaceTrustFolderInfoEventClassification = {
 			trustedFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			workspaceFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
