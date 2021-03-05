@@ -7,13 +7,12 @@ import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
-import { IRemoteTerminalProcessExecCommandEvent, IShellLaunchConfigDto, RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { IRemoteTerminalProcessExecCommandEvent, RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
@@ -92,7 +91,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		// TODO: Does this get fired?
 		// this._onProcessResolvedShellLaunchConfig.fire(reviveIShellLaunchConfig(result.resolvedShellLaunchConfig));
 
-		const startResult = await this._remoteTerminalChannel.startTerminalProcess(this._id);
+		const startResult = await this._remoteTerminalChannel.start(this._id);
 
 		if (typeof startResult !== 'undefined') {
 			// An error occurred
@@ -132,34 +131,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	private setupTerminalEventListener(): void {
 		this._register(this._remoteTerminalChannel.onTerminalProcessEvent(this._id)(event => {
 			switch (event.type) {
-				// case 'ready':
-				// 	return this._onProcessReady.fire({ pid: event.pid, cwd: event.cwd });
-				// case 'titleChanged':
-				// 	return this._onProcessTitleChanged.fire(event.title);
-				// case 'data':
-				// 	return this._onProcessData.fire({ data: event.data, sync: false });
-				// case 'replay': {
-				// 	try {
-				// 		this._inReplay = true;
-
-				// 		for (const e of event.events) {
-				// 			if (e.cols !== 0 || e.rows !== 0) {
-				// 				// never override with 0x0 as that is a marker for an unknown initial size
-				// 				this._onProcessOverrideDimensions.fire({ cols: e.cols, rows: e.rows, forceExactSize: true });
-				// 			}
-				// 			this._onProcessData.fire({ data: e.data, sync: true });
-				// 		}
-				// 	} finally {
-				// 		this._inReplay = false;
-				// 	}
-
-				// 	// remove size override
-				// 	this._onProcessOverrideDimensions.fire(undefined);
-
-				// 	return;
-				// }
-				// case 'exit':
-				// 	return this._onProcessExit.fire(event.exitCode);
 				case 'execCommand':
 					return this._execCommand(event);
 				case 'orphan?': {

@@ -87,34 +87,6 @@ export interface ICreateTerminalProcessResult {
 	resolvedShellLaunchConfig: IShellLaunchConfigDto;
 }
 
-export interface IStartTerminalProcessArguments {
-	id: number;
-}
-
-export interface ISendInputToTerminalProcessArguments {
-	id: number;
-	data: string;
-}
-
-export interface IShutdownTerminalProcessArguments {
-	id: number;
-	immediate: boolean;
-}
-
-export interface IResizeTerminalProcessArguments {
-	id: number;
-	cols: number;
-	rows: number;
-}
-
-export interface IGetTerminalInitialCwdArguments {
-	id: number;
-}
-
-export interface IGetTerminalCwdArguments {
-	id: number;
-}
-
 export interface ISendCommandResultToTerminalProcessArguments {
 	id: number;
 	reqId: number;
@@ -304,11 +276,8 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call('$attachToProcess', persistentTerminalId);
 	}
 
-	public async startTerminalProcess(terminalId: number): Promise<ITerminalLaunchError | void> {
-		const args: IStartTerminalProcessArguments = {
-			id: terminalId
-		};
-		return this._channel.call<ITerminalLaunchError | void>('$startTerminalProcess', args);
+	public async start(id: number): Promise<ITerminalLaunchError | void> {
+		return this._channel.call('$start', [id]);
 	}
 
 	public onTerminalProcessEvent(terminalId: number): Event<IRemoteTerminalProcessEvent> {
@@ -341,45 +310,22 @@ export class RemoteTerminalChannelClient {
 	}
 
 	public sendInputToTerminalProcess(id: number, data: string): Promise<void> {
-		const args: ISendInputToTerminalProcessArguments = {
-			id, data
-		};
-		return this._channel.call<void>('$sendInputToTerminalProcess', args);
+		return this._channel.call('$input', [id, data]);
 	}
-
 	public sendCharCountToTerminalProcess(id: number, charCount: number): Promise<void> {
-		const args: ISendCharCountToTerminalProcessArguments = {
-			id, charCount
-		};
-		return this._channel.call<void>('$sendCharCountToTerminalProcess', args);
+		return this._channel.call('$acknowledgeDataEvent', [id, charCount]);
 	}
-
 	public shutdownTerminalProcess(id: number, immediate: boolean): Promise<void> {
-		const args: IShutdownTerminalProcessArguments = {
-			id, immediate
-		};
-		return this._channel.call<void>('$shutdownTerminalProcess', args);
+		return this._channel.call('$shutdown', [id, immediate]);
 	}
-
 	public resizeTerminalProcess(id: number, cols: number, rows: number): Promise<void> {
-		const args: IResizeTerminalProcessArguments = {
-			id, cols, rows
-		};
-		return this._channel.call<void>('$resizeTerminalProcess', args);
+		return this._channel.call('$resize', [id, cols, rows]);
 	}
-
 	public getTerminalInitialCwd(id: number): Promise<string> {
-		const args: IGetTerminalInitialCwdArguments = {
-			id
-		};
-		return this._channel.call<string>('$getTerminalInitialCwd', args);
+		return this._channel.call('$getInitialCwd', [id]);
 	}
-
 	public getTerminalCwd(id: number): Promise<string> {
-		const args: IGetTerminalCwdArguments = {
-			id
-		};
-		return this._channel.call<string>('$getTerminalCwd', args);
+		return this._channel.call('$getCwd', [id]);
 	}
 
 	public sendCommandResultToTerminalProcess(id: number, reqId: number, isError: boolean, payload: any): Promise<void> {
