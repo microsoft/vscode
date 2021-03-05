@@ -102,7 +102,7 @@ export interface WriteableStream<T> extends ReadableStream<T> {
 	 * Signals an error to the consumer of the stream via the
 	 * on('error') handler if the stream is flowing.
 	 *
-	 * Note: call `end` to signal that the stream has ended,
+	 * NOTE: call `end` to signal that the stream has ended,
 	 * this DOES NOT happen automatically from `error`.
 	 */
 	error(error: Error): void;
