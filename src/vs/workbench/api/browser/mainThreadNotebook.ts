@@ -19,10 +19,11 @@ import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThre
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { getNotebookEditorFromEditorPane, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellEditOperation, ICellRange, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -64,9 +65,9 @@ class DocumentAndEditorState {
 
 	constructor(
 		readonly documents: Set<NotebookTextModel>,
-		readonly textEditors: Map<string, IEditor>,
+		readonly textEditors: Map<string, INotebookEditor>,
 		readonly activeEditor: string | null | undefined,
-		readonly visibleEditors: Map<string, IEditor>
+		readonly visibleEditors: Map<string, INotebookEditor>
 	) {
 		//
 	}
@@ -91,10 +92,10 @@ class DocumentAndEditorState {
 		};
 	}
 
-	private static _asEditorAddData(add: IEditor): INotebookEditorAddData {
+	private static _asEditorAddData(add: INotebookEditor): INotebookEditorAddData {
 		return {
 			id: add.getId(),
-			documentUri: add.textModel!.uri,
+			documentUri: add.textModel!.uri, //todo@jrieken no !
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges
 		};
@@ -120,6 +121,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookService private _notebookService: INotebookService,
+		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
@@ -217,7 +219,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			}
 		}));
 
-		this._notebookService.listNotebookEditors().forEach((e) => {
+		this._notebookEditorService.listNotebookEditors().forEach((e) => {
 			this._addNotebookEditor(e);
 		});
 
@@ -263,21 +265,20 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			}
 		};
 
-		this._notebookService.listNotebookEditors().forEach(editor => {
-			notebookEditorAddedHandler(editor as INotebookEditor); //TODO@jrieken IEditor vs INotebookEditor
+		this._notebookEditorService.listNotebookEditors().forEach(editor => {
+			notebookEditorAddedHandler(editor);
 		});
-		this._register(this._notebookService.onNotebookEditorAdd(editor => {
-			notebookEditorAddedHandler(editor as INotebookEditor); //TODO@jrieken IEditor vs INotebookEditor
+		this._register(this._notebookEditorService.onDidAddNotebookEditor(editor => {
+			notebookEditorAddedHandler(editor);
 			this._addNotebookEditor(editor);
 		}));
 
-		this._register(this._notebookService.onNotebookEditorsRemove(editors => {
-			this._removeNotebookEditor(editors);
-
-			editors.forEach(editor => {
-				this._editorEventListenersMapping.get(editor.getId())?.dispose();
-				this._editorEventListenersMapping.delete(editor.getId());
-			});
+		this._register(this._notebookEditorService.onDidRemoveNotebookEditor(editor => {
+			this._toDisposeOnEditorRemove.get(editor.getId())?.dispose();
+			this._toDisposeOnEditorRemove.delete(editor.getId());
+			this._editorEventListenersMapping.get(editor.getId())?.dispose();
+			this._editorEventListenersMapping.delete(editor.getId());
+			this._updateState();
 		}));
 
 
@@ -369,46 +370,33 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._updateState(notebookEditor);
 	}
 
-	private _addNotebookEditor(e: IEditor) {
-		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable(
-			e.onDidChangeModel(() => this._updateState()),
-			e.onDidFocusEditorWidget(() => {
-				this._updateState(e);
-			}),
+	private _addNotebookEditor(editor: INotebookEditor) {
+		// todo@jrieken cleanup _toDisposeOnEditorRemove and _editorEventListenersMapping
+		this._toDisposeOnEditorRemove.set(editor.getId(), combinedDisposable(
+			editor.onDidChangeModel(() => this._updateState()),
+			editor.onDidFocusEditorWidget(() => this._updateState(editor)),
 		));
 
 		const activeNotebookEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		this._updateState(activeNotebookEditor);
 	}
 
-	private _removeNotebookEditor(editors: IEditor[]) {
-		editors.forEach(e => {
-			const sub = this._toDisposeOnEditorRemove.get(e.getId());
-			if (sub) {
-				this._toDisposeOnEditorRemove.delete(e.getId());
-				sub.dispose();
-			}
-		});
-
-		this._updateState();
-	}
-
-	private async _updateState(focusedNotebookEditor?: IEditor) {
+	private async _updateState(focusedNotebookEditor?: INotebookEditor) {
 		let activeEditor: string | null = null;
 
 		const activeNotebookEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		activeEditor = activeNotebookEditor && activeNotebookEditor.hasModel() ? activeNotebookEditor.getId() : null;
-		const documentEditorsMap = new Map<string, IEditor>();
+		const documentEditorsMap = new Map<string, INotebookEditor>();
 
-		const editors = new Map<string, IEditor>();
-		this._notebookService.listNotebookEditors().forEach(editor => {
+		const editors = new Map<string, INotebookEditor>();
+		this._notebookEditorService.listNotebookEditors().forEach(editor => {
 			if (editor.textModel) {
 				editors.set(editor.getId(), editor);
 				documentEditorsMap.set(editor.textModel.uri.toString(), editor);
 			}
 		});
 
-		const visibleEditorsMap = new Map<string, IEditor>();
+		const visibleEditorsMap = new Map<string, INotebookEditor>();
 		this._editorService.visibleEditorPanes.forEach(editorPane => {
 			const nbEditorWidget = getNotebookEditorFromEditorPane(editorPane);
 			if (nbEditorWidget && editors.has(nbEditorWidget.getId())) {
@@ -567,54 +555,54 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		entry?.emitter.fire(uriComponents ? URI.revive(uriComponents) : undefined);
 	}
 
-	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
-		const editor = this._notebookService.getNotebookEditor(editorId) as INotebookEditor | undefined;
-		if (editor) {
-			editor.postMessage(forRendererId, value);
-			return true;
+	async $postMessage(id: string, forRendererId: string | undefined, value: any): Promise<boolean> {
+		const editor = this._notebookEditorService.getNotebookEditor(id);
+		if (!editor) {
+			return false;
 		}
-
-		return false;
+		editor.postMessage(forRendererId, value);
+		return true;
 	}
 
 	async $tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType) {
-		const editor = this._notebookService.listNotebookEditors().find(editor => editor.getId() === id) as INotebookEditor | undefined;
-		if (editor) {
-			const notebookEditor = editor as INotebookEditor;
-			if (!notebookEditor.hasModel()) {
-				return;
-			}
-			const viewModel = notebookEditor.viewModel;
-			const cell = viewModel.viewCells[range.start];
-			if (!cell) {
-				return;
-			}
+		const editor = this._notebookEditorService.getNotebookEditor(id);
+		if (!editor) {
+			return;
+		}
+		const notebookEditor = editor as INotebookEditor;
+		if (!notebookEditor.hasModel()) {
+			return;
+		}
+		const viewModel = notebookEditor.viewModel;
+		const cell = viewModel.viewCells[range.start];
+		if (!cell) {
+			return;
+		}
 
-			switch (revealType) {
-				case NotebookEditorRevealType.Default:
-					return notebookEditor.revealCellRangeInView(range);
-				case NotebookEditorRevealType.InCenter:
-					return notebookEditor.revealInCenter(cell);
-				case NotebookEditorRevealType.InCenterIfOutsideViewport:
-					return notebookEditor.revealInCenterIfOutsideViewport(cell);
-				case NotebookEditorRevealType.AtTop:
-					return notebookEditor.revealInViewAtTop(cell);
-				default:
-					break;
-			}
+		switch (revealType) {
+			case NotebookEditorRevealType.Default:
+				return notebookEditor.revealCellRangeInView(range);
+			case NotebookEditorRevealType.InCenter:
+				return notebookEditor.revealInCenter(cell);
+			case NotebookEditorRevealType.InCenterIfOutsideViewport:
+				return notebookEditor.revealInCenterIfOutsideViewport(cell);
+			case NotebookEditorRevealType.AtTop:
+				return notebookEditor.revealInViewAtTop(cell);
+			default:
+				break;
 		}
 	}
 
 	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions) {
-		this._notebookService.registerEditorDecorationType(key, options);
+		this._notebookEditorService.registerEditorDecorationType(key, options);
 	}
 
 	$removeNotebookEditorDecorationType(key: string) {
-		this._notebookService.removeEditorDecorationType(key);
+		this._notebookEditorService.removeEditorDecorationType(key);
 	}
 
 	$trySetDecorations(id: string, range: ICellRange, key: string) {
-		const editor = this._notebookService.listNotebookEditors().find(editor => editor.getId() === id) as INotebookEditor | undefined;
+		const editor = this._notebookEditorService.getNotebookEditor(id);
 		if (editor) {
 			const notebookEditor = editor as INotebookEditor;
 			notebookEditor.setEditorDecorations(key, range);

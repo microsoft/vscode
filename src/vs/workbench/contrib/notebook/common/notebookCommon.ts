@@ -660,19 +660,6 @@ export interface ICellRange {
 	end: number;
 }
 
-export interface IEditor extends editorCommon.ICompositeCodeEditor {
-	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
-	readonly onDidFocusEditorWidget: Event<void>;
-	readonly onDidChangeVisibleRanges: Event<void>;
-	readonly onDidChangeSelection: Event<void>;
-	getSelection(): ICellRange | undefined;
-	getSelections(): ICellRange[];
-	visibleRanges: ICellRange[];
-	textModel?: NotebookTextModel;
-	getId(): string;
-	hasFocus(): boolean;
-}
-
 export enum NotebookEditorPriority {
 	default = 'default',
 	option = 'option',

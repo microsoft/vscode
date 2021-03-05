@@ -46,6 +46,7 @@ import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewMod
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/notebookEditorDecorations';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IKernelManagerDelegate, NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -196,6 +197,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private notebookService: INotebookService,
+		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -246,7 +248,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		});
 
-		this.notebookService.addNotebookEditor(this);
+		this.notebookEditorService.addNotebookEditor(this);
 
 		const id = generateUuid();
 		this._overlayContainer.id = `notebook-${id}`;
@@ -1183,7 +1185,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _decortionKeyToIds = new Map<string, string[]>();
 
 	private _registerDecorationType(key: string) {
-		const options = this.notebookService.resolveEditorDecorationOptions(key);
+		const options = this.notebookEditorService.resolveEditorDecorationOptions(key);
 
 		if (options) {
 			const styleElement = DOM.createStyleSheet(this._body);
@@ -1828,7 +1830,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webview?.dispose();
 		this._webview = null;
 
-		this.notebookService.removeNotebookEditor(this);
+		this.notebookEditorService.removeNotebookEditor(this);
 		dispose(this._contributions.values());
 		this._contributions.clear();
 
