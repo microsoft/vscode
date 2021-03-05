@@ -192,6 +192,7 @@ import { assertNoRpc } from '../utils';
 
 
 				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
+					console.log('tasks.onDidStartTaskProcess fired');
 					await taskExecutionShouldBeSet;
 					if (e.execution === taskExecution) {
 						startSucceeded = true;
@@ -200,6 +201,7 @@ import { assertNoRpc } from '../utils';
 				}));
 
 				disposables.push(tasks.onDidEndTaskProcess(async (e) => {
+					console.log('tasks.onDidEndTaskProcess fired');
 					await taskExecutionShouldBeSet;
 					if (e.execution === taskExecution) {
 						endSucceeded = true;
