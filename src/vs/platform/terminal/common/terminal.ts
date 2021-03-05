@@ -69,8 +69,6 @@ export enum TerminalIpcChannels {
 export interface IOffProcessTerminalService {
 	readonly _serviceBrand: undefined;
 
-	/** Fired when the ptyHost process goes down, losing all connections to the service's ptys. */
-	onPtyHostExit: Event<void>;
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
@@ -87,10 +85,10 @@ export interface IOffProcessTerminalService {
 	 */
 	onPtyHostRestart: Event<void>;
 
-	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
@@ -141,7 +139,7 @@ export interface IPtyService {
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
 
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 }
 

@@ -170,7 +170,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
 	}
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {

@@ -170,6 +170,35 @@ export interface IOnTerminalProcessEventArguments {
 
 export class RemoteTerminalChannelClient {
 
+	// TODO: Replace this with regular events
+	public onTerminalProcessEvent(terminalId: number): Event<IRemoteTerminalProcessEvent> {
+		const args: IOnTerminalProcessEventArguments = {
+			id: terminalId
+		};
+		return this._channel.listen<IRemoteTerminalProcessEvent>('$onTerminalProcessEvent', args);
+	}
+	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
+		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
+	}
+	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
+		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
+	}
+	public get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string } }> {
+		return this._channel.listen<{ id: number, event: { pid: number, cwd: string } }>('$onProcessReadyEvent');
+	}
+	public get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
+		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
+	}
+	public get onProcessTitleChanged(): Event<{ id: number, event: string }> {
+		return this._channel.listen<{ id: number, event: string }>('$onProcessTitleChangedEvent');
+	}
+	public get onProcessOverrideDimensions(): Event<{ id: number, event: ITerminalDimensionsOverride | undefined }> {
+		return this._channel.listen<{ id: number, event: ITerminalDimensionsOverride | undefined }>('$onProcessOverrideDimensionsEvent');
+	}
+	public get onProcessResolvedShellLaunchConfig(): Event<{ id: number, event: IShellLaunchConfig }> {
+		return this._channel.listen<{ id: number, event: IShellLaunchConfig }>('$onProcessResolvedShellLaunchConfigEvent');
+	}
+
 	constructor(
 		private readonly _remoteAuthority: string,
 		private readonly _channel: IChannel,
@@ -192,7 +221,7 @@ export class RemoteTerminalChannelClient {
 		};
 	}
 
-	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ICreateTerminalProcessResult> {
+	public async createProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
 
@@ -272,59 +301,30 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call<ICreateTerminalProcessResult>('$createTerminalProcess', args);
 	}
 
-	public async attachToProcess(persistentTerminalId: number): Promise<void> {
-		return await this._channel.call('$attachToProcess', persistentTerminalId);
+	public async attachToProcess(id: number): Promise<void> {
+		return await this._channel.call('$attachToProcess', [id]);
 	}
 
 	public async start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}
 
-	public onTerminalProcessEvent(terminalId: number): Event<IRemoteTerminalProcessEvent> {
-		const args: IOnTerminalProcessEventArguments = {
-			id: terminalId
-		};
-		return this._channel.listen<IRemoteTerminalProcessEvent>('$onTerminalProcessEvent', args);
-	}
-
-	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
-		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
-	}
-	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
-		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
-	}
-	public get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string } }> {
-		return this._channel.listen<{ id: number, event: { pid: number, cwd: string } }>('$onProcessReadyEvent');
-	}
-	public get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
-		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
-	}
-	public get onProcessTitleChanged(): Event<{ id: number, event: string }> {
-		return this._channel.listen<{ id: number, event: string }>('$onProcessTitleChangedEvent');
-	}
-	public get onProcessOverrideDimensions(): Event<{ id: number, event: ITerminalDimensionsOverride | undefined }> {
-		return this._channel.listen<{ id: number, event: ITerminalDimensionsOverride | undefined }>('$onProcessOverrideDimensionsEvent');
-	}
-	public get onProcessResolvedShellLaunchConfig(): Event<{ id: number, event: IShellLaunchConfig }> {
-		return this._channel.listen<{ id: number, event: IShellLaunchConfig }>('$onProcessResolvedShellLaunchConfigEvent');
-	}
-
-	public sendInputToTerminalProcess(id: number, data: string): Promise<void> {
+	public input(id: number, data: string): Promise<void> {
 		return this._channel.call('$input', [id, data]);
 	}
-	public sendCharCountToTerminalProcess(id: number, charCount: number): Promise<void> {
+	public acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._channel.call('$acknowledgeDataEvent', [id, charCount]);
 	}
-	public shutdownTerminalProcess(id: number, immediate: boolean): Promise<void> {
+	public shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call('$shutdown', [id, immediate]);
 	}
-	public resizeTerminalProcess(id: number, cols: number, rows: number): Promise<void> {
+	public resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._channel.call('$resize', [id, cols, rows]);
 	}
-	public getTerminalInitialCwd(id: number): Promise<string> {
+	public getInitialCwd(id: number): Promise<string> {
 		return this._channel.call('$getInitialCwd', [id]);
 	}
-	public getTerminalCwd(id: number): Promise<string> {
+	public getCwd(id: number): Promise<string> {
 		return this._channel.call('$getCwd', [id]);
 	}
 

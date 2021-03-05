@@ -114,7 +114,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 	public shutdown(immediate: boolean): void {
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.shutdownTerminalProcess(this._id, immediate);
+			this._remoteTerminalChannel.shutdown(this._id, immediate);
 		});
 	}
 
@@ -124,7 +124,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		}
 
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.sendInputToTerminalProcess(this._id, data);
+			this._remoteTerminalChannel.input(this._id, data);
 		});
 	}
 
@@ -149,7 +149,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		}
 		this._startBarrier.wait().then(_ => {
 
-			this._remoteTerminalChannel.resizeTerminalProcess(this._id, cols, rows);
+			this._remoteTerminalChannel.resize(this._id, cols, rows);
 		});
 	}
 
@@ -160,18 +160,18 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		}
 
 		this._startBarrier.wait().then(_ => {
-			this._remoteTerminalChannel.sendCharCountToTerminalProcess(this._id, charCount);
+			this._remoteTerminalChannel.acknowledgeDataEvent(this._id, charCount);
 		});
 	}
 
 	public async getInitialCwd(): Promise<string> {
 		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.getTerminalInitialCwd(this._id);
+		return this._remoteTerminalChannel.getInitialCwd(this._id);
 	}
 
 	public async getCwd(): Promise<string> {
 		await this._startBarrier.wait();
-		return this._remoteTerminalChannel.getTerminalCwd(this._id);
+		return this._remoteTerminalChannel.getCwd(this._id);
 	}
 
 	handleData(e: string | IProcessDataEvent) {

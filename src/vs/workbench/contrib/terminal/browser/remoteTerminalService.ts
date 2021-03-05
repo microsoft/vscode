@@ -60,7 +60,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 	}
 
-	public async createRemoteTerminalProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
+	public async createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -83,7 +83,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		};
 		// TODO: Fix workspace shell permissions
 		const isWorkspaceShellAllowed = false;//this._configHelper.checkWorkspaceShellPermissions(env.os);
-		const result = await this._remoteTerminalChannel.createTerminalProcess(
+		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
 			activeWorkspaceRootUri,
 			shouldPersist,
@@ -97,7 +97,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return pty;
 	}
 
-	public async attachToProcess(persistentProcessId: number): Promise<ITerminalChildProcess | undefined> {
+	public async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -112,9 +112,9 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		}
 
 		try {
-			await this._remoteTerminalChannel.attachToProcess(persistentProcessId);
-			const pty = new RemotePty(persistentProcessId, true, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
-			this._ptys.set(persistentProcessId, pty);
+			await this._remoteTerminalChannel.attachToProcess(id);
+			const pty = new RemotePty(id, true, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService, this._commandService);
+			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
