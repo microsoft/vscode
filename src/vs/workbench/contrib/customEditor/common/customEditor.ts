@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, mergeSort } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
@@ -175,7 +175,7 @@ export class CustomEditorInfoCollection {
 	 * the same priority.
 	 */
 	public get bestAvailableEditor(): CustomEditorInfo | undefined {
-		const editors = mergeSort(Array.from(this.allEditors), (a, b) => {
+		const editors = Array.from(this.allEditors).sort((a, b) => {
 			return priorityToRank(a.priority) - priorityToRank(b.priority);
 		});
 		return editors[0];
