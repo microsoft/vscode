@@ -22,6 +22,8 @@ steps:
     displayName: Extract compilation output
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
+  # Set up the credentials to retrieve distro repo and setup git persona
+  # to create a merge commit for when we merge distro into oss
   - script: |
       set -e
       cat << EOF > ~/.netrc
@@ -119,6 +121,7 @@ steps:
     displayName: Rebuild native modules for ARM64
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
+  # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
   - script: |
       set -e
       node build/azure-pipelines/mixin
@@ -167,6 +170,9 @@ steps:
     displayName: Create Universal App
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
 
+  # Setting hardened entitlements is a requirement for:
+  # * Apple notarization
+  # * Running tests on Big Sur (because Big Sur has additional security precautions)
   - script: |
       set -e
       security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
