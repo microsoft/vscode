@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { memoize } from 'vs/base/common/decorators';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -171,7 +171,7 @@ class RevivalPool {
 }
 
 
-export class WebviewEditorService implements IWebviewWorkbenchService {
+export class WebviewEditorService extends Disposable implements IWebviewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _revivers = new Set<WebviewResolver>();
@@ -185,7 +185,9 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
-		this._iconManager = this._instantiationService.createInstance(WebviewIconManager);
+		super();
+
+		this._iconManager = this._register(this._instantiationService.createInstance(WebviewIconManager));
 	}
 
 	get iconManager() {

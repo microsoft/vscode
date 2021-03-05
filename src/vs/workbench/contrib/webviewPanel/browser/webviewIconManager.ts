@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { memoize } from 'vs/base/common/decorators';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -14,9 +14,11 @@ export interface WebviewIcons {
 	readonly dark: URI;
 }
 
-export class WebviewIconManager {
+export class WebviewIconManager implements IDisposable {
 
 	private readonly _icons = new Map<string, WebviewIcons>();
+
+	private _styleElement: HTMLStyleElement | undefined;
 
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -29,11 +31,17 @@ export class WebviewIconManager {
 		});
 	}
 
-	@memoize
-	private get _styleElement(): HTMLStyleElement {
-		const element = dom.createStyleSheet();
-		element.className = 'webview-icons';
-		return element;
+	dispose() {
+		this._styleElement?.remove();
+		this._styleElement = undefined;
+	}
+
+	private get styleElement(): HTMLStyleElement {
+		if (!this._styleElement) {
+			this._styleElement = dom.createStyleSheet();
+			this._styleElement.className = 'webview-icons';
+		}
+		return this._styleElement;
 	}
 
 	public setIcons(
@@ -66,6 +74,6 @@ export class WebviewIconManager {
 				}
 			}
 		}
-		this._styleElement.textContent = cssRules.join('\n');
+		this.styleElement.textContent = cssRules.join('\n');
 	}
 }
