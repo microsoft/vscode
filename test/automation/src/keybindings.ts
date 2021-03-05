@@ -22,8 +22,8 @@ export class KeybindingsEditor {
 		await this.code.waitForSetValue(SEARCH_INPUT, `@command:${command}`);
 
 		const commandTitle = commandName ? `${commandName} (${command})` : command;
-		await this.code.waitAndClick(`.keybindings-table-container .monaco-list-row .command span.monaco-highlighted-label[title="${commandTitle}"]`);
-		await this.code.waitForElement(`.keybindings-table-container .monaco-list-row.focused.selected .command span.monaco-highlighted-label[title="${commandTitle}"]`);
+		await this.code.waitAndClick(`.keybindings-table-container .monaco-list-row .command[title="${commandTitle}"]`);
+		await this.code.waitForElement(`.keybindings-table-container .monaco-list-row.focused.selected .command[title="${commandTitle}"]`);
 		await this.code.dispatchKeybinding('enter');
 
 		await this.code.waitForActiveElement('.defineKeybindingWidget .monaco-inputbox input');
