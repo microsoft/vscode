@@ -70,6 +70,9 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	@debounce(500)
 	async checkShell(): Promise<void> {
 		if (platform.isWindows) {
+			// Wait to give the shell some time to actually launch a process, this
+			// could lead to a race condition but it would be recovered from when
+			// data stops and should cover the majority of cases
 			await timeout(300);
 			this.getShellName().then(title => {
 				const type = this.getShellType(title);
