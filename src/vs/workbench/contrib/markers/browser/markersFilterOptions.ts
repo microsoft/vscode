@@ -48,7 +48,7 @@ export class FilterOptions {
 	readonly showWarnings: boolean = false;
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
-	readonly textFilter: { text: string, negate: boolean } = { text: '', negate: false };
+	readonly textFilter: { readonly text: string, readonly negate: boolean };
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
@@ -70,30 +70,26 @@ export class FilterOptions {
 		const filesExcludeByRoot = Array.isArray(filesExclude) ? filesExclude : [];
 		const excludesExpression: IExpression = Array.isArray(filesExclude) ? getEmptyExpression() : filesExclude;
 
+		const negate = filter.startsWith('!');
+		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
 		const includeExpression: IExpression = getEmptyExpression();
-		const negatedTextFilter = filter.startsWith('!');
+
 		if (filter) {
 			const filters = splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
 				if (f.startsWith('!')) {
-					const unnegated = strings.ltrim(f, '!');
-					if (unnegated) {
-						this.setPattern(excludesExpression, unnegated);
-						if (negatedTextFilter) {
-							this.textFilter.text += ` ${unnegated}`;
-						}
+					const filterText = strings.ltrim(f, '!');
+					if (filterText) {
+						this.setPattern(excludesExpression, filterText);
 					}
 				} else {
 					this.setPattern(includeExpression, f);
-					this.textFilter.text += ` ${f}`;
 				}
 			}
 		}
 
 		this.excludesMatcher = new ResourceGlobMatcher(excludesExpression, filesExcludeByRoot, uriIdentityService);
 		this.includesMatcher = new ResourceGlobMatcher(includeExpression, [], uriIdentityService);
-		this.textFilter.text = this.textFilter.text.trim();
-		this.textFilter.negate = negatedTextFilter;
 	}
 
 	private setPattern(expression: IExpression, pattern: string) {

@@ -529,92 +529,92 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
+		// Filter resource by pattern first (globs)
+		// Excludes pattern
 		if (this.options.excludesMatcher.matches(resourceMarkers.resource)) {
 			return false;
 		}
 
-		const negate = this.options.textFilter.negate;
-		const text = this.options.textFilter.text;
-
-		if (text) {
-			const uriMatches = FilterOptions._filter(text, basename(resourceMarkers.resource));
-			if (uriMatches && negate) {
-				return false;
-			} else if (uriMatches || negate) {
-				return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches: uriMatches || [] } };
-			}
-		}
-
+		// Includes pattern
 		if (this.options.includesMatcher.matches(resourceMarkers.resource)) {
 			return true;
+		}
+
+		// Fiter by text. Do not apply negated filters on resources instead use exclude patterns
+		if (this.options.textFilter.text && !this.options.textFilter.negate) {
+			const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(resourceMarkers.resource));
+			if (uriMatches) {
+				return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches: uriMatches || [] } };
+			}
 		}
 
 		return TreeVisibility.Recurse;
 	}
 
 	private filterMarker(marker: Marker, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		let shouldAppear: boolean = false;
-		if (this.options.showErrors && MarkerSeverity.Error === marker.marker.severity) {
-			shouldAppear = true;
-		}
 
-		if (this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity) {
-			shouldAppear = true;
-		}
+		const matchesSeverity = this.options.showErrors && MarkerSeverity.Error === marker.marker.severity ||
+			this.options.showWarnings && MarkerSeverity.Warning === marker.marker.severity ||
+			this.options.showInfos && MarkerSeverity.Info === marker.marker.severity;
 
-		if (this.options.showInfos && MarkerSeverity.Info === marker.marker.severity) {
-			shouldAppear = true;
-		}
-
-		if (!shouldAppear) {
+		if (!matchesSeverity) {
 			return false;
 		}
 
-		const lineMatches: IMatch[][] = [];
-		const negate = this.options.textFilter.negate;
-		const text = this.options.textFilter.text;
-		if (!text) {
+		if (!this.options.textFilter.text) {
 			return true;
 		}
+
+		const lineMatches: IMatch[][] = [];
 		for (const line of marker.lines) {
-			const lineMatch = FilterOptions._messageFilter(text, line);
+			const lineMatch = FilterOptions._messageFilter(this.options.textFilter.text, line);
 			lineMatches.push(lineMatch || []);
 		}
 
-		let sourceMatches: IMatch[] | null | undefined;
-		if (marker.marker.source) {
-			sourceMatches = FilterOptions._filter(text, marker.marker.source);
-		} else {
-			sourceMatches = undefined;
+		const sourceMatches = marker.marker.source ? FilterOptions._filter(this.options.textFilter.text, marker.marker.source) : undefined;
+		const codeMatches = marker.marker.code ? FilterOptions._filter(this.options.textFilter.text, typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value) : undefined;
+		const matched = sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0);
+
+		// Matched and not negated
+		if (matched && !this.options.textFilter.negate) {
+			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
 		}
 
-		let codeMatches: IMatch[] | null | undefined;
-		if (marker.marker.code) {
-			const codeText = typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value;
-			codeMatches = FilterOptions._filter(text, codeText);
-		} else {
-			codeMatches = undefined;
+		// Matched and negated - exclude it only if parent visibility is not set
+		if (matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return false;
 		}
 
-		if (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) {
-			return negate ? false : { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
+		// Not matched and negated - include it only if parent visibility is not set
+		if (!matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return true;
 		}
 
 		return parentVisibility;
 	}
 
 	private filterRelatedInformation(relatedInformation: RelatedInformation, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		const negate = this.options.textFilter.negate;
-		const text = this.options.textFilter.text;
-		if (!text) {
+		if (!this.options.textFilter.text) {
 			return true;
 		}
 
-		const uriMatches = FilterOptions._filter(text, basename(relatedInformation.raw.resource));
-		const messageMatches = FilterOptions._messageFilter(text, paths.basename(relatedInformation.raw.message));
+		const uriMatches = FilterOptions._filter(this.options.textFilter.text, basename(relatedInformation.raw.resource));
+		const messageMatches = FilterOptions._messageFilter(this.options.textFilter.text, paths.basename(relatedInformation.raw.message));
+		const matched = uriMatches || messageMatches;
 
-		if (uriMatches || messageMatches) {
-			return negate ? false : { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
+		// Matched and not negated
+		if (matched && !this.options.textFilter.negate) {
+			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
+		}
+
+		// Matched and negated - exclude it only if parent visibility is not set
+		if (matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return false;
+		}
+
+		// Not matched and negated - include it only if parent visibility is not set
+		if (!matched && this.options.textFilter.negate && parentVisibility === TreeVisibility.Recurse) {
+			return true;
 		}
 
 		return parentVisibility;
