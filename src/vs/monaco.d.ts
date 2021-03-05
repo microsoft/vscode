@@ -1153,9 +1153,15 @@ declare namespace monaco.editor {
 		 * Theme to be used for rendering.
 		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 		 * You can create custom themes via `monaco.editor.defineTheme`.
-		 * To switch a theme, use `monaco.editor.setTheme`
+		 * To switch a theme, use `monaco.editor.setTheme`.
+		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 		 */
 		theme?: string;
+		/**
+		 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+		 * Defaults to true.
+		 */
+		autoDetectHighContrast?: boolean;
 	}
 
 	/**
@@ -1180,9 +1186,15 @@ declare namespace monaco.editor {
 		 * Initial theme to be used for rendering.
 		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 		 * You can create custom themes via `monaco.editor.defineTheme`.
-		 * To switch a theme, use `monaco.editor.setTheme`
+		 * To switch a theme, use `monaco.editor.setTheme`.
+		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 		 */
 		theme?: string;
+		/**
+		 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+		 * Defaults to true.
+		 */
+		autoDetectHighContrast?: boolean;
 		/**
 		 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
 		 * the accessibility help dialog in the editor.
@@ -1200,9 +1212,15 @@ declare namespace monaco.editor {
 		 * Initial theme to be used for rendering.
 		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 		 * You can create custom themes via `monaco.editor.defineTheme`.
-		 * To switch a theme, use `monaco.editor.setTheme`
+		 * To switch a theme, use `monaco.editor.setTheme`.
+		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 		 */
 		theme?: string;
+		/**
+		 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+		 * Defaults to true.
+		 */
+		autoDetectHighContrast?: boolean;
 	}
 
 	export interface IStandaloneCodeEditor extends ICodeEditor {
