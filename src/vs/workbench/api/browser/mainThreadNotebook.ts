@@ -94,7 +94,8 @@ class NotebookAndEditorState {
 			id: add.getId(),
 			documentUri: add.viewModel.uri,
 			selections: add.getSelections(),
-			visibleRanges: add.visibleRanges
+			visibleRanges: add.visibleRanges,
+			viewColumn: undefined
 		};
 	}
 }

@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorPropertiesChangeData, INotebookKernelInfoDto2, MainContext, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookKernelInfoDto2, MainContext, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -579,17 +579,22 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new Error(`unknown text editor: ${id}`);
 		}
 
+		// ONE: make all state updates
 		if (data.visibleRanges) {
 			editor.editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookCellRange.to));
+		}
+		if (data.selections) {
+			editor.editor._acceptSelections(data.selections.selections.map(typeConverters.NotebookCellRange.to));
+		}
+
+		// TWO: send all events after states have been updated
+		if (data.visibleRanges) {
 			this._onDidChangeNotebookEditorVisibleRanges.fire({
 				notebookEditor: editor.editor.editor,
 				visibleRanges: editor.editor.editor.visibleRanges
 			});
 		}
-
 		if (data.selections) {
-			editor.editor._acceptSelections(data.selections.selections);
-
 			this._onDidChangeNotebookEditorSelection.fire(Object.freeze({
 				notebookEditor: editor.editor.editor,
 				selections: editor.editor.editor.selections
@@ -603,7 +608,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		document.acceptDocumentPropertiesChanged(data);
 	}
 
-	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: ICellRange[], visibleRanges: extHostTypes.NotebookCellRange[]) {
+	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
 		const revivedUri = document.uri;
 		let webComm = this._webviewComm.get(editorId);
 
@@ -616,11 +621,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			editorId,
 			document.notebookDocument.viewType,
 			this._proxy,
-			document
+			document,
+			data.visibleRanges.map(typeConverters.NotebookCellRange.to),
+			data.selections.map(typeConverters.NotebookCellRange.to),
+			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
 		);
 
-		editor._acceptSelections(selections);
-		editor._acceptVisibleRanges(visibleRanges);
 
 		this._editors.get(editorId)?.editor.dispose();
 		this._editors.set(editorId, { editor });
@@ -692,16 +698,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 				document.acceptModelChanged({
 					versionId: modelData.versionId,
-					rawEvents: [
-						{
-							kind: NotebookCellsChangeType.Initialize,
-							changes: [[
-								0,
-								0,
-								modelData.cells
-							]]
-						}
-					]
+					rawEvents: [{
+						kind: NotebookCellsChangeType.Initialize,
+						changes: [[0, 0, modelData.cells]]
+					}]
 				}, false);
 
 				// add cell document as vscode.TextDocument
@@ -725,7 +725,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				const document = this._documents.get(revivedUri);
 
 				if (document) {
-					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections, editorModelData.visibleRanges.map(typeConverters.NotebookCellRange.to));
+					this._createExtHostEditor(document, editorModelData.id, editorModelData);
 					editorChanged = true;
 				}
 			}
@@ -770,25 +770,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
 		}
 
-		if (delta.newActiveEditor !== undefined) {
-			if (delta.newActiveEditor) {
-				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
-				this._activeNotebookEditor?._acceptActive(true);
-				for (const e of this._editors.values()) {
-					if (e.editor !== this._activeNotebookEditor) {
-						e.editor._acceptActive(false);
-					}
-				}
-			} else {
-				// clear active notebook as current active editor is non-notebook editor
-				this._activeNotebookEditor = undefined;
-				for (const e of this._editors.values()) {
-					e.editor._acceptActive(false);
-				}
-			}
-
-			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
+		if (delta.newActiveEditor === null) {
+			// clear active notebook as current active editor is non-notebook editor
+			this._activeNotebookEditor = undefined;
+		} else if (delta.newActiveEditor) {
+			this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
 		}
+		this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
 	}
 
 	createNotebookCellStatusBarItemInternal(cell: vscode.NotebookCell, alignment: extHostTypes.NotebookCellStatusBarAlignment | undefined, priority: number | undefined) {

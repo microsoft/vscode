@@ -1228,6 +1228,8 @@ declare module 'vscode' {
 		 */
 		readonly end: number;
 
+		isEmpty: boolean;
+
 		constructor(start: number, end: number);
 	}
 
@@ -1284,8 +1286,7 @@ declare module 'vscode' {
 		 * The column in which this editor shows.
 		 */
 		// @jrieken
-		// todo@API maybe never undefined because notebooks always show in the editor area (unlike text editors)
-		// maybe for notebook diff editor
+		// this is not implemented...
 		readonly viewColumn?: ViewColumn;
 
 		/**

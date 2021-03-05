@@ -2908,6 +2908,10 @@ export class NotebookCellRange {
 		return this._end;
 	}
 
+	get isEmpty(): boolean {
+		return this._start === this._end;
+	}
+
 	constructor(start: number, end: number) {
 		if (start < 0) {
 			throw illegalArgument('start must be positive');

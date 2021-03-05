@@ -1774,6 +1774,7 @@ export interface INotebookEditorAddData {
 	documentUri: UriComponents;
 	selections: ICellRange[];
 	visibleRanges: ICellRange[];
+	viewColumn?: number
 }
 
 export interface INotebookDocumentsAndEditorsDelta {
