@@ -49,14 +49,14 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
 	},
 	{
-		key: 'editor/context/copy',
-		id: MenuId.EditorContextCopy,
-		description: localize('menus.editorContext', "'Copy as' submenu in the editor context menu")
+		key: 'editor/context',
+		id: MenuId.EditorContext,
+		description: localize('menus.editorContext', "The editor context menu")
 	},
 	{
-		key: 'editor/context/',
-		id: MenuId.EditorTitleRun,
-		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
+		key: 'editor/context/copy',
+		id: MenuId.EditorContextCopy,
+		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
 	},
 	{
 		key: 'explorer/context',
