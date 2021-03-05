@@ -567,7 +567,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						background-color: var(--vscode-diffEditor-insertedTextBackground);
 					}
 
-					#container > div > div > div {
+					#container > div > div:not(.preview) > div {
 						overflow-x: scroll;
 					}
 
