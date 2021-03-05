@@ -269,6 +269,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 	acknowledgeDataEvent(charCount: number): void;
+	processBinary(data: string): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;

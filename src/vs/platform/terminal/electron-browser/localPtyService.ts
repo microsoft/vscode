@@ -169,6 +169,9 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
+	processBinary(id: number, data: string): void {
+		this._proxy.processBinary(id, data);
+	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		return await this._proxy.getTerminalLayoutInfo(args);
 	}

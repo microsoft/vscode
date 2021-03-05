@@ -89,6 +89,7 @@ export interface IOffProcessTerminalService {
 
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	processBinary(id: number, data: string): void;
 	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
 	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
@@ -139,6 +140,7 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	processBinary(id: number, data: string): void;
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;

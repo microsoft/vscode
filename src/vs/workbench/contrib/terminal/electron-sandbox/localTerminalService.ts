@@ -135,6 +135,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return result;
 	}
 
+	public processBinary(id: number, data: string): void {
+		this._localPtyService.processBinary(id, data);
+	}
+
 	private _getWorkspaceId(): string {
 		return this._workspaceContextService.getWorkspace().id;
 	}

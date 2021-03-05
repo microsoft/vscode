@@ -309,6 +309,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._startWrite();
 	}
 
+	public writeBinary(data: string): void {
+		this._logService.trace('IPty#writeBinary', `${data.length} characters`);
+		this._ptyProcess!.write(JSON.stringify(Buffer.from(data, 'binary')));
+	}
+
 	private _startWrite(): void {
 		// Don't write if it's already queued of is there is nothing to write
 		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {

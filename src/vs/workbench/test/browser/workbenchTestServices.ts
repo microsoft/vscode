@@ -1493,6 +1493,9 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById): void { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
+	processBinary(id: number, data: string): void {
+		throw new Error('Method not implemented.');
+	}
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
