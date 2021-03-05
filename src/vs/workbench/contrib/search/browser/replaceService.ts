@@ -23,7 +23,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { mergeSort } from 'vs/base/common/arrays';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { Promises } from 'vs/base/common/async';
@@ -170,7 +169,7 @@ export class ReplaceService implements IReplaceService {
 				resourceEdit.textEdit.text)
 			);
 		}
-		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+		replaceModel.pushEditOperations([], modelEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
 
 	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {

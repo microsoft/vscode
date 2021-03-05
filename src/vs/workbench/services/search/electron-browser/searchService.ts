@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FileAccess } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -36,9 +37,10 @@ export class LocalSearchService extends SearchService {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IInstantiationService readonly instantiationService: IInstantiationService
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 
 		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
 	}

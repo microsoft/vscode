@@ -224,7 +224,7 @@ export abstract class TitleControl extends Themable {
 				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
 			}));
 
-			const shouldInlineGroup = (action: SubmenuAction, group: string) => (group === 'navigation' || group === '1_run') && action.actions.length <= 1;
+			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
 			this.editorToolBarMenuDisposables.add(createAndFillInActionBarActions(
 				titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary },

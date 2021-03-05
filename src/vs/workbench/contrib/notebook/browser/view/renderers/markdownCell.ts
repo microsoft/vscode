@@ -23,7 +23,6 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IMarkdownRenderStrategy extends IDisposable {
 	update(): void;
@@ -118,17 +117,17 @@ export class StatefulMarkdownCell extends Disposable {
 		private readonly templateData: MarkdownCellRenderTemplate,
 		private editorOptions: IEditorOptions,
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
+		options: { useRenderer: boolean },
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationSerivce: IConfigurationService
 	) {
 		super();
 
 		this.markdownContainer = templateData.cellContainer;
 		this.editorPart = templateData.editorPart;
+		this.useRenderer = options.useRenderer;
 
-		this.useRenderer = !!(this.configurationSerivce.getValue<string>('notebook.experimental.useMarkdownRenderer'));
 		if (this.useRenderer) {
 			this.templateData.container.classList.toggle('webview-backed-markdown-cell', true);
 			this.renderStrategy = new WebviewMarkdownRenderer(this.notebookEditor, this.viewCell);
@@ -192,25 +191,46 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		}));
 
+		// Update for selection
+		if (this.useRenderer) {
+			this._register(this.notebookEditor.onDidChangeSelection(() => {
+				const selectedCells = this.notebookEditor.getSelectionViewModels();
+				const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === viewCell);
+				this.notebookEditor.updateMarkdownPreviewSelectionState(viewCell, isSelected);
+			}));
+		}
+
+		// apply decorations
+
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					templateData.rootContainer.classList.add(options.className);
+					if (this.useRenderer) {
+						this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+					} else {
+						templateData.rootContainer.classList.add(options.className);
+					}
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					templateData.rootContainer.classList.remove(options.className);
+					if (this.useRenderer) {
+						this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.className]);
+					} else {
+						templateData.rootContainer.classList.remove(options.className);
+					}
 				}
 			});
 		}));
 
-		// apply decorations
-
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				templateData.rootContainer.classList.add(options.className);
+				if (this.useRenderer) {
+					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.className], []);
+				} else {
+					templateData.rootContainer.classList.add(options.className);
+				}
 			}
 		});
 

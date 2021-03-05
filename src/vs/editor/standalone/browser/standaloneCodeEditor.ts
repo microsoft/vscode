@@ -142,9 +142,15 @@ export interface IGlobalEditorOptions {
 	 * Theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 /**
@@ -169,9 +175,15 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	 * Initial theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 	/**
 	 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
 	 * the accessibility help dialog in the editor.
@@ -189,9 +201,15 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Initial theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
@@ -377,6 +395,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
 		}
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
+		}
 		let _model: ITextModel | null | undefined = options.model;
 		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService);
@@ -414,6 +435,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		updateConfigurationService(this._configurationService, newOptions, false);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
 		}
 		super.updateOptions(newOptions);
 	}
@@ -461,7 +485,10 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		updateConfigurationService(configurationService, options, true);
 		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
-			options.theme = themeService.setTheme(options.theme);
+			themeService.setTheme(options.theme);
+		}
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
 		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
@@ -484,6 +511,9 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		updateConfigurationService(this._configurationService, newOptions, true);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
 		}
 		super.updateOptions(newOptions);
 	}
