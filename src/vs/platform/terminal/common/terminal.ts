@@ -69,14 +69,6 @@ export enum TerminalIpcChannels {
 export interface IOffProcessTerminalService {
 	readonly _serviceBrand: undefined;
 
-	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
-	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
-}
-
-export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService {
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
@@ -93,6 +85,14 @@ export interface ILocalTerminalService extends IOffProcessTerminalService {
 	 */
 	onPtyHostRestart: Event<void>;
 
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+}
+
+export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
+export interface ILocalTerminalService extends IOffProcessTerminalService {
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
 }
 

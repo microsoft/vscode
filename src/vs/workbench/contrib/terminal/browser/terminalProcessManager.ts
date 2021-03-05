@@ -27,7 +27,7 @@ import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } fr
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ILocalTerminalService, IOffProcessTerminalService } from 'vs/platform/terminal/common/terminal';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -204,6 +204,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				} else {
 					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
+				this._setupPtyHostListeners(this._remoteTerminalService);
 			} else {
 				if (!this._localTerminalService) {
 					this._logService.trace(`Tried to launch a local terminal which is not supported in this window`);
@@ -220,6 +221,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				} else {
 					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
+				this._setupPtyHostListeners(this._localTerminalService);
 			}
 		}
 
@@ -343,22 +345,28 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 
-		this._register(localTerminalService.onPtyHostUnresponsive(() => {
+		return await localTerminalService.createProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
+	}
+
+	private _setupPtyHostListeners(offProcessTerminalService: IOffProcessTerminalService) {
+		this._register(offProcessTerminalService.onPtyHostUnresponsive(() => {
 			this.isDisconnected = true;
 			this._onPtyDisconnect.fire();
 		}));
-		this._ptyResponsiveListener = localTerminalService.onPtyHostResponsive(() => {
+		this._ptyResponsiveListener = offProcessTerminalService.onPtyHostResponsive(() => {
 			this.isDisconnected = false;
 			this._onPtyReconnect.fire();
 		});
 		this._register(toDisposable(() => this._ptyResponsiveListener?.dispose()));
-		this._register(localTerminalService.onPtyHostRestart(() => {
+		this._register(offProcessTerminalService.onPtyHostRestart(() => {
 			// When the pty host restarts, reconnect is no longer possible
+			if (!this.isDisconnected) {
+				this.isDisconnected = true;
+				this._onPtyDisconnect.fire();
+			}
 			this._ptyResponsiveListener?.dispose();
 			this._ptyResponsiveListener = undefined;
 		}));
-
-		return await localTerminalService.createProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}
 
 	public setDimensions(cols: number, rows: number): void {

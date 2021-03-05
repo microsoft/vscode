@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
@@ -87,51 +87,20 @@ export interface ICreateTerminalProcessResult {
 	resolvedShellLaunchConfig: IShellLaunchConfigDto;
 }
 
-export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
-
-export interface ITriggerTerminalDataReplayArguments {
-	id: number;
-}
-
-export interface ISendCharCountToTerminalProcessArguments {
-	id: number;
-	charCount: number;
-}
-
-export interface IRemoteTerminalProcessReadyEvent {
-	type: 'ready';
-	pid: number;
-	cwd: string;
-}
-export interface IRemoteTerminalProcessTitleChangedEvent {
-	type: 'titleChanged';
-	title: string;
-}
-export interface IRemoteTerminalProcessDataEvent {
-	type: 'data';
-	data: string;
-}
-export interface ReplayEntry { cols: number; rows: number; data: string; }
-export interface IRemoteTerminalProcessReplayEvent {
-	type: 'replay';
-	events: ReplayEntry[];
-}
-export interface IRemoteTerminalProcessExitEvent {
-	type: 'exit';
-	exitCode: number | undefined;
-}
-export interface IRemoteTerminalProcessExecCommandEvent {
-	type: 'execCommand';
-	reqId: number;
-	commandId: string;
-	commandArgs: any[];
-}
-export interface IRemoteTerminalProcessOrphanQuestionEvent {
-	type: 'orphan?';
-}
-
 export class RemoteTerminalChannelClient {
 
+	public get onPtyHostExit(): Event<void> {
+		return this._channel.listen<void>('$onPtyHostExitEvent');
+	}
+	public get onPtyHostStart(): Event<void> {
+		return this._channel.listen<void>('$onPtyHostStartEvent');
+	}
+	public get onPtyHostUnresponsive(): Event<void> {
+		return this._channel.listen<void>('$onPtyHostUnresponsiveEvent');
+	}
+	public get onPtyHostResponsive(): Event<void> {
+		return this._channel.listen<void>('$onPtyHostResponsiveEvent');
+	}
 	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
@@ -180,6 +149,10 @@ export class RemoteTerminalChannelClient {
 			value: result.value,
 			defaultValue: result.defaultValue,
 		};
+	}
+
+	restartPtyHost(): Promise<void> {
+		return this._channel.call('$restartPtyHost', []);
 	}
 
 	public async createProcess(shellLaunchConfig: IShellLaunchConfigDto, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ICreateTerminalProcessResult> {

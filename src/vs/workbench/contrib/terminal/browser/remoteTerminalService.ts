@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -20,6 +23,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	public _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, RemotePty> = new Map();
+	private _isPtyHostUnresponsive: boolean = false;
+
+	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
+	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
+	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
+	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
+	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
+	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 
 	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
 	private _hasConnectedToRemote = false;
@@ -29,39 +40,81 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService
+		@ICommandService private readonly _commandService: ICommandService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super();
 
 		const connection = this._remoteAgentService.getConnection();
 		if (connection) {
-			this._remoteTerminalChannel = this._instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
+			const channel = this._instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
+			this._remoteTerminalChannel = channel;
 
-			this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			this._remoteTerminalChannel.onProcessExit(e => {
+			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
 					this._ptys.delete(e.id);
 				}
 			});
-			this._remoteTerminalChannel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			this._remoteTerminalChannel.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
-			this._remoteTerminalChannel.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
-			this._remoteTerminalChannel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
-			this._remoteTerminalChannel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+			channel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
+			channel.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
+			channel.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
+			channel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
+			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 
-			this._remoteTerminalChannel.onExecuteCommand(async e => {
+			channel.onExecuteCommand(async e => {
 				const reqId = e.reqId;
 				const commandArgs = e.commandArgs.map(arg => revive(arg));
 				try {
 					const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
-					this._remoteTerminalChannel!.sendCommandResult(reqId, false, result);
+					channel!.sendCommandResult(reqId, false, result);
 				} catch (err) {
-					this._remoteTerminalChannel!.sendCommandResult(reqId, true, err);
+					channel!.sendCommandResult(reqId, true, err);
 				}
 			});
+
+			// Attach pty host listeners
+			if (channel.onPtyHostExit) {
+				this._register(channel.onPtyHostExit(() => {
+					notificationService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
+				}));
+			}
+			let unresponsiveNotification: INotificationHandle | undefined;
+			if (channel.onPtyHostStart) {
+				this._register(channel.onPtyHostStart(() => {
+					this._logService.info(`ptyHost restarted`);
+					this._onPtyHostRestart.fire();
+					unresponsiveNotification?.close();
+					unresponsiveNotification = undefined;
+					this._isPtyHostUnresponsive = false;
+				}));
+			}
+			if (channel.onPtyHostUnresponsive) {
+				this._register(channel.onPtyHostUnresponsive(() => {
+					const choices: IPromptChoice[] = [{
+						label: localize('restartPtyHost', "Restart pty host"),
+						run: () => channel.restartPtyHost!()
+					}];
+					unresponsiveNotification = notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
+					this._isPtyHostUnresponsive = true;
+					this._onPtyHostUnresponsive.fire();
+				}));
+			}
+			if (channel.onPtyHostResponsive) {
+				this._register(channel.onPtyHostResponsive(() => {
+					if (!this._isPtyHostUnresponsive) {
+						return;
+					}
+					this._logService.info('The pty host became responsive again');
+					unresponsiveNotification?.close();
+					unresponsiveNotification = undefined;
+					this._isPtyHostUnresponsive = false;
+					this._onPtyHostResponsive.fire();
+				}));
+			}
 		} else {
 			this._remoteTerminalChannel = null;
 		}
