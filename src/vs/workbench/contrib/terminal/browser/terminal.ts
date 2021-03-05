@@ -182,11 +182,13 @@ export interface ITerminalService {
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 }
 
+// TODO: Share common interface with ILocalTerminalService
 export interface IRemoteTerminalService {
 	readonly _serviceBrand: undefined;
 	dispose(): void;
 	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
-	createRemoteTerminalProcess(instanceId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
+	createRemoteTerminalProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
+	attachToProcess(persistentProcessId: number): Promise<ITerminalChildProcess | undefined>;
 
 	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;

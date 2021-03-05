@@ -24,6 +24,10 @@ enum Constants {
  */
 let lastPtyId = 0;
 
+/**
+ * This service implements IPtyService by launching a pty host process, forwarding messages to and
+ * from the pty host process and manages the connection.
+ */
 export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 

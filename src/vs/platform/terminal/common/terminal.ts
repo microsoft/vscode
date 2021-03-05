@@ -97,6 +97,7 @@ export interface IOffProcessTerminalService {
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
 export interface ILocalTerminalService extends IOffProcessTerminalService { }
 
+export const IPtyService = createDecorator<IPtyService>('ptyService');
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
 

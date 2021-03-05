@@ -193,14 +193,22 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
 				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
-				this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._instanceId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+				if (shellLaunchConfig.attachPersistentProcess) {
+					const result = await this._remoteTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
+					if (result) {
+						this._process = result;
+					} else {
+						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
+						return undefined;
+					}
+				} else {
+					this._process = await this._remoteTerminalService.createRemoteTerminalProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+				}
 			} else {
 				if (!this._localTerminalService) {
 					this._logService.trace(`Tried to launch a local terminal which is not supported in this window`);
 					return undefined;
 				}
-				// Flow control is not needed for ptys hosted in the same process (ie. the electron
-				// renderer).
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await this._localTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {

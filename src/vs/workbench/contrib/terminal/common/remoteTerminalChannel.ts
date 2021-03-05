@@ -18,9 +18,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -83,7 +83,7 @@ export interface ICreateTerminalProcessArguments {
 }
 
 export interface ICreateTerminalProcessResult {
-	terminalId: number;
+	persistentTerminalId: number;
 	resolvedShellLaunchConfig: IShellLaunchConfigDto;
 }
 
@@ -300,6 +300,10 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call<ICreateTerminalProcessResult>('$createTerminalProcess', args);
 	}
 
+	public async attachToProcess(persistentTerminalId: number): Promise<void> {
+		return await this._channel.call('$attachToProcess', persistentTerminalId);
+	}
+
 	public async startTerminalProcess(terminalId: number): Promise<ITerminalLaunchError | void> {
 		const args: IStartTerminalProcessArguments = {
 			id: terminalId
@@ -312,6 +316,28 @@ export class RemoteTerminalChannelClient {
 			id: terminalId
 		};
 		return this._channel.listen<IRemoteTerminalProcessEvent>('$onTerminalProcessEvent', args);
+	}
+
+	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
+		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
+	}
+	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
+		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
+	}
+	public get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string } }> {
+		return this._channel.listen<{ id: number, event: { pid: number, cwd: string } }>('$onProcessReadyEvent');
+	}
+	public get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
+		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
+	}
+	public get onProcessTitleChanged(): Event<{ id: number, event: string }> {
+		return this._channel.listen<{ id: number, event: string }>('$onProcessTitleChangedEvent');
+	}
+	public get onProcessOverrideDimensions(): Event<{ id: number, event: ITerminalDimensionsOverride | undefined }> {
+		return this._channel.listen<{ id: number, event: ITerminalDimensionsOverride | undefined }>('$onProcessOverrideDimensionsEvent');
+	}
+	public get onProcessResolvedShellLaunchConfig(): Event<{ id: number, event: IShellLaunchConfig }> {
+		return this._channel.listen<{ id: number, event: IShellLaunchConfig }>('$onProcessResolvedShellLaunchConfigEvent');
 	}
 
 	public sendInputToTerminalProcess(id: number, data: string): Promise<void> {
