@@ -36,10 +36,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		if (connection) {
 			this._remoteTerminalChannel = this._instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
 
-			this._remoteTerminalChannel.onProcessData(e => {
-				console.log('onProcessData', e);
-				this._ptys.get(e.id)?.handleData(e.event);
-			});
+			this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
 			this._remoteTerminalChannel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
@@ -47,14 +44,12 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 					this._ptys.delete(e.id);
 				}
 			});
-			this._remoteTerminalChannel.onProcessReady(e => {
-				console.log('onProcessReady', e);
-				this._ptys.get(e.id)?.handleReady(e.event);
-			});
+			this._remoteTerminalChannel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
 			this._remoteTerminalChannel.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
 			this._remoteTerminalChannel.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
 			this._remoteTerminalChannel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 			this._remoteTerminalChannel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+			this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 		} else {
 			this._remoteTerminalChannel = null;
 		}
@@ -122,8 +117,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	public async listTerminals(isInitialization = false): Promise<IRemoteTerminalAttachTarget[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listTerminals(isInitialization) : [];
+	public async listProcesses(reduceGraceTime: boolean = false): Promise<IRemoteTerminalAttachTarget[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(reduceGraceTime) : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
 				id: termDto.id,

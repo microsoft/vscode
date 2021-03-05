@@ -186,7 +186,6 @@ export interface ITerminalService {
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
 	// TODO: Support pty host responsiveness events
 
-	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess>;
 }
 

@@ -20,7 +20,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -94,25 +94,7 @@ export interface ISendCommandResultToTerminalProcessArguments {
 	payload: any;
 }
 
-export interface IOrphanQuestionReplyArgs {
-	id: number;
-}
-
-export interface IListTerminalsArgs {
-	isInitialization: boolean;
-}
-
-export interface IRemoteTerminalDescriptionDto {
-	id: number;
-	pid: number;
-	title: string;
-	cwd: string;
-	workspaceId: string;
-	workspaceName: string;
-	isOrphan: boolean;
-}
-
-export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IRemoteTerminalDescriptionDto>;
+export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
 
 export interface ITriggerTerminalDataReplayArguments {
 	id: number;
@@ -197,6 +179,9 @@ export class RemoteTerminalChannelClient {
 	}
 	public get onProcessResolvedShellLaunchConfig(): Event<{ id: number, event: IShellLaunchConfig }> {
 		return this._channel.listen<{ id: number, event: IShellLaunchConfig }>('$onProcessResolvedShellLaunchConfigEvent');
+	}
+	public get onProcessOrphanQuestion(): Event<{ id: number }> {
+		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
 
 	constructor(
@@ -305,10 +290,13 @@ export class RemoteTerminalChannelClient {
 		return await this._channel.call('$attachToProcess', [id]);
 	}
 
+	public async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
+		return this._channel.call('$listProcesses', [reduceGraceTime]);
+	}
+
 	public async start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}
-
 	public input(id: number, data: string): Promise<void> {
 		return this._channel.call('$input', [id, data]);
 	}
@@ -327,6 +315,9 @@ export class RemoteTerminalChannelClient {
 	public getCwd(id: number): Promise<string> {
 		return this._channel.call('$getCwd', [id]);
 	}
+	public orphanQuestionReply(id: number): Promise<void> {
+		return this._channel.call('$orphanQuestionReply', [id]);
+	}
 
 	public sendCommandResultToTerminalProcess(id: number, reqId: number, isError: boolean, payload: any): Promise<void> {
 		const args: ISendCommandResultToTerminalProcessArguments = {
@@ -336,20 +327,6 @@ export class RemoteTerminalChannelClient {
 			payload
 		};
 		return this._channel.call<void>('$sendCommandResultToTerminalProcess', args);
-	}
-
-	public orphanQuestionReply(id: number): Promise<void> {
-		const args: IOrphanQuestionReplyArgs = {
-			id
-		};
-		return this._channel.call<void>('$orphanQuestionReply', args);
-	}
-
-	public listTerminals(isInitialization: boolean): Promise<IRemoteTerminalDescriptionDto[]> {
-		const args: IListTerminalsArgs = {
-			isInitialization
-		};
-		return this._channel.call<IRemoteTerminalDescriptionDto[]>('$listTerminals', args);
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

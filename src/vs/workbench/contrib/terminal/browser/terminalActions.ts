@@ -674,7 +674,7 @@ export function registerTerminalActions() {
 			const remoteTerminalService = accessor.get(IRemoteTerminalService);
 			const terminalService = accessor.get(ITerminalService);
 			const labelService = accessor.get(ILabelService);
-			const remoteTerms = await remoteTerminalService.listTerminals();
+			const remoteTerms = await remoteTerminalService.listProcesses();
 			const unattachedTerms = remoteTerms.filter(term => !terminalService.isAttachedToTerminal(term));
 			const items = unattachedTerms.map(term => {
 				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));

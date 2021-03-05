@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -70,6 +70,7 @@ export interface IOffProcessTerminalService {
 	readonly _serviceBrand: undefined;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
@@ -111,6 +112,7 @@ export interface IPtyService {
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
+	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -130,6 +132,13 @@ export interface IPtyService {
 	attachToProcess(id: number): Promise<void>;
 	detachFromProcess(id: number): Promise<void>;
 
+	/**
+	 * Lists all orphaned processes, ie. those without a connected frontend.
+	 * @param reduceGraceTime Whether to reduce the reconnection grace time for all orphaned
+	 * terminals.
+	 */
+	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]>;
+
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
@@ -138,6 +147,7 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	orphanQuestionReply(id: number): Promise<void>;
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;

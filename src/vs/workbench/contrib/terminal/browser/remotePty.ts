@@ -133,10 +133,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			switch (event.type) {
 				case 'execCommand':
 					return this._execCommand(event);
-				case 'orphan?': {
-					this._remoteTerminalChannel.orphanQuestionReply(this._id);
-					return;
-				}
 				default:
 					throw new Error('NYI');
 			}
@@ -211,6 +207,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 		// remove size override
 		this._onProcessOverrideDimensions.fire(undefined);
+	}
+
+	handleOrphanQuestion() {
+		console.log('handle orphan question', this._id);
+		this._remoteTerminalChannel.orphanQuestionReply(this._id);
 	}
 
 	/**
