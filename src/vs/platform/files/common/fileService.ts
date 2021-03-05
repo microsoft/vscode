@@ -545,7 +545,8 @@ export class FileService extends Disposable implements IFileService {
 				// End stream with data
 				stream.end(VSBuffer.wrap(buffer));
 			} catch (err) {
-				stream.end(err);
+				stream.error(err);
+				stream.end();
 			}
 		})();
 
