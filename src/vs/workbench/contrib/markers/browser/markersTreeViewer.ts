@@ -533,10 +533,16 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(resourceMarkers.resource));
+		const negate = this.options.textFilter.negate;
+		const text = this.options.textFilter.text;
 
-		if (this.options.textFilter && uriMatches) {
-			return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches } };
+		if (text) {
+			const uriMatches = FilterOptions._filter(text, basename(resourceMarkers.resource));
+			if (uriMatches && negate) {
+				return false;
+			} else if (uriMatches || negate) {
+				return { visibility: true, data: { type: FilterDataType.ResourceMarkers, uriMatches: uriMatches || [] } };
+			}
 		}
 
 		if (this.options.includesMatcher.matches(resourceMarkers.resource)) {
@@ -564,41 +570,51 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
-		if (!this.options.textFilter) {
+		const lineMatches: IMatch[][] = [];
+		const negate = this.options.textFilter.negate;
+		const text = this.options.textFilter.text;
+		if (!text) {
 			return true;
 		}
-
-		const lineMatches: IMatch[][] = [];
 		for (const line of marker.lines) {
-			lineMatches.push(FilterOptions._messageFilter(this.options.textFilter, line) || []);
+			const lineMatch = FilterOptions._messageFilter(text, line);
+			lineMatches.push(lineMatch || []);
 		}
-		const sourceMatches = marker.marker.source && FilterOptions._filter(this.options.textFilter, marker.marker.source);
+
+		let sourceMatches: IMatch[] | null | undefined;
+		if (marker.marker.source) {
+			sourceMatches = FilterOptions._filter(text, marker.marker.source);
+		} else {
+			sourceMatches = undefined;
+		}
 
 		let codeMatches: IMatch[] | null | undefined;
 		if (marker.marker.code) {
 			const codeText = typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value;
-			codeMatches = FilterOptions._filter(this.options.textFilter, codeText);
+			codeMatches = FilterOptions._filter(text, codeText);
 		} else {
 			codeMatches = undefined;
 		}
 
 		if (sourceMatches || codeMatches || lineMatches.some(lineMatch => lineMatch.length > 0)) {
-			return { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
+			return negate ? false : { visibility: true, data: { type: FilterDataType.Marker, lineMatches, sourceMatches: sourceMatches || [], codeMatches: codeMatches || [] } };
 		}
 
 		return parentVisibility;
 	}
 
 	private filterRelatedInformation(relatedInformation: RelatedInformation, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
-		if (!this.options.textFilter) {
+		const negate = this.options.textFilter.negate;
+		const text = this.options.textFilter.text;
+		if (!text) {
 			return true;
 		}
 
-		const uriMatches = FilterOptions._filter(this.options.textFilter, basename(relatedInformation.raw.resource));
-		const messageMatches = FilterOptions._messageFilter(this.options.textFilter, paths.basename(relatedInformation.raw.message));
+		const uriMatches = FilterOptions._filter(text, basename(relatedInformation.raw.resource));
+		const messageMatches = FilterOptions._messageFilter(text, paths.basename(relatedInformation.raw.message));
 
 		if (uriMatches || messageMatches) {
-			return { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
+			return negate ? false : { visibility: true, data: { type: FilterDataType.RelatedInformation, uriMatches: uriMatches || [], messageMatches: messageMatches || [] } };
 		}
 
 		return parentVisibility;
