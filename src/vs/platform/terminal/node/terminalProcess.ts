@@ -55,7 +55,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
-	private _shellType: TerminalShellType | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _writeQueue: string[] = [];
@@ -69,7 +68,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
 	public get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
-	public get shellType(): TerminalShellType { return this._shellType || this._windowsShellHelper?.shellType; }
+	public get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
