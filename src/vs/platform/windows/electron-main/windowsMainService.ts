@@ -160,16 +160,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
 		let cli = this.environmentMainService.args;
-		const remote = options?.remoteAuthority;
-		if (cli && (cli.remote !== remote)) {
-			cli = { ...cli, remote };
-		}
-
+		const remoteAuthority = options?.remoteAuthority;
 		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow });
+		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
 	}
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
@@ -507,7 +503,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				emptyToOpen++;
 			}
 
-			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : (openConfig.cli && openConfig.cli.remote || undefined);
+			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
 
 			for (let i = 0; i < emptyToOpen; i++) {
 				addUsedWindow(this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
@@ -650,7 +646,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const pathResolveOptions: IPathResolveOptions = { gotoLineMode: openConfig.gotoLineMode };
+		const pathResolveOptions: IPathResolveOptions = { gotoLineMode: openConfig.gotoLineMode, remoteAuthority: openConfig.remoteAuthority };
 		for (const pathToOpen of coalesce(openConfig.urisToOpen || [])) {
 			const path = this.resolveOpenable(pathToOpen, pathResolveOptions);
 
@@ -1060,11 +1056,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		let authority = '';
+		let authority = openConfig.remoteAuthority;
 		for (const extensionDevelopmentPath of extensionDevelopmentPaths) {
 			if (extensionDevelopmentPath.match(/^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/)) {
 				const url = URI.parse(extensionDevelopmentPath);
-				if (url.scheme === Schemas.vscodeRemote) {
+				const remoteAuhtority = getRemoteAuthority(url);
+				if (remoteAuhtority) {
 					if (authority) {
 						if (url.authority !== authority) {
 							this.logService.error('more than one extension development path authority');
@@ -1086,7 +1083,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return uri.authority === authority;
+			return getRemoteAuthority(uri) === authority;
 		});
 
 		folderUris = folderUris.filter(folderUriStr => {
@@ -1095,7 +1092,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return folderUri ? folderUri.authority === authority : false;
+			return folderUri ? getRemoteAuthority(folderUri) === authority : false;
 		});
 
 		fileUris = fileUris.filter(fileUriStr => {
@@ -1104,18 +1101,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return fileUri ? fileUri.authority === authority : false;
+			return fileUri ? getRemoteAuthority(fileUri) === authority : false;
 		});
 
 		openConfig.cli._ = cliArgs;
 		openConfig.cli['folder-uri'] = folderUris;
 		openConfig.cli['file-uri'] = fileUris;
 
-		// if there are no files or folders cli args left, use the "remote" cli argument
 		const noFilesOrFolders = !cliArgs.length && !folderUris.length && !fileUris.length;
-		if (noFilesOrFolders && authority) {
-			openConfig.cli.remote = authority;
-		}
 
 		// Open it
 		const openArgs: IOpenConfiguration = {
@@ -1125,7 +1118,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceEmpty: noFilesOrFolders,
 			userEnv: openConfig.userEnv,
 			noRecentEntry: true,
-			waitMarkerFileURI: openConfig.waitMarkerFileURI
+			waitMarkerFileURI: openConfig.waitMarkerFileURI,
+			remoteAuthority: authority
 		};
 
 		return this.open(openArgs);

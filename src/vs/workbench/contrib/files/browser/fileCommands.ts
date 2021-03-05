@@ -34,7 +34,6 @@ import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/se
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -44,6 +43,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 // Commands
 
@@ -91,7 +91,7 @@ export const NEW_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Unti
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
 		const hostService = accessor.get(IHostService);
-		const environmentService = accessor.get(IEnvironmentService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		// rewrite untitled: workspace URIs to the absolute path on disk
 		toOpen = toOpen.map(openable => {
@@ -103,6 +103,9 @@ export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpe
 
 			return openable;
 		});
+		if (environmentService.remoteAuthority) {
+			options = { ...(options || {}), remoteAuthority: environmentService.remoteAuthority };
+		}
 
 		hostService.openWindow(toOpen, options);
 	}

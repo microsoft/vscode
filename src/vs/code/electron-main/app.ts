@@ -86,6 +86,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
+import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -757,7 +758,8 @@ export class CodeApplication extends Disposable {
 						context: OpenContext.API,
 						cli: { ...environmentService.args },
 						forceEmpty: true,
-						gotoLineMode: true
+						gotoLineMode: true,
+						remoteAuthority: getRemoteAuthority(uri)
 					});
 
 					await window.ready();
@@ -792,6 +794,7 @@ export class CodeApplication extends Disposable {
 		const hasFileURIs = !!args['file-uri'];
 		const noRecentEntry = args['skip-add-to-recently-opened'] === true;
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
+		const remoteAuthority = args.remote || undefined;
 
 		// check for a pending window to open from URI
 		// e.g. when running code with --open-uri from
@@ -815,7 +818,8 @@ export class CodeApplication extends Disposable {
 				forceEmpty: true,
 				noRecentEntry,
 				waitMarkerFileURI,
-				initialStartup: true
+				initialStartup: true,
+				remoteAuthority
 			});
 		}
 
@@ -840,7 +844,8 @@ export class CodeApplication extends Disposable {
 			noRecentEntry,
 			waitMarkerFileURI,
 			gotoLineMode: args.goto,
-			initialStartup: true
+			initialStartup: true,
+			remoteAuthority
 		});
 	}
 

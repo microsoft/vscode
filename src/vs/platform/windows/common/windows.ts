@@ -19,6 +19,7 @@ export const WindowMinimumSize = {
 
 export interface IBaseOpenWindowsOptions {
 	readonly forceReuseWindow?: boolean;
+	readonly remoteAuthority?: string;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -48,7 +49,6 @@ export interface IOpenedWindow {
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-	readonly remoteAuthority?: string;
 }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;

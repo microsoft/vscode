@@ -197,6 +197,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
+	readonly remoteAuthority?: string;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
