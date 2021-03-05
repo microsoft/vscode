@@ -305,7 +305,7 @@ export class PersistentTerminalProcess extends Disposable {
 			this._isStarted = true;
 		} else {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd });
-			this._onProcessTitleChanged.fire(this._terminalProcess.lastTitle);
+			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
 			this._onProcessShellTypeChanged.fire(this._terminalProcess.shellType);
 			this.triggerReplay();
 		}

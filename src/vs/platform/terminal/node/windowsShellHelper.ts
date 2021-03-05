@@ -37,10 +37,10 @@ let windowsProcessTree: typeof WindowsProcessTreeType;
 export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | undefined;
-	private _lastShellType: TerminalShellType | undefined;
-	public get lastShellType(): TerminalShellType | undefined { return this._lastShellType; }
-	private _lastShellTitle: string = '';
-	public get lastShellTitle(): string { return this._lastShellTitle; }
+	private _shellType: TerminalShellType | undefined;
+	public get shellType(): TerminalShellType | undefined { return this._shellType; }
+	private _shellTitle: string = '';
+	public get shellTitle(): string { return this._shellTitle; }
 	private readonly _onShellNameChanged = new Emitter<string>();
 	public get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
 	private readonly _onShellTypeChanged = new Emitter<TerminalShellType>();
@@ -73,11 +73,11 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			await timeout(300);
 			this.getShellName().then(title => {
 				const type = this.getShellType(title);
-				if (type !== this._lastShellType || title !== this._lastShellTitle) {
+				if (type !== this._shellType) {
 					this._onShellTypeChanged.fire(type);
 					this._onShellNameChanged.fire(title);
-					this._lastShellType = type;
-					this._lastShellTitle = title;
+					this._shellType = type;
+					this._shellTitle = title;
 				}
 			});
 		}

@@ -567,10 +567,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.hasHadInput = true;
 			}
 
-			if (isIPad && event.key === 'c' && standardKeyboardEvent.ctrlKey) {
-				this.sendText('\u0003', false);
-			}
-
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
 			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {

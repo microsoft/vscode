@@ -68,8 +68,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _unacknowledgedCharCount: number = 0;
 	public get exitMessage(): string | undefined { return this._exitMessage; }
 
-	public get currentTitle(): string { return this._currentTitle; }
-	public get lastTitle(): string { return this._windowsShellHelper?.lastShellTitle || this._currentTitle; }
+	public get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
+	public get shellType(): TerminalShellType { return this._shellType || this._windowsShellHelper?.shellType; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -82,7 +82,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
-	public get shellType(): TerminalShellType { return this._shellType || this._windowsShellHelper?.lastShellType; }
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -130,6 +129,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					}
 				}));
 			}
+			// WindowsShellHelper is used to fetch the process title and shell type
 			this.onProcessReady(e => {
 				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
