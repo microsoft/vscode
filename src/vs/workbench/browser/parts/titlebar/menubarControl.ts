@@ -587,14 +587,9 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		// Update the menu actions
-		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string): boolean => {
+		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string) => {
 			target.splice(0);
-			const groups = menu.getActions();
-			const actionCount = groups.reduce((r, g) => r + g[1].length, 0);
-
-			if (actionCount === 0) {
-				return false;
-			}
+			let groups = menu.getActions();
 
 			for (let group of groups) {
 				const [, actions] = group;
@@ -623,7 +618,9 @@ export class CustomMenubarControl extends MenubarControl {
 						}
 
 						const submenuActions: SubmenuAction[] = [];
-						if (updateActions(submenu, submenuActions, topLevelTitle)) {
+						updateActions(submenu, submenuActions, topLevelTitle);
+
+						if (submenuActions.length > 0) {
 							target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
 						}
 					} else {
@@ -647,7 +644,6 @@ export class CustomMenubarControl extends MenubarControl {
 			}
 
 			target.pop();
-			return true;
 		};
 
 		for (const title of Object.keys(this.topLevelTitles)) {

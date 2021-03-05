@@ -105,13 +105,8 @@ export class NativeMenubarControl extends MenubarControl {
 		return true;
 	}
 
-	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }): boolean {
-		const groups = menu.getActions();
-		const actionCount = groups.reduce((r, g) => r + g[1].length, 0);
-
-		if (actionCount === 0) {
-			return false;
-		}
+	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
+		let groups = menu.getActions();
 
 		for (let group of groups) {
 			const [, actions] = group;
@@ -132,8 +127,9 @@ export class NativeMenubarControl extends MenubarControl {
 					}
 
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
-					if (this.populateMenuItems(menuToDispose, submenu, keybindings)) {
+					if (submenu.items.length > 0) {
 						let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
 							id: menuItem.id,
 							label: title,
@@ -174,8 +170,6 @@ export class NativeMenubarControl extends MenubarControl {
 		if (menuToPopulate.items.length > 0) {
 			menuToPopulate.items.pop();
 		}
-
-		return true;
 	}
 
 	private transformOpenRecentAction(action: Separator | (IAction & { uri: URI })): MenubarMenuItem {
