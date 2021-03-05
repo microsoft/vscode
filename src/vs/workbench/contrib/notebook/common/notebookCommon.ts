@@ -188,9 +188,9 @@ export interface INotebookTextModel {
 }
 
 export type NotebookCellTextModelSplice<T> = [
-	number /* start */,
-	number,
-	T[]
+	start: number,
+	deleteCount: number,
+	newItems: T[]
 ];
 
 export type NotebookCellOutputsSplice = [
@@ -211,9 +211,9 @@ export interface IMainCellDto {
 }
 
 export type NotebookCellsSplice2 = [
-	number /* start */,
-	number /* delete count */,
-	IMainCellDto[]
+	start: number,
+	deleteCount: number,
+	newItems: IMainCellDto[]
 ];
 
 export enum NotebookCellsChangeType {
