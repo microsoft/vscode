@@ -69,7 +69,7 @@
 	opacity: 1;
 }
 
-/** List based styling **/
+/** Table styling **/
 
 .keybindings-editor > .keybindings-body .keybindings-table-container {
 	width: 100%;
@@ -82,14 +82,32 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td {
-	display: flex;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td {
 	align-items: center;
 	display: flex;
 	overflow: hidden;
 }
+
+/** Actions column styling **/
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: none;
+	flex: 1;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: flex;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .monaco-action-bar .action-item > .icon {
+	width:16px;
+	height: 16px;
+	cursor: pointer;
+	margin-top: 3px;
+}
+
+/** Command column styling **/
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command .hide {
 	display: none;
@@ -106,9 +124,13 @@
 	margin-top: 2px;
 }
 
+/** Keybinding column styling **/
+
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .keybinding .monaco-highlighted-label {
 	padding-left: 10px;
 }
+
+/** When column styling **/
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when {
 	width: 100%;
@@ -132,6 +154,8 @@
 .monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox {
 	height: 24px;
 }
+
+/** columns styling **/
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command,
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command > .command-label,
@@ -164,22 +188,4 @@
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected .monaco-table-td .highlight,
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected.focused .monaco-table-td .highlight {
 	color: inherit;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: none;
-	flex: 1;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: flex;
-}
-
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .monaco-action-bar .action-item > .icon {
-	width:16px;
-	height: 16px;
-	cursor: pointer;
-	margin-top: 3px;
 }

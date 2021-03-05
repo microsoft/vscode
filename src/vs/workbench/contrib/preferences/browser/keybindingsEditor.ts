@@ -51,7 +51,7 @@ import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/
 
 const $ = DOM.$;
 
-const oddRowBackgroundColor = new Color(new RGBA(130, 130, 130, 0.04));
+const evenRowBackgroundColor = new Color(new RGBA(130, 130, 130, 0.04));
 
 class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
 
@@ -1150,17 +1150,17 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-table-th { background-color: ${oddRowBackgroundColor}; }`);
-	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row:nth-child(odd):not(.focused):not(.selected):not(:hover) .monaco-table-tr { background-color: ${oddRowBackgroundColor}; }`);
-	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row:nth-child(odd).focused:not(.selected):not(:hover) .monaco-table-tr { background-color: ${oddRowBackgroundColor}; }`);
-	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row:nth-child(odd).focused:not(.selected):not(:hover) .monaco-table-tr { background-color: ${oddRowBackgroundColor}; }`);
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-table-th { background-color: ${evenRowBackgroundColor}; }`);
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row:nth-child(even):not(.focused):not(.selected):not(:hover) .monaco-table-tr { background-color: ${evenRowBackgroundColor}; }`);
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row:nth-child(even).focused:not(.selected):not(:hover) .monaco-table-tr { background-color: ${evenRowBackgroundColor}; }`);
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row:nth-child(even).focused:not(.selected):not(:hover) .monaco-table-tr { background-color: ${evenRowBackgroundColor}; }`);
 
 	const foregroundColor = theme.getColor(foreground);
 	if (foregroundColor) {
 		const whenForegroundColor = foregroundColor.transparent(.8).makeOpaque(WORKBENCH_BACKGROUND(theme));
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
-		const whenForegroundColorForOddRow = foregroundColor.transparent(.8).makeOpaque(oddRowBackgroundColor);
-		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row:nth-child(odd) .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColorForOddRow}; }`);
+		const whenForegroundColorForEvenRow = foregroundColor.transparent(.8).makeOpaque(evenRowBackgroundColor);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row:nth-child(even) .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColorForEvenRow}; }`);
 	}
 
 	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
@@ -1168,7 +1168,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (listActiveSelectionForegroundColor && listActiveSelectionBackgroundColor) {
 		const whenForegroundColor = listActiveSelectionForegroundColor.transparent(.8).makeOpaque(listActiveSelectionBackgroundColor);
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
-		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row:nth-child(odd).selected .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
 	}
 
 	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
@@ -1176,7 +1175,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (listInactiveSelectionForegroundColor && listInactiveSelectionBackgroundColor) {
 		const whenForegroundColor = listInactiveSelectionForegroundColor.transparent(.8).makeOpaque(listInactiveSelectionBackgroundColor);
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row.selected .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
-		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row:nth-child(odd).selected .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
 	}
 
 	const listFocusForegroundColor = theme.getColor(listFocusForeground);
@@ -1184,7 +1182,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (listFocusForegroundColor && listFocusBackgroundColor) {
 		const whenForegroundColor = listFocusForegroundColor.transparent(.8).makeOpaque(listFocusBackgroundColor);
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.focused .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
-		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row:nth-child(odd).focused .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
 	}
 
 	const listHoverForegroundColor = theme.getColor(listHoverForeground);
@@ -1192,7 +1189,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (listHoverForegroundColor && listHoverBackgroundColor) {
 		const whenForegroundColor = listHoverForegroundColor.transparent(.8).makeOpaque(listHoverBackgroundColor);
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row:hover:not(.focused):not(.selected) .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
-		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row:nth-child(odd):hover:not(.focused):not(.selected) .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
 	}
 
 	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
