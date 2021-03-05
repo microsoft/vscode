@@ -1168,10 +1168,6 @@ declare module 'vscode' {
 		 */
 		readonly trusted: boolean;
 
-		// todo@API how does glob apply to mime times?
-		// todo@API remove displayOrder
-		readonly displayOrder: GlobPattern[];
-
 		// todo@API is this a kernel property?
 		readonly cellHasExecutionOrder: boolean;
 
@@ -1182,9 +1178,9 @@ declare module 'vscode' {
 		readonly cellRunnable: boolean;
 		readonly runState: NotebookRunState;
 
-		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, displayOrder?: GlobPattern[], custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
+		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
 
-		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, displayOrder?: GlobPattern[] | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {

@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { CellEditType, ICellEditOperation, notebookDocumentMetadataDefaults, NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -3056,7 +3056,6 @@ export class NotebookDocumentMetadata {
 		readonly cellEditable: boolean = true,
 		readonly cellRunnable: boolean = true,
 		readonly cellHasExecutionOrder: boolean = true,
-		readonly displayOrder: vscode.GlobPattern[] = NOTEBOOK_DISPLAY_ORDER,
 		readonly custom: { [key: string]: any; } = {},
 		readonly runState: NotebookRunState = NotebookRunState.Idle,
 		readonly trusted: boolean = true,
@@ -3068,13 +3067,12 @@ export class NotebookDocumentMetadata {
 		cellEditable?: boolean | null,
 		cellRunnable?: boolean | null,
 		cellHasExecutionOrder?: boolean | null,
-		displayOrder?: vscode.GlobPattern[] | null,
 		custom?: { [key: string]: any; } | null,
 		runState?: NotebookRunState | null,
 		trusted?: boolean | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, runnable, cellEditable, cellRunnable, cellHasExecutionOrder, displayOrder, custom, runState, trusted } = change;
+		let { editable, runnable, cellEditable, cellRunnable, cellHasExecutionOrder, custom, runState, trusted } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -3101,11 +3099,6 @@ export class NotebookDocumentMetadata {
 		} else if (cellHasExecutionOrder === null) {
 			cellHasExecutionOrder = undefined;
 		}
-		if (displayOrder === undefined) {
-			displayOrder = this.displayOrder;
-		} else if (displayOrder === null) {
-			displayOrder = undefined;
-		}
 		if (custom === undefined) {
 			custom = this.custom;
 		} else if (custom === null) {
@@ -3127,7 +3120,6 @@ export class NotebookDocumentMetadata {
 			cellEditable === this.cellEditable &&
 			cellRunnable === this.cellRunnable &&
 			cellHasExecutionOrder === this.cellHasExecutionOrder &&
-			displayOrder === this.displayOrder &&
 			custom === this.custom &&
 			runState === this.runState &&
 			trusted === this.trusted
@@ -3142,7 +3134,6 @@ export class NotebookDocumentMetadata {
 			cellEditable,
 			cellRunnable,
 			cellHasExecutionOrder,
-			displayOrder,
 			custom,
 			runState,
 			trusted
