@@ -1462,19 +1462,11 @@ export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
 		return {
-			cellKind: NotebookCellKind.from(data.cellKind),
+			cellKind: NotebookCellKind.from(data.kind),
 			language: data.language,
 			source: data.source,
 			metadata: data.metadata,
-			outputs: data.outputs.map(output => ({
-				outputId: output.id,
-				metadata: output.metadata,
-				outputs: (output.outputs || []).map(op => ({
-					mime: op.mime,
-					value: op.value,
-					metadata: op.metadata
-				}))
-			}))
+			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
 	}
 }

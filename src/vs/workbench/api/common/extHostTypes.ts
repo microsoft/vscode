@@ -3138,10 +3138,37 @@ export class NotebookDocumentMetadata {
 			runState,
 			trusted
 		);
-
-
 	}
 }
+
+export class NotebookCellData {
+
+	kind: NotebookCellKind;
+	source: string;
+	language: string;
+	outputs?: NotebookCellOutput[];
+	metadata?: NotebookCellMetadata;
+
+	constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata) {
+		this.kind = kind;
+		this.source = source;
+		this.language = language;
+		this.outputs = outputs ?? [];
+		this.metadata = metadata;
+	}
+}
+
+export class NotebookData {
+
+	cells: NotebookCellData[];
+	metadata?: NotebookDocumentMetadata;
+
+	constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata) {
+		this.cells = cells;
+		this.metadata = metadata;
+	}
+}
+
 
 export class NotebookCellOutputItem {
 

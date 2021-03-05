@@ -1352,21 +1352,22 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
-	// todo@API make class
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
-	export interface NotebookCellData {
-		readonly cellKind: NotebookCellKind;
-		readonly source: string;
-		readonly language: string;
-		// todo@API maybe use a separate data type?
-		readonly outputs: NotebookCellOutput[];
-		readonly metadata: NotebookCellMetadata | undefined;
+	export class NotebookCellData {
+		kind: NotebookCellKind;
+		// todo@API better names: value? text?
+		source: string;
+		// todo@API how does language and MD relate?
+		language: string;
+		outputs?: NotebookCellOutput[];
+		metadata?: NotebookCellMetadata;
+		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata)
 	}
 
-	// todo@API make class
-	export interface NotebookData {
-		readonly cells: NotebookCellData[];
-		readonly metadata: NotebookDocumentMetadata;
+	export class NotebookData {
+		cells: NotebookCellData[];
+		metadata?: NotebookDocumentMetadata;
+		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
 
