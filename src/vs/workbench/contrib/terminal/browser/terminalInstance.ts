@@ -48,7 +48,6 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
-import { isIPad } from 'vs/base/browser/browser';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -567,10 +566,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				!event.shiftKey &&
 				!event.altKey) {
 				this.hasHadInput = true;
-			}
-
-			if (isIPad && event.key === 'c' && standardKeyboardEvent.ctrlKey) {
-				this.sendText('\u0003', false);
 			}
 
 			// for keyboard events that resolve to commands described
