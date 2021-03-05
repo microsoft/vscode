@@ -9,26 +9,17 @@ import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
-import { fuzzyContains, getNLines } from 'vs/base/common/strings';
+import { getNLines } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
-import * as paths from 'vs/base/common/path';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { relative } from 'vs/base/common/path';
 
 export const VIEWLET_ID = 'workbench.view.search';
-export const PANEL_ID = 'workbench.panel.search';
+export const PANEL_ID = 'workbench.view.search';
 export const VIEW_ID = 'workbench.view.search';
-
-export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
-
-// Warning: this pattern is used in the search editor to detect offsets. If you
-// change this, also change the search-result built-in extension
-const SEARCH_ELIDED_PREFIX = '⟪ ';
-const SEARCH_ELIDED_SUFFIX = ' characters skipped ⟫';
-const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFIX.length + 5) * 2;
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
@@ -36,7 +27,7 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
  * A service that enables to search for files or with in files.
  */
 export interface ISearchService {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
@@ -59,7 +50,6 @@ export interface ISearchResultProvider {
 
 export interface IFolderQuery<U extends UriComponents = URI> {
 	folder: U;
-	folderName?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
@@ -76,8 +66,6 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
-
-	onlyOpenEditors?: boolean;
 
 	maxResults?: number;
 	usingSearchPaths?: boolean;
@@ -190,7 +178,7 @@ export function resultIsMatch(result: ITextSearchResult): result is ITextSearchM
 }
 
 export interface IProgressMessage {
-	message: string;
+	message?: string;
 }
 
 export type ISearchProgressItem = IFileMatch | IProgressMessage;
@@ -199,8 +187,8 @@ export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
 	return !!(<IFileMatch>p).resource;
 }
 
-export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProgressItem): p is IProgressMessage {
-	return !!(p as IProgressMessage).message;
+export function isProgressMessage(p: ISearchProgressItem): p is IProgressMessage {
+	return !isFileMatch(p);
 }
 
 export interface ISearchCompleteStats {
@@ -210,12 +198,6 @@ export interface ISearchCompleteStats {
 
 export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
-	exit?: SearchCompletionExitCode
-}
-
-export const enum SearchCompletionExitCode {
-	Normal,
-	NewSearchStarted
 }
 
 export interface ITextSearchStats {
@@ -268,32 +250,24 @@ export class TextSearchMatch implements ITextSearchMatch {
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
-		const ranges = Array.isArray(range) ? range : [range];
-		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
+		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1) && isSingleLineRange(range)) {
+			const oneRange = Array.isArray(range) ? range[0] : range;
+
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
-
-			let result = '';
-			let shift = 0;
-			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const matches: ISearchRange[] = [];
-			for (const range of ranges) {
-				const previewStart = Math.max(range.startColumn - leadingChars, 0);
-				const previewEnd = range.startColumn + previewOptions.charsPerLine;
-				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
-					const elision = SEARCH_ELIDED_PREFIX + (previewStart - lastEnd) + SEARCH_ELIDED_SUFFIX;
-					result += elision + text.slice(previewStart, previewEnd);
-					shift += previewStart - (lastEnd + elision.length);
-				} else {
-					result += text.slice(lastEnd, previewEnd);
-				}
+			const previewStart = Math.max(oneRange.startColumn - leadingChars, 0);
+			const previewText = text.substring(previewStart, previewOptions.charsPerLine + previewStart);
 
-				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
-				lastEnd = previewEnd;
-			}
+			const endColInPreview = (oneRange.endLineNumber - oneRange.startLineNumber + 1) <= previewOptions.matchLines ?
+				Math.min(previewText.length, oneRange.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
+				previewText.length; // if number of lines is trimmed
 
-			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
+			const oneLineRange = new OneLineRange(0, oneRange.startColumn - previewStart, endColInPreview);
+			this.preview = {
+				text: previewText,
+				matches: Array.isArray(range) ? [oneLineRange] : oneLineRange
+			};
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
@@ -305,15 +279,10 @@ export class TextSearchMatch implements ITextSearchMatch {
 	}
 }
 
-function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
-	const line = ranges[0].startLineNumber;
-	for (const r of ranges) {
-		if (r.startLineNumber !== line || r.endLineNumber !== line) {
-			return false;
-		}
-	}
-
-	return true;
+function isSingleLineRange(range: ISearchRange | ISearchRange[]): boolean {
+	return Array.isArray(range) ?
+		range[0].startLineNumber === range[0].endLineNumber :
+		range.startLineNumber === range.endLineNumber;
 }
 
 export class SearchRange implements ISearchRange {
@@ -364,16 +333,9 @@ export interface ISearchConfigurationProperties {
 	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
-	seedOnFocus: boolean;
-	seedWithNearestWord: boolean;
 	searchOnTypeDebouncePeriod: number;
-	mode: 'view' | 'reuseEditor' | 'newEditor';
-	searchEditor: {
-		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
-		reusePriorSearchConfiguration: boolean,
-		defaultNumberOfContextLines: number | null,
-		experimental: {}
-	};
+	enableSearchEditorPreview: boolean;
+	searchEditorPreviewForceAbsolutePaths: boolean;
 	sortOrder: SearchSortOrder;
 }
 
@@ -409,25 +371,21 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		return false;
 	}
 
-	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
-			return true;
-		}
-
-		// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-		if (queryProps.usingSearchPaths) {
-			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
-				const searchPath = fq.folder.fsPath;
-				if (extpath.isEqualOrParent(fsPath, searchPath)) {
-					const relPath = paths.relative(searchPath, fsPath);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
-				} else {
-					return false;
-				}
-			});
-		}
-
+	if (queryProps.includePattern && !glob.match(queryProps.includePattern, fsPath)) {
 		return false;
+	}
+
+	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
+	if (queryProps.usingSearchPaths) {
+		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
+			const searchPath = fq.folder.fsPath;
+			if (extpath.isEqualOrParent(fsPath, searchPath)) {
+				const relPath = relative(searchPath, fsPath);
+				return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+			} else {
+				return false;
+			}
+		});
 	}
 
 	return true;
@@ -439,8 +397,7 @@ export enum SearchErrorCode {
 	globParseError,
 	invalidLiteral,
 	rgProcessError,
-	other,
-	canceled
+	other
 }
 
 export class SearchError extends Error {
@@ -449,13 +406,7 @@ export class SearchError extends Error {
 	}
 }
 
-export function deserializeSearchError(error: Error): SearchError {
-	const errorMsg = error.message;
-
-	if (isPromiseCanceledError(error)) {
-		return new SearchError(errorMsg, SearchErrorCode.canceled);
-	}
-
+export function deserializeSearchError(errorMsg: string): SearchError {
 	try {
 		const details = JSON.parse(errorMsg);
 		return new SearchError(details.message, details.code);
@@ -481,19 +432,9 @@ export interface IRawSearchService {
 
 export interface IRawFileMatch {
 	base?: string;
-	/**
-	 * The path of the file relative to the containing `base` folder.
-	 * This path is exactly as it appears on the filesystem.
-	 */
 	relativePath: string;
-	/**
-	 * This path is transformed for search purposes. For example, this could be
-	 * the `relativePath` with the workspace folder name prepended. This way the
-	 * search algorithm would also match against the name of the containing folder.
-	 *
-	 * If not given, the search algorithm should use `relativePath`.
-	 */
-	searchPath: string | undefined;
+	basename: string;
+	size?: number;
 }
 
 export interface ISearchEngine<T> {
@@ -538,11 +479,6 @@ export function isSerializedSearchSuccess(arg: ISerializedSearchComplete): arg i
 
 export function isSerializedFileMatch(arg: ISerializedSearchProgressItem): arg is ISerializedFileMatch {
 	return !!(<ISerializedFileMatch>arg).path;
-}
-
-export function isFilePatternMatch(candidate: IRawFileMatch, normalizedFilePatternLowercase: string): boolean {
-	const pathToMatch = candidate.searchPath ? candidate.searchPath : candidate.relativePath;
-	return fuzzyContains(pathToMatch, normalizedFilePatternLowercase);
 }
 
 export interface ISerializedFileMatch {
@@ -645,7 +581,9 @@ export class QueryGlobTester {
 	 * Guaranteed async.
 	 */
 	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
-		const excludeP = Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result);
+		const excludeP = this._parsedExcludeExpression ?
+			Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
+			Promise.resolve(false);
 
 		return excludeP.then(excluded => {
 			if (excluded) {

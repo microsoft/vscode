@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
+import { startsWith } from 'vs/base/common/strings';
+import { CodeAction } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 
 export class CodeActionKind {
@@ -26,7 +27,7 @@ export class CodeActionKind {
 	}
 
 	public contains(other: CodeActionKind): boolean {
-		return this.equals(other) || this.value === '' || other.value.startsWith(this.value + CodeActionKind.sep);
+		return this.equals(other) || this.value === '' || startsWith(other.value, this.value + CodeActionKind.sep);
 	}
 
 	public intersects(other: CodeActionKind): boolean {
@@ -57,12 +58,6 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 		return false;
 	}
 
-	if (filter.excludes) {
-		if (filter.excludes.some(exclude => excludesAction(providedKind, exclude, filter.include))) {
-			return false;
-		}
-	}
-
 	// Don't return source actions unless they are explicitly requested
 	if (!filter.includeSourceActions && CodeActionKind.Source.contains(providedKind)) {
 		return false;
@@ -82,7 +77,10 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	}
 
 	if (filter.excludes) {
-		if (actionKind && filter.excludes.some(exclude => excludesAction(actionKind, exclude, filter.include))) {
+		if (actionKind && filter.excludes.some(exclude => {
+			// Excludes are overwritten by includes
+			return exclude.contains(actionKind) && (!filter.include || !filter.include.contains(actionKind));
+		})) {
 			return false;
 		}
 	}
@@ -103,19 +101,8 @@ export function filtersAction(filter: CodeActionFilter, action: CodeAction): boo
 	return true;
 }
 
-function excludesAction(providedKind: CodeActionKind, exclude: CodeActionKind, include: CodeActionKind | undefined): boolean {
-	if (!exclude.contains(providedKind)) {
-		return false;
-	}
-	if (include && exclude.contains(include)) {
-		// The include is more specific, don't filter out
-		return false;
-	}
-	return true;
-}
-
 export interface CodeActionTrigger {
-	readonly type: CodeActionTriggerType;
+	readonly type: 'auto' | 'manual';
 	readonly filter?: CodeActionFilter;
 	readonly autoApply?: CodeActionAutoApply;
 	readonly context?: {

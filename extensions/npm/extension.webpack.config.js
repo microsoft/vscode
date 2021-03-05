@@ -14,10 +14,12 @@ const withDefaults = require('../shared.webpack.config');
 module.exports = withDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/npmMain.ts',
+		extension: './src/main.ts',
 	},
 	output: {
-		filename: 'npmMain.js',
+		filename: 'main.js',
+		path: path.join(__dirname, 'dist'),
+		libraryTarget: "commonjs",
 	},
 	resolve: {
 		mainFields: ['module', 'main'],

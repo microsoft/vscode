@@ -6,9 +6,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
-import { getNodeFSRequestService } from '../node/nodeFs';
-import { getDocumentContext } from '../utils/documentContext';
+import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities} from '../modes/languageModes';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
@@ -36,8 +34,7 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 		assert.equal(match.kind, expected.kind);
 	}
 	if (expected.resultText && match.textEdit) {
-		const edit = TextEdit.is(match.textEdit) ? match.textEdit : TextEdit.replace(match.textEdit.replace, match.textEdit.newText);
-		assert.equal(TextDocument.applyEdits(document, [edit]), expected.resultText);
+		assert.equal(TextDocument.applyEdits(document, [match.textEdit]), expected.resultText);
 	}
 	if (expected.command) {
 		assert.deepEqual(match.command, expected.command);
@@ -46,7 +43,7 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 
 const testUri = 'test://test/test.html';
 
-export async function testCompletionFor(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
+export function testCompletionFor(value: string, expected: { count?: number, items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): void {
 	let offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
@@ -57,12 +54,11 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 
 	let document = TextDocument.create(uri, 'html', 0, value);
 	let position = document.positionAt(offset);
-	const context = getDocumentContext(uri, workspace.folders);
 
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
-	let list = await mode.doComplete!(document, position, context);
+	let list = mode.doComplete!(document, position);
 
 	if (expected.count) {
 		assert.equal(list.items.length, expected.count);
@@ -75,22 +71,17 @@ export async function testCompletionFor(value: string, expected: { count?: numbe
 }
 
 suite('HTML Completion', () => {
-	test('HTML JavaScript Completions', async () => {
-		await testCompletionFor('<html><script>window.|</script></html>', {
+	test('HTML JavaScript Completions', function (): any {
+		testCompletionFor('<html><script>window.|</script></html>', {
 			items: [
 				{ label: 'location', resultText: '<html><script>window.location</script></html>' },
 			]
 		});
-		await testCompletionFor('<html><script>$.|</script></html>', {
+		testCompletionFor('<html><script>$.|</script></html>', {
 			items: [
 				{ label: 'getJSON', resultText: '<html><script>$.getJSON</script></html>' },
 			]
 		});
-		await testCompletionFor('<html><script>const x = { a: 1 };</script><script>x.|</script></html>', {
-			items: [
-				{ label: 'a', resultText: '<html><script>const x = { a: 1 };</script><script>x.a</script></html>' },
-			]
-		}, 'test://test/test2.html');
 	});
 });
 
@@ -105,8 +96,8 @@ suite('HTML Path Completion', () => {
 	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
 	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
 
-	test('Basics - Correct label/kind/result/command', async () => {
-		await testCompletionFor('<script src="./|">', {
+	test('Basics - Correct label/kind/result/command', () => {
+		testCompletionFor('<script src="./|">', {
 			items: [
 				{ label: 'about/', kind: CompletionItemKind.Folder, resultText: '<script src="./about/">', command: triggerSuggestCommand },
 				{ label: 'index.html', kind: CompletionItemKind.File, resultText: '<script src="./index.html">' },
@@ -115,8 +106,8 @@ suite('HTML Path Completion', () => {
 		}, indexHtmlUri);
 	});
 
-	test('Basics - Single Quote', async () => {
-		await testCompletionFor(`<script src='./|'>`, {
+	test('Basics - Single Quote', () => {
+		testCompletionFor(`<script src='./|'>`, {
 			items: [
 				{ label: 'about/', kind: CompletionItemKind.Folder, resultText: `<script src='./about/'>`, command: triggerSuggestCommand },
 				{ label: 'index.html', kind: CompletionItemKind.File, resultText: `<script src='./index.html'>` },
@@ -125,18 +116,18 @@ suite('HTML Path Completion', () => {
 		}, indexHtmlUri);
 	});
 
-	test('No completion for remote paths', async () => {
-		await testCompletionFor('<script src="http:">', { items: [] });
-		await testCompletionFor('<script src="http:/|">', { items: [] });
-		await testCompletionFor('<script src="http://|">', { items: [] });
-		await testCompletionFor('<script src="https:|">', { items: [] });
-		await testCompletionFor('<script src="https:/|">', { items: [] });
-		await testCompletionFor('<script src="https://|">', { items: [] });
-		await testCompletionFor('<script src="//|">', { items: [] });
+	test('No completion for remote paths', () => {
+		testCompletionFor('<script src="http:">', { items: [] });
+		testCompletionFor('<script src="http:/|">', { items: [] });
+		testCompletionFor('<script src="http://|">', { items: [] });
+		testCompletionFor('<script src="https:|">', { items: [] });
+		testCompletionFor('<script src="https:/|">', { items: [] });
+		testCompletionFor('<script src="https://|">', { items: [] });
+		testCompletionFor('<script src="//|">', { items: [] });
 	});
 
-	test('Relative Path', async () => {
-		await testCompletionFor('<script src="../|">', {
+	test('Relative Path', () => {
+		testCompletionFor('<script src="../|">', {
 			items: [
 				{ label: 'about/', resultText: '<script src="../about/">' },
 				{ label: 'index.html', resultText: '<script src="../index.html">' },
@@ -144,7 +135,7 @@ suite('HTML Path Completion', () => {
 			]
 		}, aboutHtmlUri);
 
-		await testCompletionFor('<script src="../src/|">', {
+		testCompletionFor('<script src="../src/|">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="../src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="../src/test.js">' },
@@ -152,8 +143,8 @@ suite('HTML Path Completion', () => {
 		}, aboutHtmlUri);
 	});
 
-	test('Absolute Path', async () => {
-		await testCompletionFor('<script src="/|">', {
+	test('Absolute Path', () => {
+		testCompletionFor('<script src="/|">', {
 			items: [
 				{ label: 'about/', resultText: '<script src="/about/">' },
 				{ label: 'index.html', resultText: '<script src="/index.html">' },
@@ -161,7 +152,7 @@ suite('HTML Path Completion', () => {
 			]
 		}, indexHtmlUri);
 
-		await testCompletionFor('<script src="/src/|">', {
+		testCompletionFor('<script src="/src/|">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="/src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="/src/test.js">' },
@@ -169,9 +160,9 @@ suite('HTML Path Completion', () => {
 		}, aboutHtmlUri, [fixtureWorkspace]);
 	});
 
-	test('Empty Path Value', async () => {
+	test('Empty Path Value', () => {
 		// document: index.html
-		await testCompletionFor('<script src="|">', {
+		testCompletionFor('<script src="|">', {
 			items: [
 				{ label: 'about/', resultText: '<script src="about/">' },
 				{ label: 'index.html', resultText: '<script src="index.html">' },
@@ -179,7 +170,7 @@ suite('HTML Path Completion', () => {
 			]
 		}, indexHtmlUri);
 		// document: about.html
-		await testCompletionFor('<script src="|">', {
+		testCompletionFor('<script src="|">', {
 			items: [
 				{ label: 'about.css', resultText: '<script src="about.css">' },
 				{ label: 'about.html', resultText: '<script src="about.html">' },
@@ -187,15 +178,15 @@ suite('HTML Path Completion', () => {
 			]
 		}, aboutHtmlUri);
 	});
-	test('Incomplete Path', async () => {
-		await testCompletionFor('<script src="/src/f|">', {
+	test('Incomplete Path', () => {
+		testCompletionFor('<script src="/src/f|">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="/src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="/src/test.js">' },
 			]
 		}, aboutHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="../src/f|">', {
+		testCompletionFor('<script src="../src/f|">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="../src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="../src/test.js">' },
@@ -203,9 +194,9 @@ suite('HTML Path Completion', () => {
 		}, aboutHtmlUri, [fixtureWorkspace]);
 	});
 
-	test('No leading dot or slash', async () => {
+	test('No leading dot or slash', () => {
 		// document: index.html
-		await testCompletionFor('<script src="s|">', {
+		testCompletionFor('<script src="s|">', {
 			items: [
 				{ label: 'about/', resultText: '<script src="about/">' },
 				{ label: 'index.html', resultText: '<script src="index.html">' },
@@ -213,14 +204,14 @@ suite('HTML Path Completion', () => {
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="src/|">', {
+		testCompletionFor('<script src="src/|">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="src/test.js">' },
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="src/f|">', {
+		testCompletionFor('<script src="src/f|">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="src/test.js">' },
@@ -228,7 +219,7 @@ suite('HTML Path Completion', () => {
 		}, indexHtmlUri, [fixtureWorkspace]);
 
 		// document: about.html
-		await testCompletionFor('<script src="s|">', {
+		testCompletionFor('<script src="s|">', {
 			items: [
 				{ label: 'about.css', resultText: '<script src="about.css">' },
 				{ label: 'about.html', resultText: '<script src="about.html">' },
@@ -236,29 +227,29 @@ suite('HTML Path Completion', () => {
 			]
 		}, aboutHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="media/|">', {
+		testCompletionFor('<script src="media/|">', {
 			items: [
 				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
 			]
 		}, aboutHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="media/f|">', {
+		testCompletionFor('<script src="media/f|">', {
 			items: [
 				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
 			]
 		}, aboutHtmlUri, [fixtureWorkspace]);
 	});
 
-	test('Trigger completion in middle of path', async () => {
+	test('Trigger completion in middle of path', () => {
 		// document: index.html
-		await testCompletionFor('<script src="src/f|eature.js">', {
+		testCompletionFor('<script src="src/f|eature.js">', {
 			items: [
 				{ label: 'feature.js', resultText: '<script src="src/feature.js">' },
 				{ label: 'test.js', resultText: '<script src="src/test.js">' },
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="s|rc/feature.js">', {
+		testCompletionFor('<script src="s|rc/feature.js">', {
 			items: [
 				{ label: 'about/', resultText: '<script src="about/">' },
 				{ label: 'index.html', resultText: '<script src="index.html">' },
@@ -267,13 +258,13 @@ suite('HTML Path Completion', () => {
 		}, indexHtmlUri, [fixtureWorkspace]);
 
 		// document: about.html
-		await testCompletionFor('<script src="media/f|eature.js">', {
+		testCompletionFor('<script src="media/f|eature.js">', {
 			items: [
 				{ label: 'icon.pic', resultText: '<script src="media/icon.pic">' }
 			]
 		}, aboutHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="m|edia/feature.js">', {
+		testCompletionFor('<script src="m|edia/feature.js">', {
 			items: [
 				{ label: 'about.css', resultText: '<script src="about.css">' },
 				{ label: 'about.html', resultText: '<script src="about.html">' },
@@ -283,8 +274,8 @@ suite('HTML Path Completion', () => {
 	});
 
 
-	test('Trigger completion in middle of path and with whitespaces', async () => {
-		await testCompletionFor('<script src="./| about/about.html>', {
+	test('Trigger completion in middle of path and with whitespaces', () => {
+		testCompletionFor('<script src="./| about/about.html>', {
 			items: [
 				{ label: 'about/', resultText: '<script src="./about/ about/about.html>' },
 				{ label: 'index.html', resultText: '<script src="./index.html about/about.html>' },
@@ -292,7 +283,7 @@ suite('HTML Path Completion', () => {
 			]
 		}, indexHtmlUri, [fixtureWorkspace]);
 
-		await testCompletionFor('<script src="./a|bout /about.html>', {
+		testCompletionFor('<script src="./a|bout /about.html>', {
 			items: [
 				{ label: 'about/', resultText: '<script src="./about/ /about.html>' },
 				{ label: 'index.html', resultText: '<script src="./index.html /about.html>' },
@@ -301,13 +292,13 @@ suite('HTML Path Completion', () => {
 		}, indexHtmlUri, [fixtureWorkspace]);
 	});
 
-	test('Completion should ignore files/folders starting with dot', async () => {
-		await testCompletionFor('<script src="./|"', {
+	test('Completion should ignore files/folders starting with dot', () => {
+		testCompletionFor('<script src="./|"', {
 			count: 3
 		}, indexHtmlUri, [fixtureWorkspace]);
 	});
 
-	test('Unquoted Path', async () => {
+	test('Unquoted Path', () => {
 		/* Unquoted value is not supported in html language service yet
 		testCompletionFor(`<div><a href=about/|>`, {
 			items: [

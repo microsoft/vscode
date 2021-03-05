@@ -28,8 +28,7 @@ function createInsertDeleteSingleEditOp(text: string | null, positionLineNumber:
 export function createSingleEditOp(text: string | null, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: false
+		text: text
 	};
 }
 
@@ -37,14 +36,14 @@ function assertTrimTrailingWhitespaceCommand(text: string[], expected: IIdentifi
 	return withEditorModel(text, (model) => {
 		let op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
 		let actual = getEditOperation(model, op);
-		assert.deepStrictEqual(actual, expected);
+		assert.deepEqual(actual, expected);
 	});
 }
 
 function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expected: IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
 		let actual = trimTrailingWhitespace(model, cursors);
-		assert.deepStrictEqual(actual, expected);
+		assert.deepEqual(actual, expected);
 	});
 }
 

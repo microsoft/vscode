@@ -11,8 +11,6 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('SnippetController2', function () {
 
@@ -21,13 +19,13 @@ suite('SnippetController2', function () {
 			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
-		assert.strictEqual(s.length, 0);
+		assert.equal(s.length, 0);
 	}
 
 	function assertContextKeys(service: MockContextKeyService, inSnippet: boolean, hasPrev: boolean, hasNext: boolean): void {
-		assert.strictEqual(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
-		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
-		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
+		assert.equal(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
+		assert.equal(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
+		assert.equal(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
 	}
 
 	let editor: ICodeEditor;
@@ -37,10 +35,10 @@ suite('SnippetController2', function () {
 
 	setup(function () {
 		contextKeys = new MockContextKeyService();
-		model = createTextModel('if\n    $state\nfi');
+		model = TextModel.createFromString('if\n    $state\nfi');
 		editor = createTestCodeEditor({ model: model });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
-		assert.strictEqual(model.getEOL(), '\n');
+		assert.equal(model.getEOL(), '\n');
 	});
 
 	teardown(function () {
@@ -78,9 +76,9 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, false, false, false);
 
 		editor.trigger('test', 'type', { text: '\t' });
-		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), false);
-		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
-		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
+		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
+		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
+		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
 	});
 
 	test('insert, insert -> cursor moves out (left/right)', function () {
@@ -111,7 +109,7 @@ suite('SnippetController2', function () {
 		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
-		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), true);
+		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 
 		// bad selection change
@@ -429,30 +427,5 @@ suite('SnippetController2', function () {
 		ctrl.next();
 		assertSelections(editor, new Selection(2, 5, 2, 5));
 		assertContextKeys(contextKeys, false, false, false);
-	});
-
-	test('issue #90135: confusing trim whitespace edits', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-
-		ctrl.insert('\nfoo');
-		assertSelections(editor, new Selection(2, 8, 2, 8));
-	});
-
-	test('leading TAB by snippets won\'t replace by spaces #101870', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		model.updateOptions({ insertSpaces: true, tabSize: 4 });
-		ctrl.insert('\tHello World\n\tNew Line');
-		assert.strictEqual(model.getValue(), '    Hello World\n    New Line');
-	});
-
-	test('leading TAB by snippets won\'t replace by spaces #101870 (part 2)', function () {
-		const ctrl = new SnippetController2(editor, logService, contextKeys);
-		model.setValue('');
-		model.updateOptions({ insertSpaces: true, tabSize: 4 });
-		ctrl.insert('\tHello World\n\tNew Line\n${1:\tmore}');
-		assert.strictEqual(model.getValue(), '    Hello World\n    New Line\n    more');
 	});
 });

@@ -29,7 +29,7 @@ class ToggleHighContrast extends EditorAction {
 			standaloneThemeService.setTheme(this._originalThemeName);
 			this._originalThemeName = null;
 		} else {
-			this._originalThemeName = standaloneThemeService.getColorTheme().themeName;
+			this._originalThemeName = standaloneThemeService.getTheme().themeName;
 			standaloneThemeService.setTheme('hc-black');
 		}
 	}

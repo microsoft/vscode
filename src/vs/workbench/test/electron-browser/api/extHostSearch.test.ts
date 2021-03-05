@@ -15,11 +15,11 @@ import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extH
 import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import type * as vscode from 'vscode';
+import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
+import * as vscode from 'vscode';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { mock } from 'vs/base/test/common/mock';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
@@ -144,7 +144,7 @@ suite('ExtHostSearch', () => {
 			constructor() {
 				super(
 					rpcProtocol,
-					new class extends mock<IExtHostInitDataService>() { remote = { isRemote: false, authority: undefined, connectionData: null }; },
+					new class extends mock<IExtHostInitDataService>() { remote = { isRemote: false, authority: undefined }; },
 					new URITransformerService(null),
 					logService
 				);
@@ -461,7 +461,7 @@ suite('ExtHostSearch', () => {
 				]);
 		});
 
-		test('max results = 1', async () => {
+		test.skip('max results = 1', async () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
@@ -497,7 +497,7 @@ suite('ExtHostSearch', () => {
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
-		test('max results = 2', async () => {
+		test.skip('max results = 2', async () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
@@ -533,7 +533,7 @@ suite('ExtHostSearch', () => {
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
-		test('provider returns maxResults exactly', async () => {
+		test.skip('provider returns maxResults exactly', async () => {
 			const reportedResults = [
 				joinPath(rootFolderA, 'file1.ts'),
 				joinPath(rootFolderA, 'file2.ts'),
@@ -713,10 +713,10 @@ suite('ExtHostSearch', () => {
 						match: null // Don't care about this right now
 					}
 				} : {
-					uri: r.uri.toString(),
-					text: r.text,
-					lineNumber: r.lineNumber
-				});
+						uri: r.uri.toString(),
+						text: r.text,
+						lineNumber: r.lineNumber
+					});
 
 			return assert.deepEqual(
 				makeComparable(actualTextSearchResults),
@@ -879,7 +879,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('basic sibling clause', async () => {
-			mockPFS.readdir = (_path: string): any => {
+			mockPFS.readdir = (_path: string) => {
 				if (_path === rootFolderA.fsPath) {
 					return Promise.resolve([
 						'file1.js',
@@ -922,7 +922,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('multiroot sibling clause', async () => {
-			mockPFS.readdir = (_path: string): any => {
+			mockPFS.readdir = (_path: string) => {
 				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
 					return Promise.resolve([
 						'fileA.scss',

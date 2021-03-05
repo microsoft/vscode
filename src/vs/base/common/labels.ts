@@ -4,22 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { posix, normalize, win32, sep } from 'vs/base/common/path';
-import { startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
+import { sep, posix, normalize, win32 } from 'vs/base/common/path';
+import { endsWith, startsWithIgnoreCase, rtrim, startsWith } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { isEqual, basename, relativePath } from 'vs/base/common/resources';
-import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
 
 export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;
+	getWorkspaceFolder(resource: URI): { uri: URI, name?: string } | null;
 	getWorkspace(): {
-		folders: { uri: URI, name?: string; }[];
+		folders: { uri: URI, name?: string }[];
 	};
 }
 
 export interface IUserHomeProvider {
-	userHome?: URI;
+	userHome: string;
 }
 
 /**
@@ -64,8 +63,8 @@ export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHom
 
 	// normalize and tildify (macOS, Linux only)
 	let res = normalize(resource.fsPath);
-	if (!isWindows && userHomeProvider?.userHome) {
-		res = tildify(res, userHomeProvider.userHome.fsPath);
+	if (!isWindows && userHomeProvider) {
+		res = tildify(res, userHomeProvider.userHome);
 	}
 
 	return res;
@@ -85,11 +84,15 @@ export function getBaseLabel(resource: URI | string | undefined): string | undef
 	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
 
 	// convert c: => C:
-	if (isWindows && isRootOrDriveLetter(base)) {
+	if (hasDriveLetter(base)) {
 		return normalizeDriveLetter(base);
 	}
 
 	return base;
+}
+
+function hasDriveLetter(path: string): boolean {
+	return !!(isWindows && path && path[1] === ':');
 }
 
 export function normalizeDriveLetter(path: string): string {
@@ -100,7 +103,7 @@ export function normalizeDriveLetter(path: string): string {
 	return path;
 }
 
-let normalizedUserHomeCached: { original: string; normalized: string; } = Object.create(null);
+let normalizedUserHomeCached: { original: string; normalized: string } = Object.create(null);
 export function tildify(path: string, userHome: string): string {
 	if (isWindows || !path || !userHome) {
 		return path; // unsupported
@@ -114,7 +117,7 @@ export function tildify(path: string, userHome: string): string {
 	}
 
 	// Linux: case sensitive, macOS: case insensitive
-	if (isLinux ? path.startsWith(normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
+	if (isLinux ? startsWith(path, normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
 		path = `~/${path.substr(normalizedUserHome.length)}`;
 	}
 
@@ -157,7 +160,7 @@ export function untildify(path: string, userHome: string): string {
 const ellipsis = '\u2026';
 const unc = '\\\\';
 const home = '~';
-export function shorten(paths: string[], pathSeparator: string = sep): string[] {
+export function shorten(paths: string[]): string[] {
 	const shortenedPaths: string[] = new Array(paths.length);
 
 	// for every path
@@ -166,7 +169,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = `.${pathSeparator}`;
+			shortenedPaths[pathIndex] = `.${sep}`;
 			continue;
 		}
 
@@ -182,20 +185,20 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		if (path.indexOf(unc) === 0) {
 			prefix = path.substr(0, path.indexOf(unc) + unc.length);
 			path = path.substr(path.indexOf(unc) + unc.length);
-		} else if (path.indexOf(pathSeparator) === 0) {
-			prefix = path.substr(0, path.indexOf(pathSeparator) + pathSeparator.length);
-			path = path.substr(path.indexOf(pathSeparator) + pathSeparator.length);
+		} else if (path.indexOf(sep) === 0) {
+			prefix = path.substr(0, path.indexOf(sep) + sep.length);
+			path = path.substr(path.indexOf(sep) + sep.length);
 		} else if (path.indexOf(home) === 0) {
 			prefix = path.substr(0, path.indexOf(home) + home.length);
 			path = path.substr(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found
-		const segments: string[] = path.split(pathSeparator);
+		const segments: string[] = path.split(sep);
 		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
 			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
 				match = false;
-				let subpath = segments.slice(start, start + subpathLength).join(pathSeparator);
+				let subpath = segments.slice(start, start + subpathLength).join(sep);
 
 				// that is unique to any other path
 				for (let otherPathIndex = 0; !match && otherPathIndex < paths.length; otherPathIndex++) {
@@ -206,8 +209,8 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 
 						// Adding separator as prefix for subpath, such that 'endsWith(src, trgt)' considers subpath as directory name instead of plain string.
 						// prefix is not added when either subpath is root directory or path[otherPathIndex] does not have multiple directories.
-						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(pathSeparator) > -1) ? pathSeparator + subpath : subpath;
-						const isOtherPathEnding: boolean = paths[otherPathIndex].endsWith(subpathWithSep);
+						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(sep) > -1) ? sep + subpath : subpath;
+						const isOtherPathEnding: boolean = endsWith(paths[otherPathIndex], subpathWithSep);
 
 						match = !isSubpathEnding || isOtherPathEnding;
 					}
@@ -218,16 +221,16 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 					let result = '';
 
 					// preserve disk drive or root prefix
-					if (segments[0].endsWith(':') || prefix !== '') {
+					if (endsWith(segments[0], ':') || prefix !== '') {
 						if (start === 1) {
 							// extend subpath to include disk drive prefix
 							start = 0;
 							subpathLength++;
-							subpath = segments[0] + pathSeparator + subpath;
+							subpath = segments[0] + sep + subpath;
 						}
 
 						if (start > 0) {
-							result = segments[0] + pathSeparator;
+							result = segments[0] + sep;
 						}
 
 						result = prefix + result;
@@ -235,14 +238,14 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 
 					// add ellipsis at the beginning if neeeded
 					if (start > 0) {
-						result = result + ellipsis + pathSeparator;
+						result = result + ellipsis + sep;
 					}
 
 					result = result + subpath;
 
 					// add ellipsis at the end if needed
 					if (start + subpathLength < segments.length) {
-						result = result + pathSeparator + ellipsis;
+						result = result + sep + ellipsis;
 					}
 
 					shortenedPaths[pathIndex] = result;
@@ -279,7 +282,7 @@ interface ISegment {
  * @param value string to which templating is applied
  * @param values the values of the templates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null; } = Object.create(null)): string {
+export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null } = Object.create(null)): string {
 	const segments: ISegment[] = [];
 
 	let inVariable = false;
@@ -383,7 +386,7 @@ export function unmnemonicLabel(label: string): string {
 /**
  * Splits a path in name and parent path, supporting both '/' and '\'
  */
-export function splitName(fullPath: string): { name: string, parentPath: string; } {
+export function splitName(fullPath: string): { name: string, parentPath: string } {
 	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
 	const name = p.basename(fullPath);
 	const parentPath = p.dirname(fullPath);

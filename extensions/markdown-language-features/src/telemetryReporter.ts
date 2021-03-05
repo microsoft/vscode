@@ -48,12 +48,12 @@ export function loadDefaultTelemetryReporter(): TelemetryReporter {
 }
 
 function getPackageInfo(): IPackageInfo | null {
-	const extension = vscode.extensions.getExtension('Microsoft.vscode-markdown');
-	if (extension && extension.packageJSON) {
+	const extention = vscode.extensions.getExtension('Microsoft.vscode-markdown');
+	if (extention && extention.packageJSON) {
 		return {
-			name: extension.packageJSON.name,
-			version: extension.packageJSON.version,
-			aiKey: extension.packageJSON.aiKey
+			name: extention.packageJSON.name,
+			version: extention.packageJSON.version,
+			aiKey: extention.packageJSON.aiKey
 		};
 	}
 	return null;

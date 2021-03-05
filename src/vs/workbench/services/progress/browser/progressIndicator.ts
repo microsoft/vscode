@@ -10,7 +10,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { IViewsService } from 'vs/workbench/common/views';
 
 export class ProgressBarIndicator extends Disposable implements IProgressIndicator {
 
@@ -46,7 +45,7 @@ export class ProgressBarIndicator extends Disposable implements IProgressIndicat
 		};
 	}
 
-	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
 		try {
 			this.progressbar.infinite().show(delay);
 
@@ -61,7 +60,7 @@ export class ProgressBarIndicator extends Disposable implements IProgressIndicat
 
 export class EditorProgressIndicator extends ProgressBarIndicator {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	constructor(progressBar: ProgressBar, private readonly group: IEditorGroupView) {
 		super(progressBar);
@@ -93,7 +92,7 @@ export class EditorProgressIndicator extends ProgressBarIndicator {
 		return super.show(infiniteOrTotal, delay);
 	}
 
-	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
 
 		// No editor open: ignore any progress reporting
 		if (this.group.isEmpty) {
@@ -126,7 +125,7 @@ namespace ProgressIndicatorState {
 		readonly type = Type.While;
 
 		constructor(
-			readonly whilePromise: Promise<unknown>,
+			readonly whilePromise: Promise<any>,
 			readonly whileStart: number,
 			readonly whileDelay: number,
 		) { }
@@ -154,7 +153,6 @@ export abstract class CompositeScope extends Disposable {
 	constructor(
 		private viewletService: IViewletService,
 		private panelService: IPanelService,
-		private viewsService: IViewsService,
 		private scopeId: string
 	) {
 		super();
@@ -163,8 +161,6 @@ export abstract class CompositeScope extends Disposable {
 	}
 
 	registerListeners(): void {
-		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
-
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this.onScopeOpened(viewlet.getId())));
 		this._register(this.panelService.onDidPanelOpen(({ panel }) => this.onScopeOpened(panel.getId())));
 
@@ -199,10 +195,9 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		scopeId: string,
 		isActive: boolean,
 		@IViewletService viewletService: IViewletService,
-		@IPanelService panelService: IPanelService,
-		@IViewsService viewsService: IViewsService
+		@IPanelService panelService: IPanelService
 	) {
-		super(viewletService, panelService, viewsService, scopeId);
+		super(viewletService, panelService, scopeId);
 
 		this.progressbar = progressbar;
 		this.isActive = isActive || isUndefinedOrNull(scopeId); // If service is unscoped, enable by default
@@ -210,8 +205,6 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 
 	onScopeDeactivated(): void {
 		this.isActive = false;
-
-		this.progressbar.stop().hide();
 	}
 
 	onScopeActivated(): void {
@@ -318,7 +311,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		};
 	}
 
-	async showWhile(promise: Promise<unknown>, delay?: number): Promise<void> {
+	async showWhile(promise: Promise<any>, delay?: number): Promise<void> {
 
 		// Join with existing running promise to ensure progress is accurate
 		if (this.progressState.type === ProgressIndicatorState.Type.While) {

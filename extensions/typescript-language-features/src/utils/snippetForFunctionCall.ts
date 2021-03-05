@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
 export function snippetForFunctionCall(
@@ -73,9 +73,7 @@ function getParameterListParts(
 					const next = displayParts[i + 1];
 					// Skip optional parameters
 					const nameIsFollowedByOptionalIndicator = next && next.text === '?';
-					// Skip this parameter
-					const nameIsThis = part.text === 'this';
-					if (!nameIsFollowedByOptionalIndicator && !nameIsThis) {
+					if (!nameIsFollowedByOptionalIndicator) {
 						parts.push(part);
 					}
 					hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;

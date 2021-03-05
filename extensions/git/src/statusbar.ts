@@ -7,8 +7,7 @@ import { Disposable, Command, EventEmitter, Event, workspace, Uri } from 'vscode
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import * as nls from 'vscode-nls';
-import { Branch, RemoteSourceProvider } from './api/git';
-import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { Branch } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -28,7 +27,7 @@ class CheckoutStatusBar {
 
 		return {
 			command: 'git.checkout',
-			tooltip: localize('checkout', "Checkout branch/tag..."),
+			tooltip: `${this.repository.headLabel}`,
 			title,
 			arguments: [this.repository.sourceControl]
 		};
@@ -40,45 +39,41 @@ class CheckoutStatusBar {
 }
 
 interface SyncStatusBarState {
-	readonly enabled: boolean;
-	readonly isSyncRunning: boolean;
-	readonly hasRemotes: boolean;
-	readonly HEAD: Branch | undefined;
-	readonly remoteSourceProviders: RemoteSourceProvider[];
+	enabled: boolean;
+	isSyncRunning: boolean;
+	hasRemotes: boolean;
+	HEAD: Branch | undefined;
 }
 
 class SyncStatusBar {
+
+	private static StartState: SyncStatusBarState = {
+		enabled: true,
+		isSyncRunning: false,
+		hasRemotes: false,
+		HEAD: undefined
+	};
 
 	private _onDidChange = new EventEmitter<void>();
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 	private disposables: Disposable[] = [];
 
-	private _state: SyncStatusBarState;
+	private _state: SyncStatusBarState = SyncStatusBar.StartState;
 	private get state() { return this._state; }
 	private set state(state: SyncStatusBarState) {
 		this._state = state;
 		this._onDidChange.fire();
 	}
 
-	constructor(private repository: Repository, private remoteSourceProviderRegistry: IRemoteSourceProviderRegistry) {
-		this._state = {
-			enabled: true,
-			isSyncRunning: false,
-			hasRemotes: false,
-			HEAD: undefined,
-			remoteSourceProviders: this.remoteSourceProviderRegistry.getRemoteProviders()
-				.filter(p => !!p.publishRepository)
-		};
-
-		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
-		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
-
-		anyEvent(remoteSourceProviderRegistry.onDidAddRemoteSourceProvider, remoteSourceProviderRegistry.onDidRemoveRemoteSourceProvider)
-			(this.onDidChangeRemoteSourceProviders, this, this.disposables);
+	constructor(private repository: Repository) {
+		repository.onDidRunGitStatus(this.onModelChange, this, this.disposables);
+		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
 
 		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.enableStatusBarSync'));
 		onEnablementChange(this.updateEnablement, this, this.disposables);
 		this.updateEnablement();
+
+		this._onDidChange.fire();
 	}
 
 	private updateEnablement(): void {
@@ -88,7 +83,7 @@ class SyncStatusBar {
 		this.state = { ... this.state, enabled };
 	}
 
-	private onDidChangeOperations(): void {
+	private onOperationsChange(): void {
 		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
 			this.repository.operations.isRunning(Operation.Push) ||
 			this.repository.operations.isRunning(Operation.Pull);
@@ -96,7 +91,7 @@ class SyncStatusBar {
 		this.state = { ...this.state, isSyncRunning };
 	}
 
-	private onDidRunGitStatus(): void {
+	private onModelChange(): void {
 		this.state = {
 			...this.state,
 			hasRemotes: this.repository.remotes.length > 0,
@@ -104,34 +99,9 @@ class SyncStatusBar {
 		};
 	}
 
-	private onDidChangeRemoteSourceProviders(): void {
-		this.state = {
-			...this.state,
-			remoteSourceProviders: this.remoteSourceProviderRegistry.getRemoteProviders()
-				.filter(p => !!p.publishRepository)
-		};
-	}
-
 	get command(): Command | undefined {
-		if (!this.state.enabled) {
-			return;
-		}
-
-		if (!this.state.hasRemotes) {
-			if (this.state.remoteSourceProviders.length === 0) {
-				return;
-			}
-
-			const tooltip = this.state.remoteSourceProviders.length === 1
-				? localize('publish to', "Publish to {0}", this.state.remoteSourceProviders[0].name)
-				: localize('publish to...', "Publish to...");
-
-			return {
-				command: 'git.publish',
-				title: `$(cloud-upload)`,
-				tooltip,
-				arguments: [this.repository.sourceControl]
-			};
+		if (!this.state.enabled || !this.state.hasRemotes) {
+			return undefined;
 		}
 
 		const HEAD = this.state.HEAD;
@@ -150,7 +120,7 @@ class SyncStatusBar {
 				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
 
 				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
-				tooltip = this.repository.syncTooltip;
+				tooltip = localize('sync changes', "Synchronize Changes");
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';
@@ -182,21 +152,38 @@ class SyncStatusBar {
 
 export class StatusBarCommands {
 
-	readonly onDidChange: Event<void>;
-
 	private syncStatusBar: SyncStatusBar;
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
 
-	constructor(repository: Repository, remoteSourceProviderRegistry: IRemoteSourceProviderRegistry) {
-		this.syncStatusBar = new SyncStatusBar(repository, remoteSourceProviderRegistry);
+	constructor(repository: Repository) {
+		this.syncStatusBar = new SyncStatusBar(repository);
 		this.checkoutStatusBar = new CheckoutStatusBar(repository);
-		this.onDidChange = anyEvent(this.syncStatusBar.onDidChange, this.checkoutStatusBar.onDidChange);
+	}
+
+	get onDidChange(): Event<void> {
+		return anyEvent(
+			this.syncStatusBar.onDidChange,
+			this.checkoutStatusBar.onDidChange
+		);
 	}
 
 	get commands(): Command[] {
-		return [this.checkoutStatusBar.command, this.syncStatusBar.command]
-			.filter((c): c is Command => !!c);
+		const result: Command[] = [];
+
+		const checkout = this.checkoutStatusBar.command;
+
+		if (checkout) {
+			result.push(checkout);
+		}
+
+		const sync = this.syncStatusBar.command;
+
+		if (sync) {
+			result.push(sync);
+		}
+
+		return result;
 	}
 
 	dispose(): void {

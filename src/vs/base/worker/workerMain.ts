@@ -5,27 +5,16 @@
 
 (function () {
 
-	const MonacoEnvironment = (<any>self).MonacoEnvironment;
-	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
-
-	const trustedTypesPolicy = (
-		typeof self.trustedTypes?.createPolicy === 'function'
-			? self.trustedTypes?.createPolicy('amdLoader', { createScriptURL: value => value })
-			: undefined
-	);
+	let MonacoEnvironment = (<any>self).MonacoEnvironment;
+	let monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 
 	if (typeof (<any>self).define !== 'function' || !(<any>self).define.amd) {
-		let loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.js';
-		if (trustedTypesPolicy) {
-			loaderSrc = trustedTypesPolicy.createScriptURL(loaderSrc);
-		}
-		importScripts(loaderSrc as string);
+		importScripts(monacoBaseUrl + 'vs/loader.js');
 	}
 
 	require.config({
 		baseUrl: monacoBaseUrl,
-		catchError: true,
-		trustedTypesPolicy,
+		catchError: true
 	});
 
 	let loadCode = function (moduleId: string) {

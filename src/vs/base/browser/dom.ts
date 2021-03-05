@@ -8,28 +8,198 @@ import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
+import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
+import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
-import { KeyCode } from 'vs/base/common/keyCodes';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
-		node.firstChild.remove();
+		node.removeChild(node.firstChild);
 	}
 }
 
-/**
- * @deprecated Use node.isConnected directly
- */
-export function isInDOM(node: Node | null): boolean {
-	return node?.isConnected ?? false;
+export function removeNode(node: HTMLElement): void {
+	if (node.parentNode) {
+		node.parentNode.removeChild(node);
+	}
 }
+
+export function isInDOM(node: Node | null): boolean {
+	while (node) {
+		if (node === document.body) {
+			return true;
+		}
+		node = node.parentNode || (node as ShadowRoot).host;
+	}
+	return false;
+}
+
+interface IDomClassList {
+	hasClass(node: HTMLElement | SVGElement, className: string): boolean;
+	addClass(node: HTMLElement | SVGElement, className: string): void;
+	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	removeClass(node: HTMLElement | SVGElement, className: string): void;
+	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
+}
+
+const _manualClassList = new class implements IDomClassList {
+
+	private _lastStart: number = -1;
+	private _lastEnd: number = -1;
+
+	private _findClassName(node: HTMLElement, className: string): void {
+
+		let classes = node.className;
+		if (!classes) {
+			this._lastStart = -1;
+			return;
+		}
+
+		className = className.trim();
+
+		let classesLen = classes.length,
+			classLen = className.length;
+
+		if (classLen === 0) {
+			this._lastStart = -1;
+			return;
+		}
+
+		if (classesLen < classLen) {
+			this._lastStart = -1;
+			return;
+		}
+
+		if (classes === className) {
+			this._lastStart = 0;
+			this._lastEnd = classesLen;
+			return;
+		}
+
+		let idx = -1,
+			idxEnd: number;
+
+		while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
+
+			idxEnd = idx + classLen;
+
+			// a class that is followed by another class
+			if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
+				this._lastStart = idx;
+				this._lastEnd = idxEnd + 1;
+				return;
+			}
+
+			// last class
+			if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
+				this._lastStart = idx - 1;
+				this._lastEnd = idxEnd;
+				return;
+			}
+
+			// equal - duplicate of cmp above
+			if (idx === 0 && idxEnd === classesLen) {
+				this._lastStart = 0;
+				this._lastEnd = idxEnd;
+				return;
+			}
+		}
+
+		this._lastStart = -1;
+	}
+
+	hasClass(node: HTMLElement, className: string): boolean {
+		this._findClassName(node, className);
+		return this._lastStart !== -1;
+	}
+
+	addClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
+	}
+
+	addClass(node: HTMLElement, className: string): void {
+		if (!node.className) { // doesn't have it for sure
+			node.className = className;
+		} else {
+			this._findClassName(node, className); // see if it's already there
+			if (this._lastStart === -1) {
+				node.className = node.className + ' ' + className;
+			}
+		}
+	}
+
+	removeClass(node: HTMLElement, className: string): void {
+		this._findClassName(node, className);
+		if (this._lastStart === -1) {
+			return; // Prevent styles invalidation if not necessary
+		} else {
+			node.className = node.className.substring(0, this._lastStart) + node.className.substring(this._lastEnd);
+		}
+	}
+
+	removeClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
+	}
+
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
+		this._findClassName(node, className);
+		if (this._lastStart !== -1 && (shouldHaveIt === undefined || !shouldHaveIt)) {
+			this.removeClass(node, className);
+		}
+		if (this._lastStart === -1 && (shouldHaveIt === undefined || shouldHaveIt)) {
+			this.addClass(node, className);
+		}
+	}
+};
+
+const _nativeClassList = new class implements IDomClassList {
+	hasClass(node: HTMLElement, className: string): boolean {
+		return Boolean(className) && node.classList && node.classList.contains(className);
+	}
+
+	addClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
+	}
+
+	addClass(node: HTMLElement, className: string): void {
+		if (className && node.classList) {
+			node.classList.add(className);
+		}
+	}
+
+	removeClass(node: HTMLElement, className: string): void {
+		if (className && node.classList) {
+			node.classList.remove(className);
+		}
+	}
+
+	removeClasses(node: HTMLElement, ...classNames: string[]): void {
+		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
+	}
+
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
+		if (node.classList) {
+			node.classList.toggle(className, shouldHaveIt);
+		}
+	}
+};
+
+// In IE11 there is only partial support for `classList` which makes us keep our
+// custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
+const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
+export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
 
@@ -103,11 +273,6 @@ export let addStandardDisposableGenericMouseDownListner = function addStandardDi
 	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	let wrapHandler = _wrapAsStandardMouseEvent(handler);
-
-	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
-};
 export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
@@ -122,7 +287,7 @@ export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
+		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -137,7 +302,7 @@ export function addDisposableNonBubblingMouseOutListener(node: Element, handler:
 export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget);
+		let toElement: Node | null = <Node>(e.relatedTarget || e.target);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -284,7 +449,7 @@ export function modify(callback: () => void): IDisposable {
 }
 
 /**
- * Add a throttled listener. `handler` is fired at most every 8.33333ms or with the next animation frame (if browser supports it).
+ * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
@@ -295,7 +460,7 @@ export interface DOMEvent {
 	stopPropagation(): void;
 }
 
-const MINIMUM_TIME_MS = 8;
+const MINIMUM_TIME_MS = 16;
 const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
@@ -346,9 +511,9 @@ export function getClientArea(element: HTMLElement): Dimension {
 	}
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if (platform.isIOS && window.visualViewport) {
-		const width = window.visualViewport.width;
-		const height = window.visualViewport.height - (
+	if (platform.isIOS && (<any>window).visualViewport) {
+		const width = (<any>window).visualViewport.width;
+		const height = (<any>window).visualViewport.height - (
 			browser.isStandalone
 				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
 				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
@@ -441,39 +606,12 @@ class SizeUtils {
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
 
-export interface IDimension {
-	readonly width: number;
-	readonly height: number;
-}
-
-export class Dimension implements IDimension {
-
-	static readonly None = new Dimension(0, 0);
+export class Dimension {
 
 	constructor(
 		public readonly width: number,
 		public readonly height: number,
 	) { }
-
-	with(width: number = this.width, height: number = this.height): Dimension {
-		if (width !== this.width || height !== this.height) {
-			return new Dimension(width, height);
-		} else {
-			return this;
-		}
-	}
-
-	static is(obj: unknown): obj is IDimension {
-		return typeof obj === 'object' && typeof (<IDimension>obj).height === 'number' && typeof (<IDimension>obj).width === 'number';
-	}
-
-	static lift(obj: IDimension): Dimension {
-		if (obj instanceof Dimension) {
-			return obj;
-		} else {
-			return new Dimension(obj.width, obj.height);
-		}
-	}
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -490,17 +628,11 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
-	let offsetParent = element.offsetParent;
-	let top = element.offsetTop;
-	let left = element.offsetLeft;
+	let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
 
-	while (
-		(element = <HTMLElement>element.parentNode) !== null
-		&& element !== document.body
-		&& element !== document.documentElement
-	) {
+	while ((element = <HTMLElement>element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
 		top -= element.scrollTop;
-		const c = isShadowRoot(element) ? null : getComputedStyle(element);
+		let c = getComputedStyle(element);
 		if (c) {
 			left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
 		}
@@ -660,57 +792,15 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 	return false;
 }
 
-const parentFlowToDataKey = 'parentFlowToElementId';
-
-/**
- * Set an explicit parent to use for nodes that are not part of the
- * regular dom structure.
- */
-export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: Element): void {
-	fromChildElement.dataset[parentFlowToDataKey] = toParentElement.id;
-}
-
-function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
-	const flowToParentId = node.dataset[parentFlowToDataKey];
-	if (typeof flowToParentId === 'string') {
-		return document.getElementById(flowToParentId);
-	}
-	return null;
-}
-
-/**
- * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
- * parents set by `setParentFlowTo`.
- */
-export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
-	let node: Node | null = testChild;
-	while (node) {
-		if (node === testAncestor) {
-			return true;
-		}
-
-		if (node instanceof HTMLElement) {
-			const flowToParentElement = getParentFlowToElement(node);
-			if (flowToParentElement) {
-				node = flowToParentElement;
-				continue;
-			}
-		}
-		node = node.parentNode;
-	}
-
-	return false;
-}
-
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
-	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node.classList.contains(clazz)) {
+	while (node) {
+		if (hasClass(node, clazz)) {
 			return node;
 		}
 
 		if (stopAtClazzOrNode) {
 			if (typeof stopAtClazzOrNode === 'string') {
-				if (node.classList.contains(stopAtClazzOrNode)) {
+				if (hasClass(node, stopAtClazzOrNode)) {
 					return null;
 				}
 			} else {
@@ -728,37 +818,6 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 
 export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
 	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
-}
-
-export function isShadowRoot(node: Node): node is ShadowRoot {
-	return (
-		node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
-	);
-}
-
-export function isInShadowDOM(domNode: Node): boolean {
-	return !!getShadowRoot(domNode);
-}
-
-export function getShadowRoot(domNode: Node): ShadowRoot | null {
-	while (domNode.parentNode) {
-		if (domNode === document.body) {
-			// reached the body
-			return null;
-		}
-		domNode = domNode.parentNode;
-	}
-	return isShadowRoot(domNode) ? domNode : null;
-}
-
-export function getActiveElement(): Element | null {
-	let result = document.activeElement;
-
-	while (result?.shadowRoot) {
-		result = result.shadowRoot.activeElement;
-	}
-
-	return result;
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
@@ -784,11 +843,11 @@ function getSharedStyleSheet(): HTMLStyleElement {
 }
 
 function getDynamicStyleSheetRules(style: any) {
-	if (style?.sheet?.rules) {
+	if (style && style.sheet && style.sheet.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
 	}
-	if (style?.sheet?.cssRules) {
+	if (style && style.sheet && style.sheet.cssRules) {
 		// FF
 		return style.sheet.cssRules;
 	}
@@ -832,7 +891,6 @@ export function isHTMLElement(o: any): o is HTMLElement {
 export const EventType = {
 	// Mouse
 	CLICK: 'click',
-	AUXCLICK: 'auxclick',
 	DBLCLICK: 'dblclick',
 	MOUSE_UP: 'mouseup',
 	MOUSE_DOWN: 'mousedown',
@@ -841,7 +899,6 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
-	MOUSE_WHEEL: 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',
@@ -996,18 +1053,9 @@ export function trackFocus(element: HTMLElement | Window): IFocusTracker {
 	return new FocusTracker(element);
 }
 
-export function after<T extends Node>(sibling: HTMLElement, child: T): T {
-	sibling.after(child);
-	return child;
-}
-
-export function append<T extends Node>(parent: HTMLElement, child: T): T;
-export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): void;
-export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
-	parent.append(...children);
-	if (children.length === 1 && typeof children[0] !== 'string') {
-		return <T>children[0];
-	}
+export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
+	children.forEach(child => parent.appendChild(child));
+	return children[children.length - 1];
 }
 
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
@@ -1015,15 +1063,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-/**
- * Removes all children from `parent` and appends `children`
- */
-export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
-	parent.innerText = '';
-	append(parent, ...children);
-}
-
-const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
+const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
 export enum Namespace {
 	HTML = 'http://www.w3.org/1999/xhtml',
@@ -1074,7 +1114,14 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	result.append(...children);
+	coalesce(children)
+		.forEach(child => {
+			if (child instanceof Node) {
+				result.appendChild(child);
+			} else {
+				result.appendChild(document.createTextNode(child as string));
+			}
+		});
 
 	return result as T;
 }
@@ -1120,7 +1167,7 @@ export function hide(...elements: HTMLElement[]): void {
 }
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-	while (node && node.nodeType === node.ELEMENT_NODE) {
+	while (node) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
 		}
@@ -1187,17 +1234,16 @@ export function computeScreenAwareSize(cssPx: number): number {
 }
 
 /**
- * See https://github.com/microsoft/monaco-editor/issues/601
+ * See https://github.com/Microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
  * the window.opener should be set to null to prevent the linked site from having access
  * to change the location of the current page.
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if (browser.isElectron || browser.isEdgeLegacyWebView) {
+	if (platform.isNative || browser.isEdgeWebView) {
 		// In VSCode, window.open() always returns null...
-		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
-		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
+		// The same is true for a WebView (see https://github.com/Microsoft/monaco-editor/issues/628)
 		window.open(url);
 	} else {
 		let newTab = window.open();
@@ -1220,6 +1266,16 @@ export function animate(fn: () => void): IDisposable {
 
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
+export function asDomUri(uri: URI): URI {
+	if (!uri) {
+		return uri;
+	}
+	if (Schemas.vscodeRemote === uri.scheme) {
+		return RemoteAuthorities.rewrite(uri);
+	}
+	return uri;
+}
+
 /**
  * returns url('...')
  */
@@ -1227,28 +1283,10 @@ export function asCSSUrl(uri: URI): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
-export function asCSSPropertyValue(value: string) {
-	return `'${value.replace(/'/g, '%27')}'`;
-}
-
-export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
-
-	// If the data is provided as Buffer, we create a
-	// blob URL out of it to produce a valid link
-	let url: string;
-	if (URI.isUri(dataOrUri)) {
-		url = dataOrUri.toString(true);
-	} else {
-		const blob = new Blob([dataOrUri]);
-		url = URL.createObjectURL(blob);
-
-		// Ensure to free the data from DOM eventually
-		setTimeout(() => URL.revokeObjectURL(url));
-	}
-
+export function triggerDownload(uri: URI, name: string): void {
 	// In order to download from the browser, the only way seems
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
@@ -1256,347 +1294,9 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	const anchor = document.createElement('a');
 	document.body.appendChild(anchor);
 	anchor.download = name;
-	anchor.href = url;
+	anchor.href = uri.toString(true);
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually
 	setTimeout(() => document.body.removeChild(anchor));
-}
-
-export enum DetectedFullscreenMode {
-
-	/**
-	 * The document is fullscreen, e.g. because an element
-	 * in the document requested to be fullscreen.
-	 */
-	DOCUMENT = 1,
-
-	/**
-	 * The browser is fullsreen, e.g. because the user enabled
-	 * native window fullscreen for it.
-	 */
-	BROWSER
-}
-
-export interface IDetectedFullscreen {
-
-	/**
-	 * Figure out if the document is fullscreen or the browser.
-	 */
-	mode: DetectedFullscreenMode;
-
-	/**
-	 * Whether we know for sure that we are in fullscreen mode or
-	 * it is a guess.
-	 */
-	guess: boolean;
-}
-
-export function detectFullscreen(): IDetectedFullscreen | null {
-
-	// Browser fullscreen: use DOM APIs to detect
-	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
-	}
-
-	// There is no standard way to figure out if the browser
-	// is using native fullscreen. Via checking on screen
-	// height and comparing that to window height, we can guess
-	// it though.
-
-	if (window.innerHeight === screen.height) {
-		// if the height of the window matches the screen height, we can
-		// safely assume that the browser is fullscreen because no browser
-		// chrome is taking height away (e.g. like toolbars).
-		return { mode: DetectedFullscreenMode.BROWSER, guess: false };
-	}
-
-	if (platform.isMacintosh || platform.isLinux) {
-		// macOS and Linux do not properly report `innerHeight`, only Windows does
-		if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
-			// if the height of the browser matches the screen height, we can
-			// only guess that we are in fullscreen. It is also possible that
-			// the user has turned off taskbars in the OS and the browser is
-			// simply able to span the entire size of the screen.
-			return { mode: DetectedFullscreenMode.BROWSER, guess: true };
-		}
-	}
-
-	// Not in fullscreen
-	return null;
-}
-
-// -- sanitize and trusted html
-
-function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
-
-	let allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
-
-	if (opts.allowedTags) {
-		for (let tag of opts.allowedTags) {
-			let array = allowedAttributes[tag];
-			if (!array) {
-				array = allowedAttributesForAll;
-			} else {
-				array = array.concat(allowedAttributesForAll);
-			}
-			allowedAttributes[tag] = array;
-		}
-	}
-
-	return { ...opts, allowedAttributes };
-}
-
-const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
-	createHTML(value, options: InsaneOptions) {
-		return insane(value, options);
-	}
-});
-
-/**
- * Sanitizes the given `value` and reset the given `node` with it.
- */
-export function safeInnerHtml(node: HTMLElement, value: string): void {
-
-	const options = _extInsaneOptions({
-		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-		allowedAttributes: {
-			'a': ['href', 'x-dispatch'],
-			'button': ['data-href', 'x-dispatch'],
-			'input': ['type', 'placeholder', 'checked', 'required'],
-			'label': ['for'],
-			'select': ['required'],
-			'span': ['data-command', 'role'],
-			'textarea': ['name', 'placeholder', 'required'],
-		},
-		allowedSchemes: ['http', 'https', 'command']
-	}, ['class', 'id', 'role', 'tabindex']);
-
-	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
-	node.innerHTML = html as string;
-}
-
-/**
- * Convert a Unicode string to a string in which each 16-bit unit occupies only one byte
- *
- * From https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/btoa
- */
-function toBinary(str: string): string {
-	const codeUnits = new Uint16Array(str.length);
-	for (let i = 0; i < codeUnits.length; i++) {
-		codeUnits[i] = str.charCodeAt(i);
-	}
-	let binary = '';
-	const uint8array = new Uint8Array(codeUnits.buffer);
-	for (let i = 0; i < uint8array.length; i++) {
-		binary += String.fromCharCode(uint8array[i]);
-	}
-	return binary;
-}
-
-/**
- * Version of the global `btoa` function that handles multi-byte characters instead
- * of throwing an exception.
- */
-export function multibyteAwareBtoa(str: string): string {
-	return btoa(toBinary(str));
-}
-
-/**
- * Typings for the https://wicg.github.io/file-system-access
- *
- * Use `supported(window)` to find out if the browser supports this kind of API.
- */
-export namespace WebFileSystemAccess {
-
-	// https://wicg.github.io/file-system-access/#dom-window-showdirectorypicker
-	export interface FileSystemAccess {
-		showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemdirectoryhandle
-	export interface FileSystemDirectoryHandle {
-		readonly kind: 'directory',
-		readonly name: string,
-
-		getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
-		getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemfilehandle
-	export interface FileSystemFileHandle {
-		readonly kind: 'file',
-		readonly name: string,
-
-		createWritable: (options?: { keepExistingData?: boolean }) => Promise<FileSystemWritableFileStream>;
-	}
-
-	// https://wicg.github.io/file-system-access/#api-filesystemwritablefilestream
-	export interface FileSystemWritableFileStream {
-		write: (buffer: Uint8Array) => Promise<void>;
-		close: () => Promise<void>;
-	}
-
-	export function supported(obj: any & Window): obj is FileSystemAccess {
-		const candidate = obj as FileSystemAccess | undefined;
-		if (typeof candidate?.showDirectoryPicker === 'function') {
-			return true;
-		}
-
-		return false;
-	}
-}
-
-type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
-
-export interface IModifierKeyStatus {
-	altKey: boolean;
-	shiftKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	lastKeyPressed?: ModifierKey;
-	lastKeyReleased?: ModifierKey;
-	event?: KeyboardEvent;
-}
-
-export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
-
-	private readonly _subscriptions = new DisposableStore();
-	private _keyStatus: IModifierKeyStatus;
-	private static instance: ModifierKeyEmitter;
-
-	private constructor() {
-		super();
-
-		this._keyStatus = {
-			altKey: false,
-			shiftKey: false,
-			ctrlKey: false,
-			metaKey: false
-		};
-
-		this._subscriptions.add(domEvent(window, 'keydown', true)(e => {
-
-			const event = new StandardKeyboardEvent(e);
-			// If Alt-key keydown event is repeated, ignore it #112347
-			// Only known to be necessary for Alt-Key at the moment #115810
-			if (event.keyCode === KeyCode.Alt && e.repeat) {
-				return;
-			}
-
-			if (e.altKey && !this._keyStatus.altKey) {
-				this._keyStatus.lastKeyPressed = 'alt';
-			} else if (e.ctrlKey && !this._keyStatus.ctrlKey) {
-				this._keyStatus.lastKeyPressed = 'ctrl';
-			} else if (e.metaKey && !this._keyStatus.metaKey) {
-				this._keyStatus.lastKeyPressed = 'meta';
-			} else if (e.shiftKey && !this._keyStatus.shiftKey) {
-				this._keyStatus.lastKeyPressed = 'shift';
-			} else if (event.keyCode !== KeyCode.Alt) {
-				this._keyStatus.lastKeyPressed = undefined;
-			} else {
-				return;
-			}
-
-			this._keyStatus.altKey = e.altKey;
-			this._keyStatus.ctrlKey = e.ctrlKey;
-			this._keyStatus.metaKey = e.metaKey;
-			this._keyStatus.shiftKey = e.shiftKey;
-
-			if (this._keyStatus.lastKeyPressed) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
-			}
-		}));
-
-		this._subscriptions.add(domEvent(window, 'keyup', true)(e => {
-			if (!e.altKey && this._keyStatus.altKey) {
-				this._keyStatus.lastKeyReleased = 'alt';
-			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
-				this._keyStatus.lastKeyReleased = 'ctrl';
-			} else if (!e.metaKey && this._keyStatus.metaKey) {
-				this._keyStatus.lastKeyReleased = 'meta';
-			} else if (!e.shiftKey && this._keyStatus.shiftKey) {
-				this._keyStatus.lastKeyReleased = 'shift';
-			} else {
-				this._keyStatus.lastKeyReleased = undefined;
-			}
-
-			if (this._keyStatus.lastKeyPressed !== this._keyStatus.lastKeyReleased) {
-				this._keyStatus.lastKeyPressed = undefined;
-			}
-
-			this._keyStatus.altKey = e.altKey;
-			this._keyStatus.ctrlKey = e.ctrlKey;
-			this._keyStatus.metaKey = e.metaKey;
-			this._keyStatus.shiftKey = e.shiftKey;
-
-			if (this._keyStatus.lastKeyReleased) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
-			}
-		}));
-
-		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-		}));
-
-		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
-			this._keyStatus.lastKeyPressed = undefined;
-		}));
-
-		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
-			if (e.buttons) {
-				this._keyStatus.lastKeyPressed = undefined;
-			}
-		}));
-
-		this._subscriptions.add(domEvent(window, 'blur')(e => {
-			this.resetKeyStatus();
-		}));
-	}
-
-	get keyStatus(): IModifierKeyStatus {
-		return this._keyStatus;
-	}
-
-	get isModifierPressed(): boolean {
-		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
-	}
-
-	/**
-	 * Allows to explicitly reset the key status based on more knowledge (#109062)
-	 */
-	resetKeyStatus(): void {
-		this.doResetKeyStatus();
-		this.fire(this._keyStatus);
-	}
-
-	private doResetKeyStatus(): void {
-		this._keyStatus = {
-			altKey: false,
-			shiftKey: false,
-			ctrlKey: false,
-			metaKey: false
-		};
-	}
-
-	static getInstance() {
-		if (!ModifierKeyEmitter.instance) {
-			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
-		}
-
-		return ModifierKeyEmitter.instance;
-	}
-
-	dispose() {
-		super.dispose();
-		this._subscriptions.dispose();
-	}
-}
-
-export function getCookieValue(name: string): string | undefined {
-	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
-
-	return match ? match.pop() : undefined;
 }

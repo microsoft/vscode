@@ -4,61 +4,57 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { assign } from 'vs/base/common/objects';
 import { isWeb } from 'vs/base/common/platform';
+import * as path from 'vs/base/common/path';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { env } from 'vs/base/common/process';
-import { FileAccess } from 'vs/base/common/network';
-import { dirname, joinPath } from 'vs/base/common/resources';
 
 let product: IProductConfiguration;
 
-// Web or Native (sandbox TODO@sandbox need to add all properties of product.json)
-if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !== 'function') {
+// Web
+if (isWeb) {
 
 	// Built time configuration (do NOT modify)
 	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
 
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
-		Object.assign(product, {
-			version: '1.55.0-dev',
-			nameShort: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
-			nameLong: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
-			applicationName: 'code-oss',
-			dataFolderName: '.vscode-oss',
-			urlProtocol: 'code-oss',
-			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
-			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			extensionAllowedProposedApi: [
-				'ms-vscode.vscode-js-profile-flame',
-				'ms-vscode.vscode-js-profile-table',
-				'ms-vscode.github-browser'
-			],
+		assign(product, {
+			version: '1.41.0-dev',
+			nameLong: 'Visual Studio Code Web Dev',
+			nameShort: 'VSCode Web Dev',
+			urlProtocol: 'code-oss'
 		});
 	}
 }
 
-// Native (non-sandboxed)
-else {
+// Node: AMD loader
+else if (typeof require !== 'undefined' && typeof require.__$__nodeRequire === 'function') {
 
 	// Obtain values from product.json and package.json
-	const rootPath = dirname(FileAccess.asFileUri('', require));
+	const rootPath = path.dirname(getPathFromAmdModule(require, ''));
 
-	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+	product = assign({}, require.__$__nodeRequire(path.join(rootPath, 'product.json')) as IProductConfiguration);
+	const pkg = require.__$__nodeRequire(path.join(rootPath, 'package.json')) as { version: string; };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
-		Object.assign(product, {
+		assign(product, {
 			nameShort: `${product.nameShort} Dev`,
 			nameLong: `${product.nameLong} Dev`,
 			dataFolderName: `${product.dataFolderName}-dev`
 		});
 	}
 
-	Object.assign(product, {
+	assign(product, {
 		version: pkg.version
 	});
+}
+
+// Unknown
+else {
+	throw new Error('Unable to resolve product configuration');
 }
 
 export default product;

@@ -17,9 +17,9 @@ export const WalkThroughArrowUp: ICommandAndKeybindingRule = {
 	primary: KeyCode.UpArrow,
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.arrowUp();
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowUp();
 		}
 	}
 };
@@ -31,9 +31,9 @@ export const WalkThroughArrowDown: ICommandAndKeybindingRule = {
 	primary: KeyCode.DownArrow,
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.arrowDown();
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowDown();
 		}
 	}
 };
@@ -45,9 +45,9 @@ export const WalkThroughPageUp: ICommandAndKeybindingRule = {
 	primary: KeyCode.PageUp,
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.pageUp();
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageUp();
 		}
 	}
 };
@@ -59,9 +59,9 @@ export const WalkThroughPageDown: ICommandAndKeybindingRule = {
 	primary: KeyCode.PageDown,
 	handler: accessor => {
 		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof WalkThroughPart) {
-			activeEditorPane.pageDown();
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageDown();
 		}
 	}
 };

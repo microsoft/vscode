@@ -15,8 +15,6 @@ import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 
-const ttPolicy = window.trustedTypes?.createPolicy('standaloneColorizer', { createHTML: value => value });
-
 export interface IColorizerOptions {
 	tabSize?: number;
 }
@@ -42,8 +40,7 @@ export class Colorizer {
 		let text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
 		domNode.className += ' ' + theme;
 		let render = (str: string) => {
-			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
-			domNode.innerHTML = trustedhtml as string;
+			domNode.innerHTML = str;
 		};
 		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
 	}
@@ -57,7 +54,7 @@ export class Colorizer {
 		if (strings.startsWithUTF8BOM(text)) {
 			text = text.substr(1);
 		}
-		let lines = strings.splitLines(text);
+		let lines = text.split(/\r\n|\r|\n/);
 		let language = modeService.getModeId(mimeType);
 		if (!language) {
 			return Promise.resolve(_fakeColorize(lines, tabSize));
@@ -128,9 +125,6 @@ export class Colorizer {
 			[],
 			tabSize,
 			0,
-			0,
-			0,
-			0,
 			-1,
 			'none',
 			false,
@@ -199,9 +193,6 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 			[],
 			tabSize,
 			0,
-			0,
-			0,
-			0,
 			-1,
 			'none',
 			false,
@@ -222,7 +213,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 
 	for (let i = 0, length = lines.length; i < length; i++) {
 		let line = lines[i];
-		let tokenizeResult = tokenizationSupport.tokenize2(line, true, state, 0);
+		let tokenizeResult = tokenizationSupport.tokenize2(line, state, 0);
 		LineTokens.convertToEndOffset(tokenizeResult.tokens, line.length);
 		let lineTokens = new LineTokens(tokenizeResult.tokens, line);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
@@ -238,9 +229,6 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			lineTokens.inflate(),
 			[],
 			tabSize,
-			0,
-			0,
-			0,
 			0,
 			-1,
 			'none',

@@ -31,12 +31,10 @@ export interface CancellableEvent {
 	stopPropagation(): void;
 }
 
-export function stopEvent<T extends CancellableEvent>(event: T): T {
-	event.preventDefault();
-	event.stopPropagation();
-	return event;
-}
-
 export function stop<T extends CancellableEvent>(event: BaseEvent<T>): BaseEvent<T> {
-	return BaseEvent.map(event, stopEvent);
+	return BaseEvent.map(event, e => {
+		e.preventDefault();
+		e.stopPropagation();
+		return e;
+	});
 }

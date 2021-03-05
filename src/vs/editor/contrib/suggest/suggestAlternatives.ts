@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CompletionModel } from './completionModel';
@@ -34,7 +34,7 @@ export class SuggestAlternatives {
 
 	reset(): void {
 		this._ckOtherSuggestions.reset();
-		this._listener?.dispose();
+		dispose(this._listener);
 		this._model = undefined;
 		this._acceptNext = undefined;
 		this._ignore = false;

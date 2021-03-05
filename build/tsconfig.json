@@ -14,8 +14,7 @@
 		"checkJs": true,
 		"strict": true,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"newLine": "lf"
+		"noUnusedParameters": true
 	},
 	"include": [
 		"**/*.ts"

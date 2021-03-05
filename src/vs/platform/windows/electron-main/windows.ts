@@ -3,38 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowOpenable, IOpenEmptyWindowOptions, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { OpenContext, IWindowConfiguration, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-import { Rectangle, BrowserWindow, WebContents } from 'electron';
+import { Rectangle, BrowserWindow } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-
-export const enum OpenContext {
-
-	// opening when running from the command line
-	CLI,
-
-	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
-	DOCK,
-
-	// opening from the main application window
-	MENU,
-
-	// opening from a file or folder dialog
-	DIALOG,
-
-	// opening from the OS's UI
-	DESKTOP,
-
-	// opening through the API
-	API
-}
 
 export interface IWindowState {
 	width?: number;
@@ -45,14 +23,6 @@ export interface IWindowState {
 	display?: number;
 }
 
-export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
-	return {
-		width: 1024,
-		height: 768,
-		mode
-	};
-};
-
 export const enum WindowMode {
 	Maximized,
 	Normal,
@@ -60,25 +30,19 @@ export const enum WindowMode {
 	Fullscreen
 }
 
-export interface ILoadEvent {
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-}
-
 export interface ICodeWindow extends IDisposable {
 
-	readonly onWillLoad: Event<ILoadEvent>;
-	readonly onDidSignalReady: Event<void>;
-	readonly onDidClose: Event<void>;
-	readonly onDidDestroy: Event<void>;
+	readonly onClose: Event<void>;
+	readonly onDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;
 
 	readonly id: number;
-	readonly win: BrowserWindow | null; /* `null` after being disposed */
-	readonly config: INativeWindowConfiguration | undefined;
+	readonly win: BrowserWindow;
+	readonly config: IWindowConfiguration | undefined;
 
-	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
-
+	readonly openedFolderUri?: URI;
+	readonly openedWorkspace?: IWorkspaceIdentifier;
 	readonly backupPath?: string;
 
 	readonly remoteAuthority?: string;
@@ -96,16 +60,16 @@ export interface ICodeWindow extends IDisposable {
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
-	reload(cli?: NativeParsedArgs): void;
+	load(config: IWindowConfiguration, isReload?: boolean): void;
+	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
 
-	focus(options?: { force: boolean }): void;
+	focus(): void;
 	close(): void;
 
 	getBounds(): Rectangle;
 
 	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
+	sendWhenReady(channel: string, ...args: any[]): void;
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
@@ -115,32 +79,11 @@ export interface ICodeWindow extends IDisposable {
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string | undefined;
 
-	setDocumentEdited(edited: boolean): void;
-	isDocumentEdited(): boolean;
-
 	handleTitleDoubleClick(): void;
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	serializeWindowState(): IWindowState;
-}
-
-export const enum WindowError {
-
-	/**
-	 * Maps to the `unresponsive` event on a `BrowserWindow`.
-	 */
-	UNRESPONSIVE = 1,
-
-	/**
-	 * Maps to the `render-proces-gone` event on a `WebContents`.
-	 */
-	CRASHED = 2,
-
-	/**
-	 * Maps to the `did-fail-load` event on a `WebContents`.
-	 */
-	LOAD = 3
 }
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -152,38 +95,29 @@ export interface IWindowsCountChangedEvent {
 
 export interface IWindowsMainService {
 
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	readonly onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
-
-	readonly onDidOpenWindow: Event<ICodeWindow>;
-	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
-	readonly onDidDestroyWindow: Event<ICodeWindow>;
+	readonly onWindowReady: Event<ICodeWindow>;
+	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
 
-	getWindows(): ICodeWindow[];
-	getWindowCount(): number;
-
-	getFocusedWindow(): ICodeWindow | undefined;
 	getLastActiveWindow(): ICodeWindow | undefined;
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
-	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
+	getWindows(): ICodeWindow[];
+	getWindowCount(): number;
 }
 
-export interface IBaseOpenConfiguration {
+export interface IOpenConfiguration {
 	readonly context: OpenContext;
 	readonly contextWindowId?: number;
-}
-
-export interface IOpenConfiguration extends IBaseOpenConfiguration {
-	readonly cli: NativeParsedArgs;
+	readonly cli: ParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];
 	readonly waitMarkerFileURI?: URI;
@@ -198,5 +132,3 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
 }
-
-export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

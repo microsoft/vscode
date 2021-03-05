@@ -5,38 +5,36 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
+import * as path from 'vs/base/common/path';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
 
 	constructor(
-		context: {
-			getAppRoot: () => string | undefined,
-			getExecPath: () => string | undefined
-		},
 		envVariables: IProcessEnvironment,
 		editorService: IEditorService,
+		environmentService: IWorkbenchEnvironmentService,
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
 		private readonly workspaceContextService: IWorkspaceContextService,
-		private readonly quickInputService: IQuickInputService,
-		private readonly labelService: ILabelService
+		private readonly quickInputService: IQuickInputService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -46,44 +44,28 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getWorkspaceFolderCount: (): number => {
 				return workspaceContextService.getWorkspace().folders.length;
 			},
-			getConfigurationValue: (folderUri: uri | undefined, suffix: string): string | undefined => {
+			getConfigurationValue: (folderUri: uri, suffix: string): string | undefined => {
 				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : {});
 			},
-			getAppRoot: (): string | undefined => {
-				return context.getAppRoot();
-			},
 			getExecPath: (): string | undefined => {
-				return context.getExecPath();
+				return environmentService['execPath'];
 			},
 			getFilePath: (): string | undefined => {
-				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
-					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
-				});
+				let activeEditor = editorService.activeEditor;
+				if (activeEditor instanceof DiffEditorInput) {
+					activeEditor = activeEditor.modifiedInput;
+				}
+				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData] });
 				if (!fileResource) {
 					return undefined;
 				}
-				return this.labelService.getUriLabel(fileResource, { noPrefix: true });
-			},
-			getWorkspaceFolderPathForFile: (): string | undefined => {
-				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
-					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
-				});
-				if (!fileResource) {
-					return undefined;
-				}
-				const wsFolder = workspaceContextService.getWorkspaceFolder(fileResource);
-				if (!wsFolder) {
-					return undefined;
-				}
-				return this.labelService.getUriLabel(wsFolder.uri, { noPrefix: true });
+				return path.normalize(fileResource.fsPath);
 			},
 			getSelectedText: (): string | undefined => {
-				const activeTextEditorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(activeTextEditorControl)) {
-					const editorModel = activeTextEditorControl.getModel();
-					const editorSelection = activeTextEditorControl.getSelection();
+				const activeTextEditorWidget = editorService.activeTextEditorWidget;
+				if (isCodeEditor(activeTextEditorWidget)) {
+					const editorModel = activeTextEditorWidget.getModel();
+					const editorSelection = activeTextEditorWidget.getSelection();
 					if (editorModel && editorSelection) {
 						return editorModel.getValueInRange(editorSelection);
 					}
@@ -91,9 +73,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return undefined;
 			},
 			getLineNumber: (): string | undefined => {
-				const activeTextEditorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(activeTextEditorControl)) {
-					const selection = activeTextEditorControl.getSelection();
+				const activeTextEditorWidget = editorService.activeTextEditorWidget;
+				if (isCodeEditor(activeTextEditorWidget)) {
+					const selection = activeTextEditorWidget.getSelection();
 					if (selection) {
 						const lineNumber = selection.positionLineNumber;
 						return String(lineNumber);
@@ -101,15 +83,15 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, labelService, envVariables);
+		}, envVariables);
 	}
 
-	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
+	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
 		// resolve any non-interactive variables and any contributed variables
 		config = this.resolveAny(folder, config);
 
 		// resolve input variables in the order in which they are encountered
-		return this.resolveWithInteraction(folder, config, section, variables, target).then(mapping => {
+		return this.resolveWithInteraction(folder, config, section, variables).then(mapping => {
 			// finally substitute evaluated command variables (if there are any)
 			if (!mapping) {
 				return null;
@@ -121,14 +103,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		});
 	}
 
-	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
+	public async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
 		// resolve any non-interactive variables and any contributed variables
 		const resolved = await this.resolveAnyMap(folder, config);
 		config = resolved.newConfig;
 		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
 
 		// resolve input and command variables in the order in which they are encountered
-		return this.resolveWithInputAndCommands(folder, config, variables, section, target).then(inputOrCommandMapping => {
+		return this.resolveWithInputAndCommands(folder, config, variables, section).then(inputOrCommandMapping => {
 			if (this.updateMapping(inputOrCommandMapping, allVariableMapping)) {
 				return allVariableMapping;
 			}
@@ -157,7 +139,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	 *
 	 * @param variableToCommandMap Aliases for commands
 	 */
-	private async resolveWithInputAndCommands(folder: IWorkspaceFolder | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string, target?: ConfigurationTarget): Promise<IStringDictionary<string> | undefined> {
+	private async resolveWithInputAndCommands(folder: IWorkspaceFolder | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string): Promise<IStringDictionary<string> | undefined> {
 
 		if (!configuration) {
 			return Promise.resolve(undefined);
@@ -165,20 +147,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		// get all "inputs"
 		let inputs: ConfiguredInput[] = [];
-		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
-			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
-			let result = this.configurationService.inspect(section, overrides);
-			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
-				switch (target) {
-					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
-					case ConfigurationTarget.WORKSPACE: inputs = (<any>result.workspaceValue)?.inputs; break;
-					default: inputs = (<any>result.workspaceFolderValue)?.inputs;
-				}
-			} else {
-				const valueResult = this.configurationService.getValue<any>(section, overrides);
-				if (valueResult) {
-					inputs = valueResult.inputs;
-				}
+		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
+			let result = this.configurationService.getValue<any>(section, { resource: folder.uri });
+			if (result) {
+				inputs = result.inputs;
 			}
 		}
 
@@ -283,12 +255,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true };
+					const inputOptions: IInputOptions = { prompt: info.description };
 					if (info.default) {
 						inputOptions.value = info.default;
-					}
-					if (info.password) {
-						inputOptions.password = info.password;
 					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
 						return resolvedInput;
@@ -299,42 +268,22 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					if (Types.isArray(info.options)) {
-						info.options.forEach(pickOption => {
-							if (!Types.isString(pickOption) && !Types.isString(pickOption.value)) {
-								missingAttribute('value');
-							}
-						});
-					} else {
+					if (!Types.isStringArray(info.options)) {
 						missingAttribute('options');
 					}
-					interface PickStringItem extends IQuickPickItem {
-						value: string;
-					}
-					const picks = new Array<PickStringItem>();
+					const picks = new Array<IQuickPickItem>();
 					info.options.forEach(pickOption => {
-						const value = Types.isString(pickOption) ? pickOption : pickOption.value;
-						const label = Types.isString(pickOption) ? undefined : pickOption.label;
-
-						// If there is no label defined, use value as label
-						const item: PickStringItem = {
-							label: label ? `${label}: ${value}` : value,
-							value: value
-						};
-
-						if (value === info.default) {
-							item.description = nls.localize('inputVariable.defaultInputValue', "(Default)");
+						const item: IQuickPickItem = { label: pickOption };
+						if (pickOption === info.default) {
+							item.description = nls.localize('inputVariable.defaultInputValue', "Default");
 							picks.unshift(item);
 						} else {
 							picks.push(item);
 						}
 					});
-					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true, ignoreFocusLost: true };
+					const pickOptions: IPickOptions<IQuickPickItem> = { placeHolder: info.description };
 					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
-						if (resolvedInput) {
-							return resolvedInput.value;
-						}
-						return undefined;
+						return resolvedInput ? resolvedInput.label : undefined;
 					});
 				}
 
@@ -366,9 +315,10 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@ILabelService labelService: ILabelService
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
-		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+		super(environmentService.configuration.userEnv, editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
 	}
 }
+
+registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);

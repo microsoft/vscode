@@ -11,7 +11,7 @@ const localize = nls.loadMessageBundle();
 
 type LogLevel = 'Trace' | 'Info' | 'Error';
 
-export class Logger {
+export default class Logger {
 
 	@memoize
 	private get output(): vscode.OutputChannel {
@@ -33,7 +33,7 @@ export class Logger {
 	}
 
 	public error(message: string, data?: any): void {
-		// See https://github.com/microsoft/TypeScript/issues/10496
+		// See https://github.com/Microsoft/TypeScript/issues/10496
 		if (data && data.message === 'No content available.') {
 			return;
 		}

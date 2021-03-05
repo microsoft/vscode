@@ -6,23 +6,21 @@
 import Severity from 'vs/base/common/severity';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { problemsErrorIconForeground, problemsInfoIconForeground, problemsWarningIconForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Codicon } from 'vs/base/common/codicons';
 
 export namespace SeverityIcon {
 
 	export function className(severity: Severity): string {
 		switch (severity) {
 			case Severity.Ignore:
-				return 'severity-ignore ' + Codicon.info.classNames;
+				return 'severity-ignore codicon-info';
 			case Severity.Info:
-				return Codicon.info.classNames;
+				return 'codicon-info';
 			case Severity.Warning:
-				return Codicon.warning.classNames;
+				return 'codicon-warning';
 			case Severity.Error:
-				return Codicon.error.classNames;
-			default:
-				return '';
+				return 'codicon-error';
 		}
+		return '';
 	}
 }
 
@@ -30,37 +28,37 @@ registerThemingParticipant((theme, collector) => {
 
 	const errorIconForeground = theme.getColor(problemsErrorIconForeground);
 	if (errorIconForeground) {
-		const errorCodiconSelector = Codicon.error.cssSelector;
 		collector.addRule(`
-			.monaco-editor .zone-widget ${errorCodiconSelector},
-			.markers-panel .marker-icon${errorCodiconSelector},
-			.extensions-viewlet > .extensions ${errorCodiconSelector} {
+			.monaco-editor .zone-widget .codicon-error,
+			.markers-panel .marker-icon.codicon-error,
+			.extensions-viewlet > .extensions .codicon-error,
+			.monaco-dialog-box .dialog-message-row .codicon-error {
 				color: ${errorIconForeground};
 			}
 		`);
 	}
 
 	const warningIconForeground = theme.getColor(problemsWarningIconForeground);
-	if (warningIconForeground) {
-		const warningCodiconSelector = Codicon.warning.cssSelector;
+	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-editor .zone-widget ${warningCodiconSelector},
-			.markers-panel .marker-icon${warningCodiconSelector},
-			.extensions-viewlet > .extensions ${warningCodiconSelector},
-			.extension-editor ${warningCodiconSelector} {
+			.monaco-editor .zone-widget .codicon-warning,
+			.markers-panel .marker-icon.codicon-warning,
+			.extensions-viewlet > .extensions .codicon-warning,
+			.extension-editor .codicon-warning,
+			.monaco-dialog-box .dialog-message-row .codicon-warning {
 				color: ${warningIconForeground};
 			}
 		`);
 	}
 
 	const infoIconForeground = theme.getColor(problemsInfoIconForeground);
-	if (infoIconForeground) {
-		const infoCodiconSelector = Codicon.info.cssSelector;
+	if (errorIconForeground) {
 		collector.addRule(`
-			.monaco-editor .zone-widget ${infoCodiconSelector},
-			.markers-panel .marker-icon${infoCodiconSelector},
-			.extensions-viewlet > .extensions ${infoCodiconSelector},
-			.extension-editor ${infoCodiconSelector} {
+			.monaco-editor .zone-widget .codicon-info,
+			.markers-panel .marker-icon.codicon-info,
+			.extensions-viewlet > .extensions .codicon-info,
+			.extension-editor .codicon-info,
+			.monaco-dialog-box .dialog-message-row .codicon-info {
 				color: ${infoIconForeground};
 			}
 		`);

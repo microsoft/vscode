@@ -19,7 +19,9 @@ export const enum StatusBarElement {
 
 export class StatusBar {
 
-	private readonly mainSelector = 'footer[id="workbench.parts.statusbar"]';
+	private readonly mainSelector = 'div[id="workbench.parts.statusbar"]';
+	private readonly leftSelector = '.statusbar-item.left';
+	private readonly rightSelector = '.statusbar-item.right';
 
 	constructor(private code: Code) { }
 
@@ -42,23 +44,23 @@ export class StatusBar {
 	private getSelector(element: StatusBarElement): string {
 		switch (element) {
 			case StatusBarElement.BRANCH_STATUS:
-				return `.statusbar-item[id="status.scm"] .codicon.codicon-git-branch`;
+				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-git-branch`;
 			case StatusBarElement.SYNC_STATUS:
-				return `.statusbar-item[id="status.scm"] .codicon.codicon-sync`;
+				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
-				return `.statusbar-item[id="status.problems"]`;
+				return `${this.mainSelector} ${this.leftSelector} .codicon.codicon-error`;
 			case StatusBarElement.SELECTION_STATUS:
-				return `.statusbar-item[id="status.editor.selection"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Go to Line"]`;
 			case StatusBarElement.INDENTATION_STATUS:
-				return `.statusbar-item[id="status.editor.indentation"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select Indentation"]`;
 			case StatusBarElement.ENCODING_STATUS:
-				return `.statusbar-item[id="status.editor.encoding"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select Encoding"]`;
 			case StatusBarElement.EOL_STATUS:
-				return `.statusbar-item[id="status.editor.eol"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select End of Line Sequence"]`;
 			case StatusBarElement.LANGUAGE_STATUS:
-				return `.statusbar-item[id="status.editor.mode"]`;
+				return `${this.mainSelector} ${this.rightSelector}[title="Select Language Mode"]`;
 			case StatusBarElement.FEEDBACK_ICON:
-				return `.statusbar-item[id="status.feedback"]`;
+				return `${this.mainSelector} .statusbar-item.right[id="status.feedback"]`;
 			default:
 				throw new Error(element);
 		}

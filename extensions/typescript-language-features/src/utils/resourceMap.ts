@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as vscode from 'vscode';
-import * as fileSchemes from '../utils/fileSchemes';
+import { memoize } from './memoize';
+import { getTempFile } from './temp';
 
 /**
  * Maps of file resources
@@ -13,21 +15,10 @@ import * as fileSchemes from '../utils/fileSchemes';
  * file systems.
  */
 export class ResourceMap<T> {
-
-	private static readonly defaultPathNormalizer = (resource: vscode.Uri): string => {
-		if (resource.scheme === fileSchemes.file) {
-			return resource.fsPath;
-		}
-		return resource.toString(true);
-	};
-
-	private readonly _map = new Map<string, { readonly resource: vscode.Uri, value: T }>();
+	private readonly _map = new Map<string, { resource: vscode.Uri, value: T }>();
 
 	constructor(
-		protected readonly _normalizePath: (resource: vscode.Uri) => string | undefined = ResourceMap.defaultPathNormalizer,
-		protected readonly config: {
-			readonly onCaseInsenitiveFileSystem: boolean,
-		},
+		private readonly _normalizePath: (resource: vscode.Uri) => string | undefined = (resource) => resource.fsPath
 	) { }
 
 	public get size() {
@@ -92,10 +83,23 @@ export class ResourceMap<T> {
 		if (isWindowsPath(path)) {
 			return true;
 		}
-		return path[0] === '/' && this.config.onCaseInsenitiveFileSystem;
+		return path[0] === '/' && this.onIsCaseInsenitiveFileSystem;
+	}
+
+	@memoize
+	private get onIsCaseInsenitiveFileSystem() {
+		if (process.platform === 'win32') {
+			return true;
+		}
+		if (process.platform !== 'darwin') {
+			return false;
+		}
+		const temp = getTempFile('typescript-case-check');
+		fs.writeFileSync(temp, '');
+		return fs.existsSync(temp.toUpperCase());
 	}
 }
 
-function isWindowsPath(path: string): boolean {
+export function isWindowsPath(path: string): boolean {
 	return /^[a-zA-Z]:[\/\\]/.test(path);
 }

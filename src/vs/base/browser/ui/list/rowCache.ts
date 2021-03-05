@@ -5,10 +5,10 @@
 
 import { IListRenderer } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { $ } from 'vs/base/browser/dom';
+import { $, removeClass } from 'vs/base/browser/dom';
 
 export interface IRow {
-	domNode: HTMLElement;
+	domNode: HTMLElement | null;
 	templateId: string;
 	templateData: any;
 }
@@ -60,7 +60,7 @@ export class RowCache<T> implements IDisposable {
 	private releaseRow(row: IRow): void {
 		const { domNode, templateId } = row;
 		if (domNode) {
-			domNode.classList.remove('scrolling');
+			removeClass(domNode, 'scrolling');
 			removeFromParent(domNode);
 		}
 
@@ -84,6 +84,7 @@ export class RowCache<T> implements IDisposable {
 			for (const cachedRow of cachedRows) {
 				const renderer = this.getRenderer(templateId);
 				renderer.disposeTemplate(cachedRow.templateData);
+				cachedRow.domNode = null;
 				cachedRow.templateData = null;
 			}
 		});

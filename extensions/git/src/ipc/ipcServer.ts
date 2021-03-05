@@ -11,42 +11,27 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 
-function getIPCHandlePath(id: string): string {
+function getIPCHandlePath(nonce: string): string {
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\vscode-git-${id}-sock`;
+		return `\\\\.\\pipe\\vscode-git-ipc-${nonce}-sock`;
 	}
 
 	if (process.env['XDG_RUNTIME_DIR']) {
-		return path.join(process.env['XDG_RUNTIME_DIR'] as string, `vscode-git-${id}.sock`);
+		return path.join(process.env['XDG_RUNTIME_DIR'] as string, `vscode-git-ipc-${nonce}.sock`);
 	}
 
-	return path.join(os.tmpdir(), `vscode-git-${id}.sock`);
+	return path.join(os.tmpdir(), `vscode-git-ipc-${nonce}.sock`);
 }
 
 export interface IIPCHandler {
 	handle(request: any): Promise<any>;
 }
 
-export async function createIPCServer(context?: string): Promise<IIPCServer> {
+export async function createIPCServer(): Promise<IIPCServer> {
 	const server = http.createServer();
-	const hash = crypto.createHash('sha1');
-
-	if (!context) {
-		const buffer = await new Promise<Buffer>((c, e) => crypto.randomBytes(20, (err, buf) => err ? e(err) : c(buf)));
-		hash.update(buffer);
-	} else {
-		hash.update(context);
-	}
-
-	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substr(0, 10));
-
-	if (process.platform !== 'win32') {
-		try {
-			await fs.promises.unlink(ipcHandlePath);
-		} catch {
-			// noop
-		}
-	}
+	const buffer = await new Promise<Buffer>((c, e) => crypto.randomBytes(20, (err, buf) => err ? e(err) : c(buf)));
+	const nonce = buffer.toString('hex');
+	const ipcHandlePath = getIPCHandlePath(nonce);
 
 	return new Promise((c, e) => {
 		try {
@@ -61,7 +46,7 @@ export async function createIPCServer(context?: string): Promise<IIPCServer> {
 
 export interface IIPCServer extends Disposable {
 	readonly ipcHandlePath: string | undefined;
-	getEnv(): { [key: string]: string; };
+	getEnv(): any;
 	registerHandler(name: string, handler: IIPCHandler): Disposable;
 }
 
@@ -106,7 +91,7 @@ class IPCServer implements IIPCServer, Disposable {
 		});
 	}
 
-	getEnv(): { [key: string]: string; } {
+	getEnv(): any {
 		return { VSCODE_GIT_IPC_HANDLE: this.ipcHandlePath };
 	}
 

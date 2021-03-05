@@ -3,27 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as strings from 'vs/base/common/strings';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
+import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
-import { Dimension } from 'vs/base/browser/dom';
 
 export class WalkThroughModel extends EditorModel {
 
 	constructor(
-		private mainRef: string,
+		private mainRef: IReference<ITextEditorModel>,
 		private snippetRefs: IReference<ITextEditorModel>[]
 	) {
 		super();
 	}
 
 	get main() {
-		return this.mainRef;
+		return this.mainRef.object;
 	}
 
 	get snippets() {
@@ -32,6 +31,7 @@ export class WalkThroughModel extends EditorModel {
 
 	dispose() {
 		this.snippetRefs.forEach(ref => ref.dispose());
+		this.mainRef.dispose();
 		super.dispose();
 	}
 }
@@ -42,8 +42,7 @@ export interface WalkThroughInputOptions {
 	readonly description?: string;
 	readonly resource: URI;
 	readonly telemetryFrom: string;
-	readonly onReady?: (container: HTMLElement, contentDisposables: DisposableStore) => void;
-	readonly layout?: (dimension: Dimension) => void;
+	readonly onReady?: (container: HTMLElement) => void;
 }
 
 export class WalkThroughInput extends EditorInput {
@@ -53,13 +52,15 @@ export class WalkThroughInput extends EditorInput {
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
 
-	get resource() { return this.options.resource; }
-
 	constructor(
-		private readonly options: WalkThroughInputOptions,
+		private options: WalkThroughInputOptions,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
+	}
+
+	getResource(): URI {
+		return this.options.resource;
 	}
 
 	getTypeId(): string {
@@ -93,31 +94,28 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.onReady;
 	}
 
-	get layout() {
-		return this.options.layout;
-	}
-
 	resolve(): Promise<WalkThroughModel> {
 		if (!this.promise) {
-			this.promise = requireToContent(this.options.resource)
-				.then(content => {
-					if (this.resource.path.endsWith('.html')) {
-						return new WalkThroughModel(content, []);
+			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
+				.then(ref => {
+					if (strings.endsWith(this.getResource().path, '.html')) {
+						return new WalkThroughModel(ref, []);
 					}
 
 					const snippets: Promise<IReference<ITextEditorModel>>[] = [];
 					let i = 0;
 					const renderer = new marked.Renderer();
 					renderer.code = (code, lang) => {
-						i++;
-						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i}.${lang}` });
+						const resource = this.options.resource.with({ scheme: Schemas.walkThroughSnippet, fragment: `${i++}.${lang}` });
 						snippets.push(this.textModelResolverService.createModelReference(resource));
-						return `<div id="snippet-${resource.fragment}" class="walkThroughEditorContainer" ></div>`;
+						return '';
 					};
-					content = marked(content, { renderer });
+
+					const markdown = ref.object.textEditorModel.getLinesContent().join('\n');
+					marked(markdown, { renderer });
 
 					return Promise.all(snippets)
-						.then(refs => new WalkThroughModel(content, refs));
+						.then(refs => new WalkThroughModel(ref, refs));
 				});
 		}
 

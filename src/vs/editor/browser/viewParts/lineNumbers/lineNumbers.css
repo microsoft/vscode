@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .margin-view-overlays .line-numbers {
-	font-variant-numeric: tabular-nums;
 	position: absolute;
 	text-align: right;
 	display: inline-block;

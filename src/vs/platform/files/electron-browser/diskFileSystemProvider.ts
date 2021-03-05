@@ -3,23 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
+import { shell } from 'electron';
+import { DiskFileSystemProvider as NodeDiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { FileDeleteOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/path';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
-
-	constructor(
-		logService: ILogService,
-		private readonly nativeHostService: INativeHostService,
-		options?: IDiskFileSystemProviderOptions
-	) {
-		super(logService, options);
-	}
 
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
@@ -34,7 +25,7 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 			return super.doDelete(filePath, opts);
 		}
 
-		const result = await this.nativeHostService.moveItemToTrash(filePath);
+		const result = shell.moveItemToTrash(filePath);
 		if (!result) {
 			throw new Error(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)));
 		}

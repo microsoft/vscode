@@ -7,9 +7,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { CodeLensModel } from 'vs/editor/contrib/codelens/codelens';
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache, values } from 'vs/base/common/map';
 import { CodeLensProvider, CodeLensList, CodeLens } from 'vs/editor/common/modes';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { Range } from 'vs/editor/common/core/range';
 import { runWhenIdle } from 'vs/base/common/async';
 import { once } from 'vs/base/common/functional';
@@ -17,7 +17,7 @@ import { once } from 'vs/base/common/functional';
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 
 export interface ICodeLensCache {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 	put(model: ITextModel, data: CodeLensModel): void;
 	get(model: ITextModel): CodeLensModel | undefined;
 	delete(model: ITextModel): void;
@@ -38,7 +38,7 @@ class CacheItem {
 
 export class CodeLensCache implements ICodeLensCache {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private readonly _fakeProvider = new class implements CodeLensProvider {
 		provideCodeLenses(): CodeLensList {
@@ -62,7 +62,7 @@ export class CodeLensCache implements ICodeLensCache {
 		// store lens data on shutdown
 		once(storageService.onWillSaveState)(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				storageService.store(key, this._serialize(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				storageService.store(key, this._serialize(), StorageScope.WORKSPACE);
 			}
 		});
 	}
@@ -96,16 +96,16 @@ export class CodeLensCache implements ICodeLensCache {
 
 	private _serialize(): string {
 		const data: Record<string, ISerializedCacheData> = Object.create(null);
-		for (const [key, value] of this._cache) {
+		this._cache.forEach((value, key) => {
 			const lines = new Set<number>();
 			for (const d of value.data.lenses) {
 				lines.add(d.symbol.range.startLineNumber);
 			}
 			data[key] = {
 				lineCount: value.lineCount,
-				lines: [...lines.values()]
+				lines: values(lines)
 			};
-		}
+		});
 		return JSON.stringify(data);
 	}
 

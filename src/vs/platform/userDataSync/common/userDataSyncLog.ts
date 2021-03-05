@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
-import { AbstractLogger, ILoggerService, ILogger } from 'vs/platform/log/common/log';
+import { AbstractLogService, ILoggerService, ILogger } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-export class UserDataSyncLogService extends AbstractLogger implements IUserDataSyncLogService {
+export class UserDataSyncLogService extends AbstractLogService implements IUserDataSyncLogService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 	private readonly logger: ILogger;
 
 	constructor(
@@ -17,7 +17,7 @@ export class UserDataSyncLogService extends AbstractLogger implements IUserDataS
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
-		this.logger = this._register(loggerService.createLogger(environmentService.userDataSyncLogResource, { name: 'settingssync' }));
+		this.logger = this._register(loggerService.getLogger(environmentService.userDataSyncLogResource));
 	}
 
 	trace(message: string, ...args: any[]): void {

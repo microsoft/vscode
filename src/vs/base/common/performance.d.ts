@@ -3,14 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface PerformanceMark {
+export interface PerformanceEntry {
 	readonly name: string;
-	readonly startTime: number;
+	readonly timestamp: number;
 }
 
 export function mark(name: string): void;
 
 /**
- * Returns all marks, sorted by `startTime`.
+ * All entries filtered by type and sorted by `startTime`.
  */
-export function getMarks(): PerformanceMark[];
+export function getEntries(): PerformanceEntry[];
+
+export function getEntry(name: string): PerformanceEntry;
+
+export function getDuration(from: string, to: string): number;
+
+type ExportData = any[];
+export function importEntries(data: ExportData): void;
+export function exportEntries(): ExportData;

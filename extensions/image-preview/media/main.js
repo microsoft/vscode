@@ -279,9 +279,6 @@
 	image.classList.add('scale-to-fit');
 
 	image.addEventListener('load', () => {
-		if (hasLoadedImage) {
-			return;
-		}
 		hasLoadedImage = true;
 
 		vscode.postMessage({
@@ -300,23 +297,13 @@
 		}
 	});
 
-	image.addEventListener('error', e => {
-		if (hasLoadedImage) {
-			return;
-		}
-
+	image.addEventListener('error', () => {
 		hasLoadedImage = true;
 		document.body.classList.add('error');
 		document.body.classList.remove('loading');
 	});
 
 	image.src = settings.src;
-
-	document.querySelector('.open-file-link').addEventListener('click', () => {
-		vscode.postMessage({
-			type: 'reopen-as-text',
-		});
-	});
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {

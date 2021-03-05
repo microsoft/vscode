@@ -9,41 +9,29 @@ import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/s
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-
-
-const scrollbarButtonLeftIcon = registerCodicon('scrollbar-button-left', Codicon.triangleLeft);
-const scrollbarButtonRightIcon = registerCodicon('scrollbar-button-right', Codicon.triangleRight);
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
-		const scrollDimensions = scrollable.getScrollDimensions();
-		const scrollPosition = scrollable.getCurrentScrollPosition();
 		super({
 			lazyRender: options.lazyRender,
 			host: host,
 			scrollbarState: new ScrollbarState(
 				(options.horizontalHasArrows ? options.arrowSize : 0),
 				(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize),
-				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
-				scrollDimensions.width,
-				scrollDimensions.scrollWidth,
-				scrollPosition.scrollLeft
+				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize)
 			),
 			visibility: options.horizontal,
 			extraScrollbarClassName: 'horizontal',
-			scrollable: scrollable,
-			scrollByPage: options.scrollByPage
+			scrollable: scrollable
 		});
 
 		if (options.horizontalHasArrows) {
-			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			const scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
+			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+			let scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
-				className: 'scra',
-				icon: scrollbarButtonLeftIcon,
+				className: 'left-arrow',
 				top: scrollbarDelta,
 				left: arrowDelta,
 				bottom: undefined,
@@ -54,8 +42,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			});
 
 			this._createArrow({
-				className: 'scra',
-				icon: scrollbarButtonRightIcon,
+				className: 'right-arrow',
 				top: scrollbarDelta,
 				left: undefined,
 				bottom: undefined,
@@ -98,10 +85,6 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posy;
-	}
-
-	protected _updateScrollbarSize(size: number): void {
-		this.slider.setHeight(size);
 	}
 
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {

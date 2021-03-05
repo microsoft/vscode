@@ -12,13 +12,12 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/findWidget';
+import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -55,6 +54,7 @@ export abstract class SimpleFindWidget extends Widget {
 					return null;
 				}
 				try {
+					/* tslint:disable-next-line:no-unused-expression */
 					new RegExp(value);
 					return null;
 				} catch (e) {
@@ -95,7 +95,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			icon: findPreviousMatchIcon,
+			className: 'previous',
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -103,7 +103,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
-			icon: findNextMatchIcon,
+			className: 'next',
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -111,7 +111,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
-			icon: widgetClose,
+			className: 'close-fw',
 			onTrigger: () => {
 				this.hide();
 			}
@@ -166,10 +166,9 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._focusTracker;
 	}
 
-	public updateTheme(theme: IColorTheme): void {
+	public updateTheme(theme: ITheme): void {
 		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
@@ -213,7 +212,8 @@ export abstract class SimpleFindWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			this._innerDomNode.classList.add('visible', 'visible-transition');
+			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 		}, 0);
@@ -227,20 +227,21 @@ export abstract class SimpleFindWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			this._innerDomNode.classList.add('visible', 'visible-transition');
+			dom.addClass(this._innerDomNode, 'visible');
+			dom.addClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'false');
 		}, 0);
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			this._innerDomNode.classList.remove('visible-transition');
+			dom.removeClass(this._innerDomNode, 'visible-transition');
 			this._innerDomNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				this._innerDomNode.classList.remove('visible');
+				dom.removeClass(this._innerDomNode, 'visible');
 			}, 200);
 		}
 	}
@@ -286,6 +287,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-workbench .simple-find-part { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 });

@@ -23,7 +23,7 @@ export class ResourceEditorModel extends BaseTextEditorModel {
 
 	dispose(): void {
 
-		// force this class to dispose the underlying model
+		// TODO@Joao: force this class to dispose the underlying model
 		if (this.textEditorModelHandle) {
 			this.modelService.destroyModel(this.textEditorModelHandle);
 		}

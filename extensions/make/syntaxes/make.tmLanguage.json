@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/91b724d1ad86fa65e4b240a960311a280b92f971",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/fd57c0552dbe5e4d0c1e6765daea4b296d9bfc59",
 	"name": "Makefile",
 	"scopeName": "source.makefile",
 	"patterns": [
@@ -18,18 +18,18 @@
 			"include": "#variable-assignment"
 		},
 		{
-			"include": "#directives"
+			"include": "#target"
 		},
 		{
 			"include": "#recipe"
 		},
 		{
-			"include": "#target"
+			"include": "#directives"
 		}
 	],
 	"repository": {
 		"comment": {
-			"begin": "(^[ ]+)?(?=#)",
+			"begin": "(^[ \\t]+)?(?=#)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.makefile"
@@ -131,6 +131,9 @@
 							"include": "#variables"
 						},
 						{
+							"include": "#comment"
+						},
+						{
 							"include": "#directives"
 						}
 					]
@@ -192,7 +195,37 @@
 					]
 				},
 				{
-					"begin": "^\\s*(ifeq|ifneq|ifdef|ifndef)(?=\\s)",
+					"begin": "^\\s*(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
+					"captures": {
+						"1": {
+							"name": "keyword.control.$1.makefile"
+						},
+						"2": {
+							"name": "variable.other.makefile"
+						},
+						"3": {
+							"name": "punctuation.separator.key-value.makefile"
+						}
+					},
+					"end": "^\\s*(endif)\\b",
+					"name": "meta.scope.conditional.makefile",
+					"patterns": [
+						{
+							"begin": "\\G(?!\\n)",
+							"end": "^",
+							"patterns": [
+								{
+									"include": "#comment"
+								}
+							]
+						},
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"begin": "^\\s*(ifeq|ifneq)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
@@ -221,15 +254,7 @@
 									"name": "keyword.control.else.makefile"
 								}
 							},
-							"end": "^",
-							"patterns": [
-								{
-									"include": "#variables"
-								},
-								{
-									"include": "#comment"
-								}
-							]
+							"end": "^"
 						},
 						{
 							"include": "$self"

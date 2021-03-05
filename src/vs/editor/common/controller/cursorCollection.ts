@@ -82,28 +82,6 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getTopMostViewPosition(): Position {
-		let result = this.primaryCursor.viewState.position;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			const viewPosition = this.secondaryCursors[i].viewState.position;
-			if (viewPosition.isBefore(result)) {
-				result = viewPosition;
-			}
-		}
-		return result;
-	}
-
-	public getBottomMostViewPosition(): Position {
-		let result = this.primaryCursor.viewState.position;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			const viewPosition = this.secondaryCursors[i].viewState.position;
-			if (result.isBeforeOrEqual(viewPosition)) {
-				result = viewPosition;
-			}
-		}
-		return result;
-	}
-
 	public getSelections(): Selection[] {
 		let result: Selection[] = [];
 		result[0] = this.primaryCursor.modelState.selection;
@@ -226,7 +204,7 @@ export class CursorCollection {
 			const currentSelection = current.selection;
 			const nextSelection = next.selection;
 
-			if (!this.context.cursorConfig.multiCursorMergeOverlapping) {
+			if (!this.context.config.multiCursorMergeOverlapping) {
 				continue;
 			}
 

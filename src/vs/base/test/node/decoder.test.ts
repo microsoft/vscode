@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LineDecoder } from 'vs/base/node/decoder';
+import * as decoder from 'vs/base/node/decoder';
 
 suite('Decoder', () => {
 
 	test('decoding', () => {
-		const lineDecoder = new LineDecoder();
+		const lineDecoder = new decoder.LineDecoder();
 		let res = lineDecoder.write(Buffer.from('hello'));
-		assert.strictEqual(res.length, 0);
+		assert.equal(res.length, 0);
 
 		res = lineDecoder.write(Buffer.from('\nworld'));
-		assert.strictEqual(res[0], 'hello');
-		assert.strictEqual(res.length, 1);
+		assert.equal(res[0], 'hello');
+		assert.equal(res.length, 1);
 
-		assert.strictEqual(lineDecoder.end(), 'world');
+		assert.equal(lineDecoder.end(), 'world');
 	});
 });

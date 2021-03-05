@@ -10,13 +10,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ITextMateService = createDecorator<ITextMateService>('textMateService');
 
 export interface ITextMateService {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	onDidEncounterLanguage: Event<LanguageId>;
 
 	createGrammar(modeId: string): Promise<IGrammar | null>;
-
-	startDebugMode(printFn: (str: string) => void, onStop: () => void): void;
 }
 
 // -------------- Types "liberated" from vscode-textmate due to usage in /common/

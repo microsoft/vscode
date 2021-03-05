@@ -3,33 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/path';
-import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalConnectionState, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
-import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalProcessExtHostProxy, IShellDefinition } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { TerminalPanel } from 'vs/workbench/contrib/terminal/browser/terminalPanel';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Event, Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
+import { basename } from 'vs/base/common/path';
+import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { find } from 'vs/base/common/arrays';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -39,222 +38,94 @@ interface IExtHostReadyEntry {
 export class TerminalService implements ITerminalService {
 	public _serviceBrand: undefined;
 
-	private _isShuttingDown: boolean;
-	private _terminalFocusContextKey: IContextKey<boolean>;
-	private _terminalShellTypeContextKey: IContextKey<string>;
-	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
-	private _findWidgetVisible: IContextKey<boolean>;
-	private _terminalTabs: ITerminalTab[] = [];
-	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
-	private get _terminalInstances(): ITerminalInstance[] {
+	protected _isShuttingDown: boolean;
+	protected _terminalFocusContextKey: IContextKey<boolean>;
+	protected _findWidgetVisible: IContextKey<boolean>;
+	protected _terminalTabs: ITerminalTab[] = [];
+	protected _backgroundedTerminalInstances: ITerminalInstance[] = [];
+	protected get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalTabs.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
 	private _findState: FindReplaceState;
 	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeTabIndex: number;
-	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
-	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
-	private _processSupportContextKey: IContextKey<boolean>;
 
 	public get activeTabIndex(): number { return this._activeTabIndex; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 	public get terminalTabs(): ITerminalTab[] { return this._terminalTabs; }
-	public get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 
 	private _configHelper: TerminalConfigHelper;
 	private _terminalContainer: HTMLElement | undefined;
-	private _nativeWindowsDelegate: ITerminalNativeWindowsDelegate | undefined;
-	private _remoteTerminalsInitPromise: Promise<void> | undefined;
-	private _localTerminalsInitPromise: Promise<void> | undefined;
-	private _connectionState: TerminalConnectionState;
 
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
-	private readonly _onActiveTabChanged = new Emitter<void>();
+	protected readonly _onActiveTabChanged = new Emitter<void>();
 	public get onActiveTabChanged(): Event<void> { return this._onActiveTabChanged.event; }
-	private readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
+	protected readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	public get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
-	private readonly _onInstanceDisposed = new Emitter<ITerminalInstance>();
+	protected readonly _onInstanceDisposed = new Emitter<ITerminalInstance>();
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
-	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
+	protected readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
-	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
-	public get onInstanceLinksReady(): Event<ITerminalInstance> { return this._onInstanceLinksReady.event; }
-	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
+	protected readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
+	public get onInstanceRequestSpawnExtHostProcess(): Event<ISpawnExtHostProcessRequest> { return this._onInstanceRequestSpawnExtHostProcess.event; }
+	protected readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
 	public get onInstanceRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onInstanceRequestStartExtensionTerminal.event; }
-	private readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
+	protected readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
-	private readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
+	protected readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
 	public get onInstanceMaximumDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceMaximumDimensionsChanged.event; }
-	private readonly _onInstancesChanged = new Emitter<void>();
+	protected readonly _onInstancesChanged = new Emitter<void>();
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
-	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance | undefined>();
-	public get onInstanceTitleChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceTitleChanged.event; }
-	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
+	protected readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance>();
+	public get onInstanceTitleChanged(): Event<ITerminalInstance> { return this._onInstanceTitleChanged.event; }
+	protected readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
-	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
+	protected readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
-	private readonly _onRequestAvailableShells = new Emitter<IAvailableShellsRequest>();
+	protected readonly _onRequestAvailableShells = new Emitter<IAvailableShellsRequest>();
 	public get onRequestAvailableShells(): Event<IAvailableShellsRequest> { return this._onRequestAvailableShells.event; }
-	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
-	public get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
-	private readonly _onDidChangeConnectionState = new Emitter<void>();
-	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
-	public get connectionState(): TerminalConnectionState { return this._connectionState; }
-
-	private readonly _localTerminalService?: ILocalTerminalService;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IPanelService private _panelService: IPanelService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
+		@IExtensionService private _extensionService: IExtensionService,
+		@IFileService private _fileService: IFileService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
+		@ITerminalNativeService private _terminalNativeService: ITerminalNativeService,
 		@IQuickInputService private _quickInputService: IQuickInputService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IViewsService private _viewsService: IViewsService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-		this._localTerminalService = localTerminalService;
-
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
-		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+		lifecycleService.onBeforeShutdown(event => event.veto(this._onBeforeShutdown()));
+		lifecycleService.onShutdown(() => this._onShutdown());
+		this._terminalNativeService.onOpenFileRequest(e => this._onOpenFileRequest(e));
+		this._terminalNativeService.onOsResume(() => this._onOsResume());
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
-		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(this._contextKeyService);
-		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper, this._terminalNativeService.linuxDistro);
 		this.onTabDisposed(tab => this._removeTab(tab));
 		this.onActiveTabChanged(() => {
 			const instance = this.getActiveInstance();
 			this._onActiveInstanceChanged.fire(instance ? instance : undefined);
 		});
-		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
-		this._handleInstanceContextKeys();
-		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
-		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
-		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
-
-		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
-			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
-			this._connectionState = TerminalConnectionState.Connecting;
-		} else if (enableTerminalReconnection) {
-			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
-			this._connectionState = TerminalConnectionState.Connecting;
-		} else {
-			this._connectionState = TerminalConnectionState.Connected;
-		}
+		this._handleContextKeys();
 	}
 
-	private async _reconnectToRemoteTerminals(): Promise<void> {
-		// Reattach to all remote terminals
-		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
-		const reconnectCounter = this._recreateTerminalTabs(layoutInfo);
-		/* __GDPR__
-			"terminalReconnection" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		 */
-		const data = {
-			count: reconnectCounter
-		};
-		this._telemetryService.publicLog('terminalReconnection', data);
-		this._connectionState = TerminalConnectionState.Connected;
-		// now that terminals have been restored,
-		// attach listeners to update remote when terminals are changed
-		this.attachProcessLayoutListeners(true);
-		this._onDidChangeConnectionState.fire();
-	}
-
-	private async _reconnectToLocalTerminals(): Promise<void> {
-		if (!this._localTerminalService) {
-			return;
-		}
-		// Reattach to all local terminals
-		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
-		if (layoutInfo && layoutInfo.tabs.length > 0) {
-			this._recreateTerminalTabs(layoutInfo);
-			// now that terminals have been restored,
-			// attach listeners to update local state when terminals are changed
-			this.attachProcessLayoutListeners(false);
-		} else {
-			this.createTerminal();
-			this.attachProcessLayoutListeners(false);
-		}
-		this._connectionState = TerminalConnectionState.Connected;
-		this._onDidChangeConnectionState.fire();
-	}
-
-	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
-		let reconnectCounter = 0;
-		let activeTab: ITerminalTab | undefined;
-		if (layoutInfo) {
-			layoutInfo.tabs.forEach(tabLayout => {
-				const terminalLayouts = tabLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
-				if (terminalLayouts.length) {
-					reconnectCounter += terminalLayouts.length;
-					let terminalInstance: ITerminalInstance | undefined;
-					let tab: ITerminalTab | undefined;
-					terminalLayouts.forEach((terminalLayout) => {
-						if (!terminalInstance) {
-							// create tab and terminal
-							terminalInstance = this.createTerminal({ attachPersistentProcess: terminalLayout.terminal! });
-							tab = this._getTabForInstance(terminalInstance);
-							if (tabLayout.isActive) {
-								activeTab = tab;
-							}
-						} else {
-							// add split terminals to this tab
-							this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
-						}
-					});
-					const activeInstance = this.terminalInstances.find(t => {
-						return t.shellLaunchConfig.attachPersistentProcess?.id === tabLayout.activePersistentProcessId;
-					});
-					if (activeInstance) {
-						this.setActiveInstance(activeInstance);
-					}
-					tab?.resizePanes(tabLayout.terminals.map(terminal => terminal.relativeSize));
-				}
-			});
-			if (layoutInfo.tabs.length) {
-				this.setActiveTabByIndex(activeTab ? this.terminalTabs.indexOf(activeTab) : 0);
-			}
-		}
-		return reconnectCounter;
-	}
-
-	private attachProcessLayoutListeners(isRemote: boolean): void {
-		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-		// The state must be updated when the terminal is relaunched, otherwise the persistent
-		// terminal ID will be stale and the process will be leaked.
-		this.onInstanceProcessIdReady(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
-	}
-
-	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {
-		this._nativeWindowsDelegate = delegate;
-	}
-
-	public setLinuxDistro(linuxDistro: LinuxDistro): void {
-		this._configHelper.setLinuxDistro(linuxDistro);
-	}
-
-	private _handleInstanceContextKeys(): void {
+	private _handleContextKeys(): void {
 		const terminalIsOpenContext = KEYBINDING_CONTEXT_TERMINAL_IS_OPEN.bindTo(this._contextKeyService);
+
 		const updateTerminalContextKeys = () => {
 			terminalIsOpenContext.set(this.terminalInstances.length > 0);
 		};
+
 		this.onInstancesChanged(() => updateTerminalContextKeys());
 	}
 
@@ -263,16 +134,29 @@ export class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined);
 	}
 
-	public requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
-		// The initial request came from the extension host, no need to wait for it
-		return new Promise<ITerminalLaunchError | undefined>(callback => {
-			this._onInstanceRequestStartExtensionTerminal.fire({ proxy, cols, rows, callback });
+	public requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void {
+		this._extensionService.whenInstalledExtensionsRegistered().then(async () => {
+			// Wait for the remoteAuthority to be ready (and listening for events) before firing
+			// the event to spawn the ext host process
+			const conn = this._remoteAgentService.getConnection();
+			const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+			await this._whenExtHostReady(remoteAuthority);
+			this._onInstanceRequestSpawnExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed });
 		});
+	}
+
+	public requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void {
+		this._onInstanceRequestStartExtensionTerminal.fire({ proxy, cols, rows });
 	}
 
 	public async extHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
 		this._extHostsReady[remoteAuthority]!.resolve();
+	}
+
+	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
+		this._createExtHostReadyEntry(remoteAuthority);
+		return this._extHostsReady[remoteAuthority]!.promise;
 	}
 
 	private _createExtHostReadyEntry(remoteAuthority: string): void {
@@ -285,15 +169,20 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority] = { promise, resolve };
 	}
 
-	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	private _onBeforeShutdown(): boolean | Promise<boolean> {
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
 		}
 
-		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (this.configHelper.config.confirmOnExit && !shouldPersistTerminals) {
-			return this._onBeforeShutdownAsync();
+		if (this.configHelper.config.confirmOnExit) {
+			// veto if configured to show confirmation and the user choosed not to exit
+			return this._showTerminalCloseConfirmation().then(veto => {
+				if (!veto) {
+					this._isShuttingDown = true;
+				}
+				return veto;
+			});
 		}
 
 		this._isShuttingDown = true;
@@ -301,66 +190,48 @@ export class TerminalService implements ITerminalService {
 		return false;
 	}
 
-	private async _onBeforeShutdownAsync(): Promise<boolean> {
-		// veto if configured to show confirmation and the user chose not to exit
-		const veto = await this._showTerminalCloseConfirmation();
-		if (!veto) {
-			this._isShuttingDown = true;
-		}
-		return veto;
+	private _onShutdown(): void {
+		// Dispose of all instances
+		this.terminalInstances.forEach(instance => instance.dispose(true));
 	}
 
-	private _onWillShutdown(e: WillShutdownEvent): void {
-		// Don't touch processes if the shutdown was a result of reload as they will be reattached
-		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
-		if (shouldPersistTerminals) {
-			this.terminalInstances.forEach(instance => instance.detachFromProcess());
+	private _onOpenFileRequest(request: IOpenFileRequest): void {
+		// if the request to open files is coming in from the integrated terminal (identified though
+		// the termProgram variable) and we are instructed to wait for editors close, wait for the
+		// marker file to get deleted and then focus back to the integrated terminal.
+		if (request.termProgram === 'vscode' && request.filesToWait) {
+			const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
+			this._terminalNativeService.whenFileDeleted(waitMarkerFileUri).then(() => {
+				if (this.terminalInstances.length > 0) {
+					const terminal = this.getActiveInstance();
+					if (terminal) {
+						terminal.focus();
+					}
+				}
+			});
+		}
+	}
+
+	private _onOsResume(): void {
+		const activeTab = this.getActiveTab();
+		if (!activeTab) {
 			return;
 		}
-
-		// Force dispose of all terminal instances, don't force immediate disposal of the terminal
-		// processes on Windows as an additional mitigation for https://github.com/microsoft/vscode/issues/71966
-		// which causes the pty host to become unresponsive, disconnecting all terminals across all
-		// windows
-		this.terminalInstances.forEach(instance => instance.dispose(!isWindows));
-
-		this._localTerminalService!.setTerminalLayoutInfo(undefined);
+		activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => {
-			return `${index + 1}: ${tab.title ? tab.title : ''}`;
-		});
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
 	}
 
 	public getFindState(): FindReplaceState {
 		return this._findState;
 	}
 
-	@debounce(500)
-	private _updateRemoteState(): void {
-		if (!!this._environmentService.remoteAuthority) {
-			const state: ITerminalsLayoutInfoById = {
-				tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
-			};
-			this._remoteTerminalService.setTerminalLayoutInfo(state);
-		}
-	}
-
-	@debounce(500)
-	private _updateLocalState(): void {
-		const state: ITerminalsLayoutInfoById = {
-			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
-		};
-		this._localTerminalService!.setTerminalLayoutInfo(state);
-	}
-
 	private _removeTab(tab: ITerminalTab): void {
 		// Get the index of the tab and remove it from the list
 		const index = this._terminalTabs.indexOf(tab);
-		const activeTab = this.getActiveTab();
-		const activeTabIndex = activeTab ? this._terminalTabs.indexOf(activeTab) : -1;
-		const wasActiveTab = tab === activeTab;
+		const wasActiveTab = tab === this.getActiveTab();
 		if (index !== -1) {
 			this._terminalTabs.splice(index, 1);
 		}
@@ -375,9 +246,6 @@ export class TerminalService implements ITerminalService {
 			if (activeInstance) {
 				activeInstance.focus(true);
 			}
-		} else if (activeTabIndex >= this._terminalTabs.length) {
-			const newIndex = this._terminalTabs.length - 1;
-			this.setActiveTabByIndex(newIndex);
 		}
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -415,17 +283,10 @@ export class TerminalService implements ITerminalService {
 		return tab.activeInstance;
 	}
 
-	public doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
-		const instance = this.getActiveInstance();
-		if (instance) {
-			return callback(instance);
-		}
-	}
-
 	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.instanceId === terminalId) {
+			if (terminalInstance.id === terminalId) {
 				bgIndex = i;
 			}
 		});
@@ -449,7 +310,7 @@ export class TerminalService implements ITerminalService {
 		if (terminalInstance.shellLaunchConfig.hideFromUser) {
 			this._showBackgroundTerminal(terminalInstance);
 		}
-		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.instanceId));
+		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
 	}
 
 	public setActiveTabByIndex(tabIndex: number): void {
@@ -463,27 +324,6 @@ export class TerminalService implements ITerminalService {
 		this._terminalTabs.forEach((t, i) => t.setVisible(i === this._activeTabIndex));
 		if (didTabChange) {
 			this._onActiveTabChanged.fire();
-		}
-	}
-
-	public isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
-		return this.terminalInstances.some(term => term.processId === remoteTerm.pid);
-	}
-
-	public async initializeTerminals(): Promise<void> {
-		if (this._remoteTerminalsInitPromise) {
-			await this._remoteTerminalsInitPromise;
-
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
-		} else if (this._localTerminalsInitPromise) {
-			await this._localTerminalsInitPromise;
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
-		} else if (!this.terminalTabs.length) {
-			this.createTerminal();
 		}
 	}
 
@@ -552,7 +392,6 @@ export class TerminalService implements ITerminalService {
 		}
 
 		const instance = tab.split(shellLaunchConfig);
-
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
 
@@ -564,77 +403,58 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
-		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
-		instance.addDisposable(instance.onDimensionsChanged(() => {
-			this._onInstanceDimensionsChanged.fire(instance);
-			if (this.configHelper.config.enablePersistentSessions) {
-				!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
-			}
-		}));
+		instance.addDisposable(instance.onDimensionsChanged(() => this._onInstanceDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
-	public registerProcessSupport(isSupported: boolean): void {
-		if (!isSupported) {
-			return;
-		}
-		this._processSupportContextKey.set(isSupported);
-		this._onDidRegisterProcessSupport.fire();
-	}
-
-	public registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		const disposables: IDisposable[] = [];
-		this._linkProviders.add(linkProvider);
-		for (const instance of this.terminalInstances) {
-			if (instance.areLinksReady) {
-				disposables.push(instance.registerLinkProvider(linkProvider));
-			}
-		}
-		this._linkProviderDisposables.set(linkProvider, disposables);
-		return {
-			dispose: () => {
-				const disposables = this._linkProviderDisposables.get(linkProvider) || [];
-				for (const disposable of disposables) {
-					disposable.dispose();
-				}
-				this._linkProviders.delete(linkProvider);
-			}
-		};
-	}
-
-	private _setInstanceLinkProviders(instance: ITerminalInstance): void {
-		for (const linkProvider of this._linkProviders) {
-			const disposables = this._linkProviderDisposables.get(linkProvider);
-			const provider = instance.registerLinkProvider(linkProvider);
-			disposables?.push(provider);
-		}
-	}
-
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
-		return this._terminalTabs.find(tab => tab.terminalInstances.indexOf(instance) !== -1);
+		return find(this._terminalTabs, tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
-	public async showPanel(focus?: boolean): Promise<void> {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (!pane) {
-			await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
-		}
-		if (focus) {
-			// Do the focus call asynchronously as going through the
-			// command palette will force editor focus
-			await timeout(0);
-			const instance = this.getActiveInstance();
-			if (instance) {
-				await instance.focusWhenReady(true);
+	public showPanel(focus?: boolean): Promise<void> {
+		return new Promise<void>((complete) => {
+			const panel = this._panelService.getActivePanel();
+			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
+				this._panelService.openPanel(TERMINAL_PANEL_ID, focus);
+				if (focus) {
+					// Do the focus call asynchronously as going through the
+					// command palette will force editor focus
+					setTimeout(() => {
+						const instance = this.getActiveInstance();
+						if (instance) {
+							instance.focusWhenReady(true).then(() => complete(undefined));
+						} else {
+							complete(undefined);
+						}
+					}, 0);
+				} else {
+					complete(undefined);
+				}
+			} else {
+				if (focus) {
+					// Do the focus call asynchronously as going through the
+					// command palette will force editor focus
+					setTimeout(() => {
+						const instance = this.getActiveInstance();
+						if (instance) {
+							instance.focusWhenReady(true).then(() => complete(undefined));
+						} else {
+							complete(undefined);
+						}
+					}, 0);
+				} else {
+					complete(undefined);
+				}
 			}
-		}
+			return undefined;
+		});
 	}
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.instanceId === terminalId) {
+			if (terminalInstance.id === terminalId) {
 				terminalIndex = i;
 			}
 		});
@@ -668,6 +488,22 @@ export class TerminalService implements ITerminalService {
 		return !res.confirmed;
 	}
 
+	protected _validateShellPaths(label: string, potentialPaths: string[]): Promise<[string, string] | null> {
+		if (potentialPaths.length === 0) {
+			return Promise.resolve(null);
+		}
+		const current = potentialPaths.shift();
+		if (current! === '') {
+			return this._validateShellPaths(label, potentialPaths);
+		}
+		return this._fileService.exists(URI.file(current!)).then(exists => {
+			if (!exists) {
+				return this._validateShellPaths(label, potentialPaths);
+			}
+			return [label, current] as [string, string];
+		});
+	}
+
 	public preparePathForTerminalAsync(originalPath: string, executable: string, title: string, shellType: TerminalShellType): Promise<string> {
 		return new Promise<string>(c => {
 			if (!executable) {
@@ -676,7 +512,6 @@ export class TerminalService implements ITerminalService {
 			}
 
 			const hasSpace = originalPath.indexOf(' ') !== -1;
-			const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
 
 			const pathBasename = basename(executable, '.exe');
 			const isPowerShell = pathBasename === 'pwsh' ||
@@ -689,11 +524,6 @@ export class TerminalService implements ITerminalService {
 				return;
 			}
 
-			if (hasParens && isPowerShell) {
-				c(`& '${originalPath}'`);
-				return;
-			}
-
 			if (isWindows) {
 				// 17063 is the build number where wsl path was introduced.
 				// Update Windows uriPath to be executed in WSL.
@@ -703,8 +533,8 @@ export class TerminalService implements ITerminalService {
 						return;
 					}
 					else if (shellType === WindowsShellType.Wsl) {
-						if (this._nativeWindowsDelegate && this._nativeWindowsDelegate.getWindowsBuildNumber() >= 17063) {
-							c(this._nativeWindowsDelegate.getWslPath(originalPath));
+						if (this._terminalNativeService.getWindowsBuildNumber() >= 17063) {
+							c(this._terminalNativeService.getWslPath(originalPath));
 						} else {
 							c(originalPath.replace(/\\/g, '/'));
 						}
@@ -718,9 +548,9 @@ export class TerminalService implements ITerminalService {
 					}
 				} else {
 					const lowerExecutable = executable.toLowerCase();
-					if (this._nativeWindowsDelegate && this._nativeWindowsDelegate.getWindowsBuildNumber() >= 17063 &&
+					if (this._terminalNativeService.getWindowsBuildNumber() >= 17063 &&
 						(lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1))) {
-						c(this._nativeWindowsDelegate.getWslPath(originalPath));
+						c(this._terminalNativeService.getWslPath(originalPath));
 						return;
 					} else if (hasSpace) {
 						c('"' + originalPath + '"');
@@ -736,62 +566,57 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public async selectDefaultShell(): Promise<void> {
-		const shells = await this._detectShells();
-		const options: IPickOptions<IQuickPickItem> = {
-			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
-		};
-		const quickPickItems = shells.map((s): IQuickPickItem => {
-			return { label: s.label, description: s.path };
+	public selectDefaultWindowsShell(): Promise<void> {
+		return this._detectWindowsShells().then(shells => {
+			const options: IPickOptions<IQuickPickItem> = {
+				placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
+			};
+			const quickPickItems = shells.map((s): IQuickPickItem => {
+				return { label: s.label, description: s.path };
+			});
+			return this._quickInputService.pick(quickPickItems, options).then(async value => {
+				if (!value) {
+					return undefined;
+				}
+				const shell = value.description;
+				const env = await this._remoteAgentService.getEnvironment();
+				let platformKey: string;
+				if (env) {
+					platformKey = env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
+				} else {
+					platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+				}
+				await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER).then(() => shell);
+				return Promise.resolve();
+			});
 		});
-		const value = await this._quickInputService.pick(quickPickItems, options);
-		if (!value) {
-			return undefined;
-		}
-		const shell = value.description;
-		const env = await this._remoteAgentService.getEnvironment();
-		let platformKey: string;
-		if (env) {
-			platformKey = env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
-		} else {
-			platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
-		}
-		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER);
 	}
 
-	private _detectShells(): Promise<IShellDefinition[]> {
-		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
+	private _detectWindowsShells(): Promise<IShellDefinition[]> {
+		return new Promise(r => this._onRequestAvailableShells.fire(r));
 	}
+
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._terminalFocusContextKey,
-			this._terminalShellTypeContextKey,
-			this._terminalAltBufferActiveContextKey,
-			this._configHelper,
-			container,
-			shellLaunchConfig
-		);
+		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalFocusContextKey, this._configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		if (!this.isProcessSupportRegistered) {
-			throw new Error('Could not create terminal when process support is not registered');
-		}
 		if (shell.hideFromUser) {
 			const instance = this.createInstance(undefined, shell);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
 		}
-
-		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
+		const terminalTab = this._instantiationService.createInstance(TerminalTab,
+			this._terminalFocusContextKey,
+			this.configHelper,
+			this._terminalContainer,
+			shell);
 		this._terminalTabs.push(terminalTab);
-
 		const instance = terminalTab.terminalInstances[0];
-
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._initInstanceListeners(instance);
@@ -806,7 +631,11 @@ export class TerminalService implements ITerminalService {
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
 		instance.shellLaunchConfig.hideFromUser = false;
-		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, instance);
+		const terminalTab = this._instantiationService.createInstance(TerminalTab,
+			this._terminalFocusContextKey,
+			this.configHelper,
+			this._terminalContainer,
+			instance);
 		this._terminalTabs.push(terminalTab);
 		terminalTab.addDisposable(terminalTab.onDisposed(this._onTabDisposed.fire, this._onTabDisposed));
 		terminalTab.addDisposable(terminalTab.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
@@ -817,52 +646,49 @@ export class TerminalService implements ITerminalService {
 		this._onInstancesChanged.fire();
 	}
 
-	public async focusFindWidget(): Promise<void> {
-		await this.showPanel(false);
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		pane.focusFindWidget();
-		this._findWidgetVisible.set(true);
+	public focusFindWidget(): Promise<void> {
+		return this.showPanel(false).then(() => {
+			const panel = this._panelService.getActivePanel() as TerminalPanel;
+			panel.focusFindWidget();
+			this._findWidgetVisible.set(true);
+		});
 	}
 
 	public hideFindWidget(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (pane) {
-			pane.hideFindWidget();
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.hideFindWidget();
 			this._findWidgetVisible.reset();
-			pane.focus();
+			panel.focus();
 		}
 	}
 
 	public findNext(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (pane) {
-			pane.showFindWidget();
-			pane.getFindWidget().find(false);
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(false);
 		}
 	}
 
 	public findPrevious(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (pane) {
-			pane.showFindWidget();
-			pane.getFindWidget().find(true);
+		const panel = this._panelService.getActivePanel() as TerminalPanel;
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			panel.showFindWidget();
+			panel.getFindWidget().find(true);
 		}
 	}
 
-	public async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
+	public setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
 		this._terminalTabs.forEach(tab => tab.attachToElement(terminalContainer));
 	}
 
 	public hidePanel(): void {
-		// Hide the panel if the terminal is in the panel and it has no sibling views
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
-		if (location === ViewContainerLocation.Panel) {
-			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
-			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
-				this._layoutService.setPanelHidden(true);
-			}
+		const panel = this._panelService.getActivePanel();
+		if (panel && panel.getId() === TERMINAL_PANEL_ID) {
+			this._layoutService.setPanelHidden(true);
 		}
 	}
 }

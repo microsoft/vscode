@@ -2,7 +2,7 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light+ (default light)",
 	"include": "./light_vs.json",
-	"tokenColors": [ // adds rules to the light vs rules
+	"tokenColors": [
 		{
 			"name": "Function declarations",
 			"scope": [
@@ -98,16 +98,6 @@
 			}
 		},
 		{
-			"name": "Constants and enums",
-			"scope": [
-				"variable.other.constant",
-				"variable.other.enummember"
-			],
-			"settings": {
-				"foreground": "#0070C1",
-			}
-		},
-		{
 			"name": "Object keys, TS grammar specific",
 			"scope": [
 				"meta.object-literal.key"
@@ -169,7 +159,7 @@
 				"keyword.control.anchor.regexp"
 			],
 			"settings": {
-				"foreground": "#EE0000"
+				"foreground": "#ff0000"
 			}
 		},
 		{
@@ -181,7 +171,7 @@
 		{
 			"scope": "constant.character.escape",
 			"settings": {
-				"foreground": "#EE0000"
+				"foreground": "#ff0000"
 			}
 		},
 		{
@@ -190,12 +180,5 @@
 				"foreground": "#000000"
 			}
 		}
-	],
-	"semanticHighlighting": true,
-	"semanticTokenColors": {
-		"newOperator": "#AF00DB",
-		"stringLiteral": "#a31515",
-		"customLiteral": "#795E26",
-		"numberLiteral": "#098658",
-	}
+	]
 }

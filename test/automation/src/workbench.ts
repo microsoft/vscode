@@ -5,7 +5,7 @@
 
 import { Explorer } from './explorer';
 import { ActivityBar } from './activityBar';
-import { QuickAccess } from './quickaccess';
+import { QuickOpen } from './quickopen';
 import { QuickInput } from './quickinput';
 import { Extensions } from './extensions';
 import { Search } from './search';
@@ -19,7 +19,6 @@ import { KeybindingsEditor } from './keybindings';
 import { Editors } from './editors';
 import { Code } from './code';
 import { Terminal } from './terminal';
-import { Notebook } from './notebook';
 
 export interface Commands {
 	runCommand(command: string): Promise<any>;
@@ -27,7 +26,7 @@ export interface Commands {
 
 export class Workbench {
 
-	readonly quickaccess: QuickAccess;
+	readonly quickopen: QuickOpen;
 	readonly quickinput: QuickInput;
 	readonly editors: Editors;
 	readonly explorer: Explorer;
@@ -42,24 +41,22 @@ export class Workbench {
 	readonly settingsEditor: SettingsEditor;
 	readonly keybindingsEditor: KeybindingsEditor;
 	readonly terminal: Terminal;
-	readonly notebook: Notebook;
 
 	constructor(code: Code, userDataPath: string) {
 		this.editors = new Editors(code);
+		this.quickopen = new QuickOpen(code, this.editors);
 		this.quickinput = new QuickInput(code);
-		this.quickaccess = new QuickAccess(code, this.editors, this.quickinput);
 		this.explorer = new Explorer(code, this.editors);
 		this.activitybar = new ActivityBar(code);
 		this.search = new Search(code);
 		this.extensions = new Extensions(code);
-		this.editor = new Editor(code, this.quickaccess);
+		this.editor = new Editor(code, this.quickopen);
 		this.scm = new SCM(code);
-		this.debug = new Debug(code, this.quickaccess, this.editors, this.editor);
+		this.debug = new Debug(code, this.quickopen, this.editors, this.editor);
 		this.statusbar = new StatusBar(code);
-		this.problems = new Problems(code, this.quickaccess);
-		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor, this.quickaccess);
+		this.problems = new Problems(code);
+		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor, this.quickopen);
 		this.keybindingsEditor = new KeybindingsEditor(code);
-		this.terminal = new Terminal(code, this.quickaccess);
-		this.notebook = new Notebook(this.quickaccess, code);
+		this.terminal = new Terminal(code, this.quickopen);
 	}
 }

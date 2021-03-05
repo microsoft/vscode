@@ -7,17 +7,15 @@
 'use strict';
 
 const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
-const product = require('../product.json');
 
 // Avoid Monkey Patches from Application Insights
 bootstrap.avoidMonkeyPatchFromAppInsights();
 
 // Enable portable support
-bootstrapNode.configurePortable(product);
+bootstrap.configurePortable();
 
 // Enable ASAR support
-bootstrap.enableASARSupport(undefined);
+bootstrap.enableASARSupport();
 
 // Load CLI through AMD loader
 require('./bootstrap-amd').load('vs/code/node/cli');

@@ -2,11 +2,7 @@
   "name": "image-preview",
   "displayName": "%displayName%",
   "description": "%description%",
-  "extensionKind": [
-    "ui",
-    "workspace",
-    "web"
-  ],
+  "extensionKind": ["ui", "workspace"],
   "version": "1.0.0",
   "publisher": "vscode",
   "icon": "icon.png",
@@ -17,24 +13,23 @@
     "vscode": "^1.39.0"
   },
   "main": "./out/extension",
-  "browser": "./dist/browser/extension.js",
   "categories": [
     "Other"
   ],
   "activationEvents": [
-    "onCustomEditor:imagePreview.previewEditor",
+    "onWebviewEditor:imagePreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
     "onCommand:imagePreview.zoomOut"
   ],
   "contributes": {
-    "customEditors": [
+    "webviewEditors": [
       {
         "viewType": "imagePreview.previewEditor",
-        "displayName": "%customEditors.displayName%",
+        "displayName": "%webviewEditors.displayName%",
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp}"
           }
         ]
       }
@@ -55,12 +50,12 @@
       "commandPalette": [
         {
           "command": "imagePreview.zoomIn",
-          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
+          "when": "imagePreviewFocus",
           "group": "1_imagePreview"
         },
         {
           "command": "imagePreview.zoomOut",
-          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
+          "when": "imagePreviewFocus",
           "group": "1_imagePreview"
         }
       ]
@@ -70,16 +65,10 @@
     "compile": "gulp compile-extension:image-preview",
     "watch": "npm run build-preview && gulp watch-extension:image-preview",
     "vscode:prepublish": "npm run build-ext",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:image-preview ./tsconfig.json",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:image-preview ./tsconfig.json"
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
   }
 }

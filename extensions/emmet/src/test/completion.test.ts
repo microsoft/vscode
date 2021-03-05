@@ -37,13 +37,6 @@ suite('Tests for completion in CSS embedded in HTML', () => {
 			{ label: 'widows: ;', documentation: `widows: ;` }
 		]);
 	});
-
-	// https://github.com/microsoft/vscode/issues/117020
-	test('#117020, ! at end of abbreviation should have completion', async () => {
-		await testCssCompletionProvider(`.foo { bdbn!| }`, [
-			{ label: 'border-bottom: none !important;', documentation: `border-bottom: none !important;` }
-		]);
-	});
 });
 
 interface TestCompletionItem {

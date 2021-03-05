@@ -4,51 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
+import { startsWith } from 'vs/base/common/strings';
+import { BACKUPS } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtUri, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
 
 export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability {
 
-	get capabilities() { return this.fileSystemProvider.capabilities; }
-	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
+	readonly capabilities: FileSystemProviderCapabilities = this.fileSystemProvider.capabilities;
+	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
-	private extUri: ExtUri;
-
-	private readonly watchResources = TernarySearchTree.forUris<URI>(uri => this.extUri.ignorePathCasing(uri));
+	private readonly userDataHome: URI;
 
 	constructor(
-		private readonly fileSystemScheme: string,
+		private readonly fileSystemUserDataHome: URI,
+		private readonly fileSystemBackupsHome: URI,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,
-		private readonly userDataScheme: string,
-		private readonly logService: ILogService,
+		environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
-		this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
-		// update extUri as capabilites might change.
-		this._register(this.onDidChangeCapabilities(() => this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase));
+		this.userDataHome = environmentService.userRoamingDataHome;
+
+		// Assumption: This path always exists
+		this._register(this.fileSystemProvider.watch(this.fileSystemUserDataHome, { recursive: false, excludes: [] }));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		this.watchResources.set(resource, resource);
-		const disposable = this.fileSystemProvider.watch(this.toFileSystemResource(resource), opts);
-		return toDisposable(() => {
-			this.watchResources.delete(resource);
-			disposable.dispose();
-		});
+		return this.fileSystemProvider.watch(this.toFileSystemResource(resource), opts);
 	}
 
 	stat(resource: URI): Promise<IStat> {
@@ -70,7 +65,7 @@ export class FileUserDataProvider extends Disposable implements
 		throw new Error('not supported');
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		if (hasFileReadStreamCapability(this.fileSystemProvider)) {
 			return this.fileSystemProvider.readFileStream(this.toFileSystemResource(resource), opts, token);
 		}
@@ -124,7 +119,7 @@ export class FileUserDataProvider extends Disposable implements
 		const userDataChanges: IFileChange[] = [];
 		for (const change of changes) {
 			const userDataResource = this.toUserDataResource(change.resource);
-			if (this.watchResources.findSubstr(userDataResource)) {
+			if (userDataResource) {
 				userDataChanges.push({
 					resource: userDataResource,
 					type: change.type
@@ -132,17 +127,28 @@ export class FileUserDataProvider extends Disposable implements
 			}
 		}
 		if (userDataChanges.length) {
-			this.logService.debug('User data changed');
 			this._onDidChangeFile.fire(userDataChanges);
 		}
 	}
 
 	private toFileSystemResource(userDataResource: URI): URI {
-		return userDataResource.with({ scheme: this.fileSystemScheme });
+		const relativePath = resources.relativePath(this.userDataHome, userDataResource)!;
+		if (startsWith(relativePath, BACKUPS)) {
+			return resources.joinPath(resources.dirname(this.fileSystemBackupsHome), relativePath);
+		}
+		return resources.joinPath(this.fileSystemUserDataHome, relativePath);
 	}
 
-	private toUserDataResource(fileSystemResource: URI): URI {
-		return fileSystemResource.with({ scheme: this.userDataScheme });
+	private toUserDataResource(fileSystemResource: URI): URI | null {
+		if (resources.isEqualOrParent(fileSystemResource, this.fileSystemUserDataHome)) {
+			const relativePath = resources.relativePath(this.fileSystemUserDataHome, fileSystemResource);
+			return relativePath ? resources.joinPath(this.userDataHome, relativePath) : this.userDataHome;
+		}
+		if (resources.isEqualOrParent(fileSystemResource, this.fileSystemBackupsHome)) {
+			const relativePath = resources.relativePath(this.fileSystemBackupsHome, fileSystemResource);
+			return relativePath ? resources.joinPath(this.userDataHome, BACKUPS, relativePath) : resources.joinPath(this.userDataHome, BACKUPS);
+		}
+		return null;
 	}
 
 }

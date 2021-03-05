@@ -8,8 +8,9 @@ import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService } from './snippets.contribution';
 import { getNonWhitespacePrefix } from './snippetsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { endsWith } from 'vs/base/common/strings';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -19,10 +20,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 
-export class TabCompletionController implements IEditorContribution {
+export class TabCompletionController implements editorCommon.IEditorContribution {
 
 	public static readonly ID = 'editor.tabCompletionController';
 	static readonly ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
@@ -40,7 +39,6 @@ export class TabCompletionController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ISnippetsService private readonly _snippetService: ISnippetsService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		this._hasSnippets = TabCompletionController.ContextKey.bindTo(contextKeyService);
@@ -53,8 +51,8 @@ export class TabCompletionController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this._configListener.dispose();
-		this._selectionListener?.dispose();
+		dispose(this._configListener);
+		dispose(this._selectionListener);
 	}
 
 	private _update(): void {
@@ -62,7 +60,7 @@ export class TabCompletionController implements IEditorContribution {
 		if (this._enabled !== enabled) {
 			this._enabled = enabled;
 			if (!this._enabled) {
-				this._selectionListener?.dispose();
+				dispose(this._selectionListener);
 			} else {
 				this._selectionListener = this._editor.onDidChangeCursorSelection(e => this._updateSnippets());
 				if (this._editor.getModel()) {
@@ -99,7 +97,7 @@ export class TabCompletionController implements IEditorContribution {
 			const prefix = getNonWhitespacePrefix(model, selection.getPosition());
 			if (prefix) {
 				for (const snippet of snippets) {
-					if (prefix.endsWith(snippet.prefix)) {
+					if (endsWith(prefix, snippet.prefix)) {
 						this._activeSnippets.push(snippet);
 					}
 				}
@@ -120,7 +118,7 @@ export class TabCompletionController implements IEditorContribution {
 		this._hasSnippets.set(this._activeSnippets.length > 0);
 	}
 
-	async performSnippetCompletions() {
+	performSnippetCompletions(): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -128,22 +126,7 @@ export class TabCompletionController implements IEditorContribution {
 		if (this._activeSnippets.length === 1) {
 			// one -> just insert
 			const [snippet] = this._activeSnippets;
-
-			// async clipboard access might be required and in that case
-			// we need to check if the editor has changed in flight and then
-			// bail out (or be smarter than that)
-			let clipboardText: string | undefined;
-			if (snippet.needsClipboard) {
-				const state = new EditorState(this._editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
-				clipboardText = await this._clipboardService.readText();
-				if (!state.validate(this._editor)) {
-					return;
-				}
-			}
-			SnippetController2.get(this._editor).insert(snippet.codeSnippet, {
-				overwriteBefore: snippet.prefix.length, overwriteAfter: 0,
-				clipboardText
-			});
+			SnippetController2.get(this._editor).insert(snippet.codeSnippet, { overwriteBefore: snippet.prefix.length, overwriteAfter: 0 });
 
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box

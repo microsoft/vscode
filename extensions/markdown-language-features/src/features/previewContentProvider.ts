@@ -39,12 +39,6 @@ function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
 }
 
-export interface MarkdownContentProviderOutput {
-	html: string;
-	containingImages: { src: string }[];
-}
-
-
 export class MarkdownContentProvider {
 	constructor(
 		private readonly engine: MarkdownEngine,
@@ -60,12 +54,11 @@ export class MarkdownContentProvider {
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		initialLine: number | undefined = undefined,
 		state?: any
-	): Promise<MarkdownContentProviderOutput> {
+	): Promise<string> {
 		const sourceUri = markdownDocument.uri;
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
 		const initialData = {
 			source: sourceUri.toString(),
-			fragment: state?.fragment || markdownDocument.uri.fragment || undefined,
 			line: initialLine,
 			lineCount: markdownDocument.lineCount,
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
@@ -82,7 +75,7 @@ export class MarkdownContentProvider {
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
 		const body = await this.engine.render(markdownDocument);
-		const html = `<!DOCTYPE html>
+		return `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
@@ -96,15 +89,11 @@ export class MarkdownContentProvider {
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
-				${body.html}
+				${body}
 				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
 				${this.getScripts(resourceProvider, nonce)}
 			</body>
 			</html>`;
-		return {
-			html,
-			containingImages: body.containingImages,
-		};
 	}
 
 	public provideFileNotFoundContent(
@@ -122,7 +111,7 @@ export class MarkdownContentProvider {
 
 	private extensionResourcePath(resourceProvider: WebviewResourceProvider, mediaFile: string): string {
 		const webviewResource = resourceProvider.asWebviewUri(
-			vscode.Uri.joinPath(this.context.extensionUri, 'media', mediaFile));
+			vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))));
 		return webviewResource.toString();
 	}
 
@@ -143,7 +132,7 @@ export class MarkdownContentProvider {
 		// Use a workspace relative path if there is a workspace
 		const root = vscode.workspace.getWorkspaceFolder(resource);
 		if (root) {
-			return resourceProvider.asWebviewUri(vscode.Uri.joinPath(root.uri, href)).toString();
+			return resourceProvider.asWebviewUri(vscode.Uri.file(path.join(root.uri.fsPath, href))).toString();
 		}
 
 		// Otherwise look relative to the markdown file
@@ -163,9 +152,9 @@ export class MarkdownContentProvider {
 
 	private getSettingsOverrideStyles(config: MarkdownPreviewConfiguration): string {
 		return [
-			config.fontFamily ? `--markdown-font-family: ${config.fontFamily};` : '',
-			isNaN(config.fontSize) ? '' : `--markdown-font-size: ${config.fontSize}px;`,
-			isNaN(config.lineHeight) ? '' : `--markdown-line-height: ${config.lineHeight};`,
+			config.fontFamily ? `--vscode-markdown-font-family: ${config.fontFamily};` : '',
+			isNaN(config.fontSize) ? '' : `--vscode-markdown-font-size: ${config.fontSize}px;`,
+			isNaN(config.lineHeight) ? '' : `--vscode-markdown-line-height: ${config.lineHeight};`,
 		].join(' ');
 	}
 

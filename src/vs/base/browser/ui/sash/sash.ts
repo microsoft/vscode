@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./sash';
-import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
-import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, append, $ } from 'vs/base/browser/dom';
+import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
-import { Delayer } from 'vs/base/common/async';
 
-let DEBUG = false;
-// DEBUG = Boolean("true"); // done "weirdly" so that a lint warning prevents you from pushing this
+const DEBUG = false;
 
 export interface ISashLayoutProvider { }
 
@@ -39,27 +38,10 @@ export interface ISashEvent {
 	altKey: boolean;
 }
 
-export enum OrthogonalEdge {
-	North = 'north',
-	South = 'south',
-	East = 'east',
-	West = 'west'
-}
-
 export interface ISashOptions {
-	readonly orientation: Orientation;
-	readonly orthogonalStartSash?: Sash;
-	readonly orthogonalEndSash?: Sash;
-	readonly size?: number;
-	readonly orthogonalEdge?: OrthogonalEdge;
-}
-
-export interface IVerticalSashOptions extends ISashOptions {
-	readonly orientation: Orientation.VERTICAL;
-}
-
-export interface IHorizontalSashOptions extends ISashOptions {
-	readonly orientation: Orientation.HORIZONTAL;
+	orientation?: Orientation;
+	orthogonalStartSash?: Sash;
+	orthogonalEndSash?: Sash;
 }
 
 export const enum Orientation {
@@ -74,21 +56,12 @@ export const enum SashState {
 	Enabled
 }
 
-let globalSize = 4;
-const onDidChangeGlobalSize = new Emitter<number>();
-export function setGlobalSashSize(size: number): void {
-	globalSize = size;
-	onDidChangeGlobalSize.fire(size);
-}
-
 export class Sash extends Disposable {
 
 	private el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
 	private hidden: boolean;
 	private orientation!: Orientation;
-	private size: number;
-	private hoverDelayer = this._register(new Delayer(300));
 
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }
@@ -97,9 +70,9 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		this.el.classList.toggle('disabled', state === SashState.Disabled);
-		this.el.classList.toggle('minimum', state === SashState.Minimum);
-		this.el.classList.toggle('maximum', state === SashState.Maximum);
+		toggleClass(this.el, 'disabled', state === SashState.Disabled);
+		toggleClass(this.el, 'minimum', state === SashState.Minimum);
+		toggleClass(this.el, 'maximum', state === SashState.Maximum);
 
 		this._state = state;
 		this._onDidEnablementChange.fire(state);
@@ -124,29 +97,15 @@ export class Sash extends Disposable {
 
 	private readonly orthogonalStartSashDisposables = this._register(new DisposableStore());
 	private _orthogonalStartSash: Sash | undefined;
-	private readonly orthogonalStartDragHandleDisposables = this._register(new DisposableStore());
-	private _orthogonalStartDragHandle: HTMLElement | undefined;
 	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
 	set orthogonalStartSash(sash: Sash | undefined) {
-		this.orthogonalStartDragHandleDisposables.clear();
 		this.orthogonalStartSashDisposables.clear();
 
 		if (sash) {
-			const onChange = (state: SashState) => {
-				this.orthogonalStartDragHandleDisposables.clear();
-
-				if (state !== SashState.Disabled) {
-					this._orthogonalStartDragHandle = append(this.el, $('.orthogonal-drag-handle.start'));
-					this.orthogonalStartDragHandleDisposables.add(toDisposable(() => this._orthogonalStartDragHandle!.remove()));
-					domEvent(this._orthogonalStartDragHandle, 'mouseenter')
-						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalStartDragHandleDisposables);
-					domEvent(this._orthogonalStartDragHandle, 'mouseleave')
-						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalStartDragHandleDisposables);
-				}
-			};
-
-			this.orthogonalStartSashDisposables.add(sash.onDidEnablementChange(onChange, this));
-			onChange(sash.state);
+			this.orthogonalStartSashDisposables.add(sash.onDidEnablementChange(this.onOrthogonalStartSashEnablementChange, this));
+			this.onOrthogonalStartSashEnablementChange(sash.state);
+		} else {
+			this.onOrthogonalStartSashEnablementChange(SashState.Disabled);
 		}
 
 		this._orthogonalStartSash = sash;
@@ -154,72 +113,41 @@ export class Sash extends Disposable {
 
 	private readonly orthogonalEndSashDisposables = this._register(new DisposableStore());
 	private _orthogonalEndSash: Sash | undefined;
-	private readonly orthogonalEndDragHandleDisposables = this._register(new DisposableStore());
-	private _orthogonalEndDragHandle: HTMLElement | undefined;
 	get orthogonalEndSash(): Sash | undefined { return this._orthogonalEndSash; }
 	set orthogonalEndSash(sash: Sash | undefined) {
-		this.orthogonalEndDragHandleDisposables.clear();
 		this.orthogonalEndSashDisposables.clear();
 
 		if (sash) {
-			const onChange = (state: SashState) => {
-				this.orthogonalEndDragHandleDisposables.clear();
-
-				if (state !== SashState.Disabled) {
-					this._orthogonalEndDragHandle = append(this.el, $('.orthogonal-drag-handle.end'));
-					this.orthogonalEndDragHandleDisposables.add(toDisposable(() => this._orthogonalEndDragHandle!.remove()));
-					domEvent(this._orthogonalEndDragHandle, 'mouseenter')
-						(() => Sash.onMouseEnter(sash), undefined, this.orthogonalEndDragHandleDisposables);
-					domEvent(this._orthogonalEndDragHandle, 'mouseleave')
-						(() => Sash.onMouseLeave(sash), undefined, this.orthogonalEndDragHandleDisposables);
-				}
-			};
-
-			this.orthogonalEndSashDisposables.add(sash.onDidEnablementChange(onChange, this));
-			onChange(sash.state);
+			this.orthogonalEndSashDisposables.add(sash.onDidEnablementChange(this.onOrthogonalEndSashEnablementChange, this));
+			this.onOrthogonalEndSashEnablementChange(sash.state);
+		} else {
+			this.onOrthogonalEndSashEnablementChange(SashState.Disabled);
 		}
 
 		this._orthogonalEndSash = sash;
 	}
 
-	constructor(container: HTMLElement, layoutProvider: IVerticalSashLayoutProvider, options: ISashOptions);
-	constructor(container: HTMLElement, layoutProvider: IHorizontalSashLayoutProvider, options: ISashOptions);
-	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions) {
+	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
 		super();
 
 		this.el = append(container, $('.monaco-sash'));
 
-		if (options.orthogonalEdge) {
-			this.el.classList.add(`orthogonal-edge-${options.orthogonalEdge}`);
-		}
-
 		if (isMacintosh) {
-			this.el.classList.add('mac');
+			addClass(this.el, 'mac');
 		}
 
 		this._register(domEvent(this.el, 'mousedown')(this.onMouseDown, this));
 		this._register(domEvent(this.el, 'dblclick')(this.onMouseDoubleClick, this));
-		this._register(domEvent(this.el, 'mouseenter')(() => Sash.onMouseEnter(this)));
-		this._register(domEvent(this.el, 'mouseleave')(() => Sash.onMouseLeave(this)));
 
 		this._register(Gesture.addTarget(this.el));
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
-		if (typeof options.size === 'number') {
-			this.size = options.size;
-
-			if (options.orientation === Orientation.VERTICAL) {
-				this.el.style.width = `${this.size}px`;
-			} else {
-				this.el.style.height = `${this.size}px`;
-			}
-		} else {
-			this.size = globalSize;
-			this._register(onDidChangeGlobalSize.event(size => {
-				this.size = size;
-				this.layout();
-			}));
+		if (isIPad) {
+			// see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
+			addClass(this.el, 'touch');
 		}
+
+		this.setOrientation(options.orientation || Orientation.VERTICAL);
 
 		this.hidden = false;
 		this.layoutProvider = layoutProvider;
@@ -227,19 +155,23 @@ export class Sash extends Disposable {
 		this.orthogonalStartSash = options.orthogonalStartSash;
 		this.orthogonalEndSash = options.orthogonalEndSash;
 
-		this.orientation = options.orientation || Orientation.VERTICAL;
+		toggleClass(this.el, 'debug', DEBUG);
+	}
+
+	setOrientation(orientation: Orientation): void {
+		this.orientation = orientation;
 
 		if (this.orientation === Orientation.HORIZONTAL) {
-			this.el.classList.add('horizontal');
-			this.el.classList.remove('vertical');
+			addClass(this.el, 'horizontal');
+			removeClass(this.el, 'vertical');
 		} else {
-			this.el.classList.remove('horizontal');
-			this.el.classList.add('vertical');
+			removeClass(this.el, 'horizontal');
+			addClass(this.el, 'vertical');
 		}
 
-		this.el.classList.toggle('debug', DEBUG);
-
-		this.layout();
+		if (this.layoutProvider) {
+			this.layout();
+		}
 	}
 
 	private onMouseDown(e: MouseEvent): void {
@@ -283,10 +215,10 @@ export class Sash extends Disposable {
 		const altKey = mouseDownEvent.altKey;
 		const startEvent: ISashEvent = { startX, currentX: startX, startY, currentY: startY, altKey };
 
-		this.el.classList.add('active');
+		addClass(this.el, 'active');
 		this._onDidStart.fire(startEvent);
 
-		// fix https://github.com/microsoft/vscode/issues/21675
+		// fix https://github.com/Microsoft/vscode/issues/21675
 		const style = createStyleSheet(this.el);
 		const updateStyle = () => {
 			let cursor = '';
@@ -311,7 +243,7 @@ export class Sash extends Disposable {
 				}
 			}
 
-			style.textContent = `* { cursor: ${cursor} !important; }`;
+			style.innerHTML = `* { cursor: ${cursor} !important; }`;
 		};
 
 		const disposables = new DisposableStore();
@@ -335,7 +267,7 @@ export class Sash extends Disposable {
 
 			this.el.removeChild(style);
 
-			this.el.classList.remove('active');
+			removeClass(this.el, 'active');
 			this._onDidEnd.fire();
 
 			disposables.dispose();
@@ -392,38 +324,18 @@ export class Sash extends Disposable {
 			}
 		}));
 
-		listeners.push(addDisposableListener(this.el, EventType.End, () => {
+		listeners.push(addDisposableListener(this.el, EventType.End, (event: GestureEvent) => {
 			this._onDidEnd.fire();
 			dispose(listeners);
 		}));
 	}
 
-	private static onMouseEnter(sash: Sash, fromLinkedSash: boolean = false): void {
-		if (sash.el.classList.contains('active')) {
-			sash.hoverDelayer.cancel();
-			sash.el.classList.add('hover');
-		} else {
-			sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'));
-		}
-
-		if (!fromLinkedSash && sash.linkedSash) {
-			Sash.onMouseEnter(sash.linkedSash, true);
-		}
-	}
-
-	private static onMouseLeave(sash: Sash, fromLinkedSash: boolean = false): void {
-		sash.hoverDelayer.cancel();
-		sash.el.classList.remove('hover');
-
-		if (!fromLinkedSash && sash.linkedSash) {
-			Sash.onMouseLeave(sash.linkedSash, true);
-		}
-	}
-
 	layout(): void {
+		const size = isIPad ? 20 : 4;
+
 		if (this.orientation === Orientation.VERTICAL) {
 			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
-			this.el.style.left = verticalProvider.getVerticalSashLeft(this) - (this.size / 2) + 'px';
+			this.el.style.left = verticalProvider.getVerticalSashLeft(this) - (size / 2) + 'px';
 
 			if (verticalProvider.getVerticalSashTop) {
 				this.el.style.top = verticalProvider.getVerticalSashTop(this) + 'px';
@@ -434,7 +346,7 @@ export class Sash extends Disposable {
 			}
 		} else {
 			const horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
-			this.el.style.top = horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px';
+			this.el.style.top = horizontalProvider.getHorizontalSashTop(this) - (size / 2) + 'px';
 
 			if (horizontalProvider.getHorizontalSashLeft) {
 				this.el.style.left = horizontalProvider.getHorizontalSashLeft(this) + 'px';
@@ -462,13 +374,27 @@ export class Sash extends Disposable {
 		return this.hidden;
 	}
 
-	private getOrthogonalSash(e: MouseEvent): Sash | undefined {
-		if (!e.target || !(e.target instanceof HTMLElement)) {
-			return undefined;
-		}
+	private onOrthogonalStartSashEnablementChange(state: SashState): void {
+		toggleClass(this.el, 'orthogonal-start', state !== SashState.Disabled);
+	}
 
-		if (e.target.classList.contains('orthogonal-drag-handle')) {
-			return e.target.classList.contains('start') ? this.orthogonalStartSash : this.orthogonalEndSash;
+	private onOrthogonalEndSashEnablementChange(state: SashState): void {
+		toggleClass(this.el, 'orthogonal-end', state !== SashState.Disabled);
+	}
+
+	private getOrthogonalSash(e: MouseEvent): Sash | undefined {
+		if (this.orientation === Orientation.VERTICAL) {
+			if (e.offsetY <= 4) {
+				return this.orthogonalStartSash;
+			} else if (e.offsetY >= this.el.clientHeight - 4) {
+				return this.orthogonalEndSash;
+			}
+		} else {
+			if (e.offsetX <= 4) {
+				return this.orthogonalStartSash;
+			} else if (e.offsetX >= this.el.clientWidth - 4) {
+				return this.orthogonalEndSash;
+			}
 		}
 
 		return undefined;

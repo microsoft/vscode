@@ -8,8 +8,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Promises } from 'vs/base/common/async';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class LogsDataCleaner extends Disposable {
 
@@ -32,7 +31,7 @@ export class LogsDataCleaner extends Disposable {
 				const allSessions = stat.children.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name));
 				const oldSessions = allSessions.sort().filter((d, i) => d.name !== currentLog);
 				const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 49));
-				Promises.settled(toDelete.map(stat => this.fileService.del(stat.resource, { recursive: true })));
+				Promise.all(toDelete.map(stat => this.fileService.del(stat.resource, { recursive: true })));
 			}
 		}, 10 * 1000);
 		this.lifecycleService.onWillShutdown(() => {

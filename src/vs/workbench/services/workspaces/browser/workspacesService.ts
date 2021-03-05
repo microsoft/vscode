@@ -6,8 +6,8 @@
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Event, Emitter } from 'vs/base/common/event';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,37 +16,32 @@ import { IFileService, FileOperationError, FileOperationResult } from 'vs/platfo
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { isWindows } from 'vs/base/common/platform';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class BrowserWorkspacesService extends Disposable implements IWorkspacesService {
 
 	static readonly RECENTLY_OPENED_KEY = 'recently.opened';
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	private readonly _onRecentlyOpenedChange = this._register(new Emitter<void>());
-	readonly onDidChangeRecentlyOpened = this._onRecentlyOpenedChange.event;
+	private readonly _onRecentlyOpenedChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onRecentlyOpenedChange: Event<void> = this._onRecentlyOpenedChange.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
-		// Opening a workspace should push it as most
-		// recently used to the workspaces history
 		this.addWorkspaceToRecentlyOpened();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeValue(event => {
+		this._register(this.storageService.onDidChangeStorage(event => {
 			if (event.key === BrowserWorkspacesService.RECENTLY_OPENED_KEY && event.scope === StorageScope.GLOBAL) {
 				this._onRecentlyOpenedChange.fire();
 			}
@@ -81,13 +76,13 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 		recents.forEach(recent => {
 			if (isRecentFile(recent)) {
-				this.doRemoveRecentlyOpened(recentlyOpened, [recent.fileUri]);
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.fileUri]);
 				recentlyOpened.files.unshift(recent);
 			} else if (isRecentFolder(recent)) {
-				this.doRemoveRecentlyOpened(recentlyOpened, [recent.folderUri]);
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.folderUri]);
 				recentlyOpened.workspaces.unshift(recent);
 			} else {
-				this.doRemoveRecentlyOpened(recentlyOpened, [recent.workspace.configPath]);
+				this.doRemoveFromRecentlyOpened(recentlyOpened, [recent.workspace.configPath]);
 				recentlyOpened.workspaces.unshift(recent);
 			}
 		});
@@ -95,15 +90,15 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		return this.saveRecentlyOpened(recentlyOpened);
 	}
 
-	async removeRecentlyOpened(paths: URI[]): Promise<void> {
+	async removeFromRecentlyOpened(paths: URI[]): Promise<void> {
 		const recentlyOpened = await this.getRecentlyOpened();
 
-		this.doRemoveRecentlyOpened(recentlyOpened, paths);
+		this.doRemoveFromRecentlyOpened(recentlyOpened, paths);
 
 		return this.saveRecentlyOpened(recentlyOpened);
 	}
 
-	private doRemoveRecentlyOpened(recentlyOpened: IRecentlyOpened, paths: URI[]): void {
+	private doRemoveFromRecentlyOpened(recentlyOpened: IRecentlyOpened, paths: URI[]): void {
 		recentlyOpened.files = recentlyOpened.files.filter(file => {
 			return !paths.some(path => path.toString() === file.fileUri.toString());
 		});
@@ -114,7 +109,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	}
 
 	private async saveRecentlyOpened(data: IRecentlyOpened): Promise<void> {
-		return this.storageService.store(BrowserWorkspacesService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL, StorageTarget.USER);
+		return this.storageService.store(BrowserWorkspacesService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
 	}
 
 	async clearRecentlyOpened(): Promise<void> {
@@ -137,7 +132,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 		if (folders) {
 			for (const folder of folders) {
-				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, this.environmentService.untitledWorkspacesHome, !isWindows, this.uriIdentityService.extUri));
+				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, folder.name, this.environmentService.untitledWorkspacesHome));
 			}
 		}
 
@@ -160,15 +155,6 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	async getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier> {
 		return getWorkspaceIdentifier(workspacePath);
-	}
-
-	//#endregion
-
-
-	//#region Dirty Workspaces
-
-	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
-		return []; // Currently not supported in web
 	}
 
 	//#endregion

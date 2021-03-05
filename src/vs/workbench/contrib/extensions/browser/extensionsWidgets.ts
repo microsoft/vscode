@@ -5,23 +5,17 @@
 
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $ } from 'vs/base/browser/dom';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, IColorTheme, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { installCountIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -55,12 +49,12 @@ export class InstallCountWidget extends ExtensionWidget {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super();
-		container.classList.add('extension-install-count');
+		addClass(container, 'extension-install-count');
 		this.render();
 	}
 
 	render(): void {
-		this.container.innerText = '';
+		this.container.innerHTML = '';
 
 		if (!this.extension) {
 			return;
@@ -87,7 +81,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			installLabel = installCount.toLocaleString(platform.locale);
 		}
 
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
+		append(this.container, $('span.codicon.codicon-cloud-download'));
 		const count = append(this.container, $('span.count'));
 		count.textContent = installLabel;
 	}
@@ -100,17 +94,17 @@ export class RatingsWidget extends ExtensionWidget {
 		private small: boolean
 	) {
 		super();
-		container.classList.add('extension-ratings');
+		addClass(container, 'extension-ratings');
 
 		if (this.small) {
-			container.classList.add('small');
+			addClass(container, 'small');
 		}
 
 		this.render();
 	}
 
 	render(): void {
-		this.container.innerText = '';
+		this.container.innerHTML = '';
 
 		if (!this.extension) {
 			return;
@@ -127,18 +121,18 @@ export class RatingsWidget extends ExtensionWidget {
 		const rating = Math.round(this.extension.rating * 2) / 2;
 
 		if (this.small) {
-			append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
+			append(this.container, $('span.codicon.codicon-star-full'));
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
+					append(this.container, $('span.codicon.codicon-star-full'));
 				} else if (rating >= i - 0.5) {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starHalfIcon)));
+					append(this.container, $('span.codicon.codicon-star-half'));
 				} else {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starEmptyIcon)));
+					append(this.container, $('span.codicon.codicon-star-empty'));
 				}
 			}
 		}
@@ -164,7 +158,12 @@ export class TooltipWidget extends ExtensionWidget {
 	}
 
 	render(): void {
+		this.parent.title = '';
+		this.parent.removeAttribute('aria-label');
 		this.parent.title = this.getTooltip();
+		if (this.extension) {
+			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. Press enter for extension details.", this.extension.displayName));
+		}
 	}
 
 	private getTooltip(): string {
@@ -198,16 +197,17 @@ export class RecommendationWidget extends ExtensionWidget {
 	constructor(
 		private parent: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
-		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService
+		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService
 	) {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
-		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
+		this._register(this.extensionTipsService.onRecommendationChange(() => this.render()));
 	}
 
 	private clear(): void {
 		this.tooltip = '';
+		this.parent.setAttribute('aria-label', this.extension ? localize('viewExtensionDetailsAria', "{0}. Press enter for extension details.", this.extension.displayName) : '');
 		if (this.element) {
 			this.parent.removeChild(this.element);
 		}
@@ -220,19 +220,19 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
-			this.element = append(this.parent, $('div.extension-bookmark'));
+			this.element = append(this.parent, $('div.bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
-			append(recommendation, $('span' + ThemeIcon.asCSSSelector(ratingIcon)));
-			const applyBookmarkStyle = (theme: IColorTheme) => {
+			append(recommendation, $('span.codicon.codicon-star'));
+			const applyBookmarkStyle = (theme: ITheme) => {
 				const bgColor = theme.getColor(extensionButtonProminentBackground);
 				const fgColor = theme.getColor(extensionButtonProminentForeground);
 				recommendation.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
 				recommendation.style.color = fgColor ? fgColor.toString() : 'white';
 			};
-			applyBookmarkStyle(this.themeService.getColorTheme());
-			this.themeService.onDidColorThemeChange(applyBookmarkStyle, this, this.disposables);
+			applyBookmarkStyle(this.themeService.getTheme());
+			this.themeService.onThemeChange(applyBookmarkStyle, this, this.disposables);
 			this.tooltip = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
 		}
 	}
@@ -285,24 +285,24 @@ class RemoteBadge extends Disposable {
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super();
-		this.element = $('div.extension-badge.extension-remote-badge');
+		this.element = $('div.extension-remote-badge');
 		this.render();
 	}
 
 	private render(): void {
-		append(this.element, $('span' + ThemeIcon.asCSSSelector(remoteIcon)));
+		append(this.element, $('span.codicon.codicon-remote'));
 
 		const applyBadgeStyle = () => {
 			if (!this.element) {
 				return;
 			}
-			const bgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_BACKGROUND);
-			const fgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_FOREGROUND);
+			const bgColor = this.themeService.getTheme().getColor(EXTENSION_BADGE_REMOTE_BACKGROUND);
+			const fgColor = this.themeService.getTheme().getColor(EXTENSION_BADGE_REMOTE_FOREGROUND);
 			this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
 			this.element.style.color = fgColor ? fgColor.toString() : '';
 		};
 		applyBadgeStyle();
-		this._register(this.themeService.onDidColorThemeChange(() => applyBadgeStyle()));
+		this._register(this.themeService.onThemeChange(() => applyBadgeStyle()));
 
 		if (this.tooltip) {
 			const updateTitle = () => {
@@ -315,67 +315,3 @@ class RemoteBadge extends Disposable {
 		}
 	}
 }
-
-export class ExtensionPackCountWidget extends ExtensionWidget {
-
-	private element: HTMLElement | undefined;
-
-	constructor(
-		private readonly parent: HTMLElement,
-	) {
-		super();
-		this.render();
-		this._register(toDisposable(() => this.clear()));
-	}
-
-	private clear(): void {
-		if (this.element) {
-			this.element.remove();
-		}
-	}
-
-	render(): void {
-		this.clear();
-		if (!this.extension || !this.extension.extensionPack.length) {
-			return;
-		}
-		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
-		const countBadge = new CountBadge(this.element);
-		countBadge.setCount(this.extension.extensionPack.length);
-	}
-}
-
-export class SyncIgnoredWidget extends ExtensionWidget {
-
-	private element: HTMLElement;
-
-	constructor(
-		container: HTMLElement,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-	) {
-		super();
-		this.element = append(container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
-		this.element.title = localize('syncingore.label', "This extension is ignored during sync.");
-		this.element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
-		this.element.classList.add('hide');
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
-		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
-		this.render();
-	}
-
-	render(): void {
-		this.element.classList.toggle('hide', !(this.extension && this.extension.state === ExtensionState.Installed && this.userDataAutoSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)));
-	}
-}
-
-// Rating icon
-export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hc: '#FF8E00' }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
-
-registerThemingParticipant((theme, collector) => {
-	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
-	if (extensionRatingIcon) {
-		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
-	}
-});

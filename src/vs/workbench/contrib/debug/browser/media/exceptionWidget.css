@@ -15,15 +15,7 @@
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
-	display: flex;
-}
-
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .title .label {
 	font-weight: bold;
-}
-
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .title .actions {
-	flex: 1;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
@@ -35,7 +27,7 @@
 	margin-top: 0.5em;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace a {
+.monaco-editor .zone-widget .zone-widget-container.exception-widget a {
 	text-decoration: underline;
 	cursor: pointer;
 }

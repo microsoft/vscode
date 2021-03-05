@@ -37,33 +37,12 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
-		}
-
-		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignore: false }));
-		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
-
-		// Remove selections that would result in copying the same line
-		let prev = selections[0];
-		for (let i = 1; i < selections.length; i++) {
-			const curr = selections[i];
-			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
-				// these two selections would copy the same line
-				if (prev.index < curr.index) {
-					// prev wins
-					curr.ignore = true;
-				} else {
-					// curr wins
-					prev.ignore = true;
-					prev = curr;
-				}
-			}
-		}
 
 		const commands: ICommand[] = [];
+		const selections = editor.getSelections() || [];
+
 		for (const selection of selections) {
-			commands.push(new CopyLinesCommand(selection.selection, this.down, selection.ignore));
+			commands.push(new CopyLinesCommand(selection, this.down));
 		}
 
 		editor.pushUndoStop();
@@ -451,12 +430,12 @@ export class IndentLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const viewModel = editor._getViewModel();
-		if (!viewModel) {
+		const cursors = editor._getCursors();
+		if (!cursors) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.indent(cursors.context.config, editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
 	}
 }
@@ -497,12 +476,12 @@ export class InsertLineBeforeAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const viewModel = editor._getViewModel();
-		if (!viewModel) {
+		const cursors = editor._getCursors();
+		if (!cursors) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(cursors.context.config, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -522,12 +501,12 @@ export class InsertLineAfterAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const viewModel = editor._getViewModel();
-		if (!viewModel) {
+		const cursors = editor._getCursors();
+		if (!cursors) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(cursors.context.config, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -939,39 +918,43 @@ export class TransposeAction extends EditorAction {
 
 export abstract class AbstractCaseAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const selections = editor.getSelections();
+		let selections = editor.getSelections();
 		if (selections === null) {
 			return;
 		}
 
-		const model = editor.getModel();
+		let model = editor.getModel();
 		if (model === null) {
 			return;
 		}
 
-		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
-		const textEdits: IIdentifiedSingleEditOperation[] = [];
+		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
 
-		for (const selection of selections) {
+		let commands: ICommand[] = [];
+
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let selection = selections[i];
 			if (selection.isEmpty()) {
-				const cursor = selection.getStartPosition();
-				const word = editor.getConfiguredWordAtPosition(cursor);
+				let cursor = selection.getStartPosition();
+				let word = model.getWordAtPosition(cursor);
 
 				if (!word) {
 					continue;
 				}
 
-				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				const text = model.getValueInRange(wordRange);
-				textEdits.push(EditOperation.replace(wordRange, this._modifyText(text, wordSeparators)));
+				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				let text = model.getValueInRange(wordRange);
+				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
+					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
+
 			} else {
-				const text = model.getValueInRange(selection);
-				textEdits.push(EditOperation.replace(selection, this._modifyText(text, wordSeparators)));
+				let text = model.getValueInRange(selection);
+				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
 			}
 		}
 
 		editor.pushUndoStop();
-		editor.executeEdits(this.id, textEdits);
+		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
 	}
 
@@ -1045,25 +1028,6 @@ export class TitleCaseAction extends AbstractCaseAction {
 	}
 }
 
-export class SnakeCaseAction extends AbstractCaseAction {
-	constructor() {
-		super({
-			id: 'editor.action.transformToSnakecase',
-			label: nls.localize('editor.transformToSnakecase', "Transform to Snake Case"),
-			alias: 'Transform to Snake Case',
-			precondition: EditorContextKeys.writable
-		});
-	}
-
-	protected _modifyText(text: string, wordSeparators: string): string {
-		return (text
-			.replace(/(\p{Ll})(\p{Lu})/gmu, '$1_$2')
-			.replace(/([^\b_])(\p{Lu})(\p{Ll})/gmu, '$1_$2$3')
-			.toLocaleLowerCase()
-		);
-	}
-}
-
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(DuplicateSelectionAction);
@@ -1084,4 +1048,3 @@ registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
 registerEditorAction(TitleCaseAction);
-registerEditorAction(SnakeCaseAction);

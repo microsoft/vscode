@@ -6,26 +6,17 @@
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IResourceEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
+import { trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { domEvent } from 'vs/base/browser/event';
-import { memoize } from 'vs/base/common/decorators';
-import { parseLineAndColumnAware } from 'vs/base/common/extpath';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -48,58 +39,30 @@ export interface IWorkspaceProvider {
 	readonly payload?: object;
 
 	/**
-	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
-	 */
-	readonly trusted: boolean | undefined;
-
-	/**
 	 * Asks to open a workspace in the current or a new window.
 	 *
 	 * @param workspace the workspace to open.
 	 * @param options optional options for the workspace to open.
-	 * - `reuse`: whether to open inside the current window or a new window
+	 * - `reuse`: wether to open inside the current window or a new window
 	 * - `payload`: arbitrary payload that should be made available
 	 * to the opening window via the `IWorkspaceProvider.payload` property.
-	 * @param payload optional payload to send to the workspace to open.
 	 */
 	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void>;
 }
 
-enum HostShutdownReason {
-
-	/**
-	 * An unknown shutdown reason.
-	 */
-	Unknown = 1,
-
-	/**
-	 * A shutdown that was potentially triggered by keyboard use.
-	 */
-	Keyboard = 2,
-
-	/**
-	 * An explicit shutdown via code.
-	 */
-	Api = 3
-}
-
 export class BrowserHostService extends Disposable implements IHostService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private workspaceProvider: IWorkspaceProvider;
 
-	private shutdownReason = HostShutdownReason.Unknown;
-
 	constructor(
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -108,85 +71,31 @@ export class BrowserHostService extends Disposable implements IHostService {
 		} else {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
 				readonly workspace = undefined;
-				readonly trusted = undefined;
 				async open() { }
 			};
 		}
-
-		this.registerListeners();
 	}
 
-	private registerListeners(): void {
-
-		// Veto shutdown depending on `window.confirmBeforeClose` setting
-		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
-
-		// Track modifier keys to detect keybinding usage
-		this._register(ModifierKeyEmitter.getInstance().event(e => this.updateShutdownReasonFromEvent(e)));
-	}
-
-	private onBeforeShutdown(e: BeforeShutdownEvent): void {
-		switch (this.shutdownReason) {
-
-			// Unknown / Keyboard shows veto depending on setting
-			case HostShutdownReason.Unknown:
-			case HostShutdownReason.Keyboard:
-				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
-				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
-					e.veto(true, 'veto.confirmBeforeClose');
-				}
-				break;
-
-			// Api never shows veto
-			case HostShutdownReason.Api:
-				break;
-		}
-
-		// Unset for next shutdown
-		this.shutdownReason = HostShutdownReason.Unknown;
-	}
-
-	private updateShutdownReasonFromEvent(e: IModifierKeyStatus): void {
-		if (this.shutdownReason === HostShutdownReason.Api) {
-			return; // do not overwrite any explicitly set shutdown reason
-		}
-
-		if (ModifierKeyEmitter.getInstance().isModifierPressed) {
-			this.shutdownReason = HostShutdownReason.Keyboard;
-		} else {
-			this.shutdownReason = HostShutdownReason.Unknown;
-		}
-	}
-
-	//#region Focus
-
-	@memoize
+	private _onDidChangeFocus: Event<boolean> | undefined;
 	get onDidChangeFocus(): Event<boolean> {
-		const focusTracker = this._register(trackFocus(window));
+		if (!this._onDidChangeFocus) {
+			const focusTracker = this._register(trackFocus(window));
+			this._onDidChangeFocus = Event.any(
+				Event.map(focusTracker.onDidFocus, () => this.hasFocus),
+				Event.map(focusTracker.onDidBlur, () => this.hasFocus)
+			);
+		}
 
-		return Event.latch(Event.any(
-			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
-			Event.map(domEvent(window.document, 'visibilitychange'), () => this.hasFocus)
-		));
+		return this._onDidChangeFocus;
 	}
 
 	get hasFocus(): boolean {
 		return document.hasFocus();
 	}
 
-	async hadLastFocus(): Promise<boolean> {
-		return true;
-	}
-
 	async focus(): Promise<void> {
 		window.focus();
 	}
-
-	//#endregion
-
-
-	//#region Window
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -199,144 +108,26 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
-		const payload = this.preservePayload();
-		const fileOpenables: IFileToOpen[] = [];
-		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
-
-		for (const openable of toOpen) {
+		for (let i = 0; i < toOpen.length; i++) {
+			const openable = toOpen[i];
 			openable.label = openable.label || this.getRecentLabel(openable);
 
 			// Folder
 			if (isFolderToOpen(openable)) {
-				if (options?.addMode) {
-					foldersToAdd.push(({ uri: openable.folderUri }));
-				} else {
-					this.doOpen({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
-				}
+				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options) });
 			}
 
 			// Workspace
 			else if (isWorkspaceToOpen(openable)) {
-				this.doOpen({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options) });
 			}
 
-			// File (handled later in bulk)
+			// File: open via editor service in current window
 			else if (isFileToOpen(openable)) {
-				fileOpenables.push(openable);
+				const inputs: IResourceEditor[] = await pathsToEditors([openable], this.fileService);
+				this.editorService.openEditors(inputs);
 			}
 		}
-
-		// Handle Folders to Add
-		if (foldersToAdd.length > 0) {
-			this.instantiationService.invokeFunction(accessor => {
-				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);  // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
-				workspaceEditingService.addFolders(foldersToAdd);
-			});
-		}
-
-		// Handle Files
-		if (fileOpenables.length > 0) {
-			this.instantiationService.invokeFunction(async accessor => {
-				const editorService = accessor.get(IEditorService); // avoid heavy dependencies (https://github.com/microsoft/vscode/issues/108522)
-
-				// Support diffMode
-				if (options?.diffMode && fileOpenables.length === 2) {
-					const editors = await pathsToEditors(fileOpenables, this.fileService);
-					if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
-						return; // invalid resources
-					}
-
-					// Same Window: open via editor service in current window
-					if (this.shouldReuse(options, true /* file */)) {
-						editorService.openEditor({
-							leftResource: editors[0].resource,
-							rightResource: editors[1].resource,
-							options: { pinned: true }
-						});
-					}
-
-					// New Window: open into empty window
-					else {
-						const environment = new Map<string, string>();
-						environment.set('diffFileSecondary', editors[0].resource.toString());
-						environment.set('diffFilePrimary', editors[1].resource.toString());
-
-						this.doOpen(undefined, { payload: Array.from(environment.entries()) });
-					}
-				}
-
-				// Just open normally
-				else {
-					for (const openable of fileOpenables) {
-
-						// Same Window: open via editor service in current window
-						if (this.shouldReuse(options, true /* file */)) {
-							let openables: IPathData[] = [];
-
-							// Support: --goto parameter to open on line/col
-							if (options?.gotoLineMode) {
-								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
-								openables = [{
-									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-									lineNumber: pathColumnAware.line,
-									columnNumber: pathColumnAware.column
-								}];
-							} else {
-								openables = [openable];
-							}
-
-							editorService.openEditors(await pathsToEditors(openables, this.fileService));
-						}
-
-						// New Window: open into empty window
-						else {
-							const environment = new Map<string, string>();
-							environment.set('openFile', openable.fileUri.toString());
-
-							if (options?.gotoLineMode) {
-								environment.set('gotoLineMode', 'true');
-							}
-
-							this.doOpen(undefined, { payload: Array.from(environment.entries()) });
-						}
-					}
-				}
-
-				// Support wait mode
-				const waitMarkerFileURI = options?.waitMarkerFileURI;
-				if (waitMarkerFileURI) {
-					(async () => {
-
-						// Wait for the resources to be closed in the editor...
-						await editorService.whenClosed(fileOpenables.map(openable => ({ resource: openable.fileUri })), { waitForSaved: true });
-
-						// ...before deleting the wait marker file
-						await this.fileService.del(waitMarkerFileURI);
-					})();
-				}
-			});
-		}
-	}
-
-	private preservePayload(): Array<unknown> | undefined {
-
-		// Selectively copy payload: for now only extension debugging properties are considered
-		let newPayload: Array<unknown> | undefined = undefined;
-		if (this.environmentService.extensionDevelopmentLocationURI) {
-			newPayload = new Array();
-
-			newPayload.push(['extensionDevelopmentPath', this.environmentService.extensionDevelopmentLocationURI.toString()]);
-
-			if (this.environmentService.debugExtensionHost.debugId) {
-				newPayload.push(['debugId', this.environmentService.debugExtensionHost.debugId]);
-			}
-
-			if (this.environmentService.debugExtensionHost.port) {
-				newPayload.push(['inspect-brk-extensions', String(this.environmentService.debugExtensionHost.port)]);
-			}
-		}
-
-		return newPayload;
 	}
 
 	private getRecentLabel(openable: IWindowOpenable): string {
@@ -345,45 +136,30 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		if (isWorkspaceToOpen(openable)) {
-			return this.labelService.getWorkspaceLabel(getWorkspaceIdentifier(openable.workspaceUri), { verbose: true });
+			return this.labelService.getWorkspaceLabel({ id: '', configPath: openable.workspaceUri }, { verbose: true });
 		}
 
 		return this.labelService.getUriLabel(openable.fileUri);
 	}
 
-	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
-		if (options.waitMarkerFileURI) {
-			return true; // always handle --wait in same window
+	private shouldReuse(options: IOpenWindowOptions = {}): boolean {
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+		const openFolderInNewWindowConfig = windowConfig?.openFoldersInNewWindow || 'default' /* default */;
+
+		let openFolderInNewWindow = (options.preferNewWindow || !!options.forceNewWindow) && !options.forceReuseWindow;
+		if (!options.forceNewWindow && !options.forceReuseWindow && (openFolderInNewWindowConfig === 'on' || openFolderInNewWindowConfig === 'off')) {
+			openFolderInNewWindow = (openFolderInNewWindowConfig === 'on');
 		}
 
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		const openInNewWindowConfig = isFile ? (windowConfig?.openFilesInNewWindow || 'off' /* default */) : (windowConfig?.openFoldersInNewWindow || 'default' /* default */);
-
-		let openInNewWindow = (options.preferNewWindow || !!options.forceNewWindow) && !options.forceReuseWindow;
-		if (!options.forceNewWindow && !options.forceReuseWindow && (openInNewWindowConfig === 'on' || openInNewWindowConfig === 'off')) {
-			openInNewWindow = (openInNewWindowConfig === 'on');
-		}
-
-		return !openInNewWindow;
+		return !openFolderInNewWindow;
 	}
 
 	private async doOpenEmptyWindow(options?: IOpenEmptyWindowOptions): Promise<void> {
-		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
-	}
-
-	private doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
-
-		// We know that `workspaceProvider.open` will trigger a shutdown
-		// with `options.reuse` so we update `shutdownReason` to reflect that
-		if (options?.reuse) {
-			this.shutdownReason = HostShutdownReason.Api;
-		}
-
-		return this.workspaceProvider.open(workspace, options);
+		this.workspaceProvider.open(undefined, { reuse: options?.forceReuseWindow });
 	}
 
 	async toggleFullScreen(): Promise<void> {
-		const target = this.layoutService.container;
+		const target = this.layoutService.getWorkbenchElement();
 
 		// Chromium
 		if (document.fullscreen !== undefined) {
@@ -391,13 +167,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 				try {
 					return await target.requestFullscreen();
 				} catch (error) {
-					this.logService.warn('toggleFullScreen(): requestFullscreen failed'); // https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
+					console.warn('Toggle Full Screen failed'); // https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 				}
 			} else {
 				try {
 					return await document.exitFullscreen();
 				} catch (error) {
-					this.logService.warn('toggleFullScreen(): exitFullscreen failed');
+					console.warn('Exit Full Screen failed');
 				}
 			}
 		}
@@ -411,40 +187,18 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 				}
 			} catch {
-				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
+				console.warn('Enter/Exit Full Screen failed');
 			}
 		}
 	}
-
-	//#endregion
-
-	//#region Lifecycle
 
 	async restart(): Promise<void> {
 		this.reload();
 	}
 
 	async reload(): Promise<void> {
-		this.withExpectedShutdown(() => {
-			window.location.reload();
-		});
+		window.location.reload();
 	}
-
-	async close(): Promise<void> {
-		this.withExpectedShutdown(() => {
-			window.close();
-		});
-	}
-
-	private withExpectedShutdown(callback: () => void): void {
-
-		// Update shutdown reason in a way that we do not show a dialog
-		this.shutdownReason = HostShutdownReason.Api;
-
-		callback();
-	}
-
-	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, true);

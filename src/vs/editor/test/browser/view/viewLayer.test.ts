@@ -36,7 +36,7 @@ function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollec
 		actualState.lines.push(col.getLine(lineNumber).id);
 		actualState.pinged.push(col.getLine(lineNumber)._pinged);
 	}
-	assert.deepStrictEqual(actualState, state);
+	assert.deepEqual(actualState, state);
 }
 
 suite('RenderedLinesCollection onLinesDeleted', () => {
@@ -54,7 +54,7 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}
-		assert.deepStrictEqual(actualDeleted, expectedDeleted);
+		assert.deepEqual(actualDeleted, expectedDeleted);
 		assertState(col, expectedState);
 	}
 
@@ -325,7 +325,7 @@ suite('RenderedLinesCollection onLineChanged', () => {
 			new TestLine('old9')
 		]);
 		let actualPinged = col.onLinesChanged(changedLineNumber, changedLineNumber);
-		assert.deepStrictEqual(actualPinged, expectedPinged);
+		assert.deepEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}
 
@@ -410,7 +410,7 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 		if (actualDeleted1) {
 			actualDeleted = actualDeleted1.map(line => line.id);
 		}
-		assert.deepStrictEqual(actualDeleted, expectedDeleted);
+		assert.deepEqual(actualDeleted, expectedDeleted);
 		assertState(col, expectedState);
 	}
 
@@ -682,7 +682,7 @@ suite('RenderedLinesCollection onTokensChanged', () => {
 			new TestLine('old9')
 		]);
 		let actualPinged = col.onTokensChanged([{ fromLineNumber: changedFromLineNumber, toLineNumber: changedToLineNumber }]);
-		assert.deepStrictEqual(actualPinged, expectedPinged);
+		assert.deepEqual(actualPinged, expectedPinged);
 		assertState(col, expectedState);
 	}
 

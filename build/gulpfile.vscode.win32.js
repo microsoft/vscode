@@ -54,13 +54,7 @@ function packageInnoSetup(iss, options, cb) {
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
 		.on('error', cb)
-		.on('exit', code => {
-			if (code === 0) {
-				cb(null);
-			} else {
-				cb(new Error(`InnoSetup returned exit code: ${code}`));
-			}
-		});
+		.on('exit', () => cb(null));
 }
 
 function buildWin32Setup(arch, target) {
@@ -71,7 +65,6 @@ function buildWin32Setup(arch, target) {
 	return cb => {
 		const ia32AppId = target === 'system' ? product.win32AppId : product.win32UserAppId;
 		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
-		const arm64AppId = target === 'system' ? product.win32arm64AppId : product.win32arm64UserAppId;
 
 		const sourcePath = buildPath(arch);
 		const outputPath = setupDir(arch, target);
@@ -95,12 +88,12 @@ function buildWin32Setup(arch, target) {
 			ShellNameShort: product.win32ShellNameShort,
 			AppMutex: product.win32MutexName,
 			Arch: arch,
-			AppId: { 'ia32': ia32AppId, 'x64': x64AppId, 'arm64': arm64AppId }[arch],
-			IncompatibleTargetAppId: { 'ia32': product.win32AppId, 'x64': product.win32x64AppId, 'arm64': product.win32arm64AppId }[arch],
-			IncompatibleArchAppId: { 'ia32': x64AppId, 'x64': ia32AppId, 'arm64': ia32AppId }[arch],
+			AppId: arch === 'ia32' ? ia32AppId : x64AppId,
+			IncompatibleTargetAppId: arch === 'ia32' ? product.win32AppId : product.win32x64AppId,
+			IncompatibleArchAppId: arch === 'ia32' ? x64AppId : ia32AppId,
 			AppUserId: product.win32AppUserModelId,
-			ArchitecturesAllowed: { 'ia32': '', 'x64': 'x64', 'arm64': 'arm64' }[arch],
-			ArchitecturesInstallIn64BitMode: { 'ia32': '', 'x64': 'x64', 'arm64': 'arm64' }[arch],
+			ArchitecturesAllowed: arch === 'ia32' ? '' : 'x64',
+			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
 			SourceDir: sourcePath,
 			RepoDir: repoPath,
 			OutputDir: outputPath,
@@ -119,10 +112,8 @@ function defineWin32SetupTasks(arch, target) {
 
 defineWin32SetupTasks('ia32', 'system');
 defineWin32SetupTasks('x64', 'system');
-defineWin32SetupTasks('arm64', 'system');
 defineWin32SetupTasks('ia32', 'user');
 defineWin32SetupTasks('x64', 'user');
-defineWin32SetupTasks('arm64', 'user');
 
 function archiveWin32Setup(arch) {
 	return cb => {
@@ -136,7 +127,6 @@ function archiveWin32Setup(arch) {
 
 gulp.task(task.define('vscode-win32-ia32-archive', task.series(util.rimraf(zipDir('ia32')), archiveWin32Setup('ia32'))));
 gulp.task(task.define('vscode-win32-x64-archive', task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64'))));
-gulp.task(task.define('vscode-win32-arm64-archive', task.series(util.rimraf(zipDir('arm64')), archiveWin32Setup('arm64'))));
 
 function copyInnoUpdater(arch) {
 	return () => {
@@ -154,10 +144,8 @@ function updateIcon(executablePath) {
 
 gulp.task(task.define('vscode-win32-ia32-inno-updater', task.series(copyInnoUpdater('ia32'), updateIcon(path.join(buildPath('ia32'), 'tools', 'inno_updater.exe')))));
 gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
-gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
 
 // CodeHelper.exe icon
 
 gulp.task(task.define('vscode-win32-ia32-code-helper', task.series(updateIcon(path.join(buildPath('ia32'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));
 gulp.task(task.define('vscode-win32-x64-code-helper', task.series(updateIcon(path.join(buildPath('x64'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));
-gulp.task(task.define('vscode-win32-arm64-code-helper', task.series(updateIcon(path.join(buildPath('arm64'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));

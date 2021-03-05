@@ -18,7 +18,7 @@ export const javascriptOnEnterRules = [
 	}, {
 		// e.g.  * ...|
 		beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
-		previousLineText: /(?=^(\s*(\/\*\*|\*)).*)(?=(?!(\s*\*\/)))/,
+		oneLineAboveText: /^(\s*(\/\*\*|\*)).*/,
 		action: { indentAction: IndentAction.None, appendText: '* ' }
 	}, {
 		// e.g.  */|

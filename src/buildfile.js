@@ -10,13 +10,12 @@ function entrypoint(name) {
 exports.base = [{
 	name: 'vs/base/common/worker/simpleWorker',
 	include: ['vs/editor/common/services/editorSimpleWorker'],
-	prepend: ['vs/loader.js', 'vs/nls.js'],
+	prepend: ['vs/loader.js'],
 	append: ['vs/base/worker/workerMain'],
 	dest: 'vs/base/worker/workerMain.js'
 }];
 
 exports.workerExtensionHost = [entrypoint('vs/workbench/services/extensions/worker/extensionHostWorker')];
-exports.workerNotebook = [entrypoint('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
 
 exports.workbenchDesktop = require('./vs/workbench/buildfile.desktop').collectModules();
 exports.workbenchWeb = require('./vs/workbench/buildfile.web').collectModules();

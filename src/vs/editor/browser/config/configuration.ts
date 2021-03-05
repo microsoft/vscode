@@ -11,11 +11,10 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from 'vs/editor/common/config/fontInfo';
+import { EditorOption, IEditorConstructionOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 class CSSBasedConfigurationCache {
 
@@ -76,13 +75,11 @@ export function serializeFontInfo(): ISerializedFontInfo[] | null {
 }
 
 export interface ISerializedFontInfo {
-	readonly version: number;
 	readonly zoomLevel: number;
-	readonly pixelRatio: number;
 	readonly fontFamily: string;
 	readonly fontWeight: string;
 	readonly fontSize: number;
-	readonly fontFeatureSettings: string;
+	fontFeatureSettings: string;
 	readonly lineHeight: number;
 	readonly letterSpacing: number;
 	readonly isMonospace: boolean;
@@ -90,8 +87,6 @@ export interface ISerializedFontInfo {
 	readonly typicalFullwidthCharacterWidth: number;
 	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
-	readonly middotWidth: number;
-	readonly wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
 }
 
@@ -140,7 +135,8 @@ class CSSBasedConfiguration extends Disposable {
 	private _evictUntrustedReadings(): void {
 		const values = this._cache.getValues();
 		let somethingRemoved = false;
-		for (const item of values) {
+		for (let i = 0, len = values.length; i < len; i++) {
+			const item = values[i];
 			if (!item.isTrusted) {
 				somethingRemoved = true;
 				this._cache.remove(item);
@@ -159,11 +155,10 @@ class CSSBasedConfiguration extends Disposable {
 	public restoreFontInfo(savedFontInfos: ISerializedFontInfo[]): void {
 		// Take all the saved font info and insert them in the cache without the trusted flag.
 		// The reason for this is that a font might have been installed on the OS in the meantime.
-		for (const savedFontInfo of savedFontInfos) {
-			if (savedFontInfo.version !== SERIALIZED_FONT_INFO_VERSION) {
-				// cannot use older version
-				continue;
-			}
+		for (let i = 0, len = savedFontInfos.length; i < len; i++) {
+			const savedFontInfo = savedFontInfos[i];
+			// compatibility with older versions of VS Code which did not store this...
+			savedFontInfo.fontFeatureSettings = savedFontInfo.fontFeatureSettings || EditorFontLigatures.OFF;
 			const fontInfo = new FontInfo(savedFontInfo, false);
 			this._writeToCache(fontInfo, fontInfo);
 		}
@@ -177,7 +172,6 @@ class CSSBasedConfiguration extends Disposable {
 				// Hey, it's Bug 14341 ... we couldn't read
 				readConfig = new FontInfo({
 					zoomLevel: browser.getZoomLevel(),
-					pixelRatio: browser.getPixelRatio(),
 					fontFamily: readConfig.fontFamily,
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
@@ -189,8 +183,6 @@ class CSSBasedConfiguration extends Disposable {
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
 					canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
-					middotWidth: Math.max(readConfig.middotWidth, 5),
-					wsmiddotWidth: Math.max(readConfig.wsmiddotWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
 				}, false);
 			}
@@ -231,11 +223,7 @@ class CSSBasedConfiguration extends Disposable {
 		const rightwardsArrow = this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
 		const halfwidthRightwardsArrow = this.createRequest('￫', CharWidthRequestType.Regular, all, null);
 
-		// U+00B7 - MIDDLE DOT
-		const middot = this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
-
-		// U+2E31 - WORD SEPARATOR MIDDLE DOT
-		const wsmiddotWidth = this.createRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular, all, null);
+		this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
 
 		// monospace test: some characters
 		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
@@ -290,7 +278,6 @@ class CSSBasedConfiguration extends Disposable {
 		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
 		return new FontInfo({
 			zoomLevel: browser.getZoomLevel(),
-			pixelRatio: browser.getPixelRatio(),
 			fontFamily: bareFontInfo.fontFamily,
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
@@ -302,8 +289,6 @@ class CSSBasedConfiguration extends Disposable {
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
 			canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
 			spaceWidth: space.width,
-			middotWidth: middot.width,
-			wsmiddotWidth: wsmiddotWidth.width,
 			maxDigitWidth: maxDigitWidth
 		}, canTrustBrowserZoomLevel);
 	}
@@ -333,23 +318,31 @@ export class Configuration extends CommonEditorConfiguration {
 
 	constructor(
 		isSimpleWidget: boolean,
-		options: Readonly<IEditorConstructionOptions>,
+		options: IEditorConstructionOptions,
 		referenceDomElement: HTMLElement | null = null,
 		private readonly accessibilityService: IAccessibilityService
 	) {
 		super(isSimpleWidget, options);
 
-		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._recomputeOptions()));
+		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, options.dimension, () => this._onReferenceDomElementSizeChanged()));
 
-		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._recomputeOptions()));
+		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
 		if (this._validatedOptions.get(EditorOption.automaticLayout)) {
 			this._elementSizeObserver.startObserving();
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
+		this._register(this.accessibilityService.onDidChangeAccessibilitySupport(() => this._recomputeOptions()));
 
+		this._recomputeOptions();
+	}
+
+	private _onReferenceDomElementSizeChanged(): void {
+		this._recomputeOptions();
+	}
+
+	private _onCSSBasedConfigurationChanged(): void {
 		this._recomputeOptions();
 	}
 
@@ -357,19 +350,15 @@ export class Configuration extends CommonEditorConfiguration {
 		this._elementSizeObserver.observe(dimension);
 	}
 
-	public updatePixelRatio(): void {
-		this._recomputeOptions();
+	public dispose(): void {
+		super.dispose();
 	}
 
-	private static _getExtraEditorClassName(): string {
+	private _getExtraEditorClassName(): string {
 		let extra = '';
 		if (!browser.isSafari && !browser.isWebkitWebView) {
 			// Use user-select: none in all browsers except Safari and native macOS WebView
 			extra += 'no-user-select ';
-		}
-		if (browser.isSafari) {
-			// See https://github.com/microsoft/vscode/issues/108822
-			extra += 'no-minimap-shadow ';
 		}
 		if (platform.isMacintosh) {
 			extra += 'mac ';
@@ -379,17 +368,13 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected _getEnvConfiguration(): IEnvConfiguration {
 		return {
-			extraEditorClassName: Configuration._getExtraEditorClassName(),
+			extraEditorClassName: this._getExtraEditorClassName(),
 			outerWidth: this._elementSizeObserver.getWidth(),
 			outerHeight: this._elementSizeObserver.getHeight(),
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: (
-				this.accessibilityService.isScreenReaderOptimized()
-					? AccessibilitySupport.Enabled
-					: this.accessibilityService.getAccessibilitySupport()
-			)
+			accessibilitySupport: this.accessibilityService.getAccessibilitySupport()
 		};
 	}
 

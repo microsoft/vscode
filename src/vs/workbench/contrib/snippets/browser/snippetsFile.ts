@@ -15,9 +15,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IdleValue } from 'vs/base/common/async';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { relativePath } from 'vs/base/common/resources';
-import { isObject } from 'vs/base/common/types';
-import { Iterable } from 'vs/base/common/iterator';
 
 class SnippetBodyInsights {
 
@@ -89,22 +86,22 @@ export class Snippet {
 		readonly body: string,
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
-		readonly snippetIdentifier?: string
 	) {
-		this.prefixLow = prefix.toLowerCase();
+		//
+		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
 		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
 	}
 
 	get codeSnippet(): string {
-		return this._bodyInsights.value.codeSnippet;
+		return this._bodyInsights.getValue().codeSnippet;
 	}
 
 	get isBogous(): boolean {
-		return this._bodyInsights.value.isBogous;
+		return this._bodyInsights.getValue().isBogous;
 	}
 
 	get needsClipboard(): boolean {
-		return this._bodyInsights.value.needsClipboard;
+		return this._bodyInsights.getValue().needsClipboard;
 	}
 
 	static compare(a: Snippet, b: Snippet): number {
@@ -124,14 +121,14 @@ export class Snippet {
 
 
 interface JsonSerializedSnippet {
-	body: string | string[];
+	body: string;
 	scope: string;
-	prefix: string | string[] | undefined;
+	prefix: string | string[];
 	description: string;
 }
 
 function isJsonSerializedSnippet(thing: any): thing is JsonSerializedSnippet {
-	return isObject(thing) && Boolean((<JsonSerializedSnippet>thing).body);
+	return Boolean((<JsonSerializedSnippet>thing).body) && Boolean((<JsonSerializedSnippet>thing).prefix);
 }
 
 interface JsonSerializedSnippets {
@@ -245,19 +242,16 @@ export class SnippetFile {
 
 		let { prefix, body, description } = snippet;
 
-		if (!prefix) {
-			prefix = '';
-		}
-
 		if (Array.isArray(body)) {
 			body = body.join('\n');
-		}
-		if (typeof body !== 'string') {
-			return;
 		}
 
 		if (Array.isArray(description)) {
 			description = description.join('\n');
+		}
+
+		if ((typeof prefix !== 'string' && !Array.isArray(prefix)) || typeof body !== 'string') {
+			return;
 		}
 
 		let scopes: string[];
@@ -286,17 +280,17 @@ export class SnippetFile {
 			}
 		}
 
-		for (const _prefix of Array.isArray(prefix) ? prefix : Iterable.single(prefix)) {
+		let prefixes = Array.isArray(prefix) ? prefix : [prefix];
+		prefixes.forEach(p => {
 			bucket.push(new Snippet(
 				scopes,
 				name,
-				_prefix,
+				p,
 				description,
 				body,
 				source,
-				this.source,
-				this._extension && `${relativePath(this._extension.extensionLocation, this.location)}/${name}`
+				this.source
 			));
-		}
+		});
 	}
 }

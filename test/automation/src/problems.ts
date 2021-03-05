@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
-import { QuickAccess } from './quickaccess';
 
 export const enum ProblemSeverity {
 	WARNING = 0,
@@ -13,18 +12,26 @@ export const enum ProblemSeverity {
 
 export class Problems {
 
-	static PROBLEMS_VIEW_SELECTOR = '.panel .markers-panel';
+	static PROBLEMS_VIEW_SELECTOR = '.panel.markers-panel';
 
-	constructor(private code: Code, private quickAccess: QuickAccess) { }
+	constructor(private code: Code) { }
 
 	public async showProblemsView(): Promise<any> {
-		await this.quickAccess.runCommand('workbench.panel.markers.view.focus');
+		await this.toggleProblemsView();
 		await this.waitForProblemsView();
 	}
 
 	public async hideProblemsView(): Promise<any> {
-		await this.quickAccess.runCommand('workbench.actions.view.problems');
+		await this.toggleProblemsView();
 		await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
+	}
+
+	private async toggleProblemsView(): Promise<void> {
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+shift+m');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+shift+m');
+		}
 	}
 
 	public async waitForProblemsView(): Promise<void> {

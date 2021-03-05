@@ -10,22 +10,16 @@ import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElem
 import { getSettings, getData } from './settings';
 import throttle = require('lodash.throttle');
 
-declare let acquireVsCodeApi: any;
+declare var acquireVsCodeApi: any;
 
-let scrollDisabledCount = 0;
+let scrollDisabled = true;
 const marker = new ActiveLineMarker();
 const settings = getSettings();
 
 const vscode = acquireVsCodeApi();
 
-const originalState = vscode.getState();
-
-const state = {
-	...(typeof originalState === 'object' ? originalState : {}),
-	...getData<any>('data-state')
-};
-
-// Make sure to sync VS Code state here
+// Set VS Code state
+let state = getData<{ line: number; fragment: string; }>('data-state');
 vscode.setState(state);
 
 const messaging = createPosterForVsCode(vscode);
@@ -37,69 +31,36 @@ window.onload = () => {
 	updateImageSizes();
 };
 
-
-function doAfterImagesLoaded(cb: () => void) {
-	const imgElements = document.getElementsByTagName('img');
-	if (imgElements.length > 0) {
-		const ps = Array.from(imgElements).map(e => {
-			if (e.complete) {
-				return Promise.resolve();
-			} else {
-				return new Promise<void>((resolve) => {
-					e.addEventListener('load', () => resolve());
-					e.addEventListener('error', () => resolve());
-				});
-			}
-		});
-		Promise.all(ps).then(() => setImmediate(cb));
-	} else {
-		setImmediate(cb);
-	}
-}
-
 onceDocumentLoaded(() => {
-	const scrollProgress = state.scrollProgress;
-
-	if (typeof scrollProgress === 'number' && !settings.fragment) {
-		doAfterImagesLoaded(() => {
-			scrollDisabledCount += 1;
-			window.scrollTo(0, scrollProgress * document.body.clientHeight);
-		});
-		return;
-	}
-
 	if (settings.scrollPreviewWithEditor) {
-		doAfterImagesLoaded(() => {
+		setTimeout(() => {
 			// Try to scroll to fragment if available
-			if (settings.fragment) {
-				state.fragment = undefined;
-				vscode.setState(state);
-
-				const element = getLineElementForFragment(settings.fragment);
+			if (state.fragment) {
+				const element = getLineElementForFragment(state.fragment);
 				if (element) {
-					scrollDisabledCount += 1;
+					scrollDisabled = true;
 					scrollToRevealSourceLine(element.line);
 				}
 			} else {
-				if (!isNaN(settings.line!)) {
-					scrollDisabledCount += 1;
-					scrollToRevealSourceLine(settings.line!);
+				const initialLine = +settings.line;
+				if (!isNaN(initialLine)) {
+					scrollDisabled = true;
+					scrollToRevealSourceLine(initialLine);
 				}
 			}
-		});
+		}, 0);
 	}
 });
 
 const onUpdateView = (() => {
 	const doScroll = throttle((line: number) => {
-		scrollDisabledCount += 1;
-		doAfterImagesLoaded(() => scrollToRevealSourceLine(line));
+		scrollDisabled = true;
+		scrollToRevealSourceLine(line);
 	}, 50);
 
-	return (line: number) => {
+	return (line: number, settings: any) => {
 		if (!isNaN(line)) {
-			state.line = line;
-
+			settings.line = line;
 			doScroll(line);
 		}
 	};
@@ -129,8 +90,7 @@ let updateImageSizes = throttle(() => {
 }, 50);
 
 window.addEventListener('resize', () => {
-	scrollDisabledCount += 1;
-	updateScrollProgress();
+	scrollDisabled = true;
 	updateImageSizes();
 }, true);
 
@@ -145,7 +105,7 @@ window.addEventListener('message', event => {
 			break;
 
 		case 'updateView':
-			onUpdateView(event.data.line);
+			onUpdateView(event.data.line, settings);
 			break;
 	}
 }, false);
@@ -183,14 +143,12 @@ document.addEventListener('click', event => {
 				return;
 			}
 
-			let hrefText = node.getAttribute('data-href');
-			if (!hrefText) {
-				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
-					return;
-				}
-				hrefText = node.getAttribute('href');
+			// Pass through known schemes
+			if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
+				return;
 			}
+
+			const hrefText = node.getAttribute('data-href') || node.getAttribute('href');
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
 			if (!/^[a-z\-]+:/i.test(hrefText)) {
@@ -207,20 +165,15 @@ document.addEventListener('click', event => {
 }, true);
 
 window.addEventListener('scroll', throttle(() => {
-	updateScrollProgress();
-
-	if (scrollDisabledCount > 0) {
-		scrollDisabledCount -= 1;
+	if (scrollDisabled) {
+		scrollDisabled = false;
 	} else {
 		const line = getEditorLineNumberForPageOffset(window.scrollY);
 		if (typeof line === 'number' && !isNaN(line)) {
 			messaging.postMessage('revealLine', { line });
+			state.line = line;
+			vscode.setState(state);
 		}
 	}
 }, 50));
-
-function updateScrollProgress() {
-	state.scrollProgress = window.scrollY / document.body.clientHeight;
-	vscode.setState(state);
-}
 

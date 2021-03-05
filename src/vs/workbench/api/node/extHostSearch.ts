@@ -11,7 +11,7 @@ import { IFileQuery, IRawFileQuery, ISearchCompleteStats, isSerializedFileMatch,
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -35,15 +35,13 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	) {
 		super(extHostRpc, _uriTransformer, _logService);
 
-		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this.registerTextSearchProvider(Schemas.userData, new RipgrepSearchProvider(outputChannel));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
 		}
 	}
 
 	private _registerEHSearchProviders(): void {
-		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
+		const outputChannel = new OutputChannel(this._logService);
 		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
 		this.registerInternalFileSearchProvider(Schemas.file, new SearchService());
 	}
@@ -103,3 +101,4 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		return new NativeTextSearchManager(query, provider);
 	}
 }
+

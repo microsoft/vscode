@@ -15,6 +15,7 @@ import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/n
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { withUndefinedAsNull } from 'vs/base/common/types';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -153,14 +154,9 @@ export class LanguagesRegistry extends Disposable {
 		}
 
 		if (Array.isArray(lang.extensions)) {
-			if (lang.configuration) {
-				// insert first as this appears to be the 'primary' language definition
-				resolvedLanguage.extensions = lang.extensions.concat(resolvedLanguage.extensions);
-			} else {
-				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
-			}
 			for (let extension of lang.extensions) {
 				mime.registerTextMime({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
+				resolvedLanguage.extensions.push(extension);
 			}
 		}
 
@@ -272,7 +268,7 @@ export class LanguagesRegistry extends Disposable {
 			return null;
 		}
 		const language = this._languages[modeId];
-		return (language.mimetypes[0] || null);
+		return withUndefinedAsNull(language.mimetypes[0]);
 	}
 
 	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {

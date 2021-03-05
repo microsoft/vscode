@@ -9,6 +9,7 @@ import * as streams from 'vs/base/common/stream';
 import { createGunzip } from 'zlib';
 import { parse as parseUrl } from 'url';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { assign } from 'vs/base/common/objects';
 import { isBoolean, isNumber } from 'vs/base/common/types';
 import { canceled } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -35,7 +36,7 @@ export interface NodeRequestOptions extends IRequestOptions {
  */
 export class RequestService extends Disposable implements IRequestService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	private proxyUrl?: string;
 	private strictSSL: boolean | undefined;
@@ -66,10 +67,7 @@ export class RequestService extends Disposable implements IRequestService {
 		options.strictSSL = strictSSL;
 
 		if (this.authorization) {
-			options.headers = {
-				...(options.headers || {}),
-				'Proxy-Authorization': this.authorization
-			};
+			options.headers = assign(options.headers || {}, { 'Proxy-Authorization': this.authorization });
 		}
 
 		return this._request(options, token);
@@ -109,13 +107,12 @@ export class RequestService extends Disposable implements IRequestService {
 			req = rawRequest(opts, (res: http.IncomingMessage) => {
 				const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
 				if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
-					this._request({
-						...options,
+					this._request(assign({}, options, {
 						url: res.headers['location'],
 						followRedirects: followRedirects - 1
-					}, token).then(c, e);
+					}), token).then(c, e);
 				} else {
-					let stream: streams.ReadableStreamEvents<Uint8Array> = res;
+					let stream: streams.ReadableStream<Uint8Array> = res;
 
 					if (res.headers['content-encoding'] === 'gzip') {
 						stream = res.pipe(createGunzip());

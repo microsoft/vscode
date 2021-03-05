@@ -6,8 +6,9 @@
 import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
+gracefulFs.gracefulify(fs);
+import * as extpath from 'vs/base/common/extpath';
 import * as glob from 'vs/base/common/glob';
-import { isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -17,94 +18,101 @@ import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/
 import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
-import { Disposable } from 'vs/base/common/lifecycle';
-
-gracefulFs.gracefulify(fs); // enable gracefulFs
 
 process.noAsar = true; // disable ASAR support in watcher process
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
-	stop(): Promise<void>;
+	stop(): any;
 }
 
 interface ExtendedWatcherRequest extends IWatcherRequest {
 	parsedPattern?: glob.ParsedPattern;
 }
 
-export class ChokidarWatcherService extends Disposable implements IWatcherService {
+export class ChokidarWatcherService implements IWatcherService {
 
 	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
-
-	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage: Event<ILogMessage> = this._onDidLogMessage.event;
-
-	private watchers = new Map<string, IWatcher>();
-
+	private _watchers: { [watchPath: string]: IWatcher } = Object.create(null);
 	private _watcherCount = 0;
-	get wacherCount() { return this._watcherCount; }
 
-	private pollingInterval?: number;
-	private usePolling?: boolean | string[];
-	private verboseLogging: boolean | undefined;
+	private _pollingInterval?: number;
+	private _usePolling?: boolean;
+	private _verboseLogging: boolean | undefined;
 
 	private spamCheckStartTime: number | undefined;
 	private spamWarningLogged: boolean | undefined;
 	private enospcErrorLogged: boolean | undefined;
 
-	async init(options: IWatcherOptions): Promise<void> {
-		this.pollingInterval = options.pollingInterval;
-		this.usePolling = options.usePolling;
-		this.watchers.clear();
+	private readonly _onWatchEvent = new Emitter<IDiskFileChange[]>();
+	readonly onWatchEvent = this._onWatchEvent.event;
+
+	private readonly _onLogMessage = new Emitter<ILogMessage>();
+	readonly onLogMessage: Event<ILogMessage> = this._onLogMessage.event;
+
+	watch(options: IWatcherOptions): Event<IDiskFileChange[]> {
+		this._pollingInterval = options.pollingInterval;
+		this._usePolling = options.usePolling;
+		this._watchers = Object.create(null);
 		this._watcherCount = 0;
-		this.verboseLogging = options.verboseLogging;
+
+		return this.onWatchEvent;
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
+	setVerboseLogging(enabled: boolean): Promise<void> {
+		this._verboseLogging = enabled;
+
+		return Promise.resolve();
 	}
 
-	async setRoots(requests: IWatcherRequest[]): Promise<void> {
-		const watchers = new Map<string, IWatcher>();
+	setRoots(requests: IWatcherRequest[]): Promise<void> {
+		const watchers = Object.create(null);
 		const newRequests: string[] = [];
 
 		const requestsByBasePath = normalizeRoots(requests);
 
 		// evaluate new & remaining watchers
 		for (const basePath in requestsByBasePath) {
-			const watcher = this.watchers.get(basePath);
+			const watcher = this._watchers[basePath];
 			if (watcher && isEqualRequests(watcher.requests, requestsByBasePath[basePath])) {
-				watchers.set(basePath, watcher);
-				this.watchers.delete(basePath);
+				watchers[basePath] = watcher;
+				delete this._watchers[basePath];
 			} else {
 				newRequests.push(basePath);
 			}
 		}
 
 		// stop all old watchers
-		for (const [, watcher] of this.watchers) {
-			await watcher.stop();
+		for (const path in this._watchers) {
+			this._watchers[path].stop();
 		}
 
 		// start all new watchers
 		for (const basePath of newRequests) {
 			const requests = requestsByBasePath[basePath];
-			watchers.set(basePath, this.watch(basePath, requests));
+			watchers[basePath] = this._watch(basePath, requests);
 		}
 
-		this.watchers = watchers;
+		this._watchers = watchers;
+		return Promise.resolve();
 	}
 
-	private watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
-		const pollingInterval = this.pollingInterval || 5000;
-		let usePolling = this.usePolling; // boolean or a list of path patterns
-		if (Array.isArray(usePolling)) {
-			// switch to polling if one of the paths matches with a watched path
-			usePolling = usePolling.some(pattern => requests.some(r => glob.match(pattern, r.path)));
+	// for test purposes
+	get wacherCount() {
+		return this._watcherCount;
+	}
+
+	private _watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
+		if (this._verboseLogging) {
+			this.log(`Start watching: ${basePath}]`);
+		}
+
+		const pollingInterval = this._pollingInterval || 5000;
+		const usePolling = this._usePolling;
+		if (usePolling && this._verboseLogging) {
+			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
 		}
 
 		const watcherOpts: chokidar.WatchOptions = {
@@ -114,14 +122,15 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			interval: pollingInterval, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
 			binaryInterval: pollingInterval,
 			usePolling: usePolling,
-			disableGlobbing: true // fix https://github.com/microsoft/vscode/issues/4586
+			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
 		const excludes: string[] = [];
 
 		const isSingleFolder = requests.length === 1;
 		if (isSingleFolder) {
-			excludes.push(...requests[0].excludes); // if there's only one request, use the built-in ignore-filterering
+			// if there's only one request, use the built-in ignore-filterering
+			excludes.push(...requests[0].excludes);
 		}
 
 		if ((isMacintosh || isLinux) && (basePath.length === 0 || basePath === '/')) {
@@ -146,8 +155,6 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		this.debug(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
-
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
 
@@ -161,13 +168,13 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 
 		const watcher: IWatcher = {
 			requests,
-			stop: async () => {
+			stop: () => {
 				try {
-					if (this.verboseLogging) {
+					if (this._verboseLogging) {
 						this.log(`Stop watching: ${basePath}]`);
 					}
 					if (chokidarWatcher) {
-						await chokidarWatcher.close();
+						chokidarWatcher.close();
 						this._watcherCount--;
 						chokidarWatcher = null;
 					}
@@ -225,7 +232,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			const event = { type: eventType, path };
 
 			// Logging
-			if (this.verboseLogging) {
+			if (this._verboseLogging) {
 				this.log(`${eventType === FileChangeType.ADDED ? '[ADDED]' : eventType === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
@@ -243,24 +250,23 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			undeliveredFileEvents.push(event);
 
 			if (fileEventDelayer) {
-
 				// Delay and send buffer
-				fileEventDelayer.trigger(async () => {
+				fileEventDelayer.trigger(() => {
 					const events = undeliveredFileEvents;
 					undeliveredFileEvents = [];
 
 					// Broadcast to clients normalized
 					const res = normalizeFileChanges(events);
-					this._onDidChangeFile.fire(res);
+					this._onWatchEvent.fire(res);
 
 					// Logging
-					if (this.verboseLogging) {
+					if (this._verboseLogging) {
 						res.forEach(r => {
 							this.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 						});
 					}
 
-					return undefined;
+					return Promise.resolve(undefined);
 				});
 			}
 		});
@@ -272,7 +278,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 				// the watcher consumes so many file descriptors that
 				// we are running into a limit. We only want to warn
 				// once in this case to avoid log spam.
-				// See https://github.com/microsoft/vscode/issues/7950
+				// See https://github.com/Microsoft/vscode/issues/7950
 				if (error.code === 'ENOSPC') {
 					if (!this.enospcErrorLogged) {
 						this.enospcErrorLogged = true;
@@ -287,28 +293,27 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 		return watcher;
 	}
 
-	async stop(): Promise<void> {
-		for (const [, watcher] of this.watchers) {
-			await watcher.stop();
+	stop(): Promise<void> {
+		for (const path in this._watchers) {
+			const watcher = this._watchers[path];
+			watcher.stop();
 		}
 
-		this.watchers.clear();
+		this._watchers = Object.create(null);
+
+		return Promise.resolve();
 	}
 
 	private log(message: string) {
-		this._onDidLogMessage.fire({ type: 'trace', message: `[File Watcher (chokidar)] ` + message });
-	}
-
-	private debug(message: string) {
-		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (chokidar)] ` + message });
+		this._onLogMessage.fire({ type: 'trace', message: `[File Watcher (chokidar)] ` + message });
 	}
 
 	private warn(message: string) {
-		this._onDidLogMessage.fire({ type: 'warn', message: `[File Watcher (chokidar)] ` + message });
+		this._onLogMessage.fire({ type: 'warn', message: `[File Watcher (chokidar)] ` + message });
 	}
 
 	private error(message: string) {
-		this._onDidLogMessage.fire({ type: 'error', message: `[File Watcher (chokidar)] ` + message });
+		this._onLogMessage.fire({ type: 'error', message: `[File Watcher (chokidar)] ` + message });
 	}
 }
 
@@ -318,7 +323,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 			return false;
 		}
 
-		if (isEqualOrParent(path, request.path)) {
+		if (extpath.isEqualOrParent(path, request.path)) {
 			if (!request.parsedPattern) {
 				if (request.excludes && request.excludes.length > 0) {
 					const pattern = `{${request.excludes.join(',')}}`;
@@ -350,7 +355,7 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 	for (const request of requests) {
 		const basePath = request.path;
 		const ignored = (request.excludes || []).sort();
-		if (prevRequest && (isEqualOrParent(basePath, prevRequest.path))) {
+		if (prevRequest && (extpath.isEqualOrParent(basePath, prevRequest.path))) {
 			if (!isEqualIgnore(ignored, prevRequest.excludes)) {
 				result[prevRequest.path].push({ path: basePath, excludes: ignored });
 			}

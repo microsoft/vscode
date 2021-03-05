@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { splitLines } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { ValidAnnotatedEditOperation } from 'vs/editor/common/model';
+import { DefaultEndOfLine, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferBuilder } from 'vs/editor/common/model';
 
 export function getRandomInt(min: number, max: number): number {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -32,10 +31,10 @@ export function getRandomString(minLength: number, maxLength: number): string {
 	return r;
 }
 
-export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
+export function generateRandomEdits(chunks: string[], editCnt: number): IIdentifiedSingleEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = splitLines(chunk);
+		let newLines = chunk.split(/\r\n|\r|\n/);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -44,7 +43,7 @@ export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnn
 		}
 	}
 
-	let ops: ValidAnnotatedEditOperation[] = [];
+	let ops: IIdentifiedSingleEditOperation[] = [];
 
 	for (let i = 0; i < editCnt; i++) {
 		let line = getRandomInt(1, lines.length);
@@ -55,17 +54,20 @@ export function generateRandomEdits(chunks: string[], editCnt: number): ValidAnn
 			text = getRandomString(5, 10);
 		}
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), text, false, false, false));
+		ops.push({
+			text: text,
+			range: new Range(line, startColumn, line, endColumn)
+		});
 		lines[line - 1] = lines[line - 1].substring(0, startColumn - 1) + text + lines[line - 1].substring(endColumn - 1);
 	}
 
 	return ops;
 }
 
-export function generateSequentialInserts(chunks: string[], editCnt: number): ValidAnnotatedEditOperation[] {
+export function generateSequentialInserts(chunks: string[], editCnt: number): IIdentifiedSingleEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = splitLines(chunk);
+		let newLines = chunk.split(/\r\n|\r|\n/);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -74,7 +76,7 @@ export function generateSequentialInserts(chunks: string[], editCnt: number): Va
 		}
 	}
 
-	let ops: ValidAnnotatedEditOperation[] = [];
+	let ops: IIdentifiedSingleEditOperation[] = [];
 
 	for (let i = 0; i < editCnt; i++) {
 		let line = lines.length;
@@ -88,16 +90,19 @@ export function generateSequentialInserts(chunks: string[], editCnt: number): Va
 			lines[line - 1] += text;
 		}
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, column, line, column), text, false, false, false));
+		ops.push({
+			text: text,
+			range: new Range(line, column, line, column)
+		});
 	}
 
 	return ops;
 }
 
-export function generateRandomReplaces(chunks: string[], editCnt: number, searchStringLen: number, replaceStringLen: number): ValidAnnotatedEditOperation[] {
+export function generateRandomReplaces(chunks: string[], editCnt: number, searchStringLen: number, replaceStringLen: number): IIdentifiedSingleEditOperation[] {
 	let lines: string[] = [];
 	for (const chunk of chunks) {
-		let newLines = splitLines(chunk);
+		let newLines = chunk.split(/\r\n|\r|\n/);
 		if (lines.length === 0) {
 			lines.push(...newLines);
 		} else {
@@ -106,7 +111,7 @@ export function generateRandomReplaces(chunks: string[], editCnt: number, search
 		}
 	}
 
-	let ops: ValidAnnotatedEditOperation[] = [];
+	let ops: IIdentifiedSingleEditOperation[] = [];
 	let chunkSize = Math.max(1, Math.floor(lines.length / editCnt));
 	let chunkCnt = Math.floor(lines.length / chunkSize);
 	let replaceString = getRandomString(replaceStringLen, replaceStringLen);
@@ -120,11 +125,33 @@ export function generateRandomReplaces(chunks: string[], editCnt: number, search
 		let startColumn = getRandomInt(1, maxColumn);
 		let endColumn = Math.min(maxColumn, startColumn + searchStringLen);
 
-		ops.push(new ValidAnnotatedEditOperation(null, new Range(line, startColumn, line, endColumn), replaceString, false, false, false));
+		ops.push({
+			text: replaceString,
+			range: new Range(line, startColumn, line, endColumn)
+		});
 		previousChunksLength = endLine;
 	}
 
 	return ops;
+}
+
+export function createMockText(lineCount: number, minColumn: number, maxColumn: number) {
+	let fixedEOL = getRandomEOLSequence();
+	let lines: string[] = [];
+	for (let i = 0; i < lineCount; i++) {
+		if (i !== 0) {
+			lines.push(fixedEOL);
+		}
+		lines.push(getRandomString(minColumn, maxColumn));
+	}
+	return lines.join('');
+}
+
+export function createMockBuffer(str: string, bufferBuilder: ITextBufferBuilder): ITextBuffer {
+	bufferBuilder.acceptChunk(str);
+	let bufferFactory = bufferBuilder.finish();
+	let buffer = bufferFactory.create(DefaultEndOfLine.LF);
+	return buffer;
 }
 
 export function generateRandomChunkWithLF(minLength: number, maxLength: number): string {

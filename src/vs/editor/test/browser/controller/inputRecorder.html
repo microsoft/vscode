@@ -31,14 +31,14 @@ var RECORDED_EVENTS = [];
 
 var input = document.getElementById('input');
 
-var blockedProperties = [
+var blackListedProps = [
 	'currentTarget',
 	'path',
 	'srcElement',
 	'target',
 	'view'
 ];
-blockedProperties = blockedProperties.concat([
+blackListedProps = blackListedProps.concat([
 	'AT_TARGET',
 	'BLUR',
 	'BUBBLING_PHASE',
@@ -68,7 +68,7 @@ blockedProperties = blockedProperties.concat([
 function toSerializable(e) {
 	var r = {};
 	for (var k in e) {
-		if (blockedProperties.indexOf(k) >= 0) {
+		if (blackListedProps.indexOf(k) >= 0) {
 			continue;
 		}
 		if (typeof e[k] === 'function') {

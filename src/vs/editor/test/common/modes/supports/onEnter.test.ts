@@ -21,9 +21,9 @@ suite('OnEnter', () => {
 		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
 			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
 			if (expected === IndentAction.None) {
-				assert.strictEqual(actual, null);
+				assert.equal(actual, null);
 			} else {
-				assert.strictEqual(actual!.indentAction, expected);
+				assert.equal(actual!.indentAction, expected);
 			}
 		};
 
@@ -51,18 +51,18 @@ suite('OnEnter', () => {
 		let support = new OnEnterSupport({
 			onEnterRules: javascriptOnEnterRules
 		});
-		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
+		let testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, oneLineAboveText, beforeText, afterText);
 			if (expectedIndentAction === null) {
-				assert.strictEqual(actual, null, 'isNull:' + beforeText);
+				assert.equal(actual, null, 'isNull:' + beforeText);
 			} else {
-				assert.strictEqual(actual !== null, true, 'isNotNull:' + beforeText);
-				assert.strictEqual(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
+				assert.equal(actual !== null, true, 'isNotNull:' + beforeText);
+				assert.equal(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
 				if (expectedAppendText !== null) {
-					assert.strictEqual(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
+					assert.equal(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
 				}
 				if (removeText !== 0) {
-					assert.strictEqual(actual!.removeText, removeText, 'removeText:' + beforeText);
+					assert.equal(actual!.removeText, removeText, 'removeText:' + beforeText);
 				}
 			}
 		};
@@ -118,7 +118,6 @@ suite('OnEnter', () => {
 		testIndentAction(' *', ' * asdfsfagadfg * / * / * /*', '', IndentAction.None, '* ');
 
 		testIndentAction('', ' */', '', IndentAction.None, null, 1);
-		testIndentAction(' */', ' * test() {', '', IndentAction.Indent, null, 0);
 		testIndentAction('', '\t */', '', IndentAction.None, null, 1);
 		testIndentAction('', '\t\t */', '', IndentAction.None, null, 1);
 		testIndentAction('', '   */', '', IndentAction.None, null, 1);

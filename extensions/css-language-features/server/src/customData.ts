@@ -3,36 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICSSDataProvider, newCSSDataProvider } from 'vscode-css-languageservice';
-import { RequestService } from './requests';
+import { CSSDataV1, ICSSDataProvider } from 'vscode-css-languageservice';
+import * as fs from 'fs';
 
-export function fetchDataProviders(dataPaths: string[], requestService: RequestService): Promise<ICSSDataProvider[]> {
-	const providers = dataPaths.map(async p => {
-		try {
-			const content = await requestService.getContent(p);
-			return parseCSSData(content);
-		} catch (e) {
-			return newCSSDataProvider({ version: 1 });
+export function getDataProviders(dataPaths: string[]): ICSSDataProvider[] {
+	const providers = dataPaths.map(p => {
+		if (fs.existsSync(p)) {
+			const data = parseCSSData(fs.readFileSync(p, 'utf-8'));
+			return {
+				provideProperties: () => data.properties || [],
+				provideAtDirectives: () => data.atDirectives || [],
+				providePseudoClasses: () => data.pseudoClasses || [],
+				providePseudoElements: () => data.pseudoElements || []
+			};
+		} else {
+			return {
+				provideProperties: () => [],
+				provideAtDirectives: () => [],
+				providePseudoClasses: () => [],
+				providePseudoElements: () => []
+			};
 		}
 	});
 
-	return Promise.all(providers);
+	return providers;
 }
 
-function parseCSSData(source: string): ICSSDataProvider {
+function parseCSSData(source: string): CSSDataV1 {
 	let rawData: any;
 
 	try {
 		rawData = JSON.parse(source);
 	} catch (err) {
-		return newCSSDataProvider({ version: 1 });
+		return {
+			version: 1
+		};
 	}
 
-	return newCSSDataProvider({
-		version: rawData.version || 1,
+	return {
+		version: 1,
 		properties: rawData.properties || [],
 		atDirectives: rawData.atDirectives || [],
 		pseudoClasses: rawData.pseudoClasses || [],
 		pseudoElements: rawData.pseudoElements || []
-	});
+	};
 }

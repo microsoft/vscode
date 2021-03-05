@@ -3,8 +3,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.nls = void 0;
+const ts = require("typescript");
 const lazy = require("lazy.js");
 const event_stream_1 = require("event-stream");
 const File = require("vinyl");
@@ -17,7 +16,7 @@ var CollectStepResult;
     CollectStepResult[CollectStepResult["No"] = 2] = "No";
     CollectStepResult[CollectStepResult["NoAndRecurse"] = 3] = "NoAndRecurse";
 })(CollectStepResult || (CollectStepResult = {}));
-function collect(ts, node, fn) {
+function collect(node, fn) {
     const result = [];
     function loop(node) {
         const stepResult = fn(node);
@@ -70,16 +69,14 @@ function nls() {
         if (!typescript) {
             return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
         }
-        _nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
+        nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
     }));
     return event_stream_1.duplex(input, output);
 }
-exports.nls = nls;
-function isImportNode(ts, node) {
+function isImportNode(node) {
     return node.kind === ts.SyntaxKind.ImportDeclaration || node.kind === ts.SyntaxKind.ImportEqualsDeclaration;
 }
-var _nls;
-(function (_nls) {
+(function (nls_1) {
     function fileFrom(file, contents, path = file.path) {
         return new File({
             contents: Buffer.from(contents),
@@ -88,14 +85,17 @@ var _nls;
             path: path
         });
     }
+    nls_1.fileFrom = fileFrom;
     function mappedPositionFrom(source, lc) {
         return { source, line: lc.line + 1, column: lc.character };
     }
+    nls_1.mappedPositionFrom = mappedPositionFrom;
     function lcFrom(position) {
         return { line: position.line - 1, character: position.column };
     }
+    nls_1.lcFrom = lcFrom;
     class SingleFileServiceHost {
-        constructor(ts, options, filename, contents) {
+        constructor(options, filename, contents) {
             this.options = options;
             this.filename = filename;
             this.getCompilationSettings = () => this.options;
@@ -108,19 +108,20 @@ var _nls;
             this.lib = ts.ScriptSnapshot.fromString('');
         }
     }
-    function isCallExpressionWithinTextSpanCollectStep(ts, textSpan, node) {
+    nls_1.SingleFileServiceHost = SingleFileServiceHost;
+    function isCallExpressionWithinTextSpanCollectStep(textSpan, node) {
         if (!ts.textSpanContainsTextSpan({ start: node.pos, length: node.end - node.pos }, textSpan)) {
             return CollectStepResult.No;
         }
         return node.kind === ts.SyntaxKind.CallExpression ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
     }
-    function analyze(ts, contents, options = {}) {
+    function analyze(contents, options = {}) {
         const filename = 'file.ts';
-        const serviceHost = new SingleFileServiceHost(ts, Object.assign(clone(options), { noResolve: true }), filename, contents);
+        const serviceHost = new SingleFileServiceHost(Object.assign(clone(options), { noResolve: true }), filename, contents);
         const service = ts.createLanguageService(serviceHost);
         const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
         // all imports
-        const imports = lazy(collect(ts, sourceFile, n => isImportNode(ts, n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
+        const imports = lazy(collect(sourceFile, n => isImportNode(n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
         // import nls = require('vs/nls');
         const importEqualsDeclarations = imports
             .filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
@@ -151,7 +152,7 @@ var _nls;
             .flatten()
             .filter(r => !r.isWriteAccess)
             // find the deepest call expressions AST nodes that contain those references
-            .map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
+            .map(r => collect(sourceFile, n => isCallExpressionWithinTextSpanCollectStep(r.textSpan, n)))
             .map(a => lazy(a).last())
             .filter(n => !!n)
             .map(n => n)
@@ -177,7 +178,7 @@ var _nls;
         // find the deepest call expressions AST nodes that contain those references
         const localizeCallExpressions = localizeReferences
             .concat(namedLocalizeReferences)
-            .map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
+            .map(r => collect(sourceFile, n => isCallExpressionWithinTextSpanCollectStep(r.textSpan, n)))
             .map(a => lazy(a).last())
             .filter(n => !!n)
             .map(n => n);
@@ -198,6 +199,7 @@ var _nls;
             nlsExpressions: nlsExpressions.toArray()
         };
     }
+    nls_1.analyze = analyze;
     class TextModel {
         constructor(contents) {
             const regex = /\r\n|\r|\n/g;
@@ -248,8 +250,9 @@ var _nls;
                 .flatten().toArray().join('');
         }
     }
+    nls_1.TextModel = TextModel;
     function patchJavascript(patches, contents, moduleId) {
-        const model = new TextModel(contents);
+        const model = new nls.TextModel(contents);
         // patch the localize calls
         lazy(patches).reverse().each(p => model.apply(p));
         // patch the 'vs/nls' imports
@@ -258,6 +261,7 @@ var _nls;
         model.set(0, patchedFirstLine);
         return model.toString();
     }
+    nls_1.patchJavascript = patchJavascript;
     function patchSourcemap(patches, rsm, smc) {
         const smg = new sm.SourceMapGenerator({
             file: rsm.file,
@@ -293,8 +297,9 @@ var _nls;
         }
         return JSON.parse(smg.toString());
     }
-    function patch(ts, moduleId, typescript, javascript, sourcemap) {
-        const { localizeCalls, nlsExpressions } = analyze(ts, typescript);
+    nls_1.patchSourcemap = patchSourcemap;
+    function patch(moduleId, typescript, javascript, sourcemap) {
+        const { localizeCalls, nlsExpressions } = analyze(typescript);
         if (localizeCalls.length === 0) {
             return { javascript, sourcemap };
         }
@@ -327,13 +332,13 @@ var _nls;
         sourcemap = patchSourcemap(patches, sourcemap, smc);
         return { javascript, sourcemap, nlsKeys, nls };
     }
+    nls_1.patch = patch;
     function patchFiles(javascriptFile, typescript) {
-        const ts = require('typescript');
         // hack?
         const moduleId = javascriptFile.relative
             .replace(/\.js$/, '')
             .replace(/\\/g, '/');
-        const { javascript, sourcemap, nlsKeys, nls } = patch(ts, moduleId, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
+        const { javascript, sourcemap, nlsKeys, nls } = patch(moduleId, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
         const result = [fileFrom(javascriptFile, javascript)];
         result[0].sourceMap = sourcemap;
         if (nlsKeys) {
@@ -344,5 +349,6 @@ var _nls;
         }
         return result;
     }
-    _nls.patchFiles = patchFiles;
-})(_nls || (_nls = {}));
+    nls_1.patchFiles = patchFiles;
+})(nls || (nls = {}));
+module.exports = nls;

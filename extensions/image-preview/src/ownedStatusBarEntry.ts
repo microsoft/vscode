@@ -11,7 +11,7 @@ export abstract class PreviewStatusBarEntry extends Disposable {
 
 	protected readonly entry: vscode.StatusBarItem;
 
-	constructor(options: vscode.StatusBarItemOptions) {
+	constructor(options: vscode.window.StatusBarItemOptions) {
 		super();
 		this.entry = this._register(vscode.window.createStatusBarItem(options));
 	}

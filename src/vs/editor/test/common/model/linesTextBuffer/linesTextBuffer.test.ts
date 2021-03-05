@@ -18,10 +18,7 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeOffset: 0,
 			rangeLength: 0,
-			text: text ? text.join('\n') : '',
-			eolCount: text ? text.length - 1 : 0,
-			firstLineLength: text ? text[0].length : 0,
-			lastLineLength: text ? text[text.length - 1].length : 0,
+			lines: text,
 			forceMoveMarkers: false,
 			isAutoWhitespaceEdit: false
 		};
@@ -33,7 +30,7 @@ suite('PieceTreeTextBuffer._getInverseEdits', () => {
 
 	function assertInverseEdits(ops: IValidatedEditOperation[], expected: Range[]): void {
 		let actual = PieceTreeTextBuffer._getInverseEditRanges(ops);
-		assert.deepStrictEqual(actual, expected);
+		assert.deepEqual(actual, expected);
 	}
 
 	test('single insert', () => {
@@ -272,20 +269,17 @@ suite('PieceTreeTextBuffer._toSingleEditOperation', () => {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeOffset: rangeOffset,
 			rangeLength: rangeLength,
-			text: text ? text.join('\n') : '',
-			eolCount: text ? text.length - 1 : 0,
-			firstLineLength: text ? text[0].length : 0,
-			lastLineLength: text ? text[text.length - 1].length : 0,
+			lines: text,
 			forceMoveMarkers: false,
 			isAutoWhitespaceEdit: false
 		};
 	}
 
 	function testToSingleEditOperation(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF).textBuffer;
+		const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(original.join('\n')).create(DefaultEndOfLine.LF);
 
 		const actual = textBuffer._toSingleEditOperation(edits);
-		assert.deepStrictEqual(actual, expected);
+		assert.deepEqual(actual, expected);
 	}
 
 	test('one edit op is unchanged', () => {

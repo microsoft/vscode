@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ActiveJsTsEditorTracker } from './activeJsTsEditorTracker';
 import { Disposable } from './dispose';
 import { isJsConfigOrTsConfigFileName } from './languageDescription';
 import { isSupportedLanguageMode } from './languageModeIds';
 
-/**E
+/**
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
  */
 export default class ManagedFileContextManager extends Disposable {
@@ -18,20 +17,17 @@ export default class ManagedFileContextManager extends Disposable {
 	private isInManagedFileContext: boolean = false;
 
 	public constructor(
-		activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		private readonly normalizePath: (resource: vscode.Uri) => string | undefined,
+		private readonly normalizePath: (resource: vscode.Uri) => string | undefined
 	) {
 		super();
-		activeJsTsEditorTracker.onDidChangeActiveJsTsEditor(this.onDidChangeActiveTextEditor, this, this._disposables);
+		vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this._disposables);
 
-		this.onDidChangeActiveTextEditor(activeJsTsEditorTracker.activeJsTsEditor);
+		this.onDidChangeActiveTextEditor(vscode.window.activeTextEditor);
 	}
 
-	private onDidChangeActiveTextEditor(editor?: vscode.TextEditor): void {
+	private onDidChangeActiveTextEditor(editor?: vscode.TextEditor): any {
 		if (editor) {
 			this.updateContext(this.isManagedFile(editor));
-		} else {
-			this.updateContext(false);
 		}
 	}
 
@@ -56,4 +52,3 @@ export default class ManagedFileContextManager extends Disposable {
 		return isJsConfigOrTsConfigFileName(editor.document.fileName);
 	}
 }
-

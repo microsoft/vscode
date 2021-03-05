@@ -9,7 +9,7 @@ import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/com
 import { Event, Emitter } from 'vs/base/common/event';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Iterable } from 'vs/base/common/iterator';
+import { keys } from 'vs/base/common/map';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -19,7 +19,7 @@ export interface ICommandEvent {
 }
 
 export interface ICommandService {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 	onWillExecuteCommand: Event<ICommandEvent>;
 	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
@@ -38,14 +38,9 @@ export interface ICommand {
 }
 
 export interface ICommandHandlerDescription {
-	readonly description: string;
-	readonly args: ReadonlyArray<{
-		readonly name: string;
-		readonly description?: string;
-		readonly constraint?: TypeConstraint;
-		readonly schema?: IJSONSchema;
-	}>;
-	readonly returns?: string;
+	description: string;
+	args: { name: string; description?: string; constraint?: TypeConstraint; schema?: IJSONSchema; }[];
+	returns?: string;
 }
 
 export interface ICommandRegistry {
@@ -124,12 +119,12 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		if (!list || list.isEmpty()) {
 			return undefined;
 		}
-		return Iterable.first(list);
+		return list.iterator().next().value;
 	}
 
 	getCommands(): ICommandsMap {
 		const result = new Map<string, ICommand>();
-		for (const key of this._commands.keys()) {
+		for (const key of keys(this._commands)) {
 			const command = this.getCommand(key);
 			if (command) {
 				result.set(key, command);

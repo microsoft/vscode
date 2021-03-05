@@ -5,69 +5,58 @@
 
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
+import { generateUuid } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { promises } from 'fs';
-import { strictEqual, ok } from 'assert';
-import { writeFile, exists, rimraf } from 'vs/base/node/pfs';
+import { equal, ok } from 'assert';
+import { mkdirp, writeFile, exists, unlink, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { generateUuid } from 'vs/base/common/uuid';
 
-flakySuite('Storage Library', function () {
+suite('Storage Library', () => {
 
-	let testDir: string;
+	function uniqueStorageDir(): string {
+		const id = generateUuid();
 
-	setup(function () {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
-
-		return promises.mkdir(testDir, { recursive: true });
-	});
-
-	teardown(function () {
-		return rimraf(testDir);
-	});
+		return join(tmpdir(), 'vsctests', id, 'storage2', id);
+	}
 
 	test('basics', async () => {
-		const storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 
 		await storage.init();
 
 		// Empty fallbacks
-		strictEqual(storage.get('foo', 'bar'), 'bar');
-		strictEqual(storage.getNumber('foo', 55), 55);
-		strictEqual(storage.getBoolean('foo', true), true);
+		equal(storage.get('foo', 'bar'), 'bar');
+		equal(storage.getNumber('foo', 55), 55);
+		equal(storage.getBoolean('foo', true), true);
 
 		let changes = new Set<string>();
 		storage.onDidChangeStorage(key => {
 			changes.add(key);
 		});
 
-		await storage.whenFlushed(); // returns immediately when no pending updates
-
 		// Simple updates
 		const set1Promise = storage.set('bar', 'foo');
 		const set2Promise = storage.set('barNumber', 55);
 		const set3Promise = storage.set('barBoolean', true);
 
-		let flushPromiseResolved = false;
-		storage.whenFlushed().then(() => flushPromiseResolved = true);
+		equal(storage.get('bar'), 'foo');
+		equal(storage.getNumber('barNumber'), 55);
+		equal(storage.getBoolean('barBoolean'), true);
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.getNumber('barNumber'), 55);
-		strictEqual(storage.getBoolean('barBoolean'), true);
-
-		strictEqual(changes.size, 3);
+		equal(changes.size, 3);
 		ok(changes.has('bar'));
 		ok(changes.has('barNumber'));
 		ok(changes.has('barBoolean'));
 
 		let setPromiseResolved = false;
 		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
-		strictEqual(setPromiseResolved, true);
-		strictEqual(flushPromiseResolved, true);
+		equal(setPromiseResolved, true);
 
 		changes = new Set<string>();
 
@@ -75,7 +64,7 @@ flakySuite('Storage Library', function () {
 		storage.set('bar', 'foo');
 		storage.set('barNumber', 55);
 		storage.set('barBoolean', true);
-		strictEqual(changes.size, 0);
+		equal(changes.size, 0);
 
 		// Simple deletes
 		const delete1Promise = storage.delete('bar');
@@ -86,7 +75,7 @@ flakySuite('Storage Library', function () {
 		ok(!storage.getNumber('barNumber'));
 		ok(!storage.getBoolean('barBoolean'));
 
-		strictEqual(changes.size, 3);
+		equal(changes.size, 3);
 		ok(changes.has('bar'));
 		ok(changes.has('barNumber'));
 		ok(changes.has('barBoolean'));
@@ -97,17 +86,19 @@ flakySuite('Storage Library', function () {
 		storage.delete('bar');
 		storage.delete('barNumber');
 		storage.delete('barBoolean');
-		strictEqual(changes.size, 0);
+		equal(changes.size, 0);
 
 		let deletePromiseResolved = false;
 		await Promise.all([delete1Promise, delete2Promise, delete3Promise]).then(() => deletePromiseResolved = true);
-		strictEqual(deletePromiseResolved, true);
+		equal(deletePromiseResolved, true);
 
 		await storage.close();
-		await storage.close(); // it is ok to call this multiple times
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('external changes', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
 
 		class TestSQLiteStorageDatabase extends SQLiteStorageDatabase {
 			private readonly _onDidChangeItemsExternal = new Emitter<IStorageItemsChangeEvent>();
@@ -118,7 +109,7 @@ flakySuite('Storage Library', function () {
 			}
 		}
 
-		const database = new TestSQLiteStorageDatabase(join(testDir, 'storage.db'));
+		const database = new TestSQLiteStorageDatabase(join(storageDir, 'storage.db'));
 		const storage = new Storage(database);
 
 		let changes = new Set<string>();
@@ -133,62 +124,63 @@ flakySuite('Storage Library', function () {
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		const changed = new Map<string, string>();
-		changed.set('foo', 'bar');
-		database.fireDidChangeItemsExternal({ changed });
-		strictEqual(changes.size, 0);
+		const change = new Map<string, string>();
+		change.set('foo', 'bar');
+		database.fireDidChangeItemsExternal({ items: change });
+		equal(changes.size, 0);
 
 		// Change is accepted if valid
-		changed.set('foo', 'bar1');
-		database.fireDidChangeItemsExternal({ changed });
+		change.set('foo', 'bar1');
+		database.fireDidChangeItemsExternal({ items: change });
 		ok(changes.has('foo'));
-		strictEqual(storage.get('foo'), 'bar1');
+		equal(storage.get('foo'), 'bar1');
 		changes.clear();
 
 		// Delete is accepted
-		const deleted = new Set<string>(['foo']);
-		database.fireDidChangeItemsExternal({ deleted });
+		change.set('foo', undefined);
+		database.fireDidChangeItemsExternal({ items: change });
 		ok(changes.has('foo'));
-		strictEqual(storage.get('foo', undefined), undefined);
+		equal(storage.get('foo', null!), null);
 		changes.clear();
 
 		// Nothing happens if changing to same value
-		database.fireDidChangeItemsExternal({ deleted });
-		strictEqual(changes.size, 0);
+		change.set('foo', undefined);
+		database.fireDidChangeItemsExternal({ items: change });
+		equal(changes.size, 0);
 
 		await storage.close();
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('close flushes data', async () => {
-		let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		const set1Promise = storage.set('foo', 'bar');
 		const set2Promise = storage.set('bar', 'foo');
 
-		let flushPromiseResolved = false;
-		storage.whenFlushed().then(() => flushPromiseResolved = true);
-
-		strictEqual(storage.get('foo'), 'bar');
-		strictEqual(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+		equal(storage.get('bar'), 'foo');
 
 		let setPromiseResolved = false;
 		Promise.all([set1Promise, set2Promise]).then(() => setPromiseResolved = true);
 
 		await storage.close();
 
-		strictEqual(setPromiseResolved, true);
-		strictEqual(flushPromiseResolved, true);
+		equal(setPromiseResolved, true);
 
-		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
-		strictEqual(storage.get('foo'), 'bar');
-		strictEqual(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
+		equal(storage.get('bar'), 'foo');
 
 		await storage.close();
 
-		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		const delete1Promise = storage.delete('foo');
@@ -202,19 +194,23 @@ flakySuite('Storage Library', function () {
 
 		await storage.close();
 
-		strictEqual(deletePromiseResolved, true);
+		equal(deletePromiseResolved, true);
 
-		storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		ok(!storage.get('foo'));
 		ok(!storage.get('bar'));
 
 		await storage.close();
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('conflicting updates', async () => {
-		let storage = new Storage(new SQLiteStorageDatabase(join(testDir, 'storage.db')));
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		let storage = new Storage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 		await storage.init();
 
 		let changes = new Set<string>();
@@ -226,17 +222,13 @@ flakySuite('Storage Library', function () {
 		const set2Promise = storage.set('foo', 'bar2');
 		const set3Promise = storage.set('foo', 'bar3');
 
-		let flushPromiseResolved = false;
-		storage.whenFlushed().then(() => flushPromiseResolved = true);
-
-		strictEqual(storage.get('foo'), 'bar3');
-		strictEqual(changes.size, 1);
+		equal(storage.get('foo'), 'bar3');
+		equal(changes.size, 1);
 		ok(changes.has('foo'));
 
 		let setPromiseResolved = false;
 		await Promise.all([set1Promise, set2Promise, set3Promise]).then(() => setPromiseResolved = true);
 		ok(setPromiseResolved);
-		ok(flushPromiseResolved);
 
 		changes = new Set<string>();
 
@@ -245,7 +237,7 @@ flakySuite('Storage Library', function () {
 
 		ok(!storage.get('bar'));
 
-		strictEqual(changes.size, 1);
+		equal(changes.size, 1);
 		ok(changes.has('bar'));
 
 		let setAndDeletePromiseResolved = false;
@@ -253,10 +245,14 @@ flakySuite('Storage Library', function () {
 		ok(setAndDeletePromiseResolved);
 
 		await storage.close();
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('corrupt DB recovers', async () => {
-		const storageFile = join(testDir, 'storage.db');
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
+
+		const storageFile = join(storageDir, 'storage.db');
 
 		let storage = new Storage(new SQLiteStorageDatabase(storageFile));
 		await storage.init();
@@ -267,22 +263,29 @@ flakySuite('Storage Library', function () {
 
 		await storage.set('foo', 'bar');
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.get('foo'), 'bar');
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
 
 		await storage.close();
 
 		storage = new Storage(new SQLiteStorageDatabase(storageFile));
 		await storage.init();
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.get('foo'), 'bar');
+		equal(storage.get('bar'), 'foo');
+		equal(storage.get('foo'), 'bar');
 
 		await storage.close();
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });
 
-flakySuite('SQLite Storage Library', function () {
+suite('SQLite Storage Library', () => {
+
+	function uniqueStorageDir(): string {
+		const id = generateUuid();
+
+		return join(tmpdir(), 'vsctests', id, 'storage', id);
+	}
 
 	function toSet(elements: string[]): Set<string> {
 		const set = new Set<string>();
@@ -290,18 +293,6 @@ flakySuite('SQLite Storage Library', function () {
 
 		return set;
 	}
-
-	let testdir: string;
-
-	setup(function () {
-		testdir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
-
-		return promises.mkdir(testdir, { recursive: true });
-	});
-
-	teardown(function () {
-		return rimraf(testdir);
-	});
 
 	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {
 		let options!: ISQLiteStorageDatabaseOptions;
@@ -321,49 +312,49 @@ flakySuite('SQLite Storage Library', function () {
 		items.set(JSON.stringify({ foo: 'bar' }), JSON.stringify({ bar: 'foo' }));
 
 		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		await storage.updateItems({ insert: items });
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		await storage.updateItems({ delete: toSet(['foo']) });
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size - 1);
+		equal(storedItems.size, items.size - 1);
 		ok(!storedItems.has('foo'));
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		await storage.updateItems({ insert: items });
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		const itemsChange = new Map<string, string>();
 		itemsChange.set('foo', 'otherbar');
 		await storage.updateItems({ insert: itemsChange });
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.get('foo'), 'otherbar');
+		equal(storedItems.get('foo'), 'otherbar');
 
 		await storage.updateItems({ delete: toSet(['foo', 'bar', 'some/foo/path', JSON.stringify({ foo: 'bar' })]) });
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		await storage.updateItems({ insert: items, delete: toSet(['foo', 'some/foo/path', 'other']) });
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 1);
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		equal(storedItems.size, 1);
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		await storage.updateItems({ delete: toSet([JSON.stringify({ foo: 'bar' })]) });
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -372,20 +363,36 @@ flakySuite('SQLite Storage Library', function () {
 			return new Map();
 		});
 
-		strictEqual(recoveryCalled, false);
+		equal(recoveryCalled, false);
 	}
 
 	test('basics', async () => {
-		await testDBBasics(join(testdir, 'storage.db'));
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		await testDBBasics(join(storageDir, 'storage.db'));
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (open multiple times)', async () => {
-		await testDBBasics(join(testdir, 'storage.db'));
-		await testDBBasics(join(testdir, 'storage.db'));
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		await testDBBasics(join(storageDir, 'storage.db'));
+		await testDBBasics(join(storageDir, 'storage.db'));
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB)', async () => {
-		const corruptDBPath = join(testdir, 'broken.db');
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const corruptDBPath = join(storageDir, 'broken.db');
 		await writeFile(corruptDBPath, 'This is a broken DB');
 
 		let expectedError: any;
@@ -394,10 +401,16 @@ flakySuite('SQLite Storage Library', function () {
 		});
 
 		ok(expectedError);
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB restores from previous backup)', async () => {
-		const storagePath = join(testdir, 'storage.db');
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
 		const items = new Map<string, string>();
@@ -413,10 +426,10 @@ flakySuite('SQLite Storage Library', function () {
 		storage = new SQLiteStorageDatabase(storagePath);
 
 		const storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -425,11 +438,17 @@ flakySuite('SQLite Storage Library', function () {
 			return new Map();
 		});
 
-		strictEqual(recoveryCalled, false);
+		equal(recoveryCalled, false);
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('basics (corrupt DB falls back to empty DB if backup is corrupt)', async () => {
-		const storagePath = join(testdir, 'storage.db');
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
 		const items = new Map<string, string>();
@@ -446,13 +465,25 @@ flakySuite('SQLite Storage Library', function () {
 		storage = new SQLiteStorageDatabase(storagePath);
 
 		const storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		await testDBBasics(storagePath);
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
-	(isWindows ? test.skip /* Windows will fail to write to open DB due to locking */ : test)('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
-		const storagePath = join(testdir, 'storage.db');
+	test('basics (DB that becomes corrupt during runtime stores all state from cache on close)', async () => {
+		if (isWindows) {
+			await Promise.resolve(); // Windows will fail to write to open DB due to locking
+
+			return;
+		}
+
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storagePath = join(storageDir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(storagePath);
 
 		const items = new Map<string, string>();
@@ -464,7 +495,7 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.close();
 
 		const backupPath = `${storagePath}.backup`;
-		strictEqual(await exists(backupPath), true);
+		equal(await exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 		await storage.getItems();
@@ -477,7 +508,7 @@ flakySuite('SQLite Storage Library', function () {
 		// on shutdown.
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
-		await promises.unlink(backupPath); // also test that the recovery DB is backed up properly
+		await unlink(backupPath); // also test that the recovery DB is backed up properly
 
 		let recoveryCalled = false;
 		await storage.close(() => {
@@ -486,16 +517,16 @@ flakySuite('SQLite Storage Library', function () {
 			return items;
 		});
 
-		strictEqual(recoveryCalled, true);
-		strictEqual(await exists(backupPath), true);
+		equal(recoveryCalled, true);
+		equal(await exists(backupPath), true);
 
 		storage = new SQLiteStorageDatabase(storagePath);
 
 		const storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
-		strictEqual(storedItems.get('foo'), 'bar');
-		strictEqual(storedItems.get('some/foo/path'), 'some/bar/path');
-		strictEqual(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
+		equal(storedItems.size, items.size);
+		equal(storedItems.get('foo'), 'bar');
+		equal(storedItems.get('some/foo/path'), 'some/bar/path');
+		equal(storedItems.get(JSON.stringify({ foo: 'bar' })), JSON.stringify({ bar: 'foo' }));
 
 		recoveryCalled = false;
 		await storage.close(() => {
@@ -504,14 +535,22 @@ flakySuite('SQLite Storage Library', function () {
 			return new Map();
 		});
 
-		strictEqual(recoveryCalled, false);
+		equal(recoveryCalled, false);
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('real world example', async function () {
-		let storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+		this.timeout(20000);
+
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items1 = new Map<string, string>();
-		items1.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#098658"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#098658"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#098658"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#098658"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#098658"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
+		items1.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#09885a"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#09885a"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#09885a"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#09885a"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#09885a"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
 		items1.set('commandpalette.mru.cache', '{"usesLRU":true,"entries":[{"key":"revealFileInOS","value":3},{"key":"extension.openInGitHub","value":4},{"key":"workbench.extensions.action.openExtensionsFolder","value":11},{"key":"workbench.action.showRuntimeExtensions","value":14},{"key":"workbench.action.toggleTabsVisibility","value":15},{"key":"extension.liveServerPreview.open","value":16},{"key":"workbench.action.openIssueReporter","value":18},{"key":"workbench.action.openProcessExplorer","value":19},{"key":"workbench.action.toggleSharedProcess","value":20},{"key":"workbench.action.configureLocale","value":21},{"key":"workbench.action.appPerf","value":22},{"key":"workbench.action.reportPerformanceIssueUsingReporter","value":23},{"key":"workbench.action.openGlobalKeybindings","value":25},{"key":"workbench.action.output.toggleOutput","value":27},{"key":"extension.sayHello","value":29}]}');
 		items1.set('cpp.1.lastsessiondate', 'Fri Oct 05 2018');
 		items1.set('debug.actionswidgetposition', '0.6880952380952381');
@@ -527,7 +566,7 @@ flakySuite('SQLite Storage Library', function () {
 		items3.set('very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.very.long.key.', 'is long');
 
 		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		await Promise.all([
 			await storage.updateItems({ insert: items1 }),
@@ -535,28 +574,28 @@ flakySuite('SQLite Storage Library', function () {
 			await storage.updateItems({ insert: items3 })
 		]);
 
-		strictEqual(await storage.checkIntegrity(true), 'ok');
-		strictEqual(await storage.checkIntegrity(false), 'ok');
+		equal(await storage.checkIntegrity(true), 'ok');
+		equal(await storage.checkIntegrity(false), 'ok');
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
+		equal(storedItems.size, items1.size + items2.size + items3.size);
 
 		const items1Keys: string[] = [];
 		items1.forEach((value, key) => {
 			items1Keys.push(key);
-			strictEqual(storedItems.get(key), value);
+			equal(storedItems.get(key), value);
 		});
 
 		const items2Keys: string[] = [];
 		items2.forEach((value, key) => {
 			items2Keys.push(key);
-			strictEqual(storedItems.get(key), value);
+			equal(storedItems.get(key), value);
 		});
 
 		const items3Keys: string[] = [];
 		items3.forEach((value, key) => {
 			items3Keys.push(key);
-			strictEqual(storedItems.get(key), value);
+			equal(storedItems.get(key), value);
 		});
 
 		await Promise.all([
@@ -566,7 +605,7 @@ flakySuite('SQLite Storage Library', function () {
 		]);
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		await Promise.all([
 			await storage.updateItems({ insert: items1 }),
@@ -578,23 +617,31 @@ flakySuite('SQLite Storage Library', function () {
 		]);
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
+		equal(storedItems.size, items1.size + items2.size + items3.size);
 
 		await storage.close();
 
-		storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+		storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items1.size + items2.size + items3.size);
+		equal(storedItems.size, items1.size + items2.size + items3.size);
 
 		await storage.close();
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('very large item value', async function () {
-		let storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+		this.timeout(20000);
+
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		let storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
-		items.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#098658"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#098658"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#098658"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#098658"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#098658"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
+		items.set('colorthemedata', '{"id":"vs vscode-theme-defaults-themes-light_plus-json","label":"Light+ (default light)","settingsId":"Default Light+","selector":"vs.vscode-theme-defaults-themes-light_plus-json","themeTokenColors":[{"settings":{"foreground":"#000000ff","background":"#ffffffff"}},{"scope":["meta.embedded","source.groovy.embedded"],"settings":{"foreground":"#000000ff"}},{"scope":"emphasis","settings":{"fontStyle":"italic"}},{"scope":"strong","settings":{"fontStyle":"bold"}},{"scope":"meta.diff.header","settings":{"foreground":"#000080"}},{"scope":"comment","settings":{"foreground":"#008000"}},{"scope":"constant.language","settings":{"foreground":"#0000ff"}},{"scope":["constant.numeric"],"settings":{"foreground":"#09885a"}},{"scope":"constant.regexp","settings":{"foreground":"#811f3f"}},{"name":"css tags in selectors, xml tags","scope":"entity.name.tag","settings":{"foreground":"#800000"}},{"scope":"entity.name.selector","settings":{"foreground":"#800000"}},{"scope":"entity.other.attribute-name","settings":{"foreground":"#ff0000"}},{"scope":["entity.other.attribute-name.class.css","entity.other.attribute-name.class.mixin.css","entity.other.attribute-name.id.css","entity.other.attribute-name.parent-selector.css","entity.other.attribute-name.pseudo-class.css","entity.other.attribute-name.pseudo-element.css","source.css.less entity.other.attribute-name.id","entity.other.attribute-name.attribute.scss","entity.other.attribute-name.scss"],"settings":{"foreground":"#800000"}},{"scope":"invalid","settings":{"foreground":"#cd3131"}},{"scope":"markup.underline","settings":{"fontStyle":"underline"}},{"scope":"markup.bold","settings":{"fontStyle":"bold","foreground":"#000080"}},{"scope":"markup.heading","settings":{"fontStyle":"bold","foreground":"#800000"}},{"scope":"markup.italic","settings":{"fontStyle":"italic"}},{"scope":"markup.inserted","settings":{"foreground":"#09885a"}},{"scope":"markup.deleted","settings":{"foreground":"#a31515"}},{"scope":"markup.changed","settings":{"foreground":"#0451a5"}},{"scope":["punctuation.definition.quote.begin.markdown","punctuation.definition.list.begin.markdown"],"settings":{"foreground":"#0451a5"}},{"scope":"markup.inline.raw","settings":{"foreground":"#800000"}},{"name":"brackets of XML/HTML tags","scope":"punctuation.definition.tag","settings":{"foreground":"#800000"}},{"scope":"meta.preprocessor","settings":{"foreground":"#0000ff"}},{"scope":"meta.preprocessor.string","settings":{"foreground":"#a31515"}},{"scope":"meta.preprocessor.numeric","settings":{"foreground":"#09885a"}},{"scope":"meta.structure.dictionary.key.python","settings":{"foreground":"#0451a5"}},{"scope":"storage","settings":{"foreground":"#0000ff"}},{"scope":"storage.type","settings":{"foreground":"#0000ff"}},{"scope":"storage.modifier","settings":{"foreground":"#0000ff"}},{"scope":"string","settings":{"foreground":"#a31515"}},{"scope":["string.comment.buffered.block.pug","string.quoted.pug","string.interpolated.pug","string.unquoted.plain.in.yaml","string.unquoted.plain.out.yaml","string.unquoted.block.yaml","string.quoted.single.yaml","string.quoted.double.xml","string.quoted.single.xml","string.unquoted.cdata.xml","string.quoted.double.html","string.quoted.single.html","string.unquoted.html","string.quoted.single.handlebars","string.quoted.double.handlebars"],"settings":{"foreground":"#0000ff"}},{"scope":"string.regexp","settings":{"foreground":"#811f3f"}},{"name":"String interpolation","scope":["punctuation.definition.template-expression.begin","punctuation.definition.template-expression.end","punctuation.section.embedded"],"settings":{"foreground":"#0000ff"}},{"name":"Reset JavaScript string interpolation expression","scope":["meta.template.expression"],"settings":{"foreground":"#000000"}},{"scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"scope":["support.type.vendored.property-name","support.type.property-name","variable.css","variable.scss","variable.other.less","source.coffee.embedded"],"settings":{"foreground":"#ff0000"}},{"scope":["support.type.property-name.json"],"settings":{"foreground":"#0451a5"}},{"scope":"keyword","settings":{"foreground":"#0000ff"}},{"scope":"keyword.control","settings":{"foreground":"#0000ff"}},{"scope":"keyword.operator","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.new","keyword.operator.expression","keyword.operator.cast","keyword.operator.sizeof","keyword.operator.instanceof","keyword.operator.logical.python"],"settings":{"foreground":"#0000ff"}},{"scope":"keyword.other.unit","settings":{"foreground":"#09885a"}},{"scope":["punctuation.section.embedded.begin.php","punctuation.section.embedded.end.php"],"settings":{"foreground":"#800000"}},{"scope":"support.function.git-rebase","settings":{"foreground":"#0451a5"}},{"scope":"constant.sha.git-rebase","settings":{"foreground":"#09885a"}},{"name":"coloring of the Java import and package identifiers","scope":["storage.modifier.import.java","variable.language.wildcard.java","storage.modifier.package.java"],"settings":{"foreground":"#000000"}},{"name":"this.self","scope":"variable.language","settings":{"foreground":"#0000ff"}},{"name":"Function declarations","scope":["entity.name.function","support.function","support.constant.handlebars"],"settings":{"foreground":"#795E26"}},{"name":"Types declaration and references","scope":["meta.return-type","support.class","support.type","entity.name.type","entity.name.class","storage.type.numeric.go","storage.type.byte.go","storage.type.boolean.go","storage.type.string.go","storage.type.uintptr.go","storage.type.error.go","storage.type.rune.go","storage.type.cs","storage.type.generic.cs","storage.type.modifier.cs","storage.type.variable.cs","storage.type.annotation.java","storage.type.generic.java","storage.type.java","storage.type.object.array.java","storage.type.primitive.array.java","storage.type.primitive.java","storage.type.token.java","storage.type.groovy","storage.type.annotation.groovy","storage.type.parameters.groovy","storage.type.generic.groovy","storage.type.object.array.groovy","storage.type.primitive.array.groovy","storage.type.primitive.groovy"],"settings":{"foreground":"#267f99"}},{"name":"Types declaration and references, TS grammar specific","scope":["meta.type.cast.expr","meta.type.new.expr","support.constant.math","support.constant.dom","support.constant.json","entity.other.inherited-class"],"settings":{"foreground":"#267f99"}},{"name":"Control flow keywords","scope":"keyword.control","settings":{"foreground":"#AF00DB"}},{"name":"Variable and parameter name","scope":["variable","meta.definition.variable.name","support.variable","entity.name.variable"],"settings":{"foreground":"#001080"}},{"name":"Object keys, TS grammar specific","scope":["meta.object-literal.key"],"settings":{"foreground":"#001080"}},{"name":"CSS property value","scope":["support.constant.property-value","support.constant.font-name","support.constant.media-type","support.constant.media","constant.other.color.rgb-value","constant.other.rgb-value","support.constant.color"],"settings":{"foreground":"#0451a5"}},{"name":"Regular expression groups","scope":["punctuation.definition.group.regexp","punctuation.definition.group.assertion.regexp","punctuation.definition.character-class.regexp","punctuation.character.set.begin.regexp","punctuation.character.set.end.regexp","keyword.operator.negation.regexp","support.other.parenthesis.regexp"],"settings":{"foreground":"#d16969"}},{"scope":["constant.character.character-class.regexp","constant.other.character-class.set.regexp","constant.other.character-class.regexp","constant.character.set.regexp"],"settings":{"foreground":"#811f3f"}},{"scope":"keyword.operator.quantifier.regexp","settings":{"foreground":"#000000"}},{"scope":["keyword.operator.or.regexp","keyword.control.anchor.regexp"],"settings":{"foreground":"#ff0000"}},{"scope":"constant.character","settings":{"foreground":"#0000ff"}},{"scope":"constant.character.escape","settings":{"foreground":"#ff0000"}},{"scope":"token.info-token","settings":{"foreground":"#316bcd"}},{"scope":"token.warn-token","settings":{"foreground":"#cd9731"}},{"scope":"token.error-token","settings":{"foreground":"#cd3131"}},{"scope":"token.debug-token","settings":{"foreground":"#800080"}}],"extensionData":{"extensionId":"vscode.theme-defaults","extensionPublisher":"vscode","extensionName":"theme-defaults","extensionIsBuiltin":true},"colorMap":{"editor.background":"#ffffff","editor.foreground":"#000000","editor.inactiveSelectionBackground":"#e5ebf1","editorIndentGuide.background":"#d3d3d3","editorIndentGuide.activeBackground":"#939393","editor.selectionHighlightBackground":"#add6ff4d","editorSuggestWidget.background":"#f3f3f3","activityBarBadge.background":"#007acc","sideBarTitle.foreground":"#6f6f6f","list.hoverBackground":"#e8e8e8","input.placeholderForeground":"#767676","settings.textInputBorder":"#cecece","settings.numberInputBorder":"#cecece"}}');
 		items.set('commandpalette.mru.cache', '{"usesLRU":true,"entries":[{"key":"revealFileInOS","value":3},{"key":"extension.openInGitHub","value":4},{"key":"workbench.extensions.action.openExtensionsFolder","value":11},{"key":"workbench.action.showRuntimeExtensions","value":14},{"key":"workbench.action.toggleTabsVisibility","value":15},{"key":"extension.liveServerPreview.open","value":16},{"key":"workbench.action.openIssueReporter","value":18},{"key":"workbench.action.openProcessExplorer","value":19},{"key":"workbench.action.toggleSharedProcess","value":20},{"key":"workbench.action.configureLocale","value":21},{"key":"workbench.action.appPerf","value":22},{"key":"workbench.action.reportPerformanceIssueUsingReporter","value":23},{"key":"workbench.action.openGlobalKeybindings","value":25},{"key":"workbench.action.output.toggleOutput","value":27},{"key":"extension.sayHello","value":29}]}');
 
 		let uuid = generateUuid();
@@ -607,9 +654,9 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		let storedItems = await storage.getItems();
-		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
-		strictEqual(items.get('super.large.string'), storedItems.get('super.large.string'));
+		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
+		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
+		equal(items.get('super.large.string'), storedItems.get('super.large.string'));
 
 		uuid = generateUuid();
 		value = [];
@@ -621,23 +668,27 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		storedItems = await storage.getItems();
-		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
-		strictEqual(items.get('super.large.string'), storedItems.get('super.large.string'));
+		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
+		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
+		equal(items.get('super.large.string'), storedItems.get('super.large.string'));
 
 		const toDelete = new Set<string>();
 		toDelete.add('super.large.string');
 		await storage.updateItems({ delete: toDelete });
 
 		storedItems = await storage.getItems();
-		strictEqual(items.get('colorthemedata'), storedItems.get('colorthemedata'));
-		strictEqual(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
+		equal(items.get('colorthemedata'), storedItems.get('colorthemedata'));
+		equal(items.get('commandpalette.mru.cache'), storedItems.get('commandpalette.mru.cache'));
 		ok(!storedItems.get('super.large.string'));
 
 		await storage.close();
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('multiple concurrent writes execute in sequence', async () => {
+		const storageDir = uniqueStorageDir();
+		await mkdirp(storageDir);
 
 		class TestStorage extends Storage {
 			getStorage(): IStorageDatabase {
@@ -645,7 +696,7 @@ flakySuite('SQLite Storage Library', function () {
 			}
 		}
 
-		const storage = new TestStorage(new SQLiteStorageDatabase(join(testdir, 'storage.db')));
+		const storage = new TestStorage(new SQLiteStorageDatabase(join(storageDir, 'storage.db')));
 
 		await storage.init();
 
@@ -678,20 +729,26 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.set('some/foo3/path', 'some/bar/path');
 
 		const items = await storage.getStorage().getItems();
-		strictEqual(items.get('foo'), 'bar');
-		strictEqual(items.get('some/foo/path'), 'some/bar/path');
-		strictEqual(items.has('foo1'), false);
-		strictEqual(items.has('some/foo1/path'), false);
-		strictEqual(items.get('foo2'), 'bar');
-		strictEqual(items.get('some/foo2/path'), 'some/bar/path');
-		strictEqual(items.get('foo3'), 'bar');
-		strictEqual(items.get('some/foo3/path'), 'some/bar/path');
+		equal(items.get('foo'), 'bar');
+		equal(items.get('some/foo/path'), 'some/bar/path');
+		equal(items.has('foo1'), false);
+		equal(items.has('some/foo1/path'), false);
+		equal(items.get('foo2'), 'bar');
+		equal(items.get('some/foo2/path'), 'some/bar/path');
+		equal(items.get('foo3'), 'bar');
+		equal(items.get('some/foo3/path'), 'some/bar/path');
 
 		await storage.close();
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('lots of INSERT & DELETE (below inline max)', async () => {
-		const storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
 		const keys: Set<string> = new Set<string>();
@@ -706,18 +763,24 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
+		equal(storedItems.size, items.size);
 
 		await storage.updateItems({ delete: keys });
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		await storage.close();
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 
 	test('lots of INSERT & DELETE (above inline max)', async () => {
-		const storage = new SQLiteStorageDatabase(join(testdir, 'storage.db'));
+		const storageDir = uniqueStorageDir();
+
+		await mkdirp(storageDir);
+
+		const storage = new SQLiteStorageDatabase(join(storageDir, 'storage.db'));
 
 		const items = new Map<string, string>();
 		const keys: Set<string> = new Set<string>();
@@ -732,13 +795,15 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.updateItems({ insert: items });
 
 		let storedItems = await storage.getItems();
-		strictEqual(storedItems.size, items.size);
+		equal(storedItems.size, items.size);
 
 		await storage.updateItems({ delete: keys });
 
 		storedItems = await storage.getItems();
-		strictEqual(storedItems.size, 0);
+		equal(storedItems.size, 0);
 
 		await storage.close();
+
+		await rimraf(storageDir, RimRafMode.MOVE);
 	});
 });

@@ -7,6 +7,7 @@ import { Model } from '../model';
 import { GitExtension, Repository, API } from './git';
 import { ApiRepository, ApiImpl } from './api1';
 import { Event, EventEmitter } from 'vscode';
+import { latchEvent } from '../util';
 
 export function deprecated(_target: any, key: string, descriptor: any): void {
 	if (typeof descriptor.value !== 'function') {
@@ -25,25 +26,15 @@ export class GitExtensionImpl implements GitExtension {
 	enabled: boolean = false;
 
 	private _onDidChangeEnablement = new EventEmitter<boolean>();
-	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+	readonly onDidChangeEnablement: Event<boolean> = latchEvent(this._onDidChangeEnablement.event);
 
 	private _model: Model | undefined = undefined;
 
 	set model(model: Model | undefined) {
 		this._model = model;
 
-		const enabled = !!model;
-
-		if (this.enabled === enabled) {
-			return;
-		}
-
-		this.enabled = enabled;
+		this.enabled = !!model;
 		this._onDidChangeEnablement.fire(this.enabled);
-	}
-
-	get model(): Model | undefined {
-		return this._model;
 	}
 
 	constructor(model?: Model) {

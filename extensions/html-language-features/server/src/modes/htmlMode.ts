@@ -7,9 +7,10 @@ import { getLanguageModelCache } from '../languageModelCache';
 import {
 	LanguageService as HTMLLanguageService, HTMLDocument, DocumentContext, FormattingOptions,
 	HTMLFormatConfiguration, SelectionRange,
-	TextDocument, Position, Range, FoldingRange,
-	LanguageMode, Workspace, Settings
+	TextDocument, Position, Range, CompletionItem, FoldingRange,
+	LanguageMode, Workspace
 } from './languageModes';
+import { getPathCompletionParticipant } from './pathCompletion';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
 	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
@@ -17,33 +18,37 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		getId() {
 			return 'html';
 		},
-		async getSelectionRange(document: TextDocument, position: Position): Promise<SelectionRange> {
+		getSelectionRange(document: TextDocument, position: Position): SelectionRange {
 			return htmlLanguageService.getSelectionRanges(document, [position])[0];
 		},
-		doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, settings = workspace.settings) {
+		doComplete(document: TextDocument, position: Position, settings = workspace.settings) {
 			let options = settings && settings.html && settings.html.suggest;
 			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}
+			let pathCompletionProposals: CompletionItem[] = [];
+			let participants = [getPathCompletionParticipant(document, workspace.folders, pathCompletionProposals)];
+			htmlLanguageService.setCompletionParticipants(participants);
 
 			const htmlDocument = htmlDocuments.get(document);
-			let completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
+			let completionList = htmlLanguageService.doComplete(document, position, htmlDocument, options);
+			completionList.items.push(...pathCompletionProposals);
 			return completionList;
 		},
-		async doHover(document: TextDocument, position: Position, settings?: Settings) {
-			return htmlLanguageService.doHover(document, position, htmlDocuments.get(document), settings?.html?.hover);
+		doHover(document: TextDocument, position: Position) {
+			return htmlLanguageService.doHover(document, position, htmlDocuments.get(document));
 		},
-		async findDocumentHighlight(document: TextDocument, position: Position) {
+		findDocumentHighlight(document: TextDocument, position: Position) {
 			return htmlLanguageService.findDocumentHighlights(document, position, htmlDocuments.get(document));
 		},
-		async findDocumentLinks(document: TextDocument, documentContext: DocumentContext) {
+		findDocumentLinks(document: TextDocument, documentContext: DocumentContext) {
 			return htmlLanguageService.findDocumentLinks(document, documentContext);
 		},
-		async findDocumentSymbols(document: TextDocument) {
+		findDocumentSymbols(document: TextDocument) {
 			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
 		},
-		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
+		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
 			let formatSettings: HTMLFormatConfiguration = settings && settings.html && settings.html.format;
 			if (formatSettings) {
 				formatSettings = merge(formatSettings, {});
@@ -58,10 +63,10 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			formatSettings = merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
-		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
+		getFoldingRanges(document: TextDocument): FoldingRange[] {
 			return htmlLanguageService.getFoldingRanges(document);
 		},
-		async doAutoClose(document: TextDocument, position: Position) {
+		doAutoClose(document: TextDocument, position: Position) {
 			let offset = document.offsetAt(position);
 			let text = document.getText();
 			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
@@ -69,20 +74,16 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			}
 			return null;
 		},
-		async doRename(document: TextDocument, position: Position, newName: string) {
+		doRename(document: TextDocument, position: Position, newName: string) {
 			const htmlDocument = htmlDocuments.get(document);
 			return htmlLanguageService.doRename(document, position, newName, htmlDocument);
 		},
-		async onDocumentRemoved(document: TextDocument) {
+		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);
 		},
-		async findMatchingTagPosition(document: TextDocument, position: Position) {
+		findMatchingTagPosition(document: TextDocument, position: Position) {
 			const htmlDocument = htmlDocuments.get(document);
 			return htmlLanguageService.findMatchingTagPosition(document, position, htmlDocument);
-		},
-		async doLinkedEditing(document: TextDocument, position: Position) {
-			const htmlDocument = htmlDocuments.get(document);
-			return htmlLanguageService.findLinkedEditingRanges(document, position, htmlDocument);
 		},
 		dispose() {
 			htmlDocuments.dispose();

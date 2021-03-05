@@ -1,0 +1,6 @@
+{
+    daysUntilClose: 7,
+    needsMoreInfoLabel: 'needs more info',
+    perform: true,
+    closeComment: "This issue has been closed automatically because it needs more information and has not had recent activity. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+}

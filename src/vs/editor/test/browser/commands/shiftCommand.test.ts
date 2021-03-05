@@ -22,8 +22,7 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: false
+		text: text
 	};
 }
 
@@ -836,7 +835,7 @@ suite('Editor Commands - ShiftCommand', () => {
 		);
 	});
 
-	test('issue microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
+	test('issue Microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
 		testCommand(
 			[
 				'Hello world!',
@@ -964,7 +963,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					autoIndent: EditorAutoIndentStrategy.Full,
 				});
 				let actual = getEditOperation(model, op);
-				assert.deepStrictEqual(actual, expected);
+				assert.deepEqual(actual, expected);
 			});
 		}
 
@@ -979,7 +978,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					autoIndent: EditorAutoIndentStrategy.Full,
 				});
 				let actual = getEditOperation(model, op);
-				assert.deepStrictEqual(actual, expected);
+				assert.deepEqual(actual, expected);
 			});
 		}
 	});

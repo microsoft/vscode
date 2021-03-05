@@ -74,21 +74,21 @@ export class Search extends Viewlet {
 
 		await retry(
 			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon-search-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
+			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.codicon-close`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
 		// ¯\_(ツ)_/¯
 		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon-search-remove`);
+		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.codicon-close`);
 		await this.code.waitForElement(fileMatch, el => !el);
 	}
 
 	async expandReplace(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-search-hide-replace`);
+		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-chevron-right`);
 	}
 
 	async collapseReplace(): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-search-show-replace`);
+		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.codicon-chevron-down`);
 	}
 
 	async setReplaceText(text: string): Promise<void> {
@@ -100,21 +100,20 @@ export class Search extends Viewlet {
 
 		await retry(
 			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.codicon-search-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
+			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.codicon-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
 		// ¯\_(ツ)_/¯
 		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.codicon-search-replace-all`);
+		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.codicon-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {
-		// The label can end with " - " depending on whether the search editor is enabled
-		await this.code.waitForTextContent(`${VIEWLET} .messages .message>span`, undefined, result => result.startsWith(text));
+		await this.code.waitForTextContent(`${VIEWLET} .messages .message>p`, text);
 	}
 
 	async waitForNoResultText(): Promise<void> {
-		await this.code.waitForTextContent(`${VIEWLET} .messages`, '');
+		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="true"] .message>p`);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

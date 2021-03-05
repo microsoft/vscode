@@ -3,45 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextEditorModel, IModeSupport } from 'vs/workbench/common/editor';
+import { EditorInput, ITextEditorModel, IModeSupport } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { isEqual } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/resources';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
  * code editor model.
  */
-export class ResourceEditorInput extends AbstractTextResourceEditorInput implements IModeSupport {
+export class ResourceEditorInput extends EditorInput implements IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
-	private cachedModel: ResourceEditorModel | undefined = undefined;
-	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
+	private cachedModel: ResourceEditorModel | null = null;
+	private modelReference: Promise<IReference<ITextEditorModel>> | null = null;
 
 	constructor(
-		resource: URI,
 		private name: string | undefined,
 		private description: string | undefined,
+		private readonly resource: URI,
 		private preferredMode: string | undefined,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
-		super(resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super();
+
+		this.name = name;
+		this.description = description;
+		this.resource = resource;
+	}
+
+	getResource(): URI {
+		return this.resource;
 	}
 
 	getTypeId(): string {
@@ -49,13 +44,12 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	}
 
 	getName(): string {
-		return this.name || super.getName();
+		return this.name || basename(this.resource);
 	}
 
 	setName(name: string): void {
 		if (this.name !== name) {
 			this.name = name;
-
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -67,7 +61,6 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	setDescription(description: string): void {
 		if (this.description !== description) {
 			this.description = description;
-
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -91,13 +84,14 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 
 		const ref = await this.modelReference;
 
-		// Ensure the resolved model is of expected type
 		const model = ref.object;
+
+		// Ensure the resolved model is of expected type
 		if (!(model instanceof ResourceEditorModel)) {
 			ref.dispose();
-			this.modelReference = undefined;
+			this.modelReference = null;
 
-			throw new Error(`Unexpected model for ResourceEditorInput: ${this.resource}`);
+			throw new Error(`Unexpected model for ResourceInput: ${this.resource}`);
 		}
 
 		this.cachedModel = model;
@@ -111,12 +105,13 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	}
 
 	matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+		if (super.matches(otherInput) === true) {
 			return true;
 		}
 
+		// Compare by properties
 		if (otherInput instanceof ResourceEditorInput) {
-			return isEqual(otherInput.resource, this.resource);
+			return otherInput.resource.toString() === this.resource.toString();
 		}
 
 		return false;
@@ -125,10 +120,10 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	dispose(): void {
 		if (this.modelReference) {
 			this.modelReference.then(ref => ref.dispose());
-			this.modelReference = undefined;
+			this.modelReference = null;
 		}
 
-		this.cachedModel = undefined;
+		this.cachedModel = null;
 
 		super.dispose();
 	}

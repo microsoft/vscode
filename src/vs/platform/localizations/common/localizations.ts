@@ -19,14 +19,17 @@ export interface ITranslation {
 	path: string;
 }
 
+export const enum LanguageType {
+	Core = 1,
+	Contributed
+}
+
 export const ILocalizationsService = createDecorator<ILocalizationsService>('localizationsService');
 export interface ILocalizationsService {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	readonly onDidLanguagesChange: Event<void>;
-	getLanguageIds(): Promise<string[]>;
-
-	update(): Promise<boolean>;
+	getLanguageIds(type?: LanguageType): Promise<string[]>;
 }
 
 export function isValidLocalization(localization: ILocalization): boolean {

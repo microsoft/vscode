@@ -14,10 +14,9 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "*"
   ],
-  "main": "./out/mergeConflictMain",
-  "browser": "./dist/browser/mergeConflictMain",
+  "main": "./out/extension",
   "scripts": {
     "compile": "gulp compile-extension:merge-conflict",
     "watch": "gulp watch-extension:merge-conflict"
@@ -139,10 +138,6 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "@types/node": "^12.11.7"
   }
 }

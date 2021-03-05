@@ -12,7 +12,6 @@ $Auth = Create-TmpJson @{
 		SubjectName = $env:ESRPAuthCertificateSubjectName
 		StoreLocation = "LocalMachine"
 		StoreName = "My"
-		SendX5c = "true"
 	}
 	RequestSigningCert = @{
 		SubjectName = $env:ESRPCertificateSubjectName
@@ -68,4 +67,4 @@ $Input = Create-TmpJson @{
 
 $Output = [System.IO.Path]::GetTempFileName()
 $ScriptPath = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
-& "$ScriptPath\ESRPClient\packages\Microsoft.ESRPClient.*\tools\ESRPClient.exe" Sign -a $Auth -p $Policy -i $Input -o $Output
+& "$ScriptPath\ESRPClient\packages\EsrpClient.1.0.27\tools\ESRPClient.exe" Sign -a $Auth -p $Policy -i $Input -o $Output

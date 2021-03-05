@@ -10,7 +10,7 @@ export function deepClone<T>(obj: T): T {
 		return obj;
 	}
 	if (obj instanceof RegExp) {
-		// See https://github.com/microsoft/TypeScript/issues/10990
+		// See https://github.com/Microsoft/TypeScript/issues/10990
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
@@ -113,6 +113,15 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 	return destination;
 }
 
+export function assign<T>(destination: T): T;
+export function assign<T, U>(destination: T, u: U): T & U;
+export function assign<T, U, V>(destination: T, u: U, v: V): T & U & V;
+export function assign<T, U, V, W>(destination: T, u: U, v: V, w: W): T & U & V & W;
+export function assign(destination: any, ...sources: any[]): any {
+	sources.forEach(source => Object.keys(source).forEach(key => destination[key] = source[key]));
+	return destination;
+}
+
 export function equals(one: any, other: any): boolean {
 	if (one === other) {
 		return true;
@@ -167,18 +176,18 @@ export function equals(one: any, other: any): boolean {
 }
 
 /**
- * Calls `JSON.Stringify` with a replacer to break apart any circular references.
- * This prevents `JSON`.stringify` from throwing the exception
+ * Calls JSON.Stringify with a replacer to break apart any circular references.
+ * This prevents JSON.stringify from throwing the exception
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	const seen = new Set<any>();
+	const seen: any[] = [];
 	return JSON.stringify(obj, (key, value) => {
 		if (isObject(value) || Array.isArray(value)) {
-			if (seen.has(value)) {
+			if (seen.indexOf(value) !== -1) {
 				return '[Circular]';
 			} else {
-				seen.add(value);
+				seen.push(value);
 			}
 		}
 		return value;
@@ -219,10 +228,4 @@ export function distinct(base: obj, target: obj): obj {
 	});
 
 	return result;
-}
-
-export function getCaseInsensitive(target: obj, key: string): any {
-	const lowercaseKey = key.toLowerCase();
-	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
-	return equivalentKey ? target[equivalentKey] : target[key];
 }

@@ -5,7 +5,6 @@
 		"activityBar.background": "#580000",
 		"tab.inactiveBackground": "#300a0a",
 		"tab.activeBackground": "#490000",
-		"tab.lastPinnedBorder": "#ff000044",
 		"sideBar.background": "#330000",
 		"statusBar.background": "#700000",
 		"statusBar.noFolderBackground": "#700000",
@@ -49,7 +48,7 @@
 		"list.activeSelectionBackground": "#880000",
 		"list.inactiveSelectionBackground": "#770000",
 		"list.dropBackground": "#662222",
-		"quickInput.list.focusBackground": "#660000",
+		"list.focusBackground": "#660000",
 		"list.highlightForeground": "#ff4444",
 		"pickerGroup.foreground": "#cc9999",
 		"pickerGroup.border": "#ff000033",
@@ -193,7 +192,7 @@
 		},
 		{
 			"name": "Support.constant",
-			"scope": [ "support.constant", "support.variable"],
+			"scope": "support.constant",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#eb939aff"
@@ -352,20 +351,6 @@
 			}
 		},
 		{
-			"name": "Markup: Strong",
-			"scope": "markup.bold",
-			"settings": {
-				"fontStyle": "bold"
-			}
-		},
-		{
-			"name": "Markup: Emphasis",
-			"scope": "markup.italic",
-			"settings": {
-				"fontStyle": "italic"
-			}
-		},
-		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
@@ -374,15 +359,17 @@
 			}
 		},
 		{
-			"name": "Headings",
-			"scope": [
-				"markup.heading",
-				"markup.heading.setext",
-				"punctuation.definition.heading",
-				"entity.name.section"
-			],
+			"name": "Markup Headings",
+			"scope": "markup.heading",
 			"settings": {
-				"fontStyle": "bold",
+				"foreground": "#fec758ff"
+			}
+		},
+		{
+			"name": "Markup Setext Header",
+			"scope": "markup.heading.setext",
+			"settings": {
+				"fontStyle": "",
 				"foreground": "#fec758ff"
 			}
 		},
@@ -398,6 +385,5 @@
 				"foreground": "#ec0d1e"
 			}
 		}
-	],
-	"semanticHighlighting": true
+	]
 }

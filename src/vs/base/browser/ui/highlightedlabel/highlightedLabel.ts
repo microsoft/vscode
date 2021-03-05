@@ -4,24 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { escape } from 'vs/base/common/strings';
 
 export interface IHighlight {
 	start: number;
 	end: number;
-	extraClasses?: string;
 }
 
 export class HighlightedLabel {
 
-	private readonly domNode: HTMLElement;
+	private domNode: HTMLElement;
 	private text: string = '';
 	private title: string = '';
 	private highlights: IHighlight[] = [];
 	private didEverRender: boolean = false;
 
-	constructor(container: HTMLElement, private supportIcons: boolean) {
+	constructor(container: HTMLElement, private supportCodicons: boolean) {
 		this.domNode = document.createElement('span');
 		this.domNode.className = 'monaco-highlighted-label';
 
@@ -44,6 +43,10 @@ export class HighlightedLabel {
 			return;
 		}
 
+		if (!Array.isArray(highlights)) {
+			highlights = [];
+		}
+
 		this.text = text;
 		this.title = title;
 		this.highlights = highlights;
@@ -52,7 +55,7 @@ export class HighlightedLabel {
 
 	private render(): void {
 
-		const children: HTMLSpanElement[] = [];
+		let htmlContent = '';
 		let pos = 0;
 
 		for (const highlight of this.highlights) {
@@ -60,26 +63,27 @@ export class HighlightedLabel {
 				continue;
 			}
 			if (pos < highlight.start) {
+				htmlContent += '<span>';
 				const substring = this.text.substring(pos, highlight.start);
-				children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
+				htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
+				htmlContent += '</span>';
 				pos = highlight.end;
 			}
-
+			htmlContent += '<span class="highlight">';
 			const substring = this.text.substring(highlight.start, highlight.end);
-			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
-			if (highlight.extraClasses) {
-				element.classList.add(highlight.extraClasses);
-			}
-			children.push(element);
+			htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
+			htmlContent += '</span>';
 			pos = highlight.end;
 		}
 
 		if (pos < this.text.length) {
-			const substring = this.text.substring(pos,);
-			children.push(dom.$('span', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]));
+			htmlContent += '<span>';
+			const substring = this.text.substring(pos);
+			htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
+			htmlContent += '</span>';
 		}
 
-		dom.reset(this.domNode, ...children);
+		this.domNode.innerHTML = htmlContent;
 		if (this.title) {
 			this.domNode.title = this.title;
 		} else {

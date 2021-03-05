@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IUserDataSyncUtilService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -14,7 +14,7 @@ import { ITextResourcePropertiesService, ITextResourceConfigurationService } fro
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IKeybindingService private readonly keybindingsService: IKeybindingService,
@@ -23,11 +23,7 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
-	async resolveDefaultIgnoredSettings(): Promise<string[]> {
-		return getDefaultIgnoredSettings();
-	}
-
-	async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
+	public async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
 		const keys: IStringDictionary<string> = {};
 		for (const userbinding of userBindings) {
 			keys[userbinding] = this.keybindingsService.resolveUserBinding(userbinding).map(part => part.getUserSettingsLabel()).join(' ');
@@ -50,7 +46,6 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
 		};
 	}
-
 }
 
 registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService);

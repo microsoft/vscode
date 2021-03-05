@@ -8,8 +8,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 
-export const _debugComposition = false;
-
 export interface ITextAreaWrapper {
 	getValue(): string;
 	setValue(reason: string, value: string): void;
@@ -27,9 +25,7 @@ export interface ISimpleModel {
 
 export interface ITypeData {
 	text: string;
-	replacePrevCharCnt: number;
-	replaceNextCharCnt: number;
-	positionDelta: number;
+	replaceCharCnt: number;
 }
 
 export class TextAreaState {
@@ -63,9 +59,7 @@ export class TextAreaState {
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
-		if (_debugComposition) {
-			console.log('writeToTextArea ' + reason + ': ' + this.toString());
-		}
+		// console.log(Date.now() + ': writeToTextArea ' + reason + ': ' + this.toString());
 		textArea.setValue(reason, this.value);
 		if (select) {
 			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);
@@ -102,22 +96,18 @@ export class TextAreaState {
 		return new TextAreaState(text, 0, text.length, null, null);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
+	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
 				text: '',
-				replacePrevCharCnt: 0,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
+				replaceCharCnt: 0
 			};
 		}
 
-		if (_debugComposition) {
-			console.log('------------------------deduceInput');
-			console.log('PREVIOUS STATE: ' + previousState.toString());
-			console.log('CURRENT STATE: ' + currentState.toString());
-		}
+		// console.log('------------------------deduceInput');
+		// console.log('PREVIOUS STATE: ' + previousState.toString());
+		// console.log('CURRENT STATE: ' + currentState.toString());
 
 		let previousValue = previousState.value;
 		let previousSelectionStart = previousState.selectionStart;
@@ -125,6 +115,18 @@ export class TextAreaState {
 		let currentValue = currentState.value;
 		let currentSelectionStart = currentState.selectionStart;
 		let currentSelectionEnd = currentState.selectionEnd;
+
+		if (couldBeTypingAtOffset0 && previousValue.length > 0 && previousSelectionStart === previousSelectionEnd && currentSelectionStart === currentSelectionEnd) {
+			// See https://github.com/Microsoft/vscode/issues/42251
+			// where typing always happens at offset 0 in the textarea
+			// when using a custom title area in OSX and moving the window
+			if (!strings.startsWith(currentValue, previousValue) && strings.endsWith(currentValue, previousValue)) {
+				// Looks like something was typed at offset 0
+				// ==> pretend we placed the cursor at offset 0 to begin with...
+				previousSelectionStart = 0;
+				previousSelectionEnd = 0;
+			}
+		}
 
 		// Strip the previous suffix from the value (without interfering with the current selection)
 		const previousSuffix = previousValue.substring(previousSelectionEnd);
@@ -143,10 +145,8 @@ export class TextAreaState {
 		currentSelectionEnd -= prefixLength;
 		previousSelectionEnd -= prefixLength;
 
-		if (_debugComposition) {
-			console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
-			console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
-		}
+		// console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
+		// console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
 
 		if (couldBeEmojiInput && currentSelectionStart === currentSelectionEnd && previousValue.length > 0) {
 			// on OSX, emojis from the emoji picker are inserted at random locations
@@ -157,13 +157,13 @@ export class TextAreaState {
 
 			if (currentSelectionStart === currentValue.length) {
 				// emoji potentially inserted "somewhere" after the previous selection => it should appear at the end of `currentValue`
-				if (currentValue.startsWith(previousValue)) {
+				if (strings.startsWith(currentValue, previousValue)) {
 					// only if all of the old text is accounted for
 					potentialEmojiInput = currentValue.substring(previousValue.length);
 				}
 			} else {
 				// emoji potentially inserted "somewhere" before the previous selection => it should appear at the start of `currentValue`
-				if (currentValue.endsWith(previousValue)) {
+				if (strings.endsWith(currentValue, previousValue)) {
 					// only if all of the old text is accounted for
 					potentialEmojiInput = currentValue.substring(0, currentValue.length - previousValue.length);
 				}
@@ -182,9 +182,7 @@ export class TextAreaState {
 				if (/\uFE0F/.test(potentialEmojiInput) || strings.containsEmoji(potentialEmojiInput)) {
 					return {
 						text: potentialEmojiInput,
-						replacePrevCharCnt: 0,
-						replaceNextCharCnt: 0,
-						positionDelta: 0
+						replaceCharCnt: 0
 					};
 				}
 			}
@@ -203,24 +201,18 @@ export class TextAreaState {
 				if (strings.containsFullWidthCharacter(currentValue)) {
 					return {
 						text: '',
-						replacePrevCharCnt: 0,
-						replaceNextCharCnt: 0,
-						positionDelta: 0
+						replaceCharCnt: 0
 					};
 				}
 			}
 
 			// no current selection
 			const replacePreviousCharacters = (previousPrefix.length - prefixLength);
-			if (_debugComposition) {
-				console.log('REMOVE PREVIOUS: ' + (previousPrefix.length - prefixLength) + ' chars');
-			}
+			// console.log('REMOVE PREVIOUS: ' + (previousPrefix.length - prefixLength) + ' chars');
 
 			return {
 				text: currentValue,
-				replacePrevCharCnt: replacePreviousCharacters,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
+				replaceCharCnt: replacePreviousCharacters
 			};
 		}
 
@@ -228,57 +220,7 @@ export class TextAreaState {
 		const replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
 		return {
 			text: currentValue,
-			replacePrevCharCnt: replacePreviousCharacters,
-			replaceNextCharCnt: 0,
-			positionDelta: 0
-		};
-	}
-
-	public static deduceAndroidCompositionInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
-		if (!previousState) {
-			// This is the EMPTY state
-			return {
-				text: '',
-				replacePrevCharCnt: 0,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
-			};
-		}
-
-		if (_debugComposition) {
-			console.log('------------------------deduceAndroidCompositionInput');
-			console.log('PREVIOUS STATE: ' + previousState.toString());
-			console.log('CURRENT STATE: ' + currentState.toString());
-		}
-
-		if (previousState.value === currentState.value) {
-			return {
-				text: '',
-				replacePrevCharCnt: 0,
-				replaceNextCharCnt: 0,
-				positionDelta: currentState.selectionEnd - previousState.selectionEnd
-			};
-		}
-
-		const prefixLength = Math.min(strings.commonPrefixLength(previousState.value, currentState.value), previousState.selectionEnd);
-		const suffixLength = Math.min(strings.commonSuffixLength(previousState.value, currentState.value), previousState.value.length - previousState.selectionEnd);
-		const previousValue = previousState.value.substring(prefixLength, previousState.value.length - suffixLength);
-		const currentValue = currentState.value.substring(prefixLength, currentState.value.length - suffixLength);
-		const previousSelectionStart = previousState.selectionStart - prefixLength;
-		const previousSelectionEnd = previousState.selectionEnd - prefixLength;
-		const currentSelectionStart = currentState.selectionStart - prefixLength;
-		const currentSelectionEnd = currentState.selectionEnd - prefixLength;
-
-		if (_debugComposition) {
-			console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
-			console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
-		}
-
-		return {
-			text: currentValue,
-			replacePrevCharCnt: previousSelectionEnd,
-			replaceNextCharCnt: previousValue.length - previousSelectionEnd,
-			positionDelta: currentSelectionEnd - currentValue.length
+			replaceCharCnt: replacePreviousCharacters
 		};
 	}
 }

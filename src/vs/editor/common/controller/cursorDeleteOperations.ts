@@ -5,13 +5,11 @@
 
 import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
 import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 
 export class DeleteOperations {
 
@@ -49,14 +47,8 @@ export class DeleteOperations {
 		return [shouldPushStackElementBefore, commands];
 	}
 
-	public static isAutoClosingPairDelete(
-		autoClosingBrackets: EditorAutoClosingStrategy,
-		autoClosingQuotes: EditorAutoClosingStrategy,
-		autoClosingPairsOpen: Map<string, StandardAutoClosingPairConditional[]>,
-		model: ICursorSimpleModel,
-		selections: Selection[]
-	): boolean {
-		if (autoClosingBrackets === 'never' && autoClosingQuotes === 'never') {
+	private static _isAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): boolean {
+		if (config.autoClosingBrackets === 'never' && config.autoClosingQuotes === 'never') {
 			return false;
 		}
 
@@ -69,27 +61,24 @@ export class DeleteOperations {
 			}
 
 			const lineText = model.getLineContent(position.lineNumber);
-			if (position.column < 2 || position.column >= lineText.length + 1) {
-				return false;
-			}
-			const character = lineText.charAt(position.column - 2);
+			const character = lineText[position.column - 2];
 
-			const autoClosingPairCandidates = autoClosingPairsOpen.get(character);
+			const autoClosingPairCandidates = config.autoClosingPairsOpen2.get(character);
 			if (!autoClosingPairCandidates) {
 				return false;
 			}
 
 			if (isQuote(character)) {
-				if (autoClosingQuotes === 'never') {
+				if (config.autoClosingQuotes === 'never') {
 					return false;
 				}
 			} else {
-				if (autoClosingBrackets === 'never') {
+				if (config.autoClosingBrackets === 'never') {
 					return false;
 				}
 			}
 
-			const afterCharacter = lineText.charAt(position.column - 1);
+			const afterCharacter = lineText[position.column - 1];
 
 			let foundAutoClosingPair = false;
 			for (const autoClosingPairCandidate of autoClosingPairCandidates) {
@@ -122,7 +111,7 @@ export class DeleteOperations {
 
 	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, Array<ICommand | null>] {
 
-		if (this.isAutoClosingPairDelete(config.autoClosingBrackets, config.autoClosingQuotes, config.autoClosingPairs.autoClosingPairsOpenByEnd, model, selections)) {
+		if (this._isAutoClosingPairDelete(config, model, selections)) {
 			return this._runAutoClosingPairDelete(config, model, selections);
 		}
 

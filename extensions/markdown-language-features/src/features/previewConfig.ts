@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { equals } from '../util/arrays';
 
 export class MarkdownPreviewConfiguration {
 	public static getForResource(resource: vscode.Uri) {
@@ -22,7 +21,7 @@ export class MarkdownPreviewConfiguration {
 	public readonly lineHeight: number;
 	public readonly fontSize: number;
 	public readonly fontFamily: string | undefined;
-	public readonly styles: readonly string[];
+	public readonly styles: string[];
 
 	private constructor(resource: vscode.Uri) {
 		const editorConfig = vscode.workspace.getConfiguration('editor', resource);
@@ -50,7 +49,7 @@ export class MarkdownPreviewConfiguration {
 	}
 
 	public isEqualTo(otherConfig: MarkdownPreviewConfiguration) {
-		for (const key in this) {
+		for (let key in this) {
 			if (this.hasOwnProperty(key) && key !== 'styles') {
 				if (this[key] !== otherConfig[key]) {
 					return false;
@@ -58,7 +57,17 @@ export class MarkdownPreviewConfiguration {
 			}
 		}
 
-		return equals(this.styles, otherConfig.styles);
+		// Check styles
+		if (this.styles.length !== otherConfig.styles.length) {
+			return false;
+		}
+		for (let i = 0; i < this.styles.length; ++i) {
+			if (this.styles[i] !== otherConfig.styles[i]) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	[key: string]: any;

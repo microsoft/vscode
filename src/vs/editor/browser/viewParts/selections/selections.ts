@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./selections';
+import * as browser from 'vs/base/browser/browser';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
 import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -55,6 +56,12 @@ function toStyledRange(item: HorizontalRange): HorizontalRangeWithStyle {
 function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
 	return new LineVisibleRangesWithStyle(item.lineNumber, item.ranges.map(toStyledRange));
 }
+
+// TODO@Alex: Remove this once IE11 fixes Bug #524217
+// The problem in IE11 is that it does some sort of auto-zooming to accomodate for displays with different pixel density.
+// Unfortunately, this auto-zooming is buggy around dealing with rounded borders
+const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdgeOrIE;
+
 
 export class SelectionsOverlay extends DynamicViewOverlay {
 
@@ -210,7 +217,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 					endStyle.top = CornerStyle.INTERN;
 				}
 			} else if (previousFrameTop) {
-				// Accept some hiccups near the viewport edges to save on repaints
+				// Accept some hick-ups near the viewport edges to save on repaints
 				startStyle.top = previousFrameTop.startStyle!.top;
 				endStyle.top = previousFrameTop.endStyle!.top;
 			}
@@ -232,7 +239,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 					endStyle.bottom = CornerStyle.INTERN;
 				}
 			} else if (previousFrameBottom) {
-				// Accept some hiccups near the viewport edges to save on repaints
+				// Accept some hick-ups near the viewport edges to save on repaints
 				startStyle.bottom = previousFrameBottom.startStyle!.bottom;
 				endStyle.bottom = previousFrameBottom.endStyle!.bottom;
 			}
@@ -247,7 +254,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		const linesVisibleRanges = _linesVisibleRanges.map(toStyled);
 		const visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
-		if (!visibleRangesHaveGaps && this._roundedSelection) {
+		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._roundedSelection) {
 			this._enrichVisibleRangesWithStyle(ctx.visibleRange, linesVisibleRanges, previousFrame);
 		}
 
@@ -412,7 +419,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
 	}
 	const editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
-	if (editorSelectionForegroundColor && !editorSelectionForegroundColor.isTransparent()) {
+	if (editorSelectionForegroundColor) {
 		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
 	}
 });

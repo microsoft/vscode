@@ -13,7 +13,6 @@ import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { TextSearchProvider, TextSearchResult, TextSearchMatch, TextSearchComplete, Range, TextSearchOptions, TextSearchQuery } from 'vs/workbench/services/search/common/searchExtTypes';
 import { nextTick } from 'vs/base/common/process';
-import { Schemas } from 'vs/base/common/network';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -55,7 +54,7 @@ export class TextSearchManager {
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
-					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
+					if (newResultSize > 0) {
 						this.collector!.add(result, folderIdx);
 					}
 				}
@@ -84,15 +83,10 @@ export class TextSearchManager {
 	}
 
 	private resultSize(result: TextSearchResult): number {
-		if (extensionResultIsMatch(result)) {
-			return Array.isArray(result.ranges) ?
-				result.ranges.length :
-				1;
-		}
-		else {
-			// #104400 context lines shoudn't count towards result count
-			return 0;
-		}
+		const match = <TextSearchMatch>result;
+		return Array.isArray(match.ranges) ?
+			match.ranges.length :
+			1;
 	}
 
 	private trimResultToSize(result: TextSearchMatch, size: number): TextSearchMatch {
@@ -118,7 +112,7 @@ export class TextSearchManager {
 					return;
 				}
 
-				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
+				const hasSibling = folderQuery.folder.scheme === 'file' ?
 					glob.hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));
 					}) :

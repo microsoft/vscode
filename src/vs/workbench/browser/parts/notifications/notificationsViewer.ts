@@ -4,26 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addDisposableListener, EventType, EventHelper, $ } from 'vs/base/browser/dom';
+import { clearNode, addClass, removeClass, toggleClass, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
+import { ButtonGroup } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { dispose, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
+import { INotificationViewItem, NotificationViewItem, NotificationViewItemLabelKind, INotificationMessage, ChoiceAction } from 'vs/workbench/common/notifications';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -38,7 +37,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 
 	private createOffsetHelper(container: HTMLElement): HTMLElement {
 		const offsetHelper = document.createElement('div');
-		offsetHelper.classList.add('notification-offset-helper');
+		addClass(offsetHelper, 'notification-offset-helper');
 
 		container.appendChild(offsetHelper);
 
@@ -46,12 +45,13 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 	}
 
 	getHeight(notification: INotificationViewItem): number {
-		if (!notification.expanded) {
-			return NotificationsListDelegate.ROW_HEIGHT; // return early if there are no more rows to show
-		}
 
 		// First row: message and actions
 		let expandedHeight = NotificationsListDelegate.ROW_HEIGHT;
+
+		if (!notification.expanded) {
+			return expandedHeight; // return early if there are no more rows to show
+		}
 
 		// Dynamic height: if message overflows
 		const preferredMessageHeight = this.computePreferredHeight(notification);
@@ -136,28 +136,39 @@ class NotificationMessageRenderer {
 	static render(message: INotificationMessage, actionHandler?: IMessageActionHandler): HTMLElement {
 		const messageContainer = document.createElement('span');
 
-		for (const node of message.linkedText.nodes) {
-			if (typeof node === 'string') {
-				messageContainer.appendChild(document.createTextNode(node));
-			} else {
-				let title = node.title;
+		// Message has no links
+		if (message.links.length === 0) {
+			messageContainer.textContent = message.value;
+		}
 
-				if (!title && node.href.startsWith('command:')) {
-					title = localize('executeCommand', "Click to execute command '{0}'", node.href.substr('command:'.length));
-				} else if (!title) {
-					title = node.href;
+		// Message has links
+		else {
+			let index = 0;
+			for (const link of message.links) {
+
+				const textBefore = message.value.substring(index, link.offset);
+				if (textBefore) {
+					messageContainer.appendChild(document.createTextNode(textBefore));
 				}
 
-				const anchor = $('a', { href: node.href, title: title, }, node.label);
+				const anchor = document.createElement('a');
+				anchor.textContent = link.name;
+				anchor.title = link.title;
+				anchor.href = link.href;
 
 				if (actionHandler) {
-					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, e => {
-						EventHelper.stop(e, true);
-						actionHandler.callback(node.href);
-					}));
+					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, () => actionHandler.callback(link.href)));
 				}
 
 				messageContainer.appendChild(anchor);
+
+				index = link.offset + link.length;
+			}
+
+			// Add text after links if any
+			const textAfter = message.value.substring(index);
+			if (textAfter) {
+				messageContainer.appendChild(document.createTextNode(textAfter));
 			}
 		}
 
@@ -187,30 +198,31 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 		// Container
 		data.container = document.createElement('div');
-		data.container.classList.add('notification-list-item');
+		addClass(data.container, 'notification-list-item');
 
 		// Main Row
 		data.mainRow = document.createElement('div');
-		data.mainRow.classList.add('notification-list-item-main-row');
+		addClass(data.mainRow, 'notification-list-item-main-row');
 
 		// Icon
 		data.icon = document.createElement('div');
-		data.icon.classList.add('notification-list-item-icon', 'codicon');
+		addClass(data.icon, 'notification-list-item-icon');
+		addClass(data.icon, 'codicon');
 
 		// Message
 		data.message = document.createElement('div');
-		data.message.classList.add('notification-list-item-message');
+		addClass(data.message, 'notification-list-item-message');
 
 		// Toolbar
 		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notification-list-item-toolbar-container');
+		addClass(toolbarContainer, 'notification-list-item-toolbar-container');
 		data.toolbar = new ActionBar(
 			toolbarContainer,
 			{
 				ariaLabel: localize('notificationActions', "Notification Actions"),
 				actionViewItemProvider: action => {
 					if (action && action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionViewItem(action, action.configurationActions, this.contextMenuService, { actionRunner: this.actionRunner, classNames: action.class });
+						const item = new DropdownMenuActionViewItem(action, action.configurationActions, this.contextMenuService, undefined, this.actionRunner, undefined, action.class);
 						data.toDispose.add(item);
 
 						return item;
@@ -225,15 +237,15 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 		// Details Row
 		data.detailsRow = document.createElement('div');
-		data.detailsRow.classList.add('notification-list-item-details-row');
+		addClass(data.detailsRow, 'notification-list-item-details-row');
 
 		// Source
 		data.source = document.createElement('div');
-		data.source.classList.add('notification-list-item-source');
+		addClass(data.source, 'notification-list-item-source');
 
 		// Buttons Container
 		data.buttonsContainer = document.createElement('div');
-		data.buttonsContainer.classList.add('notification-list-item-buttons-container');
+		addClass(data.buttonsContainer, 'notification-list-item-buttons-container');
 
 		container.appendChild(data.container);
 
@@ -275,7 +287,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private static expandNotificationAction: ExpandNotificationAction;
 	private static collapseNotificationAction: CollapseNotificationAction;
 
-	private static readonly SEVERITIES = [Severity.Info, Severity.Warning, Severity.Error];
+	private static readonly SEVERITIES: Array<'info' | 'warning' | 'error'> = ['info', 'warning', 'error'];
 
 	private readonly inputDisposables = this._register(new DisposableStore());
 
@@ -285,8 +297,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -306,16 +317,10 @@ export class NotificationTemplateRenderer extends Disposable {
 	private render(notification: INotificationViewItem): void {
 
 		// Container
-		this.template.container.classList.toggle('expanded', notification.expanded);
+		toggleClass(this.template.container, 'expanded', notification.expanded);
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.MOUSE_UP, e => {
 			if (e.button === 1 /* Middle Button */) {
-				// Prevent firing the 'paste' event in the editor textarea - #109322
-				EventHelper.stop(e, true);
-			}
-		}));
-		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
-			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e, true);
+				EventHelper.stop(e);
 
 				notification.close();
 			}
@@ -339,19 +344,16 @@ export class NotificationTemplateRenderer extends Disposable {
 		// Progress
 		this.renderProgress(notification);
 
-		// Label Change Events that we can handle directly
-		// (changes to actions require an entire redraw of
-		// the notification because it has an impact on
-		// epxansion state)
-		this.inputDisposables.add(notification.onDidChangeContent(event => {
+		// Label Change Events
+		this.inputDisposables.add(notification.onDidLabelChange(event => {
 			switch (event.kind) {
-				case NotificationViewItemContentChangeKind.SEVERITY:
+				case NotificationViewItemLabelKind.SEVERITY:
 					this.renderSeverity(notification);
 					break;
-				case NotificationViewItemContentChangeKind.PROGRESS:
+				case NotificationViewItemLabelKind.PROGRESS:
 					this.renderProgress(notification);
 					break;
-				case NotificationViewItemContentChangeKind.MESSAGE:
+				case NotificationViewItemLabelKind.MESSAGE:
 					this.renderMessage(notification);
 					break;
 			}
@@ -359,13 +361,10 @@ export class NotificationTemplateRenderer extends Disposable {
 	}
 
 	private renderSeverity(notification: INotificationViewItem): void {
-		// first remove, then set as the codicon class names overlap
 		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
-			if (notification.severity !== severity) {
-				this.template.icon.classList.remove(...this.toSeverityIcon(severity).classNamesArray);
-			}
+			const domAction = notification.severity === this.toSeverity(severity) ? addClass : removeClass;
+			domAction(this.template.icon, `codicon-${severity}`);
 		});
-		this.template.icon.classList.add(...this.toSeverityIcon(notification.severity).classNamesArray);
 	}
 
 	private renderMessage(notification: INotificationViewItem): boolean {
@@ -417,10 +416,8 @@ export class NotificationTemplateRenderer extends Disposable {
 			actions.push(notification.expanded ? NotificationTemplateRenderer.collapseNotificationAction : NotificationTemplateRenderer.expandNotificationAction);
 		}
 
-		// Close (unless progress is showing)
-		if (!notification.hasProgress) {
-			actions.push(NotificationTemplateRenderer.closeNotificationAction);
-		}
+		// Close
+		actions.push(NotificationTemplateRenderer.closeNotificationAction);
 
 		this.template.toolbar.clear();
 		this.template.toolbar.context = notification;
@@ -442,48 +439,34 @@ export class NotificationTemplateRenderer extends Disposable {
 
 		const primaryActions = notification.actions ? notification.actions.primary : undefined;
 		if (notification.expanded && isNonEmptyArray(primaryActions)) {
-			const that = this;
-			const actionRunner: IActionRunner = new class extends ActionRunner {
-				protected async runAction(action: IAction): Promise<void> {
+			const buttonGroup = new ButtonGroup(this.template.buttonsContainer, primaryActions.length, { title: true /* assign titles to buttons in case they overflow */ });
+			buttonGroup.buttons.forEach((button, index) => {
+				const action = primaryActions[index];
+				button.label = action.label;
+
+				this.inputDisposables.add(button.onDidClick(e => {
+					EventHelper.stop(e, true);
+
 					// Run action
-					that.actionRunner.run(action, notification);
+					this.actionRunner.run(action, notification);
 
 					// Hide notification (unless explicitly prevented)
 					if (!(action instanceof ChoiceAction) || !action.keepOpen) {
 						notification.close();
 					}
-				}
-			}();
-			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
-			for (const action of primaryActions) {
-				const buttonOptions = { title: true, /* assign titles to buttons in case they overflow */ };
-				const dropdownActions = action instanceof ChoiceAction ? action.menu : undefined;
-				const button = this.inputDisposables.add(
-					dropdownActions
-						? buttonToolbar.addButtonWithDropdown({
-							...buttonOptions,
-							contextMenuProvider: this.contextMenuService,
-							actions: dropdownActions,
-							actionRunner
-						})
-						: buttonToolbar.addButton(buttonOptions));
-				button.label = action.label;
-				this.inputDisposables.add(button.onDidClick(e => {
-					if (e) {
-						EventHelper.stop(e, true);
-					}
-					actionRunner.run(action);
 				}));
 
 				this.inputDisposables.add(attachButtonStyler(button, this.themeService));
-			}
+			});
+
+			this.inputDisposables.add(buttonGroup);
 		}
 	}
 
 	private renderProgress(notification: INotificationViewItem): void {
 
 		// Return early if the item has no progress
-		if (!notification.hasProgress) {
+		if (!notification.hasProgress()) {
 			this.template.progress.stop().hide();
 
 			return;
@@ -512,14 +495,15 @@ export class NotificationTemplateRenderer extends Disposable {
 		}
 	}
 
-	private toSeverityIcon(severity: Severity): Codicon {
+	private toSeverity(severity: 'info' | 'warning' | 'error'): Severity {
 		switch (severity) {
-			case Severity.Warning:
-				return Codicon.warning;
-			case Severity.Error:
-				return Codicon.error;
+			case 'info':
+				return Severity.Info;
+			case 'warning':
+				return Severity.Warning;
+			case 'error':
+				return Severity.Error;
 		}
-		return Codicon.info;
 	}
 
 	private getKeybindingLabel(action: IAction): string | null {

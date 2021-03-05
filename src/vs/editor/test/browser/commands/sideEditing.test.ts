@@ -4,25 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
-	withTestCodeEditor(lines, {}, (editor, viewModel) => {
+	withTestCodeEditor(lines, {}, (editor, cursor) => {
 		const model = editor.getModel()!;
 
-		viewModel.setSelections('tests', selections);
+		cursor.setSelections('tests', selections);
 
 		model.applyEdits(edits);
 
-		assert.deepStrictEqual(model.getLinesContent(), expectedLines);
+		assert.deepEqual(model.getLinesContent(), expectedLines);
 
-		let actualSelections = viewModel.getSelections();
-		assert.deepStrictEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
+		let actualSelections = cursor.getSelections();
+		assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 
 	});
 }
@@ -194,16 +198,24 @@ suite('SideEditing', () => {
 	];
 
 	function _runTest(selection: Selection, editRange: Range, editText: string, editForceMoveMarkers: boolean, expected: Selection, msg: string): void {
-		withTestCodeEditor(LINES.join('\n'), {}, (editor, viewModel) => {
-			viewModel.setSelections('tests', [selection]);
-			editor.getModel().applyEdits([{
-				range: editRange,
-				text: editText,
-				forceMoveMarkers: editForceMoveMarkers
-			}]);
-			const actual = viewModel.getSelection();
-			assert.deepStrictEqual(actual.toString(), expected.toString(), msg);
-		});
+		const model = TextModel.createFromString(LINES.join('\n'));
+		const config = new TestConfiguration({});
+		const viewModel = new ViewModel(0, config, model, null!);
+		const cursor = new Cursor(config, model, viewModel);
+
+		cursor.setSelections('tests', [selection]);
+		model.applyEdits([{
+			range: editRange,
+			text: editText,
+			forceMoveMarkers: editForceMoveMarkers
+		}]);
+		const actual = cursor.getSelection();
+		assert.deepEqual(actual.toString(), expected.toString(), msg);
+
+		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
+		model.dispose();
 	}
 
 	function runTest(selection: Range, editRange: Range, editText: string, expected: Selection[][]): void {
