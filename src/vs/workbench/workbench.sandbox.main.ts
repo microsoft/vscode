@@ -122,4 +122,8 @@ import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribu
 // Output
 import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
 
+// Tags
+import 'vs/workbench/contrib/tags/electron-sandbox/workspaceTagsService';
+import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
+
 //#endregion
