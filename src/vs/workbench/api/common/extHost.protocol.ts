@@ -1752,12 +1752,12 @@ export interface INotebookVisibleRangesEvent {
 }
 
 export interface INotebookEditorPropertiesChangeData {
-	visibleRanges: INotebookVisibleRangesEvent | null;
-	selections: INotebookSelectionChangeEvent | null;
+	visibleRanges?: INotebookVisibleRangesEvent;
+	selections?: INotebookSelectionChangeEvent;
 }
 
 export interface INotebookDocumentPropertiesChangeData {
-	metadata: NotebookDocumentMetadata | null;
+	metadata?: NotebookDocumentMetadata;
 }
 
 export interface INotebookModelAddedData {

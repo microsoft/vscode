@@ -574,15 +574,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void {
 		this.logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', id, data);
 
-		let editor: { editor: ExtHostNotebookEditor; } | undefined;
-		this._editors.forEach(e => {
-			if (e.editor.id === id) {
-				editor = e;
-			}
-		});
-
+		const editor = this._editors.get(id);
 		if (!editor) {
-			return;
+			throw new Error(`unknown text editor: ${id}`);
 		}
 
 		if (data.visibleRanges) {

@@ -203,11 +203,11 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			}
 			const disposableStore = new DisposableStore();
 			disposableStore.add(editor.onDidChangeVisibleRanges(() => {
-				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges }, selections: null });
+				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges } });
 			}));
 
 			disposableStore.add(editor.onDidChangeSelection(() => {
-				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: editor.getSelections() } });
+				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { selections: { selections: editor.getSelections() } });
 			}));
 
 			disposableStore.add(editor.onDidChangeKernel(() => {
