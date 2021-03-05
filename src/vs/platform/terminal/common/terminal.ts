@@ -346,7 +346,7 @@ export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 30000, // 30 seconds
+	ReconnectionGraceTime = 60000, // 60 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
