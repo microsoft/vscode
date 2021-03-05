@@ -66,6 +66,10 @@ suite('Stream', () => {
 		stream.error(new Error());
 		assert.strictEqual(error, true);
 
+		error = false;
+		stream.error(new Error());
+		assert.strictEqual(error, true);
+
 		stream.end('Final Bit');
 		assert.strictEqual(chunks.length, 4);
 		assert.strictEqual(chunks[3], 'Final Bit');
