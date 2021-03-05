@@ -7,6 +7,7 @@ import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimap
 import { allCharCodes } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { prebakedMiniMaps } from 'vs/editor/browser/viewParts/minimap/minimapPreBaked';
 import { Constants } from './minimapCharSheet';
+import { toUint8 } from 'vs/base/common/uint';
 
 /**
  * Creates character renderers. It takes a 'scale' that determines how large
@@ -135,7 +136,7 @@ export class MinimapCharRendererFactory {
 
 				const final = value / samples;
 				brightest = Math.max(brightest, final);
-				dest[targetIndex++] = final;
+				dest[targetIndex++] = toUint8(final);
 			}
 		}
 

@@ -5,30 +5,73 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IPanel } from 'vs/workbench/common/panel';
-import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { Action } from 'vs/base/common/actions';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { isAncestor } from 'vs/base/browser/dom';
+import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
+import { IConstructorSignature0, BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { assertIsDefined } from 'vs/base/common/types';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { IAction, Separator } from 'vs/base/common/actions';
+import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-export abstract class Panel extends Composite implements IPanel { }
+export abstract class Panel extends PaneComposite implements IPanel {
 
-export abstract class PaneCompositePanel extends PaneComposite implements IPanel { }
+	private readonly panelActions: CompositeMenuActions;
+
+	constructor(id: string,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+	) {
+		super(id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		this.panelActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, undefined, undefined));
+		this._register(this.panelActions.onDidChange(() => this.updateTitleArea()));
+	}
+
+	getActions(): ReadonlyArray<IAction> {
+		return [...super.getActions(), ...this.panelActions.getPrimaryActions()];
+	}
+
+	getSecondaryActions(): ReadonlyArray<IAction> {
+		return this.mergeSecondaryActions(super.getSecondaryActions(), this.panelActions.getSecondaryActions());
+	}
+
+	getContextMenuActions(): ReadonlyArray<IAction> {
+		return this.mergeSecondaryActions(super.getContextMenuActions(), this.panelActions.getContextMenuActions());
+	}
+
+	private mergeSecondaryActions(actions: ReadonlyArray<IAction>, panelActions: IAction[]): ReadonlyArray<IAction> {
+		if (panelActions.length && actions.length) {
+			return [
+				...actions,
+				new Separator(),
+				...panelActions,
+			];
+		}
+		return panelActions.length ? panelActions : actions;
+	}
+}
 
 /**
  * A panel descriptor is a leightweight descriptor of a panel in the workbench.
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 
-	public static create<Services extends BrandedService[]>(ctor: { new(...services: Services): Panel }, id: string, name: string, cssClass?: string, order?: number, _commandId?: string): PanelDescriptor {
-		return new PanelDescriptor(ctor as IConstructorSignature0<Panel>, id, name, cssClass, order, _commandId);
+	static create<Services extends BrandedService[]>(ctor: { new(...services: Services): Panel }, id: string, name: string, cssClass?: string, order?: number, requestedIndex?: number): PanelDescriptor {
+		return new PanelDescriptor(ctor as IConstructorSignature0<Panel>, id, name, cssClass, order, requestedIndex);
 	}
 
-	private constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, _commandId?: string) {
-		super(ctor, id, name, cssClass, order, _commandId);
+	private constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, requestedIndex?: number) {
+		super(ctor, id, name, cssClass, order, requestedIndex);
 	}
 }
 
@@ -82,46 +125,6 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 */
 	hasPanel(id: string): boolean {
 		return this.getPanels().some(panel => panel.id === id);
-	}
-}
-
-/**
- * A reusable action to toggle a panel with a specific id depending on focus.
- */
-export abstract class TogglePanelAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		private readonly panelId: string,
-		protected panelService: IPanelService,
-		private layoutService: IWorkbenchLayoutService,
-		cssClass?: string
-	) {
-		super(id, label, cssClass);
-	}
-
-	run(): Promise<any> {
-		if (this.isPanelFocused()) {
-			this.layoutService.setPanelHidden(true);
-		} else {
-			this.panelService.openPanel(this.panelId, true);
-		}
-
-		return Promise.resolve();
-	}
-
-	private isPanelActive(): boolean {
-		const activePanel = this.panelService.getActivePanel();
-
-		return activePanel?.getId() === this.panelId;
-	}
-
-	private isPanelFocused(): boolean {
-		const activeElement = document.activeElement;
-		const panelPart = this.layoutService.getContainer(Parts.PANEL_PART);
-
-		return !!(this.isPanelActive() && activeElement && panelPart && isAncestor(activeElement, panelPart));
 	}
 }
 

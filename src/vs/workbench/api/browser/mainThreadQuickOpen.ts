@@ -8,6 +8,7 @@ import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, Transf
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 interface QuickInputSession {
 	input: IQuickInput;
@@ -84,7 +85,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	// ---- input
 
-	$input(options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string> {
+	$input(options: IInputBoxOptions | undefined, validateInput: boolean, token: CancellationToken): Promise<string | undefined> {
 		const inputOptions: IInputOptions = Object.create(null);
 
 		if (options) {
@@ -185,14 +186,22 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 						return this._quickInputService.backButton;
 					}
 					const { iconPath, tooltip, handle } = button;
-					return {
-						iconPath: iconPath && {
-							dark: URI.revive(iconPath.dark),
-							light: iconPath.light && URI.revive(iconPath.light)
-						},
-						tooltip,
-						handle
-					};
+					if ('id' in iconPath) {
+						return {
+							iconClass: ThemeIcon.asClassName(iconPath),
+							tooltip,
+							handle
+						};
+					} else {
+						return {
+							iconPath: {
+								dark: URI.revive(iconPath.dark),
+								light: iconPath.light && URI.revive(iconPath.light)
+							},
+							tooltip,
+							handle
+						};
+					}
 				});
 			} else {
 				(input as any)[param] = params[param];

@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, find, coalesce } from 'vs/base/common/arrays';
+import { flatten, tail, coalesce } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import * as map from 'vs/base/common/map';
-import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -24,6 +22,7 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { withNullAsUndefined, isArray } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
 export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
@@ -48,7 +47,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	 */
 	private removeDuplicateResults(): void {
 		const settingKeys = new Set<string>();
-		map.keys(this._currentResultGroups)
+		[...this._currentResultGroups.keys()]
 			.sort((a, b) => this._currentResultGroups.get(a)!.order - this._currentResultGroups.get(b)!.order)
 			.forEach(groupId => {
 				const group = this._currentResultGroups.get(groupId)!;
@@ -170,7 +169,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	}
 
 	protected update(): IFilterResult | undefined {
-		const resultGroups = map.values(this._currentResultGroups);
+		const resultGroups = [...this._currentResultGroups.values()];
 		if (!resultGroups.length) {
 			return undefined;
 		}
@@ -198,7 +197,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				}],
 				title: modelGroup.title,
 				titleRange: modelGroup.titleRange,
-				contributedByExtension: !!modelGroup.contributedByExtension
+				extensionInfo: modelGroup.extensionInfo
 			};
 		}
 
@@ -291,7 +290,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				};
-				setting.range = assign(setting.range, {
+				setting.range = Object.assign(setting.range, {
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				});
@@ -352,16 +351,16 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		},
 		onObjectEnd: (offset: number, length: number) => {
 			currentParent = previousParents.pop();
-			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+			if (settingsPropertyIndex !== -1 && (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null))) {
 				// setting ended
 				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {
 					const valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
+					setting.valueRange = Object.assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
-					setting.range = assign(setting.range, {
+					setting.range = Object.assign(setting.range, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
@@ -393,11 +392,11 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {
 					const valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
+					setting.valueRange = Object.assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
-					setting.range = assign(setting.range, {
+					setting.range = Object.assign(setting.range, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
@@ -493,7 +492,7 @@ export class DefaultSettings extends Disposable {
 	getRegisteredGroups(): ISettingsGroup[] {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		const groups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
-			.reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
+			.reduce<ISettingsGroup[]>((result, config, index, array) => this.parseConfig(config, result, array), []));
 
 		return this.sortGroups(groups);
 	}
@@ -558,16 +557,16 @@ export class DefaultSettings extends Disposable {
 		seenSettings = seenSettings ? seenSettings : {};
 		let title = config.title;
 		if (!title) {
-			const configWithTitleAndSameId = find(configurations, c => (c.id === config.id) && c.title);
+			const configWithTitleAndSameId = configurations.find(c => (c.id === config.id) && c.title);
 			if (configWithTitleAndSameId) {
 				title = configWithTitleAndSameId.title;
 			}
 		}
 		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = find(result, g => g.title === title);
+				settingsGroup = result.find(g => g.title === title && g.extensionInfo?.id === config.extensionInfo?.id);
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.extensionInfo };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, extensionInfo: config.extensionInfo };
 					result.push(settingsGroup);
 				}
 			} else {
@@ -576,7 +575,7 @@ export class DefaultSettings extends Disposable {
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.extensionInfo };
+				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, range: nullRange, extensionInfo: config.extensionInfo };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = [];
@@ -619,6 +618,10 @@ export class DefaultSettings extends Disposable {
 					? prop.items.type
 					: undefined;
 
+				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
+				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
+				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+
 				result.push({
 					key,
 					value,
@@ -632,13 +635,19 @@ export class DefaultSettings extends Disposable {
 					scope: prop.scope,
 					type: prop.type,
 					arrayItemType: listItemType,
+					objectProperties,
+					objectPatternProperties,
+					objectAdditionalProperties,
 					enum: prop.enum,
 					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
 					tags: prop.tags,
+					disallowSyncIgnore: prop.disallowSyncIgnore,
 					extensionInfo: extensionInfo,
-					deprecationMessage: prop.deprecationMessage,
-					validator: createValidator(prop)
+					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
+					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
+					validator: createValidator(prop),
+					enumItemLabels: prop.enumItemLabels
 				});
 			}
 		}
@@ -742,8 +751,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		}
 
 		// Grab current result groups, only render non-empty groups
-		const resultGroups = map
-			.values(this._currentResultGroups)
+		const resultGroups = [...this._currentResultGroups.values()]
 			.sort((a, b) => a.order - b.order);
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
@@ -988,7 +996,9 @@ class SettingsContentBuilder {
 					`${displayEnum}: ${fixSettingLink(desc)}` :
 					displayEnum;
 
-				this._contentByLines.push(`${indent}//  - ${line}`);
+				const lines = line.split(/\n/g);
+				lines[0] = ' - ' + lines[0];
+				this._contentByLines.push(...lines.map(l => `${indent}// ${l}`));
 
 				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 			});
@@ -1025,180 +1035,6 @@ class SettingsContentBuilder {
 			result.push(indent + '// ' + line);
 		}
 	}
-}
-
-export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
-	// Only for array of string
-	if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type === 'string') {
-		const propItems = prop.items;
-		if (propItems && !isArray(propItems) && propItems.type === 'string') {
-			const withQuotes = (s: string) => `'` + s + `'`;
-
-			return value => {
-				if (!value) {
-					return null;
-				}
-
-				let message = '';
-
-				const stringArrayValue = value as string[];
-
-				if (prop.uniqueItems) {
-					if (new Set(stringArrayValue).size < stringArrayValue.length) {
-						message += nls.localize('validations.stringArrayUniqueItems', 'Array has duplicate items');
-						message += '\n';
-					}
-				}
-
-				if (prop.minItems && stringArrayValue.length < prop.minItems) {
-					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
-					message += '\n';
-				}
-
-				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
-					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
-					message += '\n';
-				}
-
-				if (typeof propItems.pattern === 'string') {
-					const patternRegex = new RegExp(propItems.pattern);
-					stringArrayValue.forEach(v => {
-						if (!patternRegex.test(v)) {
-							message +=
-								propItems.patternErrorMessage ||
-								nls.localize(
-									'validations.stringArrayItemPattern',
-									'Value {0} must match regex {1}.',
-									withQuotes(v),
-									withQuotes(propItems.pattern!)
-								);
-						}
-					});
-				}
-
-				const propItemsEnum = propItems.enum;
-				if (propItemsEnum) {
-					stringArrayValue.forEach(v => {
-						if (propItemsEnum.indexOf(v) === -1) {
-							message += nls.localize(
-								'validations.stringArrayItemEnum',
-								'Value {0} is not one of {1}',
-								withQuotes(v),
-								'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
-							);
-							message += '\n';
-						}
-					});
-				}
-
-				return message;
-			};
-		}
-	}
-
-	return value => {
-		let exclusiveMax: number | undefined;
-		let exclusiveMin: number | undefined;
-
-		if (typeof prop.exclusiveMaximum === 'boolean') {
-			exclusiveMax = prop.exclusiveMaximum ? prop.maximum : undefined;
-		} else {
-			exclusiveMax = prop.exclusiveMaximum;
-		}
-
-		if (typeof prop.exclusiveMinimum === 'boolean') {
-			exclusiveMin = prop.exclusiveMinimum ? prop.minimum : undefined;
-		} else {
-			exclusiveMin = prop.exclusiveMinimum;
-		}
-
-		let patternRegex: RegExp | undefined;
-		if (typeof prop.pattern === 'string') {
-			patternRegex = new RegExp(prop.pattern);
-		}
-
-		const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
-		const canBeType = (t: string) => type.indexOf(t) > -1;
-
-		const isNullable = canBeType('null');
-		const isNumeric = (canBeType('number') || canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
-		const isIntegral = (canBeType('integer')) && (type.length === 1 || type.length === 2 && isNullable);
-
-		type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
-
-		const numericValidations: Validator<number>[] = isNumeric ? [
-			{
-				enabled: exclusiveMax !== undefined && (prop.maximum === undefined || exclusiveMax <= prop.maximum),
-				isValid: ((value: number) => value < exclusiveMax!),
-				message: nls.localize('validations.exclusiveMax', "Value must be strictly less than {0}.", exclusiveMax)
-			},
-			{
-				enabled: exclusiveMin !== undefined && (prop.minimum === undefined || exclusiveMin >= prop.minimum),
-				isValid: ((value: number) => value > exclusiveMin!),
-				message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
-			},
-
-			{
-				enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
-				isValid: ((value: number) => value <= prop.maximum!),
-				message: nls.localize('validations.max', "Value must be less than or equal to {0}.", prop.maximum)
-			},
-			{
-				enabled: prop.minimum !== undefined && (exclusiveMin === undefined || exclusiveMin < prop.minimum),
-				isValid: ((value: number) => value >= prop.minimum!),
-				message: nls.localize('validations.min', "Value must be greater than or equal to {0}.", prop.minimum)
-			},
-			{
-				enabled: prop.multipleOf !== undefined,
-				isValid: ((value: number) => value % prop.multipleOf! === 0),
-				message: nls.localize('validations.multipleOf', "Value must be a multiple of {0}.", prop.multipleOf)
-			},
-			{
-				enabled: isIntegral,
-				isValid: ((value: number) => value % 1 === 0),
-				message: nls.localize('validations.expectedInteger', "Value must be an integer.")
-			},
-		].filter(validation => validation.enabled) : [];
-
-		const stringValidations: Validator<string>[] = [
-			{
-				enabled: prop.maxLength !== undefined,
-				isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
-				message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
-			},
-			{
-				enabled: prop.minLength !== undefined,
-				isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
-				message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
-			},
-			{
-				enabled: patternRegex !== undefined,
-				isValid: ((value: string) => patternRegex!.test(value)),
-				message: prop.patternErrorMessage || nls.localize('validations.regex', "Value must match regex `{0}`.", prop.pattern)
-			},
-		].filter(validation => validation.enabled);
-
-		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
-		if (isNullable && value === '') { return ''; }
-
-		const errors: string[] = [];
-
-		if (isNumeric) {
-			if (value === '' || isNaN(+value)) {
-				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
-			} else {
-				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
-			}
-		}
-
-		if (prop.type === 'string') {
-			errors.push(...stringValidations.filter(validator => !validator.isValid('' + value)).map(validator => validator.message));
-		}
-		if (errors.length) {
-			return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
-		}
-		return '';
-	};
 }
 
 class RawSettingsContentBuilder extends SettingsContentBuilder {

@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { closeAllEditors, pathEquals } from '../utils';
 import { join } from 'path';
 
-suite('workspace-namespace', () => {
+suite('vscode API - workspace', () => {
 
 	teardown(closeAllEditors);
 

@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { GitErrorCodes, APIState as State } from './api/git';
+import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler, PublishEvent } from './api/git';
+import { Askpass } from './askpass';
+import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { IPushErrorHandlerRegistry } from './pushError';
+import { ApiRepository } from './api/api1';
 
 const localize = nls.loadMessageBundle();
 
@@ -44,7 +48,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model {
+export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -66,17 +70,44 @@ export class Model {
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState = this._onDidChangeState.event;
 
+	private _onDidPublish = new EventEmitter<PublishEvent>();
+	readonly onDidPublish = this._onDidPublish.event;
+
+	firePublishEvent(repository: Repository, branch?: string) {
+		this._onDidPublish.fire({ repository: new ApiRepository(repository), branch: branch });
+	}
+
 	private _state: State = 'uninitialized';
 	get state(): State { return this._state; }
 
 	setState(state: State): void {
 		this._state = state;
 		this._onDidChangeState.fire(state);
+		commands.executeCommand('setContext', 'git.state', state);
 	}
+
+	@memoize
+	get isInitialized(): Promise<void> {
+		if (this._state === 'initialized') {
+			return Promise.resolve();
+		}
+
+		return eventToPromise(filterEvent(this.onDidChangeState, s => s === 'initialized')) as Promise<any>;
+	}
+
+	private remoteSourceProviders = new Set<RemoteSourceProvider>();
+
+	private _onDidAddRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
+	readonly onDidAddRemoteSourceProvider = this._onDidAddRemoteSourceProvider.event;
+
+	private _onDidRemoveRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
+	readonly onDidRemoveRemoteSourceProvider = this._onDidRemoveRemoteSourceProvider.event;
+
+	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private globalState: Memento, private outputChannel: OutputChannel) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -89,6 +120,7 @@ export class Model {
 		const onPossibleGitRepositoryChange = filterEvent(onGitRepositoryChange, uri => !this.getRepository(uri));
 		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
 
+		this.setState('uninitialized');
 		this.doInitialScan().finally(() => this.setState('initialized'));
 	}
 
@@ -112,34 +144,37 @@ export class Model {
 			return;
 		}
 
-		for (const folder of workspace.workspaceFolders || []) {
+		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
+			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const promises = children
+				.filter(child => child !== '.git')
+				.map(child => this.openRepository(path.join(root, child)));
 
-			try {
-				const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const folderConfig = workspace.getConfiguration('git', folder.uri);
+			const paths = folderConfig.get<string[]>('scanRepositories') || [];
 
-				children
-					.filter(child => child !== '.git')
-					.forEach(child => this.openRepository(path.join(root, child)));
-
-				const folderConfig = workspace.getConfiguration('git', folder.uri);
-				const paths = folderConfig.get<string[]>('scanRepositories') || [];
-
-				for (const possibleRepositoryPath of paths) {
-					if (path.isAbsolute(possibleRepositoryPath)) {
-						console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
-						continue;
-					}
-
-					this.openRepository(path.join(root, possibleRepositoryPath));
+			for (const possibleRepositoryPath of paths) {
+				if (path.isAbsolute(possibleRepositoryPath)) {
+					console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
+					continue;
 				}
-			} catch (err) {
-				// noop
+
+				promises.push(this.openRepository(path.join(root, possibleRepositoryPath)));
 			}
-		}
+
+			await Promise.all(promises);
+		}));
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		if (autoRepositoryDetection === false) {
+			return;
+		}
+
 		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
 	}
 
@@ -233,7 +268,7 @@ export class Model {
 
 			// This can happen whenever `path` has the wrong case sensitivity in
 			// case insensitive file systems
-			// https://github.com/Microsoft/vscode/issues/33498
+			// https://github.com/microsoft/vscode/issues/33498
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 
 			if (this.getRepository(repositoryRoot)) {
@@ -245,16 +280,12 @@ export class Model {
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this.globalState, this.outputChannel);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
 
 			this.open(repository);
 			await repository.status();
 		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-				return;
-			}
-
-			// console.error('Failed to find repository:', err);
+			// noop
 		}
 	}
 
@@ -349,7 +380,7 @@ export class Model {
 		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
 		const active = window.activeTextEditor;
 		const repository = active && this.getRepository(active.document.fileName);
-		const index = firstIndex(picks, pick => pick.repository === repository);
+		const index = picks.findIndex(pick => pick.repository === repository);
 
 		// Move repository pick containing the active text editor to appear first
 		if (index > -1) {
@@ -392,7 +423,7 @@ export class Model {
 		if (hint instanceof Uri) {
 			let resourcePath: string;
 
-			if (hint.scheme === 'git' || hint.scheme === 'gitfs') {
+			if (hint.scheme === 'git') {
 				resourcePath = fromGitUri(hint).path;
 			} else {
 				resourcePath = hint.fsPath;
@@ -445,6 +476,33 @@ export class Model {
 		}
 
 		return undefined;
+	}
+
+	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
+		this.remoteSourceProviders.add(provider);
+		this._onDidAddRemoteSourceProvider.fire(provider);
+
+		return toDisposable(() => {
+			this.remoteSourceProviders.delete(provider);
+			this._onDidRemoveRemoteSourceProvider.fire(provider);
+		});
+	}
+
+	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
+		return this.askpass.registerCredentialsProvider(provider);
+	}
+
+	getRemoteProviders(): RemoteSourceProvider[] {
+		return [...this.remoteSourceProviders.values()];
+	}
+
+	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
+		this.pushErrorHandlers.add(handler);
+		return toDisposable(() => this.pushErrorHandlers.delete(handler));
+	}
+
+	getPushErrorHandlers(): PushErrorHandler[] {
+		return [...this.pushErrorHandlers];
 	}
 
 	dispose(): void {

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugger, IDebugSession, IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IDebugAdapter, IDebugger, IDebugSession, IDebugHelperService, IAdapterManager, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
@@ -30,18 +29,22 @@ export class Debugger implements IDebugger {
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
-	constructor(private configurationManager: IConfigurationManager, dbgContribution: IDebuggerContribution, extensionDescription: IExtensionDescription,
+	constructor(
+		private adapterManager: IAdapterManager,
+		dbgContribution: IDebuggerContribution,
+		extensionDescription: IExtensionDescription,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDebugHelperService private readonly debugHelperService: IDebugHelperService
+		@IDebugHelperService private readonly debugHelperService: IDebugHelperService,
+		@IDebugService private readonly debugService: IDebugService
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
 	}
 
-	public merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
+	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
 		/**
 		 * Copies all properties of source into destination. The optional parameter "overwrite" allows to control
@@ -55,19 +58,21 @@ export class Debugger implements IDebugger {
 
 			if (isObject(source)) {
 				Object.keys(source).forEach(key => {
-					if (isObject(destination[key]) && isObject(source[key])) {
-						mixin(destination[key], source[key], overwrite, level + 1);
-					} else {
-						if (key in destination) {
-							if (overwrite) {
-								if (level === 0 && key === 'type') {
-									// don't merge the 'type' property
-								} else {
-									destination[key] = source[key];
-								}
-							}
+					if (key !== '__proto__') {
+						if (isObject(destination[key]) && isObject(source[key])) {
+							mixin(destination[key], source[key], overwrite, level + 1);
 						} else {
-							destination[key] = source[key];
+							if (key in destination) {
+								if (overwrite) {
+									if (level === 0 && key === 'type') {
+										// don't merge the 'type' property
+									} else {
+										destination[key] = source[key];
+									}
+								}
+							} else {
+								destination[key] = source[key];
+							}
 						}
 					}
 				});
@@ -92,9 +97,9 @@ export class Debugger implements IDebugger {
 		}
 	}
 
-	public createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
-		return this.configurationManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
-			const da = this.configurationManager.createDebugAdapter(session);
+	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
+		return this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
+			const da = this.adapterManager.createDebugAdapter(session);
 			if (da) {
 				return Promise.resolve(da);
 			}
@@ -103,13 +108,13 @@ export class Debugger implements IDebugger {
 	}
 
 	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
+		return this.adapterManager.substituteVariables(this.type, folder, config).then(config => {
+			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
 		});
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		return this.configurationManager.runInTerminal(this.type, args);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+		return this.adapterManager.runInTerminal(this.type, args, sessionId);
 	}
 
 	get label(): string {
@@ -137,7 +142,7 @@ export class Debugger implements IDebugger {
 	}
 
 	hasConfigurationProvider(): boolean {
-		return this.configurationManager.hasDebugConfigurationProvider(this.type);
+		return this.debugService.getConfigurationManager().hasDebugConfigurationProvider(this.type);
 	}
 
 	getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string> {
@@ -166,13 +171,13 @@ export class Debugger implements IDebugger {
 		// fix formatting
 		const editorConfig = this.configurationService.getValue<any>();
 		if (editorConfig.editor && editorConfig.editor.insertSpaces) {
-			content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
+			content = content.replace(new RegExp('\t', 'g'), ' '.repeat(editorConfig.editor.tabSize));
 		}
 
 		return Promise.resolve(content);
 	}
 
-	public getMainExtensionDescriptor(): IExtensionDescription {
+	getMainExtensionDescriptor(): IExtensionDescription {
 		return this.mainExtensionDescription || this.mergedExtensionDescriptions[0];
 	}
 

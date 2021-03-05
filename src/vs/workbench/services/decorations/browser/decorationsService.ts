@@ -11,14 +11,14 @@ import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifec
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
 import { hash } from 'vs/base/common/hash';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 class DecorationRule {
 
@@ -56,7 +56,7 @@ class DecorationRule {
 		return --this._refCounter === 0;
 	}
 
-	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
+	appendCSSRules(element: HTMLStyleElement, theme: IColorTheme): void {
 		if (!Array.isArray(this.data)) {
 			this._appendForOne(this.data, element, theme);
 		} else {
@@ -64,7 +64,7 @@ class DecorationRule {
 		}
 	}
 
-	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: IColorTheme): void {
 		const { color, letter } = data;
 		// label
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
@@ -74,7 +74,7 @@ class DecorationRule {
 		}
 	}
 
-	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: IColorTheme): void {
 		// label
 		const { color } = data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
@@ -107,10 +107,8 @@ class DecorationStyles {
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
 
-	constructor(
-		private _themeService: IThemeService,
-	) {
-		this._themeService.onThemeChange(this._onThemeChange, this, this._dispoables);
+	constructor(private readonly _themeService: IThemeService) {
+		this._themeService.onDidColorThemeChange(this._onThemeChange, this, this._dispoables);
 	}
 
 	dispose(): void {
@@ -130,7 +128,7 @@ class DecorationStyles {
 			// new css rule
 			rule = new DecorationRule(data, key);
 			this._decorationRules.set(key, rule);
-			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
+			rule.appendCSSRules(this._styleElement, this._themeService.getColorTheme());
 		}
 
 		rule.acquire();
@@ -150,7 +148,7 @@ class DecorationStyles {
 			badgeClassName,
 			tooltip,
 			dispose: () => {
-				if (rule && rule.release()) {
+				if (rule?.release()) {
 					this._decorationRules.delete(key);
 					rule.removeCSSRules(this._styleElement);
 					rule = undefined;
@@ -162,31 +160,31 @@ class DecorationStyles {
 	private _onThemeChange(): void {
 		this._decorationRules.forEach(rule => {
 			rule.removeCSSRules(this._styleElement);
-			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
+			rule.appendCSSRules(this._styleElement, this._themeService.getColorTheme());
 		});
 	}
 }
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
-	private readonly _data = TernarySearchTree.forPaths<boolean>();
+	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
 	affectsResource(uri: URI): boolean {
-		return this._data.get(uri.toString()) || this._data.findSuperstr(uri.toString()) !== undefined;
+		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent, current: URI | URI[]) {
+	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]): FileDecorationChangeEvent {
 		if (!last) {
 			last = new FileDecorationChangeEvent();
 		}
 		if (Array.isArray(current)) {
 			// many
 			for (const uri of current) {
-				last._data.set(uri.toString(), true);
+				last._data.set(uri, true);
 			}
 		} else {
 			// one
-			last._data.set(current.toString(), true);
+			last._data.set(current, true);
 		}
 
 		return last;
@@ -202,14 +200,18 @@ class DecorationDataRequest {
 
 class DecorationProviderWrapper {
 
-	readonly data = TernarySearchTree.forPaths<DecorationDataRequest | IDecorationData | null>();
+	readonly data: TernarySearchTree<URI, DecorationDataRequest | IDecorationData | null>;
 	private readonly _dispoable: IDisposable;
 
 	constructor(
 		readonly provider: IDecorationsProvider,
+		uriIdentityService: IUriIdentityService,
 		private readonly _uriEmitter: Emitter<URI | URI[]>,
 		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
+
+		this.data = TernarySearchTree.forUris(uri => uriIdentityService.extUri.ignorePathCasing(uri));
+
 		this._dispoable = this.provider.onDidChange(uris => {
 			if (!uris) {
 				// flush event -> drop all data, can affect everything
@@ -234,12 +236,12 @@ class DecorationProviderWrapper {
 	}
 
 	knowsAbout(uri: URI): boolean {
-		return Boolean(this.data.get(uri.toString())) || Boolean(this.data.findSuperstr(uri.toString()));
+		return this.data.has(uri) || Boolean(this.data.findSuperstr(uri));
 	}
 
 	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IDecorationData, isChild: boolean) => void): void {
-		const key = uri.toString();
-		let item = this.data.get(key);
+
+		let item = this.data.get(uri);
 
 		if (item === undefined) {
 			// unknown -> trigger request
@@ -253,11 +255,11 @@ class DecorationProviderWrapper {
 
 		if (includeChildren) {
 			// (resolved) children
-			const iter = this.data.findSuperstr(key);
+			const iter = this.data.findSuperstr(uri);
 			if (iter) {
-				for (let item = iter.next(); !item.done; item = iter.next()) {
-					if (item.value && !(item.value instanceof DecorationDataRequest)) {
-						callback(item.value, true);
+				for (const [, value] of iter) {
+					if (value && !(value instanceof DecorationDataRequest)) {
+						callback(value, true);
 					}
 				}
 			}
@@ -267,10 +269,10 @@ class DecorationProviderWrapper {
 	private _fetchData(uri: URI): IDecorationData | null {
 
 		// check for pending request and cancel it
-		const pendingRequest = this.data.get(uri.toString());
+		const pendingRequest = this.data.get(uri);
 		if (pendingRequest instanceof DecorationDataRequest) {
 			pendingRequest.source.cancel();
-			this.data.delete(uri.toString());
+			this.data.delete(uri);
 		}
 
 		const source = new CancellationTokenSource();
@@ -282,23 +284,23 @@ class DecorationProviderWrapper {
 		} else {
 			// async -> we have a result soon
 			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
-				if (this.data.get(uri.toString()) === request) {
+				if (this.data.get(uri) === request) {
 					this._keepItem(uri, data);
 				}
 			}).catch(err => {
-				if (!isPromiseCanceledError(err) && this.data.get(uri.toString()) === request) {
-					this.data.delete(uri.toString());
+				if (!isPromiseCanceledError(err) && this.data.get(uri) === request) {
+					this.data.delete(uri);
 				}
 			}));
 
-			this.data.set(uri.toString(), request);
+			this.data.set(uri, request);
 			return null;
 		}
 	}
 
 	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
 		const deco = data ? data : null;
-		const old = this.data.set(uri.toString(), deco);
+		const old = this.data.set(uri, deco);
 		if (deco || old) {
 			// only fire event when something changed
 			this._uriEmitter.fire(uri);
@@ -309,7 +311,7 @@ class DecorationProviderWrapper {
 
 export class DecorationsService implements IDecorationsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
 	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
@@ -327,7 +329,7 @@ export class DecorationsService implements IDecorationsService {
 
 	constructor(
 		@IThemeService themeService: IThemeService,
-		@ILogService private readonly _logService: ILogService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
 	}
@@ -342,6 +344,7 @@ export class DecorationsService implements IDecorationsService {
 
 		const wrapper = new DecorationProviderWrapper(
 			provider,
+			this._uriIdentityService,
 			this._onDidChangeDecorationsDelayed,
 			this._onDidChangeDecorations
 		);
@@ -364,23 +367,20 @@ export class DecorationsService implements IDecorationsService {
 	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
 		let data: IDecorationData[] = [];
 		let containsChildren: boolean = false;
-		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
-			const { label } = next.value.provider;
-			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
+		for (let wrapper of this._data) {
+			wrapper.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
 					containsChildren = isChild || containsChildren;
-					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', label, deco, isChild, uri);
 				}
 			});
 		}
-
 		return data.length === 0
 			? undefined
 			: this._decorationStyles.asDecoration(data, containsChildren);
 	}
 }
-function getColor(theme: ITheme, color: string | undefined) {
+function getColor(theme: IColorTheme, color: string | undefined) {
 	if (color) {
 		const foundColor = theme.getColor(color);
 		if (foundColor) {

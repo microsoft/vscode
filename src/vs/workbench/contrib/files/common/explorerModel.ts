@@ -8,7 +8,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { posix } from 'vs/base/common/path';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileStat, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
+import { rtrim, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -16,6 +16,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
 import { SortOrder } from 'vs/workbench/contrib/files/common/files';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class ExplorerModel implements IDisposable {
 
@@ -25,6 +26,7 @@ export class ExplorerModel implements IDisposable {
 
 	constructor(
 		private readonly contextService: IWorkspaceContextService,
+		private readonly uriIdentityService: IUriIdentityService,
 		fileService: IFileService
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
@@ -62,7 +64,7 @@ export class ExplorerModel implements IDisposable {
 	findClosest(resource: URI): ExplorerItem | null {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
-			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
+			const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, folder.uri));
 			if (root) {
 				return root.find(resource);
 			}
@@ -77,9 +79,9 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	private _isDirectoryResolved: boolean;
-	private _isDisposed: boolean;
+	protected _isDirectoryResolved: boolean;
 	public isError = false;
+	private _isExcluded = false;
 
 	constructor(
 		public resource: URI,
@@ -89,13 +91,24 @@ export class ExplorerItem {
 		private _isSymbolicLink?: boolean,
 		private _name: string = basenameOrAuthority(resource),
 		private _mtime?: number,
+		private _unknown = false
 	) {
 		this._isDirectoryResolved = false;
-		this._isDisposed = false;
 	}
 
-	get isDisposed(): boolean {
-		return this._isDisposed;
+	get isExcluded(): boolean {
+		if (this._isExcluded) {
+			return true;
+		}
+		if (!this._parent) {
+			return false;
+		}
+
+		return this._parent.isExcluded;
+	}
+
+	set isExcluded(value: boolean) {
+		this._isExcluded = value;
 	}
 
 	get isDirectoryResolved(): boolean {
@@ -120,6 +133,10 @@ export class ExplorerItem {
 
 	get name(): string {
 		return this._name;
+	}
+
+	get isUnknown(): boolean {
+		return this._unknown;
 	}
 
 	get parent(): ExplorerItem | undefined {
@@ -158,7 +175,7 @@ export class ExplorerItem {
 	}
 
 	static create(fileService: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.name, raw.mtime);
+		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -237,9 +254,11 @@ export class ExplorerItem {
 				}
 			});
 
-			for (let child of oldLocalChildren.values()) {
-				child._dispose();
-			}
+			oldLocalChildren.forEach(oldChild => {
+				if (oldChild instanceof NewExplorerItem) {
+					local.addChild(oldChild);
+				}
+			});
 		}
 	}
 
@@ -289,18 +308,8 @@ export class ExplorerItem {
 	}
 
 	forgetChildren(): void {
-		for (let c of this.children.values()) {
-			c._dispose();
-		}
 		this.children.clear();
 		this._isDirectoryResolved = false;
-	}
-
-	private _dispose() {
-		this._isDisposed = true;
-		for (let child of this.children.values()) {
-			child._dispose();
-		}
 	}
 
 	private getPlatformAwareName(name: string): string {
@@ -356,7 +365,7 @@ export class ExplorerItem {
 		// For performance reasons try to do the comparison as fast as possible
 		const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
 		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
-			(ignoreCase ? startsWithIgnoreCase(resource.path, this.resource.path) : startsWith(resource.path, this.resource.path))) {
+			(ignoreCase ? startsWithIgnoreCase(resource.path, this.resource.path) : resource.path.startsWith(this.resource.path))) {
 			return this.findByPath(rtrim(resource.path, posix.sep), this.resource.path.length, ignoreCase);
 		}
 
@@ -397,5 +406,6 @@ export class ExplorerItem {
 export class NewExplorerItem extends ExplorerItem {
 	constructor(fileService: IFileService, parent: ExplorerItem, isDirectory: boolean) {
 		super(URI.file(''), fileService, parent, isDirectory);
+		this._isDirectoryResolved = true;
 	}
 }

@@ -6,22 +6,26 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EnablementState, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
-import { IAction } from 'vs/base/common/actions';
+import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
-export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
-
 export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
-	search(text: string, refresh?: boolean): void;
+	readonly searchValue: string | undefined;
+	search(text: string): void;
+	refresh(): Promise<void>;
+}
+
+export interface IWorkspaceRecommendedExtensionsView extends IView {
+	installWorkspaceRecommendations(): Promise<void>;
 }
 
 export const enum ExtensionState {
@@ -33,6 +37,7 @@ export const enum ExtensionState {
 
 export interface IExtension {
 	readonly type: ExtensionType;
+	readonly isBuiltin: boolean;
 	readonly state: ExtensionState;
 	readonly name: string;
 	readonly displayName: string;
@@ -72,7 +77,7 @@ export const SERVICE_ID = 'extensionsWorkbenchService';
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>(SERVICE_ID);
 
 export interface IExtensionsWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onChange: Event<IExtension | undefined>;
 	local: IExtension[];
 	installed: IExtension[];
@@ -82,26 +87,28 @@ export interface IExtensionsWorkbenchService {
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
 	canInstall(extension: IExtension): boolean;
 	install(vsix: URI): Promise<IExtension>;
-	install(extension: IExtension, promptToInstallDependencies?: boolean): Promise<IExtension>;
+	install(extension: IExtension, installOptins?: InstallOptions): Promise<IExtension>;
 	uninstall(extension: IExtension): Promise<void>;
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, sideByside?: boolean): Promise<any>;
+	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): Promise<any>;
 	checkForUpdates(): Promise<void>;
+
+	// Sync APIs
+	isExtensionIgnoredToSync(extension: IExtension): boolean;
+	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
 }
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
-export const ShowRecommendationsOnlyOnDemandKey = 'extensions.showRecommendationsOnlyOnDemand';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
-	showRecommendationsOnlyOnDemand: boolean;
 	closeExtensionDetailsOnViewChange: boolean;
 }
 
@@ -125,14 +132,16 @@ export class ExtensionContainers extends Disposable {
 		this.containers.forEach(c => c.extension = extension);
 	}
 
-	private update(extension: IExtension): void {
+	private update(extension: IExtension | undefined): void {
 		for (const container of this.containers) {
 			if (extension && container.extension) {
 				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
-					if (!container.extension.server || !extension.server || container.extension.server === extension.server) {
+					if (container.extension.server && extension.server && container.extension.server !== extension.server) {
+						if (container.updateWhenCounterExtensionChanges) {
+							container.update();
+						}
+					} else {
 						container.extension = extension;
-					} else if (container.updateWhenCounterExtensionChanges) {
-						container.update();
 					}
 				}
 			} else {
@@ -142,11 +151,12 @@ export class ExtensionContainers extends Disposable {
 	}
 }
 
-export interface IExtensionMenuAction extends IAction {
-	run(context: IExtensionMenuActionContext): Promise<void>;
-}
+export const WORKSPACE_RECOMMENDATIONS_VIEW_ID = 'workbench.views.extensions.workspaceRecommendations';
+export const TOGGLE_IGNORE_EXTENSION_ACTION_ID = 'workbench.extensions.action.toggleIgnoreExtension';
+export const SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID = 'workbench.extensions.action.installVSIX';
+export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.command.installFromVSIX';
 
-export interface IExtensionMenuActionContext {
-	id: string;
-	packageJSON: IExtensionManifest;
-}
+// Context Keys
+export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
+export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
+export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);

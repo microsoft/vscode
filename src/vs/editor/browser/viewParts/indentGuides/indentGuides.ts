@@ -112,7 +112,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const { indentSize } = this._context.model.getOptions();
+		const { indentSize } = this._context.model.getTextModelOptions();
 		const indentWidth = indentSize * this._spaceWidth;
 		const scrollWidth = ctx.scrollWidth;
 		const lineHeight = this._lineHeight;
@@ -136,14 +136,16 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			const indent = indents[lineIndex];
 
 			let result = '';
-			const leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
-			let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
-			for (let i = 1; i <= indent; i++) {
-				const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
-				result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
-				left += indentWidth;
-				if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
-					break;
+			if (indent >= 1) {
+				const leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));
+				let left = leftMostVisiblePosition ? leftMostVisiblePosition.left : 0;
+				for (let i = 1; i <= indent; i++) {
+					const className = (containsActiveIndentGuide && i === activeIndentLevel ? 'cigra' : 'cigr');
+					result += `<div class="${className}" style="left:${left}px;height:${lineHeight}px;width:${indentWidth}px"></div>`;
+					left += indentWidth;
+					if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
+						break;
+					}
 				}
 			}
 

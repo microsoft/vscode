@@ -8,6 +8,20 @@
 	color: inherit;
 }
 
+.monaco-editor .rename-box.preview {
+	padding: 3px 3px 0 3px;
+}
+
 .monaco-editor .rename-box .rename-input {
-	padding: 4px;
+	padding: 3px;
+	width: calc(100% - 6px);
+}
+
+.monaco-editor .rename-box .rename-label {
+	display: none;
+	opacity: .8;
+}
+
+.monaco-editor .rename-box.preview .rename-label {
+	display: inherit;
 }

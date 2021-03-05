@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
-
 import { IStringDictionary } from 'vs/base/common/collections';
 import product from 'vs/platform/product/common/product';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface ExtensionEntry {
 	version: string;
@@ -33,7 +33,7 @@ interface LanguagePackFile {
 export class LanguagePackCachedDataCleaner extends Disposable {
 
 	constructor(
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -53,7 +53,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {
 				const installed: IStringDictionary<boolean> = Object.create(null);
-				const metaData: LanguagePackFile = JSON.parse(await pfs.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
+				const metaData: LanguagePackFile = JSON.parse(await fs.promises.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 				for (let locale of Object.keys(metaData)) {
 					const entry = metaData[locale];
 					installed[`${entry.hash}.${locale}`] = true;
@@ -81,7 +81,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 							continue;
 						}
 						const candidate = path.join(folder, entry);
-						const stat = await pfs.stat(candidate);
+						const stat = await fs.promises.stat(candidate);
 						if (stat.isDirectory()) {
 							const diff = now - stat.mtime.getTime();
 							if (diff > maxAge) {

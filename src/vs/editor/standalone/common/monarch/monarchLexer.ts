@@ -231,7 +231,7 @@ class MonarchLineState implements modes.IState {
 interface IMonarchTokensCollector {
 	enterMode(startOffset: number, modeId: string): void;
 	emit(startOffset: number, type: string): void;
-	nestedModeTokenize(embeddedModeLine: string, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState;
+	nestedModeTokenize(embeddedModeLine: string, hasEOL: boolean, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState;
 }
 
 class MonarchClassicTokensCollector implements IMonarchTokensCollector {
@@ -261,7 +261,7 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 		this._tokens.push(new Token(startOffset, type, this._language!));
 	}
 
-	public nestedModeTokenize(embeddedModeLine: string, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
+	public nestedModeTokenize(embeddedModeLine: string, hasEOL: boolean, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
 		const nestedModeId = embeddedModeData.modeId;
 		const embeddedModeState = embeddedModeData.state;
 
@@ -272,7 +272,7 @@ class MonarchClassicTokensCollector implements IMonarchTokensCollector {
 			return embeddedModeState;
 		}
 
-		let nestedResult = nestedModeTokenizationSupport.tokenize(embeddedModeLine, embeddedModeState, offsetDelta);
+		let nestedResult = nestedModeTokenizationSupport.tokenize(embeddedModeLine, hasEOL, embeddedModeState, offsetDelta);
 		this._tokens = this._tokens.concat(nestedResult.tokens);
 		this._lastTokenType = null;
 		this._lastTokenLanguage = null;
@@ -345,7 +345,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 		return result;
 	}
 
-	public nestedModeTokenize(embeddedModeLine: string, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
+	public nestedModeTokenize(embeddedModeLine: string, hasEOL: boolean, embeddedModeData: EmbeddedModeData, offsetDelta: number): modes.IState {
 		const nestedModeId = embeddedModeData.modeId;
 		const embeddedModeState = embeddedModeData.state;
 
@@ -356,7 +356,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 			return embeddedModeState;
 		}
 
-		let nestedResult = nestedModeTokenizationSupport.tokenize2(embeddedModeLine, embeddedModeState, offsetDelta);
+		let nestedResult = nestedModeTokenizationSupport.tokenize2(embeddedModeLine, hasEOL, embeddedModeState, offsetDelta);
 		this._prependTokens = MonarchModernTokensCollector._merge(this._prependTokens, this._tokens, nestedResult.tokens);
 		this._tokens = [];
 		this._currentLanguageId = 0;
@@ -456,23 +456,23 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		return MonarchLineStateFactory.create(rootState, null);
 	}
 
-	public tokenize(line: string, lineState: modes.IState, offsetDelta: number): TokenizationResult {
+	public tokenize(line: string, hasEOL: boolean, lineState: modes.IState, offsetDelta: number): TokenizationResult {
 		let tokensCollector = new MonarchClassicTokensCollector();
-		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
+		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
 
-	public tokenize2(line: string, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneThemeService.getTheme().tokenTheme);
-		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
+	public tokenize2(line: string, hasEOL: boolean, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
+		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneThemeService.getColorTheme().tokenTheme);
+		let endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
 
-	private _tokenize(line: string, lineState: MonarchLineState, offsetDelta: number, collector: IMonarchTokensCollector): MonarchLineState {
+	private _tokenize(line: string, hasEOL: boolean, lineState: MonarchLineState, offsetDelta: number, collector: IMonarchTokensCollector): MonarchLineState {
 		if (lineState.embeddedModeData) {
-			return this._nestedTokenize(line, lineState, offsetDelta, collector);
+			return this._nestedTokenize(line, hasEOL, lineState, offsetDelta, collector);
 		} else {
-			return this._myTokenize(line, lineState, offsetDelta, collector);
+			return this._myTokenize(line, hasEOL, lineState, offsetDelta, collector);
 		}
 	}
 
@@ -497,11 +497,12 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			let regex = rule.regex;
 			let regexSource = rule.regex.source;
 			if (regexSource.substr(0, 4) === '^(?:' && regexSource.substr(regexSource.length - 1, 1) === ')') {
-				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), regex.ignoreCase ? 'i' : '');
+				let flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
+				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), flags);
 			}
 
 			let result = line.search(regex);
-			if (result === -1) {
+			if (result === -1 || (result !== 0 && rule.matchOnlyAtLineStart)) {
 				continue;
 			}
 
@@ -517,24 +518,24 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		return popOffset;
 	}
 
-	private _nestedTokenize(line: string, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
+	private _nestedTokenize(line: string, hasEOL: boolean, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
 
 		let popOffset = this._findLeavingNestedModeOffset(line, lineState);
 
 		if (popOffset === -1) {
 			// tokenization will not leave nested mode
-			let nestedEndState = tokensCollector.nestedModeTokenize(line, lineState.embeddedModeData!, offsetDelta);
+			let nestedEndState = tokensCollector.nestedModeTokenize(line, hasEOL, lineState.embeddedModeData!, offsetDelta);
 			return MonarchLineStateFactory.create(lineState.stack, new EmbeddedModeData(lineState.embeddedModeData!.modeId, nestedEndState));
 		}
 
 		let nestedModeLine = line.substring(0, popOffset);
 		if (nestedModeLine.length > 0) {
 			// tokenize with the nested mode
-			tokensCollector.nestedModeTokenize(nestedModeLine, lineState.embeddedModeData!, offsetDelta);
+			tokensCollector.nestedModeTokenize(nestedModeLine, false, lineState.embeddedModeData!, offsetDelta);
 		}
 
 		let restOfTheLine = line.substring(popOffset);
-		return this._myTokenize(restOfTheLine, lineState, offsetDelta + popOffset, tokensCollector);
+		return this._myTokenize(restOfTheLine, hasEOL, lineState, offsetDelta + popOffset, tokensCollector);
 	}
 
 	private _safeRuleName(rule: monarchCommon.IRule | null): string {
@@ -544,9 +545,11 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		return '(unknown)';
 	}
 
-	private _myTokenize(line: string, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
+	private _myTokenize(lineWithoutLF: string, hasEOL: boolean, lineState: MonarchLineState, offsetDelta: number, tokensCollector: IMonarchTokensCollector): MonarchLineState {
 		tokensCollector.enterMode(offsetDelta, this._modeId);
 
+		const lineWithoutLFLength = lineWithoutLF.length;
+		const line = (hasEOL && this._lexer.includeLF ? lineWithoutLF + '\n' : lineWithoutLF);
 		const lineLength = line.length;
 
 		let embeddedModeData = lineState.embeddedModeData;
@@ -562,7 +565,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 		}
 		let groupMatching: GroupMatching | null = null;
 
-		// See https://github.com/Microsoft/monaco-editor/issues/1235:
+		// See https://github.com/microsoft/monaco-editor/issues/1235
 		// Evaluate rules at least once for an empty line
 		let forceEvaluation = true;
 
@@ -740,6 +743,24 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 				throw monarchCommon.createError(this._lexer, 'lexer rule has no well-defined action in rule: ' + this._safeRuleName(rule));
 			}
 
+			const computeNewStateForEmbeddedMode = (enteringEmbeddedMode: string) => {
+				// substitute language alias to known modes to support syntax highlighting
+				let enteringEmbeddedModeId = this._modeService.getModeIdForLanguageName(enteringEmbeddedMode);
+				if (enteringEmbeddedModeId) {
+					enteringEmbeddedMode = enteringEmbeddedModeId;
+				}
+
+				const embeddedModeData = this._getNestedEmbeddedModeData(enteringEmbeddedMode);
+
+				if (pos < lineLength) {
+					// there is content from the embedded mode on this line
+					const restOfLine = lineWithoutLF.substr(pos);
+					return this._nestedTokenize(restOfLine, hasEOL, MonarchLineStateFactory.create(stack, embeddedModeData), offsetDelta + pos, tokensCollector);
+				} else {
+					return MonarchLineStateFactory.create(stack, embeddedModeData);
+				}
+			};
+
 			// is the result a group match?
 			if (Array.isArray(result)) {
 				if (groupMatching && groupMatching.groups.length > 0) {
@@ -780,6 +801,12 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 					matched = '';  // better set the next state too..
 					matches = null;
 					result = '';
+
+					// Even though `@rematch` was specified, if `nextEmbedded` also specified,
+					// a state transition should occur.
+					if (enteringEmbeddedMode !== null) {
+						return computeNewStateForEmbeddedMode(enteringEmbeddedMode);
+					}
 				}
 
 				// check progress
@@ -806,25 +833,13 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 					tokenType = monarchCommon.sanitize(token);
 				}
 
-				tokensCollector.emit(pos0 + offsetDelta, tokenType);
+				if (pos0 < lineWithoutLFLength) {
+					tokensCollector.emit(pos0 + offsetDelta, tokenType);
+				}
 			}
 
 			if (enteringEmbeddedMode !== null) {
-				// substitute language alias to known modes to support syntax highlighting
-				let enteringEmbeddedModeId = this._modeService.getModeIdForLanguageName(enteringEmbeddedMode);
-				if (enteringEmbeddedModeId) {
-					enteringEmbeddedMode = enteringEmbeddedModeId;
-				}
-
-				let embeddedModeData = this._getNestedEmbeddedModeData(enteringEmbeddedMode);
-
-				if (pos < lineLength) {
-					// there is content from the embedded mode on this line
-					let restOfLine = line.substr(pos);
-					return this._nestedTokenize(restOfLine, MonarchLineStateFactory.create(stack, embeddedModeData), offsetDelta + pos, tokensCollector);
-				} else {
-					return MonarchLineStateFactory.create(stack, embeddedModeData);
-				}
+				return computeNewStateForEmbeddedMode(enteringEmbeddedMode);
 			}
 		}
 

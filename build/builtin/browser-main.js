@@ -6,11 +6,9 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-// @ts-ignore review
-const { remote } = require('electron');
-const dialog = remote.dialog;
+const { ipcRenderer } = require('electron');
 
-const builtInExtensionsPath = path.join(__dirname, '..', 'builtInExtensions.json');
+const builtInExtensionsPath = path.join(__dirname, '..', '..', 'product.json');
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
 function readJson(filePath) {
@@ -85,17 +83,13 @@ function render(el, state) {
 		}
 
 		const localInput = renderOption(form, `local-${ext.name}`, 'Local', 'local', !!local);
-		localInput.onchange = function () {
-			const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
-				title: 'Choose Folder',
-				properties: ['openDirectory']
-			});
+		localInput.onchange = async function () {
+			const result = await ipcRenderer.invoke('pickdir');
 
-			if (result && result.length >= 1) {
-				control[ext.name] = result[0];
+			if (result) {
+				control[ext.name] = result;
+				setState({ builtin, control });
 			}
-
-			setState({ builtin, control });
 		};
 
 		if (local) {
@@ -111,7 +105,7 @@ function render(el, state) {
 
 function main() {
 	const el = document.getElementById('extensions');
-	const builtin = readJson(builtInExtensionsPath);
+	const builtin = readJson(builtInExtensionsPath).builtInExtensions;
 	let control;
 
 	try {

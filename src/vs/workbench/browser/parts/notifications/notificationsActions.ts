@@ -12,6 +12,16 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
+const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
+const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
+const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
+const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
+const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
+const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
 
 export class ClearNotificationAction extends Action {
 
@@ -23,13 +33,11 @@ export class ClearNotificationAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, ThemeIcon.asClassName(clearIcon));
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
-
-		return Promise.resolve();
 	}
 }
 
@@ -43,13 +51,11 @@ export class ClearAllNotificationsAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-clear-all');
+		super(id, label, ThemeIcon.asClassName(clearAllIcon));
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(): Promise<void> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
-
-		return Promise.resolve();
 	}
 }
 
@@ -63,13 +69,11 @@ export class HideNotificationsCenterAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, ThemeIcon.asClassName(hideIcon));
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(): Promise<void> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
-
-		return Promise.resolve();
 	}
 }
 
@@ -83,13 +87,11 @@ export class ExpandNotificationAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-chevron-up');
+		super(id, label, ThemeIcon.asClassName(expandIcon));
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
-
-		return Promise.resolve();
 	}
 }
 
@@ -103,13 +105,11 @@ export class CollapseNotificationAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-chevron-down');
+		super(id, label, ThemeIcon.asClassName(collapseIcon));
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	async run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
-
-		return Promise.resolve();
 	}
 }
 
@@ -121,13 +121,9 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private readonly _configurationActions: ReadonlyArray<IAction>
+		public readonly configurationActions: ReadonlyArray<IAction>
 	) {
-		super(id, label, 'codicon-gear');
-	}
-
-	get configurationActions(): ReadonlyArray<IAction> {
-		return this._configurationActions;
+		super(id, label, ThemeIcon.asClassName(configureIcon));
 	}
 }
 
@@ -144,7 +140,7 @@ export class CopyNotificationMessageAction extends Action {
 		super(id, label);
 	}
 
-	run(notification: INotificationViewItem): Promise<any> {
+	run(notification: INotificationViewItem): Promise<void> {
 		return this.clipboardService.writeText(notification.message.raw);
 	}
 }
@@ -158,7 +154,7 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected async runAction(action: IAction, context: INotificationViewItem): Promise<any> {
+	protected async runAction(action: IAction, context: INotificationViewItem): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
 
 		// Run and make sure to notify on any error again

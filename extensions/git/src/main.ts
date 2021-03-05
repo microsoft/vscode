@@ -6,11 +6,10 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, WorkspaceFolder } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, version as vscodeVersion, WorkspaceFolder } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
-import { GitContentProvider } from './contentProvider';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
@@ -21,7 +20,10 @@ import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
 import * as fs from 'fs';
-import { createIPCServer, IIPCServer } from './ipc/ipcServer';
+import * as os from 'os';
+import { GitTimelineProvider } from './timelineProvider';
+import { registerAPICommands } from './api/api1';
+import { TerminalEnvironmentManager } from './terminal';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -32,30 +34,24 @@ export async function deactivate(): Promise<any> {
 }
 
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
-	const pathHint = workspace.getConfiguration('git').get<string>('path');
+	const pathHint = workspace.getConfiguration('git').get<string | string[]>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 
-	let env: any = {};
-	let ipc: IIPCServer | undefined;
+	const askpass = await Askpass.create(outputChannel, context.storagePath);
+	disposables.push(askpass);
 
-	try {
-		ipc = await createIPCServer();
-		disposables.push(ipc);
-		env = { ...env, ...ipc.getEnv() };
-	} catch {
-		// noop
-	}
+	const environment = askpass.getEnv();
+	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
+	disposables.push(terminalEnvironmentManager);
 
-	if (ipc) {
-		const askpass = new Askpass(ipc);
-		disposables.push(askpass);
-		env = { ...env, ...askpass.getEnv() };
-	} else {
-		env = { ...env, ...Askpass.getDisabledEnv() };
-	}
 
-	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const model = new Model(git, context.globalState, outputChannel);
+	const git = new Git({
+		gitPath: info.path,
+		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
+		version: info.version,
+		env: environment,
+	});
+	const model = new Model(git, askpass, context.globalState, outputChannel);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -77,15 +73,16 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
+	const cc = new CommandCenter(git, model, outputChannel, telemetryReporter);
 	disposables.push(
-		new CommandCenter(git, model, outputChannel, telemetryReporter),
-		new GitContentProvider(model),
+		cc,
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
-		new GitProtocolHandler()
+		new GitProtocolHandler(),
+		new GitTimelineProvider(model, cc)
 	);
 
-	await checkGitVersion(info);
+	checkGitVersion(info);
 
 	return model;
 }
@@ -138,7 +135,7 @@ async function warnAboutMissingGit(): Promise<void> {
 	}
 }
 
-export async function activate(context: ExtensionContext): Promise<GitExtension> {
+export async function _activate(context: ExtensionContext): Promise<GitExtensionImpl> {
 	const disposables: Disposable[] = [];
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
@@ -173,13 +170,27 @@ export async function activate(context: ExtensionContext): Promise<GitExtension>
 		console.warn(err.message);
 		outputChannel.appendLine(err.message);
 
+		commands.executeCommand('setContext', 'git.missing', true);
 		warnAboutMissingGit();
 
 		return new GitExtensionImpl();
 	}
 }
 
-async function checkGitVersion(info: IGit): Promise<void> {
+let _context: ExtensionContext;
+export function getExtensionContext(): ExtensionContext {
+	return _context;
+}
+
+export async function activate(context: ExtensionContext): Promise<GitExtension> {
+	_context = context;
+
+	const result = await _activate(context);
+	context.subscriptions.push(registerAPICommands(result));
+	return result;
+}
+
+async function checkGitv1(info: IGit): Promise<void> {
 	const config = workspace.getConfiguration('git');
 	const shouldIgnore = config.get<boolean>('ignoreLegacyWarning') === true;
 
@@ -204,5 +215,40 @@ async function checkGitVersion(info: IGit): Promise<void> {
 		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
+	}
+}
+
+async function checkGitWindows(info: IGit): Promise<void> {
+	if (!/^2\.(25|26)\./.test(info.version)) {
+		return;
+	}
+
+	const config = workspace.getConfiguration('git');
+	const shouldIgnore = config.get<boolean>('ignoreWindowsGit27Warning') === true;
+
+	if (shouldIgnore) {
+		return;
+	}
+
+	const update = localize('updateGit', "Update Git");
+	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
+	const choice = await window.showWarningMessage(
+		localize('git2526', "There are known issues with the installed Git {0}. Please update to Git >= 2.27 for the git features to work correctly.", info.version),
+		update,
+		neverShowAgain
+	);
+
+	if (choice === update) {
+		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	} else if (choice === neverShowAgain) {
+		await config.update('ignoreWindowsGit27Warning', true, true);
+	}
+}
+
+async function checkGitVersion(info: IGit): Promise<void> {
+	await checkGitv1(info);
+
+	if (process.platform === 'win32') {
+		await checkGitWindows(info);
 	}
 }

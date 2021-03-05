@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ISearchService, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
 import * as assert from 'assert';
-import { SingleProxyRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
+import { SingleProxyRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';

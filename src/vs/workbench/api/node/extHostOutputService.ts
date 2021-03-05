@@ -4,17 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainThreadOutputServiceShape } from '../common/extHost.protocol';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
-import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
 import { toLocalISOString } from 'vs/base/common/date';
-import { dirExists, mkdirp } from 'vs/base/node/pfs';
+import { SymlinkSupport } from 'vs/base/node/pfs';
+import { promises } from 'fs';
 import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
+import { RotatingLogger } from 'spdlog';
+import { ByteSize } from 'vs/platform/files/common/files';
+
+class OutputAppender {
+
+	private appender: RotatingLogger;
+
+	constructor(name: string, readonly file: string) {
+		this.appender = createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
+		this.appender.clearFormatters();
+	}
+
+	append(content: string): void {
+		this.appender.critical(content);
+	}
+
+	flush(): void {
+		this.appender.flush();
+	}
+}
+
 
 export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
@@ -85,9 +107,12 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 	private async _doCreateOutChannel(name: string): Promise<AbstractExtHostOutputChannel> {
 		try {
 			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-			const outputDir = await dirExists(outputDirPath).then(exists => exists || mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
+			const exists = await SymlinkSupport.existsDirectory(outputDirPath);
+			if (!exists) {
+				await promises.mkdir(outputDirPath, { recursive: true });
+			}
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
-			const file = URI.file(join(outputDir, `${fileName}.log`));
+			const file = URI.file(join(outputDirPath, `${fileName}.log`));
 			const appender = new OutputAppender(fileName, file.fsPath);
 			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
 		} catch (error) {

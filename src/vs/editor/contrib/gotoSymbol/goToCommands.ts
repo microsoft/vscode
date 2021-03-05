@@ -27,7 +27,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from './goToSymbol';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorStateCancellationTokenSource, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { ISymbolNavigationService } from 'vs/editor/contrib/gotoSymbol/symbolNavigation';
 import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
@@ -36,6 +36,8 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ScrollType, IEditorAction } from 'vs/editor/common/editorCommon';
 import { assertType } from 'vs/base/common/types';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 
 
 MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
@@ -129,7 +131,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel): Promise<void> {
 
 		const gotoLocation = this._getGoToPreference(editor);
-		if (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1)) {
+		if (!(editor instanceof EmbeddedCodeEditorWidget) && (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1))) {
 			this._openInPeek(editor, model);
 
 		} else {
@@ -160,12 +162,15 @@ abstract class SymbolNavigationAction extends EditorAction {
 		if (!range) {
 			range = reference.range;
 		}
+		if (!range) {
+			return undefined;
+		}
 
 		const targetEditor = await editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealInCenterIfOutsideViewport: true
+				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
 			}
 		}, editor, sideBySide);
 
@@ -238,7 +243,7 @@ registerEditorAction(class GoToDefinitionAction extends DefinitionAction {
 			alias: 'Go to Definition',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: goToDefinitionKb,
@@ -274,7 +279,7 @@ registerEditorAction(class OpenDefinitionToSideAction extends DefinitionAction {
 			alias: 'Open Definition to the Side',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDefinitionKb),
@@ -301,7 +306,7 @@ registerEditorAction(class PeekDefinitionAction extends DefinitionAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDefinitionProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -359,7 +364,7 @@ registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 			alias: 'Go to Declaration',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 			contextMenuOpts: {
 				group: 'navigation',
@@ -394,7 +399,7 @@ registerEditorAction(class PeekDeclarationAction extends DeclarationAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasDeclarationProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
@@ -445,7 +450,7 @@ registerEditorAction(class GoToTypeDefinitionAction extends TypeDefinitionAction
 			alias: 'Go to Type Definition',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasTypeDefinitionProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
@@ -481,7 +486,7 @@ registerEditorAction(class PeekTypeDefinitionAction extends TypeDefinitionAction
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasTypeDefinitionProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
@@ -532,7 +537,7 @@ registerEditorAction(class GoToImplementationAction extends ImplementationAction
 			alias: 'Go to Implementations',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12,
@@ -568,7 +573,7 @@ registerEditorAction(class PeekImplementationAction extends ImplementationAction
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasImplementationProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -619,7 +624,7 @@ registerEditorAction(class GoToReferencesAction extends ReferencesAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -658,7 +663,7 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 			contextMenuOpts: {
 				menuId: MenuId.EditorContextPeek,
@@ -681,20 +686,17 @@ registerEditorAction(class PeekReferencesAction extends ReferencesAction {
 class GenericGoToLocationAction extends SymbolNavigationAction {
 
 	constructor(
+		config: SymbolNavigationActionConfig,
 		private readonly _references: Location[],
-		private readonly _gotoMultipleBehaviour: GoToLocationValues | undefined
+		private readonly _gotoMultipleBehaviour: GoToLocationValues | undefined,
 	) {
-		super({
-			muteMessage: true,
-			openInPeek: false,
-			openToSide: false
-		}, {
+		super(config, {
 			id: 'editor.action.goToLocation',
 			label: nls.localize('label.generic', "Go To Any Symbol"),
 			alias: 'Go To Any Symbol',
 			precondition: ContextKeyExpr.and(
 				PeekContext.notInPeekEditor,
-				EditorContextKeys.isInEmbeddedEditor.toNegated()
+				EditorContextKeys.isInWalkThroughSnippet.toNegated()
 			),
 		});
 	}
@@ -723,13 +725,15 @@ CommandsRegistry.registerCommand({
 			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
 			{ name: 'locations', description: 'An array of locations.', constraint: Array },
 			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
+			{ name: 'noResultsMessage', description: 'Human readable message that shows when locations is empty.' },
 		]
 	},
-	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any) => {
+	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any, noResultsMessage?: string, openInPeek?: boolean) => {
 		assertType(URI.isUri(resource));
 		assertType(corePosition.Position.isIPosition(position));
 		assertType(Array.isArray(references));
 		assertType(typeof multiple === 'undefined' || typeof multiple === 'string');
+		assertType(typeof openInPeek === 'undefined' || typeof openInPeek === 'boolean');
 
 		const editorService = accessor.get(ICodeEditorService);
 		const editor = await editorService.openCodeEditor({ resource }, editorService.getFocusedCodeEditor());
@@ -739,10 +743,35 @@ CommandsRegistry.registerCommand({
 			editor.revealPositionInCenterIfOutsideViewport(position, ScrollType.Smooth);
 
 			return editor.invokeWithinContext(accessor => {
-				const command = new GenericGoToLocationAction(references, multiple as GoToLocationValues);
+				const command = new class extends GenericGoToLocationAction {
+					_getNoResultFoundMessage(info: IWordAtPosition | null) {
+						return noResultsMessage || super._getNoResultFoundMessage(info);
+					}
+				}({
+					muteMessage: !Boolean(noResultsMessage),
+					openInPeek: Boolean(openInPeek),
+					openToSide: false
+				}, references, multiple as GoToLocationValues);
+
 				accessor.get(IInstantiationService).invokeFunction(command.run.bind(command), editor);
 			});
 		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'editor.action.peekLocations',
+	description: {
+		description: 'Peek locations from a position in a file',
+		args: [
+			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
+			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
+			{ name: 'locations', description: 'An array of locations.', constraint: Array },
+			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
+		]
+	},
+	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any) => {
+		accessor.get(ICommandService).executeCommand('editor.action.goToLocations', resource, position, references, multiple, undefined, true);
 	}
 });
 
@@ -776,6 +805,6 @@ CommandsRegistry.registerCommand({
 });
 
 // use NEW command
-CommandsRegistry.registerCommandAlias('editor.action.showReferences', 'editor.action.goToLocations');
+CommandsRegistry.registerCommandAlias('editor.action.showReferences', 'editor.action.peekLocations');
 
 //#endregion

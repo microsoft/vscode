@@ -7,22 +7,32 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IUntitledTextResourceInput } from 'vs/workbench/common/editor';
-import { toLocalResource } from 'vs/base/common/resources';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
+	private readonly editorInputFactories = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPathService private readonly pathService: IPathService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.restoreBackups();
 	}
@@ -34,12 +44,16 @@ export class BackupRestorer implements IWorkbenchContribution {
 	protected async doRestoreBackups(): Promise<URI[] | undefined> {
 
 		// Find all files and untitled with backups
-		const backups = await this.backupFileService.getWorkspaceFileBackups();
+		const backups = await this.backupFileService.getBackups();
 		const unresolvedBackups = await this.doResolveOpenedBackups(backups);
 
 		// Some failed to restore or were not opened at all so we open and resolve them manually
 		if (unresolvedBackups.length > 0) {
-			await this.doOpenEditors(unresolvedBackups);
+			try {
+				await this.doOpenEditors(unresolvedBackups);
+			} catch (error) {
+				this.logService.error(error);
+			}
 
 			return this.doResolveOpenedBackups(unresolvedBackups);
 		}
@@ -50,8 +64,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private async doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
 		const unresolvedBackups: URI[] = [];
 
-		await Promise.all(backups.map(async backup => {
-			const openedEditor = this.editorService.getOpened({ resource: backup });
+		await Promises.settled(backups.map(async backup => {
+			const openedEditor = this.findEditorByResource(backup);
 			if (openedEditor) {
 				try {
 					await openedEditor.resolve(); // trigger load
@@ -66,22 +80,41 @@ export class BackupRestorer implements IWorkbenchContribution {
 		return unresolvedBackups;
 	}
 
+	private findEditorByResource(resource: URI): IEditorInput | undefined {
+		for (const editor of this.editorService.editors) {
+			const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
+			if (customFactory?.canResolveBackup(editor, resource) || isEqual(editor.resource, resource)) {
+				return editor;
+			}
+		}
+
+		return undefined;
+	}
+
 	private async doOpenEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
-		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
+		const inputs = await Promises.settled(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
 
 		// Open all remaining backups as editors and resolve them to load their backups
 		await this.editorService.openEditors(inputs);
 	}
 
-	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledTextResourceInput {
+	private async resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
 		// this is a (weak) strategy to find out if the untitled input had
 		// an associated file path or not by just looking at the path. and
 		// if so, we must ensure to restore the local resource it had.
 		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.path)) {
-			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority), options, forceUntitled: true };
+			return { resource: toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
+		}
+
+		// handle custom editors by asking the custom editor input factory
+		// to create the input.
+		const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
+		if (customFactory) {
+			const editor = await customFactory.createCustomEditorInput(resource, this.instantiationService);
+			return { editor, options };
 		}
 
 		return { resource, options };

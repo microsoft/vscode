@@ -10,31 +10,40 @@ let fs = require('fs');
 let https = require('https');
 let url = require('url');
 
-// list of languagesIs not shipped with VSCode. The information is used to associate an icon with a language association
-let nonBuiltInLanguages = { // { fileNames, extensions }
-	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+// list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
+// Please try and keep this list in alphabetical order! Thank you.
+let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
-	"elm": { extensions: ['elm'] },
-	"ocaml": { extensions: ['ml', 'mli'] },
-	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
-	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
-	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
-	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
-	"vue": { extensions: ['vue'] },
-	"sass": { extensions: ['sass'] },
-	"puppet": { extensions: ['puppet'] },
-	"kotlin": { extensions: ['kt'] },
-	"jinja": { extensions: ['jinja'] },
-	"haxe": { extensions: ['hx'] },
-	"haskell": { extensions: ['hs'] },
-	"gradle": { extensions: ['gradle'] },
 	"elixir": { extensions: ['ex'] },
+	"elm": { extensions: ['elm'] },
+	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
+	"github-issues": { extensions: ['github-issues'] },
+	"gradle": { extensions: ['gradle'] },
+	"godot": { extensions: ['gd', 'godot', 'tres', 'tscn'] },
 	"haml": { extensions: ['haml'] },
+	"haskell": { extensions: ['hs'] },
+	"haxe": { extensions: ['hx'] },
+	"jinja": { extensions: ['jinja'] },
+	"kotlin": { extensions: ['kt'] },
+	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
+	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
+	"ocaml": { extensions: ['ml', 'mli'] },
+	"puppet": { extensions: ['puppet'] },
+	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"sass": { extensions: ['sass'] },
 	"stylus": { extensions: ['styl'] },
-	"vala": { extensions: ['vala'] },
+	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
 	"todo": { fileNames: ['todo'] },
-	"jsonc": { extensions: ['json'] }
+	"vala": { extensions: ['vala'] },
+	"vue": { extensions: ['vue'] }
 };
+
+// list of languagesId that inherit the icon from another language
+let inheritIconFromLanguage = {
+	"jsonc": 'json',
+	"postcss": 'css',
+	"django-html": 'html'
+}
 
 let FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo
 
@@ -299,7 +308,7 @@ exports.update = function () {
 		}
 
 		return download(fileAssociationFile).then(function (content) {
-			let regex2 = /\.icon-(?:set|partial)\(['"]([\w-\.]+)['"],\s*['"]([\w-]+)['"],\s*(@[\w-]+)\)/g;
+			let regex2 = /\.icon-(?:set|partial)\(['"]([\w-\.+]+)['"],\s*['"]([\w-]+)['"],\s*(@[\w-]+)\)/g;
 			while ((match = regex2.exec(content)) !== null) {
 				let pattern = match[1];
 				let def = '_' + match[2];
@@ -357,6 +366,16 @@ exports.update = function () {
 						}
 					}
 				}
+			}
+			for (let lang in inheritIconFromLanguage) {
+				let superLang = inheritIconFromLanguage[lang];
+				let def = lang2Def[superLang];
+				if (def) {
+					lang2Def[lang] = def;
+				} else {
+					console.log('skipping icon def for ' + lang + ': no icon for ' + superLang + ' defined');
+				}
+
 			}
 
 

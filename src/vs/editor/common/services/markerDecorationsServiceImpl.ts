@@ -12,11 +12,9 @@ import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeServ
 import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
-import { keys } from 'vs/base/common/map';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
 
 function MODEL_ID(resource: URI): string {
@@ -32,16 +30,19 @@ class MarkerDecorations extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this.model.deltaDecorations(keys(this._markersData), []);
+			this.model.deltaDecorations([...this._markersData.keys()], []);
 			this._markersData.clear();
 		}));
 	}
 
-	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): void {
-		const ids = this.model.deltaDecorations(keys(this._markersData), newDecorations);
+	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): boolean {
+		const oldIds = [...this._markersData.keys()];
+		this._markersData.clear();
+		const ids = this.model.deltaDecorations(oldIds, newDecorations);
 		for (let index = 0; index < ids.length; index++) {
 			this._markersData.set(ids[index], markers[index]);
 		}
+		return oldIds.length !== 0 || ids.length !== 0;
 	}
 
 	getMarker(decoration: IModelDecoration): IMarker | undefined {
@@ -62,7 +63,7 @@ class MarkerDecorations extends Disposable {
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
@@ -86,13 +87,13 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		this._markerDecorations.clear();
 	}
 
-	getMarker(model: ITextModel, decoration: IModelDecoration): IMarker | null {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
-		return markerDecorations ? withUndefinedAsNull(markerDecorations.getMarker(decoration)) : null;
+	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null {
+		const markerDecorations = this._markerDecorations.get(MODEL_ID(uri));
+		return markerDecorations ? (markerDecorations.getMarker(decoration) || null) : null;
 	}
 
-	getLiveMarkers(model: ITextModel): [Range, IMarker][] {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
+	getLiveMarkers(uri: URI): [Range, IMarker][] {
+		const markerDecorations = this._markerDecorations.get(MODEL_ID(uri));
 		return markerDecorations ? markerDecorations.getMarkers() : [];
 	}
 
@@ -137,20 +138,19 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 				options: this._createDecorationOption(marker)
 			};
 		});
-		markerDecorations.update(markers, newModelDecorations);
-		this._onDidChangeMarker.fire(markerDecorations.model);
+		if (markerDecorations.update(markers, newModelDecorations)) {
+			this._onDidChangeMarker.fire(markerDecorations.model);
+		}
 	}
 
 	private _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
 
 		let ret = Range.lift(rawMarker);
 
-		if (rawMarker.severity === MarkerSeverity.Hint) {
-			if (!rawMarker.tags || rawMarker.tags.indexOf(MarkerTag.Unnecessary) === -1) {
-				// * never render hints on multiple lines
-				// * make enough space for three dots
-				ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
-			}
+		if (rawMarker.severity === MarkerSeverity.Hint && !this._hasMarkerTag(rawMarker, MarkerTag.Unnecessary) && !this._hasMarkerTag(rawMarker, MarkerTag.Deprecated)) {
+			// * never render hints on multiple lines
+			// * make enough space for three dots
+			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
 		}
 
 		ret = model.validateRange(ret);
@@ -186,7 +186,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	private _createDecorationOption(marker: IMarker): IModelDecorationOptions {
 
-		let className: string;
+		let className: string | undefined;
 		let color: ThemeColor | undefined = undefined;
 		let zIndex: number;
 		let inlineClassName: string | undefined = undefined;
@@ -194,7 +194,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				if (marker.tags && marker.tags.indexOf(MarkerTag.Unnecessary) >= 0) {
+				if (this._hasMarkerTag(marker, MarkerTag.Deprecated)) {
+					className = undefined;
+				} else if (this._hasMarkerTag(marker, MarkerTag.Unnecessary)) {
 					className = ClassName.EditorUnnecessaryDecoration;
 				} else {
 					className = ClassName.EditorHintDecoration;
@@ -248,5 +250,12 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			zIndex,
 			inlineClassName,
 		};
+	}
+
+	private _hasMarkerTag(marker: IMarker, tag: MarkerTag): boolean {
+		if (marker.tags) {
+			return marker.tags.indexOf(tag) >= 0;
+		}
+		return false;
 	}
 }

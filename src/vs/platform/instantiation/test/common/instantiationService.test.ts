@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -12,48 +12,48 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 let IService1 = createDecorator<IService1>('service1');
 
 interface IService1 {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	c: number;
 }
 
 class Service1 implements IService1 {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	c = 1;
 }
 
 let IService2 = createDecorator<IService2>('service2');
 
 interface IService2 {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	d: boolean;
 }
 
 class Service2 implements IService2 {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	d = true;
 }
 
 let IService3 = createDecorator<IService3>('service3');
 
 interface IService3 {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	s: string;
 }
 
 class Service3 implements IService3 {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	s = 'farboo';
 }
 
 let IDependentService = createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	name: string;
 }
 
 class DependentService implements IDependentService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	constructor(@IService1 service: IService1) {
 		assert.equal(service.c, 1);
 	}
@@ -116,7 +116,7 @@ class DependentServiceTarget2 {
 
 
 class ServiceLoop1 implements IService1 {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	c = 1;
 
 	constructor(@IService2 s: IService2) {
@@ -125,7 +125,7 @@ class ServiceLoop1 implements IService1 {
 }
 
 class ServiceLoop2 implements IService2 {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	d = true;
 
 	constructor(@IService1 s: IService1) {
@@ -364,7 +364,7 @@ suite('Instantiation Service', () => {
 		let serviceInstanceCount = 0;
 
 		const CtorCounter = class implements Service1 {
-			_serviceBrand: undefined;
+			declare readonly _serviceBrand: undefined;
 			c = 1;
 			constructor() {
 				serviceInstanceCount += 1;
@@ -392,4 +392,36 @@ suite('Instantiation Service', () => {
 
 		assert.equal(serviceInstanceCount, 1);
 	});
+
+	test('Remote window / integration tests is broken #105562', function () {
+
+		const Service1 = createDecorator<any>('service1');
+		class Service1Impl {
+			constructor(@IInstantiationService insta: IInstantiationService) {
+				const c = insta.invokeFunction(accessor => accessor.get(Service2)); // THIS is the recursive call
+				assert.ok(c);
+			}
+		}
+		const Service2 = createDecorator<any>('service2');
+		class Service2Impl {
+			constructor() { }
+		}
+
+		// This service depends on Service1 and Service2 BUT creating Service1 creates Service2 (via recursive invocation)
+		// and then Servce2 should not be created a second time
+		const Service21 = createDecorator<any>('service21');
+		class Service21Impl {
+			constructor(@Service2 readonly service2: Service2Impl, @Service1 readonly service1: Service1Impl) { }
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[Service1, new SyncDescriptor(Service1Impl)],
+			[Service2, new SyncDescriptor(Service2Impl)],
+			[Service21, new SyncDescriptor(Service21Impl)],
+		));
+
+		const obj = insta.invokeFunction(accessor => accessor.get(Service21));
+		assert.ok(obj);
+	});
+
 });

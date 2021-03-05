@@ -6,6 +6,7 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor Model - Model Edit Operation', () => {
 	const LINE1 = 'My First Line';
@@ -23,7 +24,7 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = TextModel.createFromString(text);
+		model = createTextModel(text);
 	});
 
 	teardown(() => {
@@ -49,32 +50,32 @@ suite('Editor Model - Model Edit Operation', () => {
 	function assertSingleEditOp(singleEditOp: IIdentifiedSingleEditOperation, editedLines: string[]) {
 		let editOp = [singleEditOp];
 
-		let inverseEditOp = model.applyEdits(editOp);
+		let inverseEditOp = model.applyEdits(editOp, true);
 
-		assert.equal(model.getLineCount(), editedLines.length);
+		assert.strictEqual(model.getLineCount(), editedLines.length);
 		for (let i = 0; i < editedLines.length; i++) {
-			assert.equal(model.getLineContent(i + 1), editedLines[i]);
+			assert.strictEqual(model.getLineContent(i + 1), editedLines[i]);
 		}
 
-		let originalOp = model.applyEdits(inverseEditOp);
+		let originalOp = model.applyEdits(inverseEditOp, true);
 
-		assert.equal(model.getLineCount(), 5);
-		assert.equal(model.getLineContent(1), LINE1);
-		assert.equal(model.getLineContent(2), LINE2);
-		assert.equal(model.getLineContent(3), LINE3);
-		assert.equal(model.getLineContent(4), LINE4);
-		assert.equal(model.getLineContent(5), LINE5);
+		assert.strictEqual(model.getLineCount(), 5);
+		assert.strictEqual(model.getLineContent(1), LINE1);
+		assert.strictEqual(model.getLineContent(2), LINE2);
+		assert.strictEqual(model.getLineContent(3), LINE3);
+		assert.strictEqual(model.getLineContent(4), LINE4);
+		assert.strictEqual(model.getLineContent(5), LINE5);
 
 		const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
 			return {
 				identifier: edit.identifier,
 				range: edit.range,
 				text: edit.text,
-				forceMoveMarkers: edit.forceMoveMarkers,
-				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit
+				forceMoveMarkers: edit.forceMoveMarkers || false,
+				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
 			};
 		};
-		assert.deepEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
+		assert.deepStrictEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
 	}
 
 	test('Insert inline', () => {

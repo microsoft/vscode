@@ -206,7 +206,7 @@ const group: IJSONSchema = {
 const taskType: IJSONSchema = {
 	type: 'string',
 	enum: ['shell'],
-	default: 'shell',
+	default: 'process',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 
@@ -250,8 +250,8 @@ const command: IJSONSchema = {
 					enum: ['escape', 'strong', 'weak'],
 					enumDescriptions: [
 						nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
-						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
 					],
 					default: 'strong',
 					description: nls.localize('JsonSchema.command.quotesString.quote', 'How the command value should be quoted.')
@@ -283,8 +283,8 @@ const args: IJSONSchema = {
 						enum: ['escape', 'strong', 'weak'],
 						enumDescriptions: [
 							nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
-							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
 						],
 						default: 'strong',
 						description: nls.localize('JsonSchema.args.quotesString.quote', 'How the argument value should be quoted.')
@@ -316,6 +316,7 @@ const identifier: IJSONSchema = {
 
 const runOptions: IJSONSchema = {
 	type: 'object',
+	additionalProperties: false,
 	properties: {
 		reevaluateOnRerun: {
 			type: 'boolean',
@@ -327,6 +328,11 @@ const runOptions: IJSONSchema = {
 			enum: ['default', 'folderOpen'],
 			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
 			default: 'default'
+		},
+		instanceLimit: {
+			type: 'number',
+			description: nls.localize('JsonSchema.tasks.instanceLimit', 'The number of instances of the task that are allowed to run simultaneously.'),
+			default: 1
 		},
 	},
 	description: nls.localize('JsonSchema.tasks.runOptions', 'The task\'s run related options')
@@ -377,7 +383,18 @@ let taskConfiguration: IJSONSchema = {
 
 let taskDefinitions: IJSONSchema[] = [];
 TaskDefinitionRegistry.onReady().then(() => {
+	updateTaskDefinitions();
+});
+
+export function updateTaskDefinitions() {
 	for (let taskType of TaskDefinitionRegistry.all()) {
+		// Check that we haven't already added this task type
+		if (taskDefinitions.find(schema => {
+			return schema.properties?.type?.enum?.find ? schema.properties?.type.enum.find(element => element === taskType.taskType) : undefined;
+		})) {
+			continue;
+		}
+
 		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
 		const schemaProperties = schema.properties!;
 		// Since we do this after the schema is assigned we need to patch the refs.
@@ -402,7 +419,7 @@ TaskDefinitionRegistry.onReady().then(() => {
 		fixReferences(schema);
 		taskDefinitions.push(schema);
 	}
-});
+}
 
 let customize = Objects.deepClone(taskConfiguration);
 customize.properties!.customize = {
@@ -436,6 +453,8 @@ taskDescriptionProperties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
 );
+// Clone the taskDescription for process task before setting a default to prevent two defaults #115281
+const processTask = Objects.deepClone(taskDescription);
 taskDescription.default = {
 	label: 'My Task',
 	type: 'shell',
@@ -464,11 +483,10 @@ taskDescriptionProperties.isTestCommand.deprecationMessage = nls.localize(
 );
 
 // Process tasks are almost identical schema-wise to shell tasks, but they are required to have a command
-const processTask = Objects.deepClone(taskDescription);
 processTask.properties!.type = {
 	type: 'string',
 	enum: ['process'],
-	default: 'shell',
+	default: 'process',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 processTask.required!.push('command');

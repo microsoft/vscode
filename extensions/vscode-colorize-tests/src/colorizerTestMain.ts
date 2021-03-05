@@ -15,31 +15,38 @@ export function activate(context: vscode.ExtensionContext): any {
 
 	const outputChannel = vscode.window.createOutputChannel('Semantic Tokens Test');
 
-	const semanticHighlightProvider: vscode.SemanticTokensProvider = {
-		provideSemanticTokens(document: vscode.TextDocument): vscode.ProviderResult<vscode.SemanticTokens> {
+	const documentSemanticHighlightProvider: vscode.DocumentSemanticTokensProvider = {
+		provideDocumentSemanticTokens(document: vscode.TextDocument): vscode.ProviderResult<vscode.SemanticTokens> {
 			const builder = new vscode.SemanticTokensBuilder();
 
 			function addToken(value: string, startLine: number, startCharacter: number, length: number) {
 				const [type, ...modifiers] = value.split('.');
 
+				const selectedModifiers = [];
+
 				let tokenType = legend.tokenTypes.indexOf(type);
 				if (tokenType === -1) {
-					return;
-				}
-
-				let tokenModifiers = 0;
-				for (let i = 0; i < modifiers.length; i++) {
-					const index = legend.tokenModifiers.indexOf(modifiers[i]);
-					if (index !== -1) {
-						tokenModifiers = tokenModifiers | 1 << index;
+					if (type === 'notInLegend') {
+						tokenType = tokenTypes.length + 2;
+					} else {
+						return;
 					}
 				}
 
-
+				let tokenModifiers = 0;
+				for (const modifier of modifiers) {
+					const index = legend.tokenModifiers.indexOf(modifier);
+					if (index !== -1) {
+						tokenModifiers = tokenModifiers | 1 << index;
+						selectedModifiers.push(modifier);
+					} else if (modifier === 'notInLegend') {
+						tokenModifiers = tokenModifiers | 1 << (legend.tokenModifiers.length + 2);
+						selectedModifiers.push(modifier);
+					}
+				}
 				builder.push(startLine, startCharacter, length, tokenType, tokenModifiers);
 
-				const selectedModifiers = legend.tokenModifiers.filter((_val, bit) => tokenModifiers & (1 << bit)).join(' ');
-				outputChannel.appendLine(`line: ${startLine}, character: ${startCharacter}, length ${length}, ${legend.tokenTypes[tokenType]} (${tokenType}), ${selectedModifiers} ${tokenModifiers.toString(2)}`);
+				outputChannel.appendLine(`line: ${startLine}, character: ${startCharacter}, length ${length}, ${type} (${tokenType}), ${selectedModifiers} ${tokenModifiers.toString(2)}`);
 			}
 
 			outputChannel.appendLine('---');
@@ -56,11 +63,11 @@ export function activate(context: vscode.ExtensionContext): any {
 			};
 			jsoncParser.visit(document.getText(), visitor);
 
-			return new vscode.SemanticTokens(builder.build());
+			return builder.build();
 		}
 	};
 
 
-	context.subscriptions.push(vscode.languages.registerSemanticTokensProvider({ pattern: '**/*semantic-test.json' }, semanticHighlightProvider, legend));
+	context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ pattern: '**/*semantic-test.json' }, documentSemanticHighlightProvider, legend));
 
 }

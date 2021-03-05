@@ -7,11 +7,13 @@ import * as nls from 'vs/nls';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { Range } from 'vs/editor/common/core/range';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 abstract class CommentLineAction extends EditorAction {
@@ -28,13 +30,41 @@ abstract class CommentLineAction extends EditorAction {
 			return;
 		}
 
-		let model = editor.getModel();
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
-		let opts = model.getOptions();
+		const model = editor.getModel();
+		const commands: ICommand[] = [];
+		const modelOptions = model.getOptions();
+		const commentsOptions = editor.getOption(EditorOption.comments);
+
+		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignoreFirstLine: false }));
+		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+
+		// Remove selections that would result in copying the same line
+		let prev = selections[0];
+		for (let i = 1; i < selections.length; i++) {
+			const curr = selections[i];
+			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
+				// these two selections would copy the same line
+				if (prev.index < curr.index) {
+					// prev wins
+					curr.ignoreFirstLine = true;
+				} else {
+					// curr wins
+					prev.ignoreFirstLine = true;
+					prev = curr;
+				}
+			}
+		}
+
 
 		for (const selection of selections) {
-			commands.push(new LineCommentCommand(selection, opts.tabSize, this._type));
+			commands.push(new LineCommentCommand(
+				selection.selection,
+				modelOptions.tabSize,
+				this._type,
+				commentsOptions.insertSpace,
+				commentsOptions.ignoreEmptyLines,
+				selection.ignoreFirstLine
+			));
 		}
 
 		editor.pushUndoStop();
@@ -126,10 +156,11 @@ class BlockCommentAction extends EditorAction {
 			return;
 		}
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		const commentsOptions = editor.getOption(EditorOption.comments);
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
 		for (const selection of selections) {
-			commands.push(new BlockCommentCommand(selection));
+			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace));
 		}
 
 		editor.pushUndoStop();

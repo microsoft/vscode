@@ -3,41 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
-export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
+/**
+ * An implementation of `IMainProcessService` that leverages MessagePorts.
+ */
+export class MessagePortMainProcessService implements IMainProcessService {
 
-export interface IMainProcessService {
-
-	_serviceBrand: undefined;
-
-	getChannel(channelName: string): IChannel;
-
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
-}
-
-export class MainProcessService extends Disposable implements IMainProcessService {
-
-	_serviceBrand: undefined;
-
-	private mainProcessConnection: Client;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		windowId: number
-	) {
-		super();
-
-		this.mainProcessConnection = this._register(new Client(`window:${windowId}`));
-	}
+		private server: MessagePortServer,
+		private router: StaticRouter
+	) { }
 
 	getChannel(channelName: string): IChannel {
-		return this.mainProcessConnection.getChannel(channelName);
+		return this.server.getChannel(channelName, this.router);
 	}
 
 	registerChannel(channelName: string, channel: IServerChannel<string>): void {
-		this.mainProcessConnection.registerChannel(channelName, channel);
+		this.server.registerChannel(channelName, channel);
 	}
 }

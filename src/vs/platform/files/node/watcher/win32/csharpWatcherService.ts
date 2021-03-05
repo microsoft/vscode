@@ -8,7 +8,7 @@ import { FileChangeType } from 'vs/platform/files/common/files';
 import * as decoder from 'vs/base/node/decoder';
 import * as glob from 'vs/base/common/glob';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 
 export class OutOfProcessWin32FolderWatcher {
 
@@ -50,7 +50,7 @@ export class OutOfProcessWin32FolderWatcher {
 			args.push('-verbose');
 		}
 
-		this.handle = cp.spawn(getPathFromAmdModule(require, 'vs/platform/files/node/watcher/win32/CodeHelper.exe'), args);
+		this.handle = cp.spawn(FileAccess.asFileUri('vs/platform/files/node/watcher/win32/CodeHelper.exe', require).fsPath, args);
 
 		const stdoutLineDecoder = new decoder.LineDecoder();
 
@@ -131,7 +131,7 @@ export class OutOfProcessWin32FolderWatcher {
 		this.logCallback({ type: 'trace', message: `[File Watcher (C#)] ${message}` });
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.handle) {
 			this.handle.kill();
 			this.handle = undefined;

@@ -17,13 +17,13 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { IColorMapping } from 'vs/platform/theme/common/styler';
 
-export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
-export const COMMENTS_PANEL_TITLE = 'Comments';
+export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
+export const COMMENTS_VIEW_TITLE = 'Comments';
 
 export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 	hasChildren(element: any): boolean {
@@ -120,7 +120,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
-		templateData.commentText.innerHTML = '';
+		templateData.commentText.innerText = '';
 		const disposables = new DisposableStore();
 		templateData.disposables.push(disposables);
 		const renderedComment = renderMarkdown(node.element.comment.body, {
@@ -142,6 +142,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 
 		templateData.commentText.appendChild(renderedComment);
+		templateData.commentText.title = renderedComment.textContent ?? '';
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
@@ -149,10 +150,15 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 }
 
+export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any, any> {
+	overrideStyles?: IColorMapping;
+}
+
 export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 	constructor(
 		labels: ResourceLabels,
 		container: HTMLElement,
+		options: ICommentsListOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -176,8 +182,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			renderers,
 			dataSource,
 			{
-				ariaLabel: COMMENTS_PANEL_TITLE,
-				keyboardSupport: true,
+				accessibilityProvider: options.accessibilityProvider,
 				identityProvider: {
 					getId: (element: any) => {
 						if (element instanceof CommentsModel) {
@@ -202,9 +207,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 				collapseByDefault: () => {
 					return false;
 				},
-				overrideStyles: {
-					listBackground: PANEL_BACKGROUND
-				}
+				overrideStyles: options.overrideStyles
 			},
 			contextKeyService,
 			listService,

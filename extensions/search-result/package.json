@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
+  "enableProposedApi": true,
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -12,8 +13,9 @@
     "Programming Languages"
   ],
   "main": "./out/extension.js",
+  "browser": "./dist/extension.js",
   "activationEvents": [
-    "*"
+    "onLanguage:search-result"
   ],
   "scripts": {
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
@@ -24,46 +26,6 @@
       "[search-result]": {
         "editor.lineNumbers": "off"
       }
-    },
-    "commands": [
-      {
-        "command": "searchResult.rerunSearch",
-        "title": "%searchResult.rerunSearch.title%",
-        "category": "Search Result",
-        "icon": {
-          "light": "./src/media/refresh-light.svg",
-          "dark": "./src/media/refresh-dark.svg"
-        }
-      },
-      {
-        "command": "searchResult.rerunSearchWithContext",
-        "title": "%searchResult.rerunSearchWithContext.title%",
-        "category": "Search Result",
-        "icon": {
-          "light": "./src/media/refresh-light.svg",
-          "dark": "./src/media/refresh-dark.svg"
-        }
-      }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "searchResult.rerunSearch",
-          "when": "false"
-        },
-        {
-          "command": "searchResult.rerunSearchWithContext",
-          "when": "false"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "searchResult.rerunSearch",
-          "when": "editorLangId == search-result",
-          "alt": "searchResult.rerunSearchWithContext",
-          "group": "navigation"
-        }
-      ]
     },
     "languages": [
       {
@@ -84,7 +46,8 @@
       }
     ]
   },
-  "devDependencies": {
-    "vscode": "^1.1.36"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

@@ -395,7 +395,7 @@ export class ThemeTrieElement {
 	}
 }
 
-export function generateTokensCSSForColorMap(colorMap: Color[]): string {
+export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string {
 	let rules: string[] = [];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		let color = colorMap[i];

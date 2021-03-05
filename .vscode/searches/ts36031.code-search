@@ -1,0 +1,53 @@
+# Query: \\w+\\?\\.\\w+![(.[]
+# Flags: RegExp
+# ContextLines: 2
+
+8 results - 4 files
+
+src/vs/base/browser/ui/tree/asyncDataTree.ts:
+  241  			} : () => 'treeitem',
+  242  			isChecked: options.accessibilityProvider!.isChecked ? (e) => {
+  243: 				return !!(options.accessibilityProvider?.isChecked!(e.element as T));
+  244  			} : undefined,
+  245  			getAriaLabel(e) {
+
+src/vs/platform/list/browser/listService.ts:
+  463  
+  464  		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
+  465: 			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+  466  			this._register(options?.configurationService.onDidChangeConfiguration(() => {
+  467: 				this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+  468  			}));
+  469  		} else {
+
+src/vs/workbench/contrib/notebook/browser/notebookEditorWidget.ts:
+  1526  
+  1527  		await this._ensureActiveKernel();
+  1528: 		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
+  1529  	}
+  1530  
+
+  1535  
+  1536  		await this._ensureActiveKernel();
+  1537: 		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel!.uri, undefined);
+  1538  	}
+  1539  
+
+  1553  
+  1554  		await this._ensureActiveKernel();
+  1555: 		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
+  1556  	}
+  1557  
+
+  1567  
+  1568  		await this._ensureActiveKernel();
+  1569: 		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
+  1570  	}
+  1571  
+
+src/vs/workbench/contrib/webview/electron-browser/iframeWebviewElement.ts:
+  89  			.then(() => this._resourceRequestManager.ensureReady())
+  90  			.then(() => {
+  91: 				this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
+  92  			});
+  93  	}

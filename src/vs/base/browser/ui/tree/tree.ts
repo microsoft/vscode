@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Iterator } from 'vs/base/common/iterator';
 import { IListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 
@@ -74,7 +73,7 @@ export interface ITreeSorter<T> {
 
 export interface ITreeElement<T> {
 	readonly element: T;
-	readonly children?: Iterator<ITreeElement<T>> | ITreeElement<T>[];
+	readonly children?: Iterable<ITreeElement<T>>;
 	readonly collapsible?: boolean;
 	readonly collapsed?: boolean;
 }
@@ -108,6 +107,8 @@ export interface ITreeModel<T, TFilterData, TRef> {
 	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
 	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
 
+	has(location: TRef): boolean;
+
 	getListIndex(location: TRef): number;
 	getListRenderCount(location: TRef): number;
 	getNode(location?: TRef): ITreeNode<T, any>;
@@ -128,7 +129,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 }
 
 export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): void;
+	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
 	onDidChangeTwistieState?: Event<T>;
 }
 
@@ -165,12 +166,12 @@ export interface ITreeNavigator<T> {
 
 export interface IDataSource<TInput, T> {
 	hasChildren?(element: TInput | T): boolean;
-	getChildren(element: TInput | T): T[];
+	getChildren(element: TInput | T): Iterable<T>;
 }
 
 export interface IAsyncDataSource<TInput, T> {
 	hasChildren(element: TInput | T): boolean;
-	getChildren(element: TInput | T): T[] | Promise<T[]>;
+	getChildren(element: TInput | T): Iterable<T> | Promise<Iterable<T>>;
 }
 
 export const enum TreeDragOverBubble {

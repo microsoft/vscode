@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -11,14 +12,19 @@ export interface ResolvedAuthority {
 	readonly authority: string;
 	readonly host: string;
 	readonly port: number;
+	readonly connectionToken: string | undefined;
 }
 
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 }
 
+export interface TunnelDescription {
+	remoteAddress: { port: number, host: string };
+	localAddress: { port: number, host: string } | string;
+}
 export interface TunnelInformation {
-	environmentTunnels?: { remoteAddress: { port: number, host: string }, localAddress: string }[];
+	environmentTunnels?: TunnelDescription[];
 }
 
 export interface ResolverResult {
@@ -27,34 +33,38 @@ export interface ResolverResult {
 	tunnelInformation?: TunnelInformation;
 }
 
+export interface IRemoteConnectionData {
+	host: string;
+	port: number;
+	connectionToken: string | undefined;
+}
+
 export enum RemoteAuthorityResolverErrorCode {
 	Unknown = 'Unknown',
 	NotAvailable = 'NotAvailable',
 	TemporarilyNotAvailable = 'TemporarilyNotAvailable',
+	NoResolverFound = 'NoResolverFound'
 }
 
 export class RemoteAuthorityResolverError extends Error {
 
-	public static isHandledNotAvailable(err: any): boolean {
-		if (err instanceof RemoteAuthorityResolverError) {
-			if (err._code === RemoteAuthorityResolverErrorCode.NotAvailable && err._detail === true) {
-				return true;
-			}
-		}
-
-		return this.isTemporarilyNotAvailable(err);
+	public static isTemporarilyNotAvailable(err: any): boolean {
+		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;
 	}
 
-	public static isTemporarilyNotAvailable(err: any): boolean {
-		if (err instanceof RemoteAuthorityResolverError) {
-			return err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;
-		}
-		return false;
+	public static isNoResolverFound(err: any): err is RemoteAuthorityResolverError {
+		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.NoResolverFound;
+	}
+
+	public static isHandled(err: any): boolean {
+		return (err instanceof RemoteAuthorityResolverError) && err.isHandled;
 	}
 
 	public readonly _message: string | undefined;
 	public readonly _code: RemoteAuthorityResolverErrorCode;
 	public readonly _detail: any;
+
+	public isHandled: boolean;
 
 	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: any) {
 		super(message);
@@ -63,8 +73,10 @@ export class RemoteAuthorityResolverError extends Error {
 		this._code = code;
 		this._detail = detail;
 
+		this.isHandled = (code === RemoteAuthorityResolverErrorCode.NotAvailable) && detail === true;
+
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 		}
@@ -73,11 +85,15 @@ export class RemoteAuthorityResolverError extends Error {
 
 export interface IRemoteAuthorityResolverService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeConnectionData: Event<void>;
 
 	resolveAuthority(authority: string): Promise<ResolverResult>;
+	getConnectionData(authority: string): IRemoteConnectionData | null;
 
-	clearResolvedAuthority(authority: string): void;
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
-	setResolvedAuthorityError(authority: string, err: any): void;
+	_clearResolvedAuthority(authority: string): void;
+	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
+	_setResolvedAuthorityError(authority: string, err: any): void;
+	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
 }

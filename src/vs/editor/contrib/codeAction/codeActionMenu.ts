@@ -5,7 +5,7 @@
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { canceled } from 'vs/base/common/errors';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -13,15 +13,15 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { CodeAction } from 'vs/editor/common/modes';
-import { CodeActionSet, refactorCommandId, sourceActionCommandId, codeActionCommandId, organizeImportsCommandId, fixAllCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind } from 'vs/editor/contrib/codeAction/types';
+import { CodeAction, CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
+import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionTrigger, CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeAction) => Promise<any>;
+	onSelectCodeAction: (action: CodeActionItem) => Promise<any>;
 }
 
 interface ResolveCodeActionKeybinding {
@@ -35,8 +35,12 @@ class CodeActionAction extends Action {
 		public readonly action: CodeAction,
 		callback: () => Promise<void>,
 	) {
-		super(action.command ? action.command.id : action.title, action.title, undefined, !action.disabled, callback);
+		super(action.command ? action.command.id : action.title, stripNewlines(action.title), undefined, !action.disabled, callback);
 	}
+}
+
+function stripNewlines(str: string): string {
+	return str.replace(/\r\n|\r|\n/g, ' ');
 }
 
 export interface CodeActionShowOptions {
@@ -67,7 +71,7 @@ export class CodeActionMenu extends Disposable {
 		return this._visible;
 	}
 
-	public async show(codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
+	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
 		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
 		if (!actionsToShow.length) {
 			this._visible = false;
@@ -83,13 +87,13 @@ export class CodeActionMenu extends Disposable {
 		this._visible = true;
 		this._showingActions.value = codeActions;
 
-		const menuActions = actionsToShow.map(action =>
-			new CodeActionAction(action, () => this._delegate.onSelectCodeAction(action)));
+		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
 
 		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
 		const resolver = this._keybindingResolver.getResolver();
 
 		this._contextMenuService.showContextMenu({
+			domForShadowRoot: this._editor.getDomNode()!,
 			getAnchor: () => anchor,
 			getActions: () => menuActions,
 			onHide: () => {
@@ -99,6 +103,37 @@ export class CodeActionMenu extends Disposable {
 			autoSelectFirstItem: true,
 			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
 		});
+	}
+
+	private getMenuActions(
+		trigger: CodeActionTrigger,
+		actionsToShow: readonly CodeActionItem[],
+		documentation: readonly Command[]
+	): IAction[] {
+		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item));
+
+		const result: IAction[] = actionsToShow
+			.map(toCodeActionAction);
+
+		const allDocumentation: Command[] = [...documentation];
+
+		const model = this._editor.getModel();
+		if (model && result.length) {
+			for (const provider of CodeActionProviderRegistry.all(model)) {
+				if (provider._getAdditionalMenuItems) {
+					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action)));
+				}
+			}
+		}
+
+		if (allDocumentation.length) {
+			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction(new CodeActionItem({
+				title: command.title,
+				command: command,
+			}, undefined))));
+		}
+
+		return result;
 	}
 
 	private _toCoords(position: IPosition): { x: number, y: number } {
@@ -193,3 +228,5 @@ export class CodeActionKeybindingResolver {
 			}, undefined as ResolveCodeActionKeybinding | undefined);
 	}
 }
+
+

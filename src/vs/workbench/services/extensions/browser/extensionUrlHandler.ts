@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationHandle, INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -22,28 +21,30 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
 const URL_TO_HANDLE = 'extensionUrlHandler.urlToHandle';
-const CONFIRMED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
-const CONFIRMED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
+const USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY = 'extensions.confirmedUriHandlerExtensionIds';
+const USER_TRUSTED_EXTENSIONS_STORAGE_KEY = 'extensionUrlHandler.confirmedExtensions';
 
 function isExtensionId(value: string): boolean {
 	return /^[a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*$/i.test(value);
 }
 
-class ConfirmedExtensionIdStorage {
+class UserTrustedExtensionIdStorage {
 
 	get extensions(): string[] {
-		const confirmedExtensionIdsJson = this.storageService.get(CONFIRMED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
+		const userTrustedExtensionIdsJson = this.storageService.get(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, StorageScope.GLOBAL, '[]');
 
 		try {
-			return JSON.parse(confirmedExtensionIdsJson);
+			return JSON.parse(userTrustedExtensionIdsJson);
 		} catch {
 			return [];
 		}
@@ -60,7 +61,7 @@ class ConfirmedExtensionIdStorage {
 	}
 
 	set(ids: string[]): void {
-		this.storageService.store(CONFIRMED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL);
+		this.storageService.store(USER_TRUSTED_EXTENSIONS_STORAGE_KEY, JSON.stringify(ids), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -87,7 +88,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 	private extensionHandlers = new Map<string, IURLHandler>();
 	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
-	private storage: ConfirmedExtensionIdStorage;
+	private userTrustedExtensionsStorage: UserTrustedExtensionIdStorage;
 	private disposable: IDisposable;
 
 	constructor(
@@ -96,13 +97,15 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
 	) {
-		this.storage = new ConfirmedExtensionIdStorage(storageService);
+		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
 		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
@@ -117,7 +120,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		);
 
 		const cache = ExtensionUrlBootstrapHandler.cache;
-		setTimeout(() => cache.forEach(uri => this.handleURL(uri)));
+		setTimeout(() => cache.forEach(([uri, option]) => this.handleURL(uri, option)));
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
@@ -134,14 +137,11 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			return true;
 		}
 
-		let showConfirm: boolean;
-		if (options && options.trusted) {
-			showConfirm = false;
-		} else {
-			showConfirm = !this.isConfirmed(ExtensionIdentifier.toKey(extensionId));
-		}
+		const trusted = options?.trusted
+			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
+			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
-		if (showConfirm) {
+		if (!trusted) {
 			let uriString = uri.toString(false);
 
 			if (uriString.length > 40) {
@@ -163,7 +163,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			if (result.checkboxChecked) {
-				this.storage.add(ExtensionIdentifier.toKey(extensionId));
+				this.userTrustedExtensionsStorage.add(ExtensionIdentifier.toKey(extensionId));
 			}
 		}
 
@@ -273,38 +273,26 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				return;
 			}
 
-			let notificationHandle: INotificationHandle | null = this.notificationService.notify({ severity: Severity.Info, message: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name) });
-			notificationHandle.progress.infinite();
-			notificationHandle.onDidClose(() => notificationHandle = null);
-
 			try {
-				await this.extensionManagementService.installFromGallery(galleryExtension);
-				const reloadMessage = localize('reload', "Would you like to reload the window and open the URL '{0}'?", uri.toString());
-				const reloadActionLabel = localize('Reload', "Reload Window and Open");
+				await this.progressService.withProgress({
+					location: ProgressLocation.Notification,
+					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
+				}, () => this.extensionManagementService.installFromGallery(galleryExtension));
 
-				if (notificationHandle) {
-					notificationHandle.progress.done();
-					notificationHandle.updateMessage(reloadMessage);
-					notificationHandle.updateActions({
-						primary: [new Action('reloadWindow', reloadActionLabel, undefined, true, () => this.reloadAndHandle(uri))]
-					});
-				} else {
-					this.notificationService.prompt(Severity.Info, reloadMessage, [{ label: reloadActionLabel, run: () => this.reloadAndHandle(uri) }], { sticky: true });
-				}
-			} catch (e) {
-				if (notificationHandle) {
-					notificationHandle.progress.done();
-					notificationHandle.updateSeverity(Severity.Error);
-					notificationHandle.updateMessage(e);
-				} else {
-					this.notificationService.error(e);
-				}
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('reload', "Would you like to reload the window and open the URL '{0}'?", uri.toString()),
+					[{ label: localize('Reload', "Reload Window and Open"), run: () => this.reloadAndHandle(uri) }],
+					{ sticky: true }
+				);
+			} catch (error) {
+				this.notificationService.error(error);
 			}
 		}
 	}
 
 	private async reloadAndHandle(url: URI): Promise<void> {
-		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE);
+		this.storageService.store(URL_TO_HANDLE, JSON.stringify(url.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		await this.hostService.reload();
 	}
 
@@ -324,22 +312,22 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		this.uriBuffer = uriBuffer;
 	}
 
-	private isConfirmed(id: string): boolean {
-		if (this.storage.has(id)) {
+	private didUserTrustExtension(id: string): boolean {
+		if (this.userTrustedExtensionsStorage.has(id)) {
 			return true;
 		}
 
-		return this.getConfirmedExtensionIdsFromConfiguration().indexOf(id) > -1;
+		return this.getConfirmedTrustedExtensionIdsFromConfiguration().indexOf(id) > -1;
 	}
 
-	private getConfirmedExtensionIdsFromConfiguration(): Array<string> {
-		const confirmedExtensionIds = this.configurationService.getValue<Array<string>>(CONFIRMED_EXTENSIONS_CONFIGURATION_KEY);
+	private getConfirmedTrustedExtensionIdsFromConfiguration(): Array<string> {
+		const trustedExtensionIds = this.configurationService.getValue<Array<string>>(USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY);
 
-		if (!Array.isArray(confirmedExtensionIds)) {
+		if (!Array.isArray(trustedExtensionIds)) {
 			return [];
 		}
 
-		return confirmedExtensionIds;
+		return trustedExtensionIds;
 	}
 
 	dispose(): void {
@@ -357,10 +345,10 @@ registerSingleton(IExtensionUrlHandler, ExtensionUrlHandler);
  */
 class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandler {
 
-	private static _cache: URI[] = [];
+	private static _cache: [URI, IOpenURLOptions | undefined][] = [];
 	private static disposable: IDisposable;
 
-	static get cache(): URI[] {
+	static get cache(): [URI, IOpenURLOptions | undefined][] {
 		ExtensionUrlBootstrapHandler.disposable.dispose();
 
 		const result = ExtensionUrlBootstrapHandler._cache;
@@ -372,12 +360,12 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 		ExtensionUrlBootstrapHandler.disposable = urlService.registerHandler(this);
 	}
 
-	async handleURL(uri: URI): Promise<boolean> {
+	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		if (!isExtensionId(uri.authority)) {
 			return false;
 		}
 
-		ExtensionUrlBootstrapHandler._cache.push(uri);
+		ExtensionUrlBootstrapHandler._cache.push([uri, options]);
 		return true;
 	}
 }
@@ -385,39 +373,39 @@ class ExtensionUrlBootstrapHandler implements IWorkbenchContribution, IURLHandle
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(ExtensionUrlBootstrapHandler, LifecyclePhase.Ready);
 
-export class ManageAuthorizedExtensionURIsAction extends Action {
+class ManageAuthorizedExtensionURIsAction extends Action2 {
 
-	static readonly ID = 'workbench.extensions.action.manageAuthorizedExtensionURIs';
-	static readonly LABEL = localize('manage', "Manage Authorized Extension URIs...");
-
-	private storage: ConfirmedExtensionIdStorage;
-
-	constructor(
-		id = ManageAuthorizedExtensionURIsAction.ID,
-		label = ManageAuthorizedExtensionURIsAction.LABEL,
-		@IStorageService readonly storageService: IStorageService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label, undefined, true);
-		this.storage = new ConfirmedExtensionIdStorage(storageService);
+	constructor() {
+		super({
+			id: 'workbench.extensions.action.manageAuthorizedExtensionURIs',
+			title: { value: localize('manage', "Manage Authorized Extension URIs..."), original: 'Manage Authorized Extension URIs...' },
+			category: { value: localize('extensions', "Extensions"), original: 'Extensions' },
+			menu: {
+				id: MenuId.CommandPalette,
+				when: IsWebContext.toNegated()
+			}
+		});
 	}
 
-	async run(): Promise<void> {
-		const items = this.storage.extensions.map(label => ({ label, picked: true } as IQuickPickItem));
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const storageService = accessor.get(IStorageService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const storage = new UserTrustedExtensionIdStorage(storageService);
+		const items = storage.extensions.map(label => ({ label, picked: true } as IQuickPickItem));
 
 		if (items.length === 0) {
+			await quickInputService.pick([{ label: localize('no', 'There are currently no authorized extension URIs.') }]);
 			return;
 		}
 
-		const result = await this.quickInputService.pick(items, { canPickMany: true });
+		const result = await quickInputService.pick(items, { canPickMany: true });
 
 		if (!result) {
 			return;
 		}
 
-		this.storage.set(result.map(item => item.label));
+		storage.set(result.map(item => item.label));
 	}
 }
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ManageAuthorizedExtensionURIsAction, ManageAuthorizedExtensionURIsAction.ID, ManageAuthorizedExtensionURIsAction.LABEL), `Extensions: Manage Authorized Extension URIs...`, ExtensionsLabel);
+registerAction2(ManageAuthorizedExtensionURIsAction);

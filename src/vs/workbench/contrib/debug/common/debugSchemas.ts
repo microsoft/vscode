@@ -21,7 +21,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 		items: {
 			additionalProperties: false,
 			type: 'object',
-			defaultSnippets: [{ body: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [''] } } }],
+			defaultSnippets: [{ body: { type: '', program: '', runtime: '' } }],
 			properties: {
 				type: {
 					description: nls.localize('vscode.extension.contributes.debuggers.type', "Unique identifier for this debug adapter."),
@@ -58,10 +58,6 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				languages: {
 					description: nls.localize('vscode.extension.contributes.debuggers.languages', "List of languages for which the debug extension could be considered the \"default debugger\"."),
 					type: 'array'
-				},
-				adapterExecutableCommand: {
-					description: nls.localize('vscode.extension.contributes.debuggers.adapterExecutableCommand', "If specified VS Code will call this command to determine the executable path of the debug adapter and the arguments to pass."),
-					type: 'string'
 				},
 				configurationSnippets: {
 					description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
@@ -218,6 +214,11 @@ export const launchSchema: IJSONSchema = {
 							}]
 						},
 						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+					},
+					stopAll: {
+						type: 'boolean',
+						default: false,
+						description: nls.localize('app.launch.json.compound.stopAll', "Controls whether manually terminating one session will stop all of the compound sessions.")
 					},
 					preLaunchTask: {
 						type: 'string',

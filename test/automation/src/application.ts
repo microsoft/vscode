@@ -51,6 +51,10 @@ export class Application {
 		return !!this.options.remote;
 	}
 
+	get web(): boolean {
+		return !!this.options.web;
+	}
+
 	private _workspacePathOrFolder: string;
 	get workspacePathOrFolder(): string {
 		return this._workspacePathOrFolder;
@@ -69,7 +73,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 
 		if (expectWalkthroughPart) {
-			await this.code.waitForActiveElement(`.editor-instance[data-editor-id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+			await this.code.waitForElement(`.editor-instance > div > div.welcomePageFocusElement[tabIndex="0"]`);
 		}
 	}
 
@@ -126,7 +130,7 @@ export class Application {
 			extraArgs,
 			remote: this.options.remote,
 			web: this.options.web,
-			headless: this.options.headless
+			browser: this.options.browser
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
@@ -142,11 +146,11 @@ export class Application {
 		await this.code.waitForElement('.monaco-workbench');
 
 		if (this.remote) {
-			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver');
+			await this.code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', ' TestResolver', undefined, 2000);
 		}
 
 		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (e.g. quick open)
+		// as soon as they open (e.g. quick access)
 		await new Promise(c => setTimeout(c, 1000));
 	}
 }

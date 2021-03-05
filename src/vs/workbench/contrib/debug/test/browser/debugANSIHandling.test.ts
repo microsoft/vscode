@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as dom from 'vs/base/browser/dom';
 import { generateUuid } from 'vs/base/common/uuid';
 import { appendStylizedStringToContainer, handleANSIOutput, calcANSI8bitColor } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService, TestTheme } from 'vs/platform/theme/test/common/testThemeService';
+import { TestThemeService, TestColorTheme } from 'vs/platform/theme/test/common/testThemeService';
 import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { NullOpenerService } from 'vs/platform/opener/common/opener';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 
 suite('Debug - ANSI Handling', () => {
 
@@ -29,8 +29,8 @@ suite('Debug - ANSI Handling', () => {
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
-		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
-		session = new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService);
+		model = createMockDebugModel();
+		session = createMockSession(model);
 
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		linkDetector = instantiationService.createInstance(LinkDetector);
@@ -39,7 +39,7 @@ suite('Debug - ANSI Handling', () => {
 		for (let color in ansiColorMap) {
 			colors[color] = <any>ansiColorMap[color].defaults.dark;
 		}
-		const testTheme = new TestTheme(colors);
+		const testTheme = new TestColorTheme(colors);
 		themeService = new TestThemeService(testTheme);
 	});
 
@@ -47,27 +47,27 @@ suite('Debug - ANSI Handling', () => {
 		const root: HTMLSpanElement = document.createElement('span');
 		let child: Node;
 
-		assert.equal(0, root.children.length);
+		assert.strictEqual(0, root.children.length);
 
-		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session);
-		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session);
+		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session.root);
+		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session.root);
 
-		assert.equal(2, root.children.length);
+		assert.strictEqual(2, root.children.length);
 
 		child = root.firstChild!;
 		if (child instanceof HTMLSpanElement) {
-			assert.equal('content1', child.textContent);
-			assert(dom.hasClass(child, 'class1'));
-			assert(dom.hasClass(child, 'class2'));
+			assert.strictEqual('content1', child.textContent);
+			assert(child.classList.contains('class1'));
+			assert(child.classList.contains('class2'));
 		} else {
 			assert.fail('Unexpected assertion error');
 		}
 
 		child = root.lastChild!;
 		if (child instanceof HTMLSpanElement) {
-			assert.equal('content2', child.textContent);
-			assert(dom.hasClass(child, 'class2'));
-			assert(dom.hasClass(child, 'class3'));
+			assert.strictEqual('content2', child.textContent);
+			assert(child.classList.contains('class2'));
+			assert(child.classList.contains('class3'));
 		} else {
 			assert.fail('Unexpected assertion error');
 		}
@@ -80,14 +80,13 @@ suite('Debug - ANSI Handling', () => {
 	 * @returns An {@link HTMLSpanElement} that contains the stylized text.
 	 */
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session);
-		assert.equal(1, root.children.length);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
+		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
 		if (child instanceof HTMLSpanElement) {
 			return child;
 		} else {
 			assert.fail('Unexpected assertion error');
-			return null!;
 		}
 	}
 
@@ -101,7 +100,7 @@ suite('Debug - ANSI Handling', () => {
 	 */
 	function assertSingleSequenceElement(sequence: string, assertion: (child: HTMLSpanElement) => void): void {
 		const child: HTMLSpanElement = getSequenceOutput(sequence + 'content');
-		assert.equal('content', child.textContent);
+		assert.strictEqual('content', child.textContent);
 		assertion(child);
 	}
 
@@ -143,17 +142,17 @@ suite('Debug - ANSI Handling', () => {
 
 		// Bold code
 		assertSingleSequenceElement('\x1b[1m', (child) => {
-			assert(dom.hasClass(child, 'code-bold'), 'Bold formatting not detected after bold ANSI code.');
+			assert(child.classList.contains('code-bold'), 'Bold formatting not detected after bold ANSI code.');
 		});
 
 		// Italic code
 		assertSingleSequenceElement('\x1b[3m', (child) => {
-			assert(dom.hasClass(child, 'code-italic'), 'Italic formatting not detected after italic ANSI code.');
+			assert(child.classList.contains('code-italic'), 'Italic formatting not detected after italic ANSI code.');
 		});
 
 		// Underline code
 		assertSingleSequenceElement('\x1b[4m', (child) => {
-			assert(dom.hasClass(child, 'code-underline'), 'Underline formatting not detected after underline ANSI code.');
+			assert(child.classList.contains('code-underline'), 'Underline formatting not detected after underline ANSI code.');
 		});
 
 		for (let i = 30; i <= 37; i++) {
@@ -161,12 +160,12 @@ suite('Debug - ANSI Handling', () => {
 
 			// Foreground colour class
 			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
-				assert(dom.hasClass(child, customClassName), `Custom foreground class not found on element after foreground ANSI code #${i}.`);
+				assert(child.classList.contains(customClassName), `Custom foreground class not found on element after foreground ANSI code #${i}.`);
 			});
 
 			// Cancellation code removes colour class
 			assertSingleSequenceElement('\x1b[' + i + ';39m', (child) => {
-				assert(dom.hasClass(child, customClassName) === false, 'Custom foreground class still found after foreground cancellation code.');
+				assert(child.classList.contains(customClassName) === false, 'Custom foreground class still found after foreground cancellation code.');
 				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after foreground cancellation code.');
 			});
 		}
@@ -176,50 +175,50 @@ suite('Debug - ANSI Handling', () => {
 
 			// Foreground colour class
 			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
-				assert(dom.hasClass(child, customClassName), `Custom background class not found on element after background ANSI code #${i}.`);
+				assert(child.classList.contains(customClassName), `Custom background class not found on element after background ANSI code #${i}.`);
 			});
 
 			// Cancellation code removes colour class
 			assertSingleSequenceElement('\x1b[' + i + ';49m', (child) => {
-				assert(dom.hasClass(child, customClassName) === false, 'Custom background class still found after background cancellation code.');
+				assert(child.classList.contains(customClassName) === false, 'Custom background class still found after background cancellation code.');
 				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after background cancellation code.');
 			});
 		}
 
 		// Different codes do not cancel each other
 		assertSingleSequenceElement('\x1b[1;3;4;30;41m', (child) => {
-			assert.equal(5, child.classList.length, 'Incorrect number of classes found for different ANSI codes.');
+			assert.strictEqual(5, child.classList.length, 'Incorrect number of classes found for different ANSI codes.');
 
-			assert(dom.hasClass(child, 'code-bold'));
-			assert(dom.hasClass(child, 'code-italic'), 'Different ANSI codes should not cancel each other.');
-			assert(dom.hasClass(child, 'code-underline'), 'Different ANSI codes should not cancel each other.');
-			assert(dom.hasClass(child, 'code-foreground-colored'), 'Different ANSI codes should not cancel each other.');
-			assert(dom.hasClass(child, 'code-background-colored'), 'Different ANSI codes should not cancel each other.');
+			assert(child.classList.contains('code-bold'));
+			assert(child.classList.contains('code-italic'), 'Different ANSI codes should not cancel each other.');
+			assert(child.classList.contains('code-underline'), 'Different ANSI codes should not cancel each other.');
+			assert(child.classList.contains('code-foreground-colored'), 'Different ANSI codes should not cancel each other.');
+			assert(child.classList.contains('code-background-colored'), 'Different ANSI codes should not cancel each other.');
 		});
 
 		// New foreground codes don't remove old background codes and vice versa
 		assertSingleSequenceElement('\x1b[40;31;42;33m', (child) => {
-			assert.equal(2, child.classList.length);
+			assert.strictEqual(2, child.classList.length);
 
-			assert(dom.hasClass(child, 'code-background-colored'), 'New foreground ANSI code should not cancel existing background formatting.');
-			assert(dom.hasClass(child, 'code-foreground-colored'), 'New background ANSI code should not cancel existing foreground formatting.');
+			assert(child.classList.contains('code-background-colored'), 'New foreground ANSI code should not cancel existing background formatting.');
+			assert(child.classList.contains('code-foreground-colored'), 'New background ANSI code should not cancel existing foreground formatting.');
 		});
 
 		// Duplicate codes do not change output
 		assertSingleSequenceElement('\x1b[1;1;4;1;4;4;1;4m', (child) => {
-			assert(dom.hasClass(child, 'code-bold'), 'Duplicate formatting codes should have no effect.');
-			assert(dom.hasClass(child, 'code-underline'), 'Duplicate formatting codes should have no effect.');
+			assert(child.classList.contains('code-bold'), 'Duplicate formatting codes should have no effect.');
+			assert(child.classList.contains('code-underline'), 'Duplicate formatting codes should have no effect.');
 		});
 
 		// Extra terminating semicolon does not change output
 		assertSingleSequenceElement('\x1b[1;4;m', (child) => {
-			assert(dom.hasClass(child, 'code-bold'), 'Extra semicolon after ANSI codes should have no effect.');
-			assert(dom.hasClass(child, 'code-underline'), 'Extra semicolon after ANSI codes should have no effect.');
+			assert(child.classList.contains('code-bold'), 'Extra semicolon after ANSI codes should have no effect.');
+			assert(child.classList.contains('code-underline'), 'Extra semicolon after ANSI codes should have no effect.');
 		});
 
 		// Cancellation code removes multiple codes
 		assertSingleSequenceElement('\x1b[1;4;30;41;32;43;34;45;36;47;0m', (child) => {
-			assert.equal(0, child.classList.length, 'Cancellation ANSI code should clear ALL formatting.');
+			assert.strictEqual(0, child.classList.length, 'Cancellation ANSI code should clear ALL formatting.');
 			assertInlineColor(child, 'background', undefined, 'Cancellation ANSI code should clear ALL formatting.');
 			assertInlineColor(child, 'foreground', undefined, 'Cancellation ANSI code should clear ALL formatting.');
 		});
@@ -232,12 +231,12 @@ suite('Debug - ANSI Handling', () => {
 			// As these are controlled by theme, difficult to check actual color value
 			// Foreground codes should add standard classes
 			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
-				assert(dom.hasClass(child, 'code-foreground-colored'), `Custom color class not found after foreground 8-bit color code 38;5;${i}`);
+				assert(child.classList.contains('code-foreground-colored'), `Custom color class not found after foreground 8-bit color code 38;5;${i}`);
 			});
 
 			// Background codes should add standard classes
 			assertSingleSequenceElement('\x1b[48;5;' + i + 'm', (child) => {
-				assert(dom.hasClass(child, 'code-background-colored'), `Custom color class not found after background 8-bit color code 48;5;${i}`);
+				assert(child.classList.contains('code-background-colored'), `Custom color class not found after background 8-bit color code 48;5;${i}`);
 			});
 		}
 
@@ -245,26 +244,26 @@ suite('Debug - ANSI Handling', () => {
 		for (let i = 16; i <= 255; i++) {
 			// Foreground codes should add custom class and inline style
 			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
-				assert(dom.hasClass(child, 'code-foreground-colored'), `Custom color class not found after foreground 8-bit color code 38;5;${i}`);
+				assert(child.classList.contains('code-foreground-colored'), `Custom color class not found after foreground 8-bit color code 38;5;${i}`);
 				assertInlineColor(child, 'foreground', (calcANSI8bitColor(i) as RGBA), `Incorrect or no color styling found after foreground 8-bit color code 38;5;${i}`);
 			});
 
 			// Background codes should add custom class and inline style
 			assertSingleSequenceElement('\x1b[48;5;' + i + 'm', (child) => {
-				assert(dom.hasClass(child, 'code-background-colored'), `Custom color class not found after background 8-bit color code 48;5;${i}`);
+				assert(child.classList.contains('code-background-colored'), `Custom color class not found after background 8-bit color code 48;5;${i}`);
 				assertInlineColor(child, 'background', (calcANSI8bitColor(i) as RGBA), `Incorrect or no color styling found after background 8-bit color code 48;5;${i}`);
 			});
 		}
 
 		// Bad (nonexistent) color should not render
 		assertSingleSequenceElement('\x1b[48;5;300m', (child) => {
-			assert.equal(0, child.classList.length, 'Bad ANSI color codes should have no effect.');
+			assert.strictEqual(0, child.classList.length, 'Bad ANSI color codes should have no effect.');
 		});
 
 		// Should ignore any codes after the ones needed to determine color
 		assertSingleSequenceElement('\x1b[48;5;100;42;77;99;4;24m', (child) => {
-			assert(dom.hasClass(child, 'code-background-colored'));
-			assert.equal(1, child.classList.length);
+			assert(child.classList.contains('code-background-colored'));
+			assert.strictEqual(1, child.classList.length);
 			assertInlineColor(child, 'background', (calcANSI8bitColor(100) as RGBA));
 		});
 	});
@@ -277,13 +276,13 @@ suite('Debug - ANSI Handling', () => {
 					let color = new RGBA(r, g, b);
 					// Foreground codes should add class and inline style
 					assertSingleSequenceElement(`\x1b[38;2;${r};${g};${b}m`, (child) => {
-						assert(dom.hasClass(child, 'code-foreground-colored'), 'DOM should have "code-foreground-colored" class for advanced ANSI colors.');
+						assert(child.classList.contains('code-foreground-colored'), 'DOM should have "code-foreground-colored" class for advanced ANSI colors.');
 						assertInlineColor(child, 'foreground', color);
 					});
 
 					// Background codes should add class and inline style
 					assertSingleSequenceElement(`\x1b[48;2;${r};${g};${b}m`, (child) => {
-						assert(dom.hasClass(child, 'code-background-colored'), 'DOM should have "code-foreground-colored" class for advanced ANSI colors.');
+						assert(child.classList.contains('code-background-colored'), 'DOM should have "code-foreground-colored" class for advanced ANSI colors.');
 						assertInlineColor(child, 'background', color);
 					});
 				}
@@ -292,19 +291,19 @@ suite('Debug - ANSI Handling', () => {
 
 		// Invalid color should not render
 		assertSingleSequenceElement('\x1b[38;2;4;4m', (child) => {
-			assert.equal(0, child.classList.length, `Invalid color code "38;2;4;4" should not add a class (classes found: ${child.classList}).`);
+			assert.strictEqual(0, child.classList.length, `Invalid color code "38;2;4;4" should not add a class (classes found: ${child.classList}).`);
 			assert(!child.style.color, `Invalid color code "38;2;4;4" should not add a custom color CSS (found color: ${child.style.color}).`);
 		});
 
 		// Bad (nonexistent) color should not render
 		assertSingleSequenceElement('\x1b[48;2;150;300;5m', (child) => {
-			assert.equal(0, child.classList.length, `Nonexistent color code "48;2;150;300;5" should not add a class (classes found: ${child.classList}).`);
+			assert.strictEqual(0, child.classList.length, `Nonexistent color code "48;2;150;300;5" should not add a class (classes found: ${child.classList}).`);
 		});
 
 		// Should ignore any codes after the ones needed to determine color
 		assertSingleSequenceElement('\x1b[48;2;100;42;77;99;200;75m', (child) => {
-			assert(dom.hasClass(child, 'code-background-colored'), `Color code with extra (valid) items "48;2;100;42;77;99;200;75" should still treat initial part as valid code and add class "code-background-custom".`);
-			assert.equal(1, child.classList.length, `Color code with extra items "48;2;100;42;77;99;200;75" should add one and only one class. (classes found: ${child.classList}).`);
+			assert(child.classList.contains('code-background-colored'), `Color code with extra (valid) items "48;2;100;42;77;99;200;75" should still treat initial part as valid code and add class "code-background-custom".`);
+			assert.strictEqual(1, child.classList.length, `Color code with extra items "48;2;100;42;77;99;200;75" should add one and only one class. (classes found: ${child.classList}).`);
 			assertInlineColor(child, 'background', new RGBA(100, 42, 77), `Color code "48;2;100;42;77;99;200;75" should  style background-color as rgb(100,42,77).`);
 		});
 	});
@@ -321,8 +320,8 @@ suite('Debug - ANSI Handling', () => {
 		if (elementsExpected === undefined) {
 			elementsExpected = assertions.length;
 		}
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session);
-		assert.equal(elementsExpected, root.children.length);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
+		assert.strictEqual(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];
 			if (child instanceof HTMLSpanElement) {
@@ -337,60 +336,60 @@ suite('Debug - ANSI Handling', () => {
 
 		// Multiple codes affect the same text
 		assertSingleSequenceElement('\x1b[1m\x1b[3m\x1b[4m\x1b[32m', (child) => {
-			assert(dom.hasClass(child, 'code-bold'), 'Bold class not found after multiple different ANSI codes.');
-			assert(dom.hasClass(child, 'code-italic'), 'Italic class not found after multiple different ANSI codes.');
-			assert(dom.hasClass(child, 'code-underline'), 'Underline class not found after multiple different ANSI codes.');
-			assert(dom.hasClass(child, 'code-foreground-colored'), 'Foreground color class not found after multiple different ANSI codes.');
+			assert(child.classList.contains('code-bold'), 'Bold class not found after multiple different ANSI codes.');
+			assert(child.classList.contains('code-italic'), 'Italic class not found after multiple different ANSI codes.');
+			assert(child.classList.contains('code-underline'), 'Underline class not found after multiple different ANSI codes.');
+			assert(child.classList.contains('code-foreground-colored'), 'Foreground color class not found after multiple different ANSI codes.');
 		});
 
 		// Consecutive codes do not affect previous ones
 		assertMultipleSequenceElements('\x1b[1mbold\x1b[32mgreen\x1b[4munderline\x1b[3mitalic\x1b[0mnothing', [
 			(bold) => {
-				assert.equal(1, bold.classList.length);
-				assert(dom.hasClass(bold, 'code-bold'), 'Bold class not found after bold ANSI code.');
+				assert.strictEqual(1, bold.classList.length);
+				assert(bold.classList.contains('code-bold'), 'Bold class not found after bold ANSI code.');
 			},
 			(green) => {
-				assert.equal(2, green.classList.length);
-				assert(dom.hasClass(green, 'code-bold'), 'Bold class not found after both bold and color ANSI codes.');
-				assert(dom.hasClass(green, 'code-foreground-colored'), 'Color class not found after color ANSI code.');
+				assert.strictEqual(2, green.classList.length);
+				assert(green.classList.contains('code-bold'), 'Bold class not found after both bold and color ANSI codes.');
+				assert(green.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
 			},
 			(underline) => {
-				assert.equal(3, underline.classList.length);
-				assert(dom.hasClass(underline, 'code-bold'), 'Bold class not found after bold, color, and underline ANSI codes.');
-				assert(dom.hasClass(underline, 'code-foreground-colored'), 'Color class not found after color and underline ANSI codes.');
-				assert(dom.hasClass(underline, 'code-underline'), 'Underline class not found after underline ANSI code.');
+				assert.strictEqual(3, underline.classList.length);
+				assert(underline.classList.contains('code-bold'), 'Bold class not found after bold, color, and underline ANSI codes.');
+				assert(underline.classList.contains('code-foreground-colored'), 'Color class not found after color and underline ANSI codes.');
+				assert(underline.classList.contains('code-underline'), 'Underline class not found after underline ANSI code.');
 			},
 			(italic) => {
-				assert.equal(4, italic.classList.length);
-				assert(dom.hasClass(italic, 'code-bold'), 'Bold class not found after bold, color, underline, and italic ANSI codes.');
-				assert(dom.hasClass(italic, 'code-foreground-colored'), 'Color class not found after color, underline, and italic ANSI codes.');
-				assert(dom.hasClass(italic, 'code-underline'), 'Underline class not found after underline and italic ANSI codes.');
-				assert(dom.hasClass(italic, 'code-italic'), 'Italic class not found after italic ANSI code.');
+				assert.strictEqual(4, italic.classList.length);
+				assert(italic.classList.contains('code-bold'), 'Bold class not found after bold, color, underline, and italic ANSI codes.');
+				assert(italic.classList.contains('code-foreground-colored'), 'Color class not found after color, underline, and italic ANSI codes.');
+				assert(italic.classList.contains('code-underline'), 'Underline class not found after underline and italic ANSI codes.');
+				assert(italic.classList.contains('code-italic'), 'Italic class not found after italic ANSI code.');
 			},
 			(nothing) => {
-				assert.equal(0, nothing.classList.length, 'One or more style classes still found after reset ANSI code.');
+				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after reset ANSI code.');
 			},
 		], 5);
 
 		// Different types of color codes still cancel each other
 		assertMultipleSequenceElements('\x1b[34msimple\x1b[38;2;100;100;100m24bit\x1b[38;5;3m8bitsimple\x1b[38;5;101m8bitadvanced', [
 			(simple) => {
-				assert.equal(1, simple.classList.length, 'Foreground ANSI color code should add one class.');
-				assert(dom.hasClass(simple, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
+				assert.strictEqual(1, simple.classList.length, 'Foreground ANSI color code should add one class.');
+				assert(simple.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
 			},
 			(adv24Bit) => {
-				assert.equal(1, adv24Bit.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
-				assert(dom.hasClass(adv24Bit, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
+				assert.strictEqual(1, adv24Bit.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
+				assert(adv24Bit.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
 				assertInlineColor(adv24Bit, 'foreground', new RGBA(100, 100, 100), '24-bit RGBA ANSI color code (100,100,100) should add matching color inline style.');
 			},
 			(adv8BitSimple) => {
-				assert.equal(1, adv8BitSimple.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
-				assert(dom.hasClass(adv8BitSimple, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
+				assert.strictEqual(1, adv8BitSimple.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
+				assert(adv8BitSimple.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
 				// Won't assert color because it's theme based
 			},
 			(adv8BitAdvanced) => {
-				assert.equal(1, adv8BitAdvanced.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
-				assert(dom.hasClass(adv8BitAdvanced, 'code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
+				assert.strictEqual(1, adv8BitAdvanced.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
+				assert(adv8BitAdvanced.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
 			}
 		], 4);
 
@@ -402,7 +401,7 @@ suite('Debug - ANSI Handling', () => {
 	 *
 	 * @param sequence The ANSI sequence to verify.
 	 */
-	function assertSequenceEqualToContent(sequence: string): void {
+	function assertSequencestrictEqualToContent(sequence: string): void {
 		const child: HTMLSpanElement = getSequenceOutput(sequence);
 		assert(child.textContent === sequence);
 	}
@@ -410,16 +409,16 @@ suite('Debug - ANSI Handling', () => {
 	test('Invalid codes treated as regular text', () => {
 
 		// Individual components of ANSI code start are printed
-		assertSequenceEqualToContent('\x1b');
-		assertSequenceEqualToContent('[');
+		assertSequencestrictEqualToContent('\x1b');
+		assertSequencestrictEqualToContent('[');
 
 		// Unsupported sequence prints both characters
-		assertSequenceEqualToContent('\x1b[');
+		assertSequencestrictEqualToContent('\x1b[');
 
 		// Random strings are displayed properly
 		for (let i = 0; i < 50; i++) {
 			const uuid: string = generateUuid();
-			assertSequenceEqualToContent(uuid);
+			assertSequencestrictEqualToContent(uuid);
 		}
 
 	});
@@ -433,8 +432,8 @@ suite('Debug - ANSI Handling', () => {
 	 */
 	function assertEmptyOutput(sequence: string) {
 		const child: HTMLSpanElement = getSequenceOutput(sequence + 'content');
-		assert.equal('content', child.textContent);
-		assert.equal(0, child.classList.length);
+		assert.strictEqual('content', child.textContent);
+		assert.strictEqual(0, child.classList.length);
 	}
 
 	test('Empty sequence output', () => {

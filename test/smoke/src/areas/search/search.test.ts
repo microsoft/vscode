@@ -10,8 +10,8 @@ export function setup() {
 	describe('Search', () => {
 		after(function () {
 			const app = this.app as Application;
-			cp.execSync('git checkout .', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
 		it('searches for body & checks for correct result number', async function () {
@@ -34,7 +34,8 @@ export function setup() {
 			await app.workbench.search.hideQueryDetails();
 		});
 
-		it('dismisses result & checks for correct result number', async function () {
+		// https://github.com/microsoft/vscode/issues/115244
+		it.skip('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch('app.js');
@@ -54,6 +55,38 @@ export function setup() {
 			await app.workbench.search.setReplaceText('body');
 			await app.workbench.search.replaceFileMatch('app.js');
 			await app.workbench.search.waitForNoResultText();
+		});
+	});
+
+	describe('Quick Access', () => {
+		it('quick access search produces correct result', async function () {
+			const app = this.app as Application;
+			const expectedNames = [
+				'.eslintrc.json',
+				'tasks.json',
+				'app.js',
+				'index.js',
+				'users.js',
+				'package.json',
+				'jsconfig.json'
+			];
+
+			await app.workbench.quickaccess.openQuickAccess('.js');
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.code.dispatchKeybinding('escape');
+		});
+
+		it('quick access respects fuzzy matching', async function () {
+			const app = this.app as Application;
+			const expectedNames = [
+				'tasks.json',
+				'app.js',
+				'package.json'
+			];
+
+			await app.workbench.quickaccess.openQuickAccess('a.s');
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.code.dispatchKeybinding('escape');
 		});
 	});
 }

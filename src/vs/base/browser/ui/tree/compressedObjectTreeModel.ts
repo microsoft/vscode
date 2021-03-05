@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISpliceable } from 'vs/base/common/sequence';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
-import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IObjectTreeModelOptions, ObjectTreeModel, IObjectTreeModel, IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IIndexTreeModelSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 
 // Exported only for test reasons, do not use directly
 export interface ICompressedTreeElement<T> extends ITreeElement<T> {
-	readonly children?: ISequence<ICompressedTreeElement<T>>;
+	readonly children?: Iterable<ICompressedTreeElement<T>>;
 	readonly incompressible?: boolean;
 }
 
@@ -27,7 +28,7 @@ function noCompress<T>(element: ICompressedTreeElement<T>): ITreeElement<ICompre
 
 	return {
 		element: { elements, incompressible },
-		children: Iterator.map(Iterator.from(element.children), noCompress),
+		children: Iterable.map(Iterable.from(element.children), noCompress),
 		collapsible: element.collapsible,
 		collapsed: element.collapsed
 	};
@@ -38,41 +39,39 @@ export function compress<T>(element: ICompressedTreeElement<T>): ITreeElement<IC
 	const elements = [element.element];
 	const incompressible = element.incompressible || false;
 
-	let childrenIterator: Iterator<ITreeElement<T>>;
-	let children: ITreeElement<T>[];
+	let childrenIterator: Iterable<ICompressedTreeElement<T>>;
+	let children: ICompressedTreeElement<T>[];
 
 	while (true) {
-		childrenIterator = Iterator.from(element.children);
-		children = Iterator.collect(childrenIterator, 2);
+		[children, childrenIterator] = Iterable.consume(Iterable.from(element.children), 2);
 
 		if (children.length !== 1) {
 			break;
 		}
 
-		element = children[0];
-
-		if (element.incompressible) {
+		if (children[0].incompressible) {
 			break;
 		}
 
+		element = children[0];
 		elements.push(element.element);
 	}
 
 	return {
 		element: { elements, incompressible },
-		children: Iterator.map(Iterator.concat(Iterator.fromArray(children), childrenIterator), compress),
+		children: Iterable.map(Iterable.concat(children, childrenIterator), compress),
 		collapsible: element.collapsible,
 		collapsed: element.collapsed
 	};
 }
 
 function _decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>, index = 0): ICompressedTreeElement<T> {
-	let children: Iterator<ICompressedTreeElement<T>>;
+	let children: Iterable<ICompressedTreeElement<T>>;
 
 	if (index < element.element.elements.length - 1) {
-		children = Iterator.single(_decompress(element, index + 1));
+		children = [_decompress(element, index + 1)];
 	} else {
-		children = Iterator.map(Iterator.from(element.children), el => _decompress(el, 0));
+		children = Iterable.map(Iterable.from(element.children), el => _decompress(el, 0));
 	}
 
 	if (index === 0 && element.element.incompressible) {
@@ -98,17 +97,23 @@ export function decompress<T>(element: ITreeElement<ICompressedTreeNode<T>>): IC
 	return _decompress(element, 0);
 }
 
-function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, children: Iterator<ICompressedTreeElement<T>>): ICompressedTreeElement<T> {
+function splice<T>(treeElement: ICompressedTreeElement<T>, element: T, children: Iterable<ICompressedTreeElement<T>>): ICompressedTreeElement<T> {
 	if (treeElement.element === element) {
 		return { ...treeElement, children };
 	}
 
-	return { ...treeElement, children: Iterator.map(Iterator.from(treeElement.children), e => splice(e, element, children)) };
+	return { ...treeElement, children: Iterable.map(Iterable.from(treeElement.children), e => splice(e, element, children)) };
 }
 
 interface ICompressedObjectTreeModelOptions<T, TFilterData> extends IObjectTreeModelOptions<ICompressedTreeNode<T>, TFilterData> {
 	readonly compressionEnabled?: boolean;
 }
+
+const wrapIdentityProvider = <T>(base: IIdentityProvider<T>): IIdentityProvider<ICompressedTreeNode<T>> => ({
+	getId(node) {
+		return node.elements.map(e => base.getId(e).toString()).join('\0');
+	}
+});
 
 // Exported only for test reasons, do not use directly
 export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
@@ -122,25 +127,32 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 	private model: ObjectTreeModel<ICompressedTreeNode<T>, TFilterData>;
 	private nodes = new Map<T | null, ICompressedTreeNode<T>>();
 	private enabled: boolean;
+	private readonly identityProvider?: IIdentityProvider<ICompressedTreeNode<T>>;
 
 	get size(): number { return this.nodes.size; }
 
 	constructor(
 		private user: string,
-		list: ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
+		list: IList<ITreeNode<ICompressedTreeNode<T>, TFilterData>>,
 		options: ICompressedObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.model = new ObjectTreeModel(user, list, options);
 		this.enabled = typeof options.compressionEnabled === 'undefined' ? true : options.compressionEnabled;
+		this.identityProvider = options.identityProvider;
 	}
 
 	setChildren(
 		element: T | null,
-		children: ISequence<ICompressedTreeElement<T>> | undefined
+		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
+		options: IObjectTreeModelSetChildrenOptions<T, TFilterData>,
 	): void {
+		// Diffs must be deem, since the compression can affect nested elements.
+		// @see https://github.com/microsoft/vscode/pull/114237#issuecomment-759425034
+
+		const diffIdentityProvider = options.diffIdentityProvider && wrapIdentityProvider(options.diffIdentityProvider);
 		if (element === null) {
-			const compressedChildren = Iterator.map(Iterator.from(children), this.enabled ? compress : noCompress);
-			this._setChildren(null, compressedChildren);
+			const compressedChildren = Iterable.map(children, this.enabled ? compress : noCompress);
+			this._setChildren(null, compressedChildren, { diffIdentityProvider, diffDepth: Infinity });
 			return;
 		}
 
@@ -155,13 +167,16 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const parent = this.model.getNode(compressedParentNode) as ITreeNode<ICompressedTreeNode<T>, TFilterData>;
 
 		const decompressedElement = decompress(node);
-		const splicedElement = splice(decompressedElement, element, Iterator.from(children));
+		const splicedElement = splice(decompressedElement, element, children);
 		const recompressedElement = (this.enabled ? compress : noCompress)(splicedElement);
 
 		const parentChildren = parent.children
 			.map(child => child === node ? recompressedElement : child);
 
-		this._setChildren(parent.element, parentChildren);
+		this._setChildren(parent.element, parentChildren, {
+			diffIdentityProvider,
+			diffDepth: node.depth - parent.depth,
+		});
 	}
 
 	isCompressionEnabled(): boolean {
@@ -176,25 +191,32 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		this.enabled = enabled;
 
 		const root = this.model.getNode();
-		const rootChildren = Iterator.from(root.children as ITreeNode<ICompressedTreeNode<T>>[]);
-		const decompressedRootChildren = Iterator.map(rootChildren, decompress);
-		const recompressedRootChildren = Iterator.map(decompressedRootChildren, enabled ? compress : noCompress);
-		this._setChildren(null, recompressedRootChildren);
+		const rootChildren = root.children as ITreeNode<ICompressedTreeNode<T>>[];
+		const decompressedRootChildren = Iterable.map(rootChildren, decompress);
+		const recompressedRootChildren = Iterable.map(decompressedRootChildren, enabled ? compress : noCompress);
+
+		// it should be safe to always use deep diff mode here if an identity
+		// provider is available, since we know the raw nodes are unchanged.
+		this._setChildren(null, recompressedRootChildren, {
+			diffIdentityProvider: this.identityProvider,
+			diffDepth: Infinity,
+		});
 	}
 
 	private _setChildren(
 		node: ICompressedTreeNode<T> | null,
-		children: ISequence<ITreeElement<ICompressedTreeNode<T>>> | undefined
+		children: Iterable<ITreeElement<ICompressedTreeNode<T>>>,
+		options: IIndexTreeModelSpliceOptions<ICompressedTreeNode<T>, TFilterData>,
 	): void {
 		const insertedElements = new Set<T | null>();
-		const _onDidCreateNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
+		const onDidCreateNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
 			for (const element of node.element.elements) {
 				insertedElements.add(element);
 				this.nodes.set(element, node.element);
 			}
 		};
 
-		const _onDidDeleteNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
+		const onDidDeleteNode = (node: ITreeNode<ICompressedTreeNode<T>, TFilterData>) => {
 			for (const element of node.element.elements) {
 				if (!insertedElements.has(element)) {
 					this.nodes.delete(element);
@@ -202,7 +224,11 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 			}
 		};
 
-		this.model.setChildren(node, children, _onDidCreateNode, _onDidDeleteNode);
+		this.model.setChildren(node, children, { ...options, onDidCreateNode, onDidDeleteNode });
+	}
+
+	has(element: T | null): boolean {
+		return this.nodes.has(element);
 	}
 
 	getListIndex(location: T | null): number {
@@ -287,6 +313,16 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		this.model.rerender(compressedNode);
 	}
 
+	updateElementHeight(element: T, height: number): void {
+		const compressedNode = this.getCompressedNode(element);
+
+		if (!compressedNode) {
+			return;
+		}
+
+		this.model.updateElementHeight(compressedNode, height);
+	}
+
 	refilter(): void {
 		this.model.refilter();
 	}
@@ -337,10 +373,13 @@ class CompressedTreeNodeWrapper<T, TFilterData> implements ITreeNode<T | null, T
 	) { }
 }
 
-function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilterData>, list: ISpliceable<ITreeNode<T, TFilterData>>): ISpliceable<ITreeNode<ICompressedTreeNode<T>, TFilterData>> {
+function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilterData>, list: IList<ITreeNode<T, TFilterData>>): IList<ITreeNode<ICompressedTreeNode<T>, TFilterData>> {
 	return {
 		splice(start: number, deleteCount: number, toInsert: ITreeNode<ICompressedTreeNode<T>, TFilterData>[]): void {
 			list.splice(start, deleteCount, toInsert.map(node => nodeMapper.map(node)) as ITreeNode<T, TFilterData>[]);
+		},
+		updateElementHeight(index: number, height: number): void {
+			list.updateElementHeight(index, height);
 		}
 	};
 }
@@ -348,14 +387,14 @@ function mapList<T, TFilterData>(nodeMapper: CompressedNodeWeakMapper<T, TFilter
 function mapOptions<T, TFilterData>(compressedNodeUnwrapper: CompressedNodeUnwrapper<T>, options: ICompressibleObjectTreeModelOptions<T, TFilterData>): ICompressedObjectTreeModelOptions<T, TFilterData> {
 	return {
 		...options,
-		sorter: options.sorter && {
-			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {
-				return options.sorter!.compare(node.elements[0], otherNode.elements[0]);
-			}
-		},
 		identityProvider: options.identityProvider && {
 			getId(node: ICompressedTreeNode<T>): { toString(): string; } {
 				return options.identityProvider!.getId(compressedNodeUnwrapper(node));
+			}
+		},
+		sorter: options.sorter && {
+			compare(node: ICompressedTreeNode<T>, otherNode: ICompressedTreeNode<T>): number {
+				return options.sorter!.compare(node.elements[0], otherNode.elements[0]);
 			}
 		},
 		filter: options.filter && {
@@ -399,7 +438,7 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	constructor(
 		user: string,
-		list: ISpliceable<ITreeNode<T, TFilterData>>,
+		list: IList<ITreeNode<T, TFilterData>>,
 		options: ICompressibleObjectTreeModelOptions<T, TFilterData> = {}
 	) {
 		this.elementMapper = options.elementMapper || DefaultElementMapper;
@@ -409,8 +448,12 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 		this.model = new CompressedObjectTreeModel(user, mapList(this.nodeMapper, list), mapOptions(compressedNodeUnwrapper, options));
 	}
 
-	setChildren(element: T | null, children?: ISequence<ICompressedTreeElement<T>>): void {
-		this.model.setChildren(element, children);
+	setChildren(
+		element: T | null,
+		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
+		options: IObjectTreeModelSetChildrenOptions<T, TFilterData> = {},
+	): void {
+		this.model.setChildren(element, children, options);
 	}
 
 	isCompressionEnabled(): boolean {
@@ -419,6 +462,10 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	setCompressionEnabled(enabled: boolean): void {
 		this.model.setCompressionEnabled(enabled);
+	}
+
+	has(location: T | null): boolean {
+		return this.model.has(location);
 	}
 
 	getListIndex(location: T | null): number {
@@ -483,6 +530,10 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 
 	rerender(location: T | null): void {
 		return this.model.rerender(location);
+	}
+
+	updateElementHeight(element: T, height: number): void {
+		this.model.updateElementHeight(element, height);
 	}
 
 	refilter(): void {

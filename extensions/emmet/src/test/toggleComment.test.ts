@@ -26,7 +26,7 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 			<div><li><span>Bye</span></li></div>
 		</ul>
 		<ul>
-			<!--<li>Previously Commented Node</li>-->
+			<!-- <li>Previously Commented Node</li> -->
 			<li>Another Node</li>
 		</ul>
 		<span/>
@@ -47,24 +47,24 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<li><!--<span>Hello</span>--></li>
-			<!--<li><span>There</span></li>-->
-			<!--<div><li><span>Bye</span></li></div>-->
+			<li><!-- <span>Hello</span> --></li>
+			<!-- <li><span>There</span></li> -->
+			<!-- <div><li><span>Bye</span></li></div> -->
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
 		<style>
 			.boo {
-				/*margin: 10px;*/
+				/* margin: 10px; */
 				padding: 20px;
 			}
-			/*.hoo {
+			/* .hoo {
 				margin: 10px;
 				padding: 20px;
-			}*/
+			} */
 		</style>
 	</div>
 	`;
@@ -89,24 +89,24 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<li><!--<span>Hello</span>--></li>
-			<!--<li><span>There</span></li>-->
+			<li><!-- <span>Hello</span> --></li>
+			<!-- <li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
 		<style>
 			.boo {
-				/*margin: 10px;*/
+				/* margin: 10px; */
 				padding: 20px;
 			}
-			/*.hoo {
+			/* .hoo {
 				margin: 10px;
 				padding: 20px;
-			}*/
+			} */
 		</style>
 	</div>
 	`;
@@ -130,19 +130,19 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<!--<li><span>Hello</span></li>
-			<li><span>There</span></li>-->
+			<!-- <li><span>Hello</span></li>
+			<li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
 		<ul>
-			<!--<li>Previously Commented Node</li>-->
+			<!-- <li>Previously Commented Node</li> -->
 			<li>Another Node</li>
 		</ul>
 		<span/>
 		<style>
 			.boo {
-				/*margin: 10px;
-				padding: 20px;*/
+				/* margin: 10px;
+				padding: 20px; */
 			}
 			.hoo {
 				margin: 10px;
@@ -168,14 +168,14 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<!--<li><span>Hello</span></li>
-			<li><span>There</span></li>-->
+			<!-- <li><span>Hello</span></li>
+			<li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
 		<style>
 			.boo {
@@ -206,16 +206,16 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const expectedContents = `
 	<div class="hello">
 		<ul>
-			<li><!--<span>Hello</span>--></li>
-			<!--<li><span>There</span></li>-->
+			<li><!-- <span>Hello</span> --></li>
+			<!-- <li><span>There</span></li> -->
 			<div><li><span>Bye</span></li></div>
 		</ul>
-		<!--<ul>
+		<!-- <ul>
 			<li>Previously Commented Node</li>
 			<li>Another Node</li>
-		</ul>-->
+		</ul> -->
 		<span/>
-		<!--<style>
+		<!-- <style>
 			.boo {
 				margin: 10px;
 				padding: 20px;
@@ -224,7 +224,7 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 				margin: 10px;
 				padding: 20px;
 			}
-		</style>-->
+		</style> -->
 	</div>
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
@@ -252,16 +252,16 @@ suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 		const templateContents = `
 	<script type="text/template">
 		<li><span>Hello</span></li>
-		<li><!--<span>There</span>--></li>
+		<li><!-- <span>There</span> --></li>
 		<div><li><span>Bye</span></li></div>
 		<span/>
 	</script>
 	`;
 		const expectedContents = `
 	<script type="text/template">
-		<!--<li><span>Hello</span></li>-->
+		<!-- <li><span>Hello</span></li> -->
 		<li><span>There</span></li>
-		<div><li><!--<span>Bye</span>--></li></div>
+		<div><li><!-- <span>Bye</span> --></li></div>
 		<span/>
 	</script>
 	`;
@@ -298,13 +298,13 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 	test('toggle comment with multiple cursors, but no selection (CSS)', () => {
 		const expectedContents = `
 	.one {
-		/*margin: 10px;*/
+		/* margin: 10px; */
 		padding: 10px;
 	}
-	/*.two {
+	/* .two {
 		height: 42px;
 		display: none;
-	}*/
+	} */
 	.three {
 		width: 42px;
 	}`;
@@ -327,13 +327,13 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 	test('toggle comment with multiple cursors and whole node selected (CSS)', () => {
 		const expectedContents = `
 	.one {
-		/*margin: 10px;*/
-		/*padding: 10px;*/
+		/* margin: 10px; */
+		/* padding: 10px; */
 	}
-	/*.two {
+	/* .two {
 		height: 42px;
 		display: none;
-	}*/
+	} */
 	.three {
 		width: 42px;
 	}`;
@@ -359,16 +359,16 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 	test('toggle comment when multiple nodes of same parent are completely under single selection (CSS)', () => {
 		const expectedContents = `
 	.one {
-/*		margin: 10px;
-		padding: 10px;*/
+/* 		margin: 10px;
+		padding: 10px; */
 	}
-	/*.two {
+	/* .two {
 		height: 42px;
 		display: none;
 	}
 	.three {
 		width: 42px;
-	}*/`;
+	} */`;
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
 			editor.selections = [
 				new Selection(2, 0, 3, 16), // 2 properties completely under a single selection along with whitespace
@@ -389,10 +389,10 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 		const expectedContents = `
 	.one {
 		margin: 10px;
-		/*padding: 10px;
+		/* padding: 10px;
 	}
 	.two {
-		height: 42px;*/
+		height: 42px; */
 		display: none;
 	}
 	.three {
@@ -417,10 +417,10 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 		const expectedContents = `
 	.one {
 		margin: 10px;
-		/*padding: 10px;
+		/* padding: 10px;
 	}
 	.two {
-		height: 42px;*/
+		height: 42px; */
 		display: none;
 	}
 	.three {
@@ -445,10 +445,10 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 		const expectedContents = `
 	.one {
 		margin: 10px;
-		/*padding: 10px;
+		/* padding: 10px;
 	}
 	.two {
-		height: 42px;*/
+		height: 42px; */
 		display: none;
 	}
 	.three {
@@ -473,10 +473,10 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 		const expectedContents = `
 	.one {
 		margin: 10px;
-		/*padding: 10px;
+		/* padding: 10px;
 	}
 	.two {
-		height: 42px;*/
+		height: 42px; */
 		display: none;
 	}
 	.three {
@@ -500,16 +500,16 @@ suite('Tests for Toggle Comment action from Emmet (CSS)', () => {
 	test('toggle comment when multiple nodes of same parent are partially under single selection (CSS)', () => {
 		const expectedContents = `
 	.one {
-		/*margin: 10px;
-		padding: 10px;*/
+		/* margin: 10px;
+		padding: 10px; */
 	}
-	/*.two {
+	/* .two {
 		height: 42px;
 		display: none;
 	}
 	.three {
 		width: 42px;
-*/	}`;
+ */	}`;
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
 			editor.selections = [
 				new Selection(2, 7, 3, 10), // 2 properties partially under a single selection
@@ -549,14 +549,14 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 	test('toggle comment with multiple cursors selecting nested nodes (SCSS)', () => {
 		const expectedContents = `
 	.one {
-		/*height: 42px;*/
+		/* height: 42px; */
 
-		/*.two {
+		/* .two {
 			width: 42px;
-		}*/
+		} */
 
 		.three {
-			/*padding: 10px;*/
+			/* padding: 10px; */
 		}
 	}`;
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
@@ -578,7 +578,7 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 	});
 	test('toggle comment with multiple cursors selecting several nested nodes (SCSS)', () => {
 		const expectedContents = `
-	/*.one {
+	/* .one {
 		height: 42px;
 
 		.two {
@@ -588,7 +588,7 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 		.three {
 			padding: 10px;
 		}
-	}*/`;
+	} */`;
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
 			editor.selections = [
 				new Selection(1, 3, 1, 3), // cursor in the outside rule. And several cursors inside:
@@ -611,14 +611,14 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 	test('toggle comment with multiple cursors, but no selection (SCSS)', () => {
 		const expectedContents = `
 	.one {
-		/*height: 42px;*/
+		/* height: 42px; */
 
-		/*.two {
+		/* .two {
 			width: 42px;
-		}*/
+		} */
 
 		.three {
-			/*padding: 10px;*/
+			/* padding: 10px; */
 		}
 	}`;
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
@@ -641,14 +641,14 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 	test('toggle comment with multiple cursors and whole node selected (CSS)', () => {
 		const expectedContents = `
 	.one {
-		/*height: 42px;*/
+		/* height: 42px; */
 
-		/*.two {
+		/* .two {
 			width: 42px;
-		}*/
+		} */
 
 		.three {
-			/*padding: 10px;*/
+			/* padding: 10px; */
 		}
 	}`;
 		return withRandomFileEditor(contents, 'css', (editor, doc) => {
@@ -673,11 +673,11 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 	test('toggle comment when multiple nodes are completely under single selection (CSS)', () => {
 		const expectedContents = `
 	.one {
-		/*height: 42px;
+		/* height: 42px;
 
 		.two {
 			width: 42px;
-		}*/
+		} */
 
 		.three {
 			padding: 10px;
@@ -701,11 +701,11 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 	test('toggle comment when multiple nodes are partially under single selection (CSS)', () => {
 		const expectedContents = `
 	.one {
-		/*height: 42px;
+		/* height: 42px;
 
 		.two {
 			width: 42px;
-	*/	}
+	 */	}
 
 		.three {
 			padding: 10px;
@@ -726,4 +726,29 @@ suite('Tests for Toggle Comment action from Emmet in nested css (SCSS)', () => {
 		});
 	});
 
+	test('toggle comment doesn\'t fail when start and end nodes differ HTML', () => {
+		const contents = `
+	<div>
+		<p>Hello</p>
+	</div>
+	`;
+		const expectedContents = `
+	<!-- <div>
+		<p>Hello</p>
+	</div> -->
+	`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(1, 2, 2, 9), // <div> to <p> inclusive
+			];
+
+			return toggleComment().then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return toggleComment().then(() => {
+					assert.equal(doc.getText(), contents);
+					return Promise.resolve();
+				});
+			});
+		});
+	});
 });

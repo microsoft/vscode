@@ -15,7 +15,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 
@@ -219,6 +219,7 @@ type CommentThreadModification = Partial<{
 	contextValue: string | undefined,
 	comments: vscode.Comment[],
 	collapsibleState: vscode.CommentThreadCollapsibleState
+	canReply: boolean;
 }>;
 
 export class ExtHostCommentThread implements vscode.CommentThread {
@@ -261,6 +262,19 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	get range(): vscode.Range {
 		return this._range;
+	}
+
+	private _canReply: boolean = true;
+
+	set canReply(state: boolean) {
+		if (this._canReply !== state) {
+			this._canReply = state;
+			this.modifications.canReply = state;
+			this._onDidUpdateCommentThread.fire();
+		}
+	}
+	get canReply() {
+		return this._canReply;
 	}
 
 	private _label: string | undefined;
@@ -387,6 +401,9 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		if (modified('collapsibleState')) {
 			formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
 		}
+		if (modified('canReply')) {
+			formattedModifications.canReply = this.canReply;
+		}
 		this.modifications = {};
 
 		this._proxy.$updateCommentThread(
@@ -449,6 +466,18 @@ class ExtHostCommentController implements vscode.CommentController {
 		this._reactionHandler = handler;
 
 		this._proxy.$updateCommentControllerFeatures(this.handle, { reactionHandler: !!handler });
+	}
+
+	private _options: modes.CommentOptions | undefined;
+
+	get options() {
+		return this._options;
+	}
+
+	set options(options: modes.CommentOptions | undefined) {
+		this._options = options;
+
+		this._proxy.$updateCommentControllerFeatures(this.handle, { options: this._options });
 	}
 
 	constructor(

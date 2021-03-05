@@ -12,14 +12,14 @@ export class CharacterClassifier<T extends number> {
 	/**
 	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
 	 */
-	private _asciiMap: Uint8Array;
+	protected _asciiMap: Uint8Array;
 
 	/**
 	 * The entire map (sparse array).
 	 */
-	private _map: Map<number, number>;
+	protected _map: Map<number, number>;
 
-	private _defaultValue: number;
+	protected _defaultValue: number;
 
 	constructor(_defaultValue: T) {
 		let defaultValue = toUint8(_defaultValue);

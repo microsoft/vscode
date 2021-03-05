@@ -7,41 +7,35 @@ import { SerializedError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionService, ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, ExtensionActivationError, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
 
-	private readonly _extensionService: IExtensionService;
-	private readonly _notificationService: INotificationService;
-	private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService;
-	private readonly _hostService: IHostService;
-	private readonly _extensionEnablementService: IExtensionEnablementService;
+	private readonly _extensionHostKind: ExtensionHostKind;
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IExtensionService extensionService: IExtensionService,
-		@INotificationService notificationService: INotificationService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IHostService hostService: IHostService,
-		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IHostService private readonly _hostService: IHostService,
+		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@ITimerService private readonly _timerService: ITimerService,
 	) {
-		this._extensionService = extensionService;
-		this._notificationService = notificationService;
-		this._extensionsWorkbenchService = extensionsWorkbenchService;
-		this._hostService = hostService;
-		this._extensionEnablementService = extensionEnablementService;
+		this._extensionHostKind = extHostContext.extensionHostKind;
 	}
 
 	public dispose(): void {
@@ -50,7 +44,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		return this._extensionService._activateById(extensionId, reason);
 	}
-	$onWillActivateExtension(extensionId: ExtensionIdentifier): void {
+	async $onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void> {
 		this._extensionService._onWillActivateExtension(extensionId);
 	}
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
@@ -128,7 +122,17 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		}
 	}
 
-	$onExtensionHostExit(code: number): void {
+	async $onExtensionHostExit(code: number): Promise<void> {
 		this._extensionService._onExtensionHostExit(code);
+	}
+
+	async $setPerformanceMarks(marks: PerformanceMark[]): Promise<void> {
+		if (this._extensionHostKind === ExtensionHostKind.LocalProcess) {
+			this._timerService.setPerformanceMarks('localExtHost', marks);
+		} else if (this._extensionHostKind === ExtensionHostKind.LocalWebWorker) {
+			this._timerService.setPerformanceMarks('workerExtHost', marks);
+		} else {
+			this._timerService.setPerformanceMarks('remoteExtHost', marks);
+		}
 	}
 }

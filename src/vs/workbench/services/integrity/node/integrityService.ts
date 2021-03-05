@@ -9,12 +9,13 @@ import * as fs from 'fs';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/common/product';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { FileAccess } from 'vs/base/common/network';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -50,13 +51,13 @@ class IntegrityStorage {
 
 	set(data: IStorageData | null): void {
 		this.value = data;
-		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL);
+		this.storageService.store(IntegrityStorage.KEY, JSON.stringify(this.value), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
 export class IntegrityServiceImpl implements IIntegrityService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _storage: IntegrityStorage;
 	private _isPurePromise: Promise<IntegrityTestResult>;
@@ -65,7 +66,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 
@@ -82,12 +84,12 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _prompt(): void {
 		const storedData = this._storage.get();
-		if (storedData?.dontShowPrompt && storedData.commit === product.commit) {
+		if (storedData?.dontShowPrompt && storedData.commit === this.productService.commit) {
 			return; // Do not prompt
 		}
 
-		const checksumFailMoreInfoUrl = product.checksumFailMoreInfoUrl;
-		const message = nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", product.nameShort);
+		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
+		const message = nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort);
 		if (checksumFailMoreInfoUrl) {
 			this.notificationService.prompt(
 				Severity.Warning,
@@ -100,7 +102,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 					{
 						label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._storage.set({ dontShowPrompt: true, commit: product.commit })
+						run: () => this._storage.set({ dontShowPrompt: true, commit: this.productService.commit })
 					}
 				],
 				{ sticky: true }
@@ -119,7 +121,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	}
 
 	private async _isPure(): Promise<IntegrityTestResult> {
-		const expectedChecksums = product.checksums || {};
+		const expectedChecksums = this.productService.checksums || {};
 
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
 
@@ -140,11 +142,11 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	}
 
 	private _resolve(filename: string, expected: string): Promise<ChecksumPair> {
-		let fileUri = URI.parse(require.toUrl(filename));
+		const fileUri = FileAccess.asFileUri(filename, require);
 		return new Promise<ChecksumPair>((resolve, reject) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {
-					return reject(err);
+					return resolve(IntegrityServiceImpl._createChecksumPair(fileUri, '', expected));
 				}
 				resolve(IntegrityServiceImpl._createChecksumPair(fileUri, this._computeChecksum(buff), expected));
 			});

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/e90aa2554b439827f125fd60ff6d7773fc582fcc",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/19807c6a80d29b03ad69e02ffe39e5869a9ce107",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
@@ -17,7 +17,7 @@
 			"name": "comment log.verbose"
 		},
 		{
-			"match": "\\bV/",
+			"match": "(?<=^[\\s\\d\\p]*)\\bV\\b",
 			"name": "comment log.verbose"
 		},
 		{
@@ -29,11 +29,11 @@
 			"name": "markup.changed log.debug"
 		},
 		{
-			"match": "\\bD/",
+			"match": "(?<=^[\\s\\d\\p]*)\\bD\\b",
 			"name": "markup.changed log.debug"
 		},
 		{
-			"match": "\\b(HINT|INFO|INFORMATION|Info|NOTICE)\\b|(?i)\\b(info|information)\\:",
+			"match": "\\b(HINT|INFO|INFORMATION|Info|NOTICE|II)\\b|(?i)\\b(info|information)\\:",
 			"name": "markup.inserted log.info"
 		},
 		{
@@ -41,11 +41,11 @@
 			"name": "markup.inserted log.info"
 		},
 		{
-			"match": "\\bI/",
+			"match": "(?<=^[\\s\\d\\p]*)\\bI\\b",
 			"name": "markup.inserted log.info"
 		},
 		{
-			"match": "\\b(WARNING|WARN|Warn)\\b|(?i)\\b(warning)\\:",
+			"match": "\\b(WARNING|WARN|Warn|WW)\\b|(?i)\\b(warning)\\:",
 			"name": "markup.deleted log.warning"
 		},
 		{
@@ -53,11 +53,11 @@
 			"name": "markup.deleted log.warning"
 		},
 		{
-			"match": "\\bW/",
+			"match": "(?<=^[\\s\\d\\p]*)\\bW\\b",
 			"name": "markup.deleted log.warning"
 		},
 		{
-			"match": "\\b(ALERT|CRITICAL|EMERGENCY|ERROR|FAILURE|FAIL|Fatal|Error)\\b|(?i)\\b(error)\\:",
+			"match": "\\b(ALERT|CRITICAL|EMERGENCY|ERROR|FAILURE|FAIL|Fatal|FATAL|Error|EE)\\b|(?i)\\b(error)\\:",
 			"name": "string.regexp, strong log.error"
 		},
 		{
@@ -65,7 +65,7 @@
 			"name": "string.regexp, strong log.error"
 		},
 		{
-			"match": "\\bE/",
+			"match": "(?<=^[\\s\\d\\p]*)\\bE\\b",
 			"name": "string.regexp, strong log.error"
 		},
 		{
@@ -73,7 +73,7 @@
 			"name": "comment log.date"
 		},
 		{
-			"match": "\\b\\d{2}[^\\w\\s]\\d{2}[^\\w\\s]\\d{4}\\b",
+			"match": "(?<=(^|\\s))\\d{2}[^\\w\\s]\\d{2}[^\\w\\s]\\d{4}\\b",
 			"name": "comment log.date"
 		},
 		{
@@ -85,7 +85,11 @@
 			"name": "constant.language"
 		},
 		{
-			"match": "[0-9a-fA-F]{8}[-]?([0-9a-fA-F]{4}[-]?){3}[0-9a-fA-F]{12}",
+			"match": "\\b[0-9a-fA-F]{8}[-]?([0-9a-fA-F]{4}[-]?){3}[0-9a-fA-F]{12}\\b",
+			"name": "constant.language log.constant"
+		},
+		{
+			"match": "\\b([0-9a-fA-F]{2,}[:-])+[0-9a-fA-F]{2,}+\\b",
 			"name": "constant.language log.constant"
 		},
 		{
@@ -110,7 +114,7 @@
 			"name": "string.key, emphasis log.exception"
 		},
 		{
-			"match": "\\b(http|https|ftp|file)://\\S+\\b/?",
+			"match": "\\b[a-z]+://\\S+\\b/?",
 			"name": "constant.language log.constant"
 		},
 		{

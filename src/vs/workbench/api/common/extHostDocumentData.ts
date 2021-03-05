@@ -11,32 +11,35 @@ import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { equals } from 'vs/base/common/arrays';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-	_modeId2WordDefinition.set(modeId, wordDefinition);
+	if (!wordDefinition) {
+		_modeId2WordDefinition.delete(modeId);
+	} else {
+		_modeId2WordDefinition.set(modeId, wordDefinition);
+	}
 }
+
 export function getWordDefinitionFor(modeId: string): RegExp | undefined {
 	return _modeId2WordDefinition.get(modeId);
 }
 
 export class ExtHostDocumentData extends MirrorTextModel {
 
-	private _proxy: MainThreadDocumentsShape;
-	private _languageId: string;
-	private _isDirty: boolean;
 	private _document?: vscode.TextDocument;
 	private _isDisposed: boolean = false;
 
-	constructor(proxy: MainThreadDocumentsShape, uri: URI, lines: string[], eol: string,
-		languageId: string, versionId: number, isDirty: boolean
+	constructor(
+		private readonly _proxy: MainThreadDocumentsShape,
+		uri: URI, lines: string[], eol: string, versionId: number,
+		private _languageId: string,
+		private _isDirty: boolean,
+		private readonly _notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
-		this._proxy = proxy;
-		this._languageId = languageId;
-		this._isDirty = isDirty;
 	}
 
 	dispose(): void {
@@ -54,25 +57,26 @@ export class ExtHostDocumentData extends MirrorTextModel {
 
 	get document(): vscode.TextDocument {
 		if (!this._document) {
-			const data = this;
+			const that = this;
 			this._document = {
-				get uri() { return data._uri; },
-				get fileName() { return data._uri.fsPath; },
-				get isUntitled() { return data._uri.scheme === Schemas.untitled; },
-				get languageId() { return data._languageId; },
-				get version() { return data._versionId; },
-				get isClosed() { return data._isDisposed; },
-				get isDirty() { return data._isDirty; },
-				save() { return data._save(); },
-				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
-				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
-				get lineCount() { return data._lines.length; },
-				lineAt(lineOrPos: number | vscode.Position) { return data._lineAt(lineOrPos); },
-				offsetAt(pos) { return data._offsetAt(pos); },
-				positionAt(offset) { return data._positionAt(offset); },
-				validateRange(ran) { return data._validateRange(ran); },
-				validatePosition(pos) { return data._validatePosition(pos); },
-				getWordRangeAtPosition(pos, regexp?) { return data._getWordRangeAtPosition(pos, regexp); }
+				get uri() { return that._uri; },
+				get fileName() { return that._uri.fsPath; },
+				get isUntitled() { return that._uri.scheme === Schemas.untitled; },
+				get languageId() { return that._languageId; },
+				get version() { return that._versionId; },
+				get isClosed() { return that._isDisposed; },
+				get isDirty() { return that._isDirty; },
+				get notebook() { return that._notebook; },
+				save() { return that._save(); },
+				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
+				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
+				get lineCount() { return that._lines.length; },
+				lineAt(lineOrPos: number | vscode.Position) { return that._lineAt(lineOrPos); },
+				offsetAt(pos) { return that._offsetAt(pos); },
+				positionAt(offset) { return that._positionAt(offset); },
+				validateRange(ran) { return that._validateRange(ran); },
+				validatePosition(pos) { return that._validatePosition(pos); },
+				getWordRangeAtPosition(pos, regexp?) { return that._getWordRangeAtPosition(pos, regexp); },
 			};
 		}
 		return Object.freeze(this._document);
@@ -176,6 +180,10 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			throw new Error('Invalid argument');
 		}
 
+		if (this._lines.length === 0) {
+			return position.with(0, 0);
+		}
+
 		let { line, character } = position;
 		let hasChanged = false;
 
@@ -233,7 +241,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	}
 }
 
-class ExtHostDocumentLine implements vscode.TextLine {
+export class ExtHostDocumentLine implements vscode.TextLine {
 
 	private readonly _line: number;
 	private readonly _text: string;

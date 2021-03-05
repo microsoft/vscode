@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 /** Dialog: Modal Block */
 .monaco-dialog-modal-block {
 	position: fixed;
@@ -25,7 +26,7 @@
 	flex-direction: column-reverse;
 	width: min-content;
 	min-width: 500px;
-	max-width: 90%;
+	max-width: 90vw;
 	min-height: 75px;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
@@ -46,7 +47,6 @@
 	margin-left: 4px;
 }
 
-
 /** Dialog: Message Row */
 .monaco-dialog-box .dialog-message-row {
 	display: flex;
@@ -55,7 +55,7 @@
 	padding: 0 10px;
 }
 
-.monaco-dialog-box .dialog-message-row > .codicon {
+.monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
 	flex: 0 0 48px;
 	height: 48px;
 	align-self: baseline;
@@ -93,7 +93,6 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 22px;
 	flex: 1; /* let the message always grow */
-	opacity: .9;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
@@ -101,6 +100,7 @@
 	outline-style: solid;
 }
 
+/** Dialog: Checkbox */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-checkbox-row {
 	padding: 15px 0px 0px;
 	display: flex;
@@ -111,6 +111,16 @@
 	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
+}
+
+/** Dialog: Input */
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input {
+	padding: 15px 0px 0px;
+	display: flex;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input .monaco-inputbox {
+	flex: 1;
 }
 
 /** Dialog: Buttons Row */
@@ -138,7 +148,8 @@
 	width: fit-content;
 	width: -moz-fit-content;
 	padding: 5px 10px;
-	margin: 4px 5px; /* allows button focus outline to be visible */
 	overflow: hidden;
 	text-overflow: ellipsis;
+	margin: 4px 5px; /* allows button focus outline to be visible */
+	outline-offset: 2px !important;
 }

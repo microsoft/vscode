@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
@@ -17,22 +17,33 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
-export class ExtensionIdentifierWithVersion {
+export class ExtensionIdentifierWithVersion implements IExtensionIdentifierWithVersion {
+
+	readonly id: string;
+	readonly uuid?: string;
+
 	constructor(
-		readonly identifier: IExtensionIdentifier,
+		identifier: IExtensionIdentifier,
 		readonly version: string
-	) { }
+	) {
+		this.id = identifier.id;
+		this.uuid = identifier.uuid;
+	}
 
 	key(): string {
-		return `${this.identifier.id}-${this.version}`;
+		return `${this.id}-${this.version}`;
 	}
 
 	equals(o: any): boolean {
 		if (!(o instanceof ExtensionIdentifierWithVersion)) {
 			return false;
 		}
-		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
+		return areSameExtensions(this, o) && this.version === o.version;
 	}
+}
+
+export function getExtensionId(publisher: string, name: string): string {
+	return `${publisher}.${name}`;
 }
 
 export function adoptToGalleryExtensionId(id: string): string {
@@ -40,7 +51,7 @@ export function adoptToGalleryExtensionId(id: string): string {
 }
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
-	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
+	return adoptToGalleryExtensionId(getExtensionId(publisher, name));
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
@@ -69,9 +80,9 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		id: extension.identifier.id,
 		name: extension.manifest.name,
 		galleryId: null,
-		publisherId: extension.metadata ? extension.metadata.publisherId : null,
+		publisherId: extension.publisherId,
 		publisherName: extension.manifest.publisher,
-		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,
+		publisherDisplayName: extension.publisherDisplayName,
 		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0
 	};
 }

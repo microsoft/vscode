@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { startsWith } from 'vs/base/common/strings';
-import { ILogService } from 'vs/platform/log/common/log';
-import { SearchRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
+import { SearchRange, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import * as searchExtTypes from 'vs/workbench/services/search/common/searchExtTypes';
 
 export type Maybe<T> = T | null | undefined;
 
 export function anchorGlob(glob: string): string {
-	return startsWith(glob, '**') || startsWith(glob, '/') ? glob : `/${glob}`;
+	return glob.startsWith('**') || glob.startsWith('/') ? glob : `/${glob}`;
 }
 
 /**
@@ -47,9 +46,9 @@ export interface IOutputChannel {
 }
 
 export class OutputChannel implements IOutputChannel {
-	constructor(@ILogService private readonly logService: ILogService) { }
+	constructor(private prefix: string, @ILogService private readonly logService: ILogService) { }
 
 	appendLine(msg: string): void {
-		this.logService.debug('RipgrepSearchEH#search', msg);
+		this.logService.debug(`${this.prefix}#search`, msg);
 	}
 }

@@ -7,18 +7,16 @@ import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
+import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
 export interface IColumnSelectData {
@@ -46,25 +44,6 @@ export const enum EditOperationType {
 	DeletingRight = 3
 }
 
-export interface ICursors {
-	readonly context: CursorContext;
-	getPrimaryCursor(): CursorState;
-	getLastAddedCursorIndex(): number;
-	getAll(): CursorState[];
-
-	getColumnSelectData(): IColumnSelectData;
-	setColumnSelectData(columnSelectData: IColumnSelectData): void;
-
-	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	reveal(source: string, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
-	revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
-
-	scrollTo(desiredScrollTop: number): void;
-
-	getPrevEditOperationType(): EditOperationType;
-	setPrevEditOperationType(type: EditOperationType): void;
-}
-
 export interface CharacterMap {
 	[char: string]: string;
 }
@@ -76,14 +55,6 @@ const autoCloseAlways = () => true;
 const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
-function appendEntry<K, V>(target: Map<K, V[]>, key: K, value: V): void {
-	if (target.has(key)) {
-		target.get(key)!.push(value);
-	} else {
-		target.set(key, [value]);
-	}
-}
-
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
@@ -91,6 +62,7 @@ export class CursorConfiguration {
 	public readonly tabSize: number;
 	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
+	public readonly stickyTabStops: boolean;
 	public readonly pageSize: number;
 	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
@@ -104,8 +76,7 @@ export class CursorConfiguration {
 	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
 	public readonly autoIndent: EditorAutoIndentStrategy;
-	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
-	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
+	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
 
@@ -143,6 +114,7 @@ export class CursorConfiguration {
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
+		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
 		this.useTabStops = options.get(EditorOption.useTabStops);
@@ -157,8 +129,6 @@ export class CursorConfiguration {
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
 
-		this.autoClosingPairsOpen2 = new Map<string, StandardAutoClosingPairConditional[]>();
-		this.autoClosingPairsClose2 = new Map<string, StandardAutoClosingPairConditional[]>();
 		this.surroundingPairs = {};
 		this._electricChars = null;
 
@@ -167,15 +137,7 @@ export class CursorConfiguration {
 			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
 		};
 
-		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
-		if (autoClosingPairs) {
-			for (const pair of autoClosingPairs) {
-				appendEntry(this.autoClosingPairsOpen2, pair.open.charAt(pair.open.length - 1), pair);
-				if (pair.close.length === 1) {
-					appendEntry(this.autoClosingPairsClose2, pair.close, pair);
-				}
-			}
-		}
+		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 
 		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
 		if (surroundingPairs) {
@@ -205,15 +167,6 @@ export class CursorConfiguration {
 	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
 		try {
 			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
-		} catch (e) {
-			onUnexpectedError(e);
-			return null;
-		}
-	}
-
-	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): StandardAutoClosingPairConditional[] | null {
-		try {
-			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;
@@ -357,62 +310,13 @@ export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: ITextModel;
-	public readonly viewModel: IViewModel;
-	public readonly config: CursorConfiguration;
+	public readonly coordinatesConverter: ICoordinatesConverter;
+	public readonly cursorConfig: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IViewModel) {
+	constructor(model: ITextModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		this.model = model;
-		this.viewModel = viewModel;
-		this.config = new CursorConfiguration(
-			this.model.getLanguageIdentifier(),
-			this.model.getOptions(),
-			configuration
-		);
-	}
-
-	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
-		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
-	}
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
-	}
-
-	public getCurrentScrollTop(): number {
-		return this.viewModel.viewLayout.getCurrentScrollTop();
-	}
-
-	public getCompletelyVisibleViewRange(): Range {
-		return this.viewModel.getCompletelyVisibleViewRange();
-	}
-
-	public getCompletelyVisibleModelRange(): Range {
-		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-	}
-
-	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
-		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
+		this.coordinatesConverter = coordinatesConverter;
+		this.cursorConfig = cursorConfig;
 	}
 }
 
@@ -652,14 +556,14 @@ export class CursorColumns {
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevRenderTabStop(column: number, tabSize: number): number {
 		return column - 1 - (column - 1) % tabSize;
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
 	 */
 	public static prevIndentTabStop(column: number, indentSize: number): number {
 		return column - 1 - (column - 1) % indentSize;

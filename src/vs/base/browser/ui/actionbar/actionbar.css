@@ -5,7 +5,6 @@
 
 .monaco-action-bar {
 	text-align: right;
-	overflow: hidden;
 	white-space: nowrap;
 }
 
@@ -19,10 +18,6 @@
 
 .monaco-action-bar.vertical .actions-container {
 	display: inline-block;
-}
-
-.monaco-action-bar.reverse .actions-container {
-	flex-direction: row-reverse;
 }
 
 .monaco-action-bar .action-item {
@@ -45,12 +40,18 @@
 	display: inline-block;
 }
 
+.monaco-action-bar .action-item .codicon {
+	display: flex;
+	align-items: center;
+}
+
 .monaco-action-bar .action-label {
 	font-size: 11px;
 	margin-right: 4px;
 }
 
 .monaco-action-bar .action-item.disabled .action-label,
+.monaco-action-bar .action-item.disabled .action-label::before,
 .monaco-action-bar .action-item.disabled .action-label:hover {
 	opacity: 0.4;
 }
@@ -91,4 +92,12 @@
 	align-items: center;
 	justify-content: center;
 	margin-right: 10px;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item {
+	display: flex;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-label {
+	margin-right: 1px;
 }

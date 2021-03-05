@@ -6,17 +6,6 @@
 (function () {
 	'use strict';
 
-	const registerVscodeResourceScheme = (function () {
-		let hasRegistered = false;
-		return () => {
-			if (hasRegistered) {
-				return;
-			}
-			hasRegistered = true;
-		};
-	}());
-
-	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
 	let isInDevelopmentMode = false;
@@ -25,6 +14,7 @@
 	 * @type {import('../../browser/pre/main').WebviewHost}
 	 */
 	const host = {
+		onElectron: true,
 		postMessage: (channel, data) => {
 			ipcRenderer.sendToHost(channel, data);
 		},
@@ -62,7 +52,10 @@
 				isMouseDown = false;
 			});
 			newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
-		}
+		},
+		rewriteCSP: (csp) => {
+			return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
+		},
 	};
 
 	host.onMessage('devtools-opened', () => {
@@ -70,8 +63,6 @@
 	});
 
 	document.addEventListener('DOMContentLoaded', () => {
-		registerVscodeResourceScheme();
-
 		// Forward messages from the embedded iframe
 		window.onmessage = (message) => {
 			ipcRenderer.sendToHost(message.data.command, message.data.data);

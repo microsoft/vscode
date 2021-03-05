@@ -19,7 +19,7 @@
 [ "${NETWORKING}" = "no" ] && exit 0
 
 PROG="/usr/bin/Xvfb"
-PROG_OPTIONS=":10 -ac"
+PROG_OPTIONS=":10 -ac -screen 0 1024x768x24"
 PROG_OUTPUT="/tmp/Xvfb.out"
 
 case "$1" in

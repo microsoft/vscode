@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, Uri } from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors } from '../utils';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, Uri, env } from 'vscode';
+import { createRandomFile, deleteFile, closeAllEditors, assertNoRpc } from '../utils';
 
-suite('editor tests', () => {
+suite('vscode API - editors', () => {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
 		return createRandomFile(initialContents).then(file => {
@@ -45,6 +48,32 @@ suite('editor tests', () => {
 				assert.ok(doc.isDirty);
 			});
 		});
+	});
+
+	test('insert snippet with clipboard variables', async function () {
+		const old = await env.clipboard.readText();
+
+		const newValue = 'INTEGRATION-TESTS';
+		await env.clipboard.writeText(newValue);
+
+		const actualValue = await env.clipboard.readText();
+
+		if (actualValue !== newValue) {
+			// clipboard not working?!?
+			this.skip();
+			return;
+		}
+
+		const snippetString = new SnippetString('running: $CLIPBOARD');
+
+		await withRandomFileEditor('', async (editor, doc) => {
+			const inserted = await editor.insertSnippet(snippetString);
+			assert.ok(inserted);
+			assert.equal(doc.getText(), 'running: INTEGRATION-TESTS');
+			assert.ok(doc.isDirty);
+		});
+
+		await env.clipboard.writeText(old);
 	});
 
 	test('insert snippet with replacement, editor selection', () => {
@@ -114,20 +143,25 @@ suite('editor tests', () => {
 	}
 
 	test('TextEditor.edit can control undo/redo stack 1', () => {
-		return withRandomFileEditor('Hello world!', (editor, doc) => {
-			return executeReplace(editor, new Range(0, 0, 0, 1), 'h', false, false).then(applied => {
-				assert.ok(applied);
-				assert.equal(doc.getText(), 'hello world!');
-				assert.ok(doc.isDirty);
-				return executeReplace(editor, new Range(0, 1, 0, 5), 'ELLO', false, false);
-			}).then(applied => {
-				assert.ok(applied);
-				assert.equal(doc.getText(), 'hELLO world!');
-				assert.ok(doc.isDirty);
-				return commands.executeCommand('undo');
-			}).then(_ => {
-				assert.equal(doc.getText(), 'Hello world!');
-			});
+		return withRandomFileEditor('Hello world!', async (editor, doc) => {
+			const applied1 = await executeReplace(editor, new Range(0, 0, 0, 1), 'h', false, false);
+			assert.ok(applied1);
+			assert.equal(doc.getText(), 'hello world!');
+			assert.ok(doc.isDirty);
+
+			const applied2 = await executeReplace(editor, new Range(0, 1, 0, 5), 'ELLO', false, false);
+			assert.ok(applied2);
+			assert.equal(doc.getText(), 'hELLO world!');
+			assert.ok(doc.isDirty);
+
+			await commands.executeCommand('undo');
+			if (doc.getText() === 'hello world!') {
+				// see https://github.com/microsoft/vscode/issues/109131
+				// it looks like an undo stop was inserted in between these two edits
+				// it is unclear why this happens, but it can happen for a multitude of reasons
+				await commands.executeCommand('undo');
+			}
+			assert.equal(doc.getText(), 'Hello world!');
 		});
 	});
 

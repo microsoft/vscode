@@ -14,17 +14,17 @@ const i18n = require('./lib/i18n');
 const standalone = require('./lib/standalone');
 const cp = require('child_process');
 const compilation = require('./lib/compilation');
-const monacoapi = require('./monaco/api');
+const monacoapi = require('./lib/monaco-api');
 const fs = require('fs');
 
-var root = path.dirname(__dirname);
-var sha1 = util.getVersion(root);
-var semver = require('./monaco/package.json').version;
-var headerVersion = semver + '(' + sha1 + ')';
+let root = path.dirname(__dirname);
+let sha1 = util.getVersion(root);
+let semver = require('./monaco/package.json').version;
+let headerVersion = semver + '(' + sha1 + ')';
 
 // Build
 
-var editorEntryPoints = [
+let editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
@@ -40,16 +40,16 @@ var editorEntryPoints = [
 	}
 ];
 
-var editorResources = [
-	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
+let editorResources = [
+	'out-editor-build/vs/base/browser/ui/codicons/**/*.ttf'
 ];
 
-var BUNDLED_FILE_HEADER = [
+let BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + headerVersion,
 	' * Released under the MIT license',
-	' * https://github.com/Microsoft/vscode/blob/master/LICENSE.txt',
+	' * https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 	' *-----------------------------------------------------------*/',
 	''
 ].join('\n');
@@ -70,13 +70,8 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			apiusages,
 			extrausages
 		],
-		libs: [
-			`lib.es5.d.ts`,
-			`lib.dom.d.ts`,
-			`lib.webworker.importscripts.d.ts`
-		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
-		importIgnorePattern: /(^vs\/css!)|(promise-polyfill\/polyfill)/,
+		importIgnorePattern: /(^vs\/css!)/,
 		destRoot: path.join(root, 'out-editor-src'),
 		redirects: []
 	});
@@ -129,6 +124,8 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 });
 
 const compileEditorESMTask = task.define('compile-editor-esm', () => {
+	const KEEP_PREV_ANALYSIS = false;
+	const FAIL_ON_PURPOSE = false;
 	console.log(`Launching the TS compiler at ${path.join(__dirname, '../out-editor-esm')}...`);
 	let result;
 	if (process.platform === 'win32') {
@@ -144,44 +141,48 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	console.log(result.stdout.toString());
 	console.log(result.stderr.toString());
 
-	if (result.status !== 0) {
+	if (FAIL_ON_PURPOSE || result.status !== 0) {
 		console.log(`The TS Compilation failed, preparing analysis folder...`);
 		const destPath = path.join(__dirname, '../../vscode-monaco-editor-esm-analysis');
-		return util.rimraf(destPath)().then(() => {
-			fs.mkdirSync(destPath);
-
-			// initialize a new repository
-			cp.spawnSync(`git`, [`init`], {
-				cwd: destPath
-			});
-
+		const keepPrevAnalysis = (KEEP_PREV_ANALYSIS && fs.existsSync(destPath));
+		const cleanDestPath = (keepPrevAnalysis ? Promise.resolve() : util.rimraf(destPath)());
+		return cleanDestPath.then(() => {
 			// build a list of files to copy
 			const files = util.rreddir(path.join(__dirname, '../out-editor-esm'));
 
-			// copy files from src
-			for (const file of files) {
-				const srcFilePath = path.join(__dirname, '../src', file);
-				const dstFilePath = path.join(destPath, file);
-				if (fs.existsSync(srcFilePath)) {
-					util.ensureDir(path.dirname(dstFilePath));
-					const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
-					fs.writeFileSync(dstFilePath, contents);
+			if (!keepPrevAnalysis) {
+				fs.mkdirSync(destPath);
+
+				// initialize a new repository
+				cp.spawnSync(`git`, [`init`], {
+					cwd: destPath
+				});
+
+				// copy files from src
+				for (const file of files) {
+					const srcFilePath = path.join(__dirname, '../src', file);
+					const dstFilePath = path.join(destPath, file);
+					if (fs.existsSync(srcFilePath)) {
+						util.ensureDir(path.dirname(dstFilePath));
+						const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
+						fs.writeFileSync(dstFilePath, contents);
+					}
 				}
+
+				// create an initial commit to diff against
+				cp.spawnSync(`git`, [`add`, `.`], {
+					cwd: destPath
+				});
+
+				// create the commit
+				cp.spawnSync(`git`, [`commit`, `-m`, `"original sources"`, `--no-gpg-sign`], {
+					cwd: destPath
+				});
 			}
 
-			// create an initial commit to diff against
-			cp.spawnSync(`git`, [`add`, `.`], {
-				cwd: destPath
-			});
-
-			// create the commit
-			cp.spawnSync(`git`, [`commit`, `-m`, `"original sources"`, `--no-gpg-sign`], {
-				cwd: destPath
-			});
-
-			// copy files from esm
+			// copy files from tree shaken src
 			for (const file of files) {
-				const srcFilePath = path.join(__dirname, '../out-editor-esm', file);
+				const srcFilePath = path.join(__dirname, '../out-editor-src', file);
 				const dstFilePath = path.join(destPath, file);
 				if (fs.existsSync(srcFilePath)) {
 					util.ensureDir(path.dirname(dstFilePath));
@@ -197,7 +198,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 });
 
 function toExternalDTS(contents) {
-	let lines = contents.split('\n');
+	let lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
 	for (let i = 0; i < lines.length; i++) {
 		let line = lines[i];
@@ -227,8 +228,13 @@ function toExternalDTS(contents) {
 		if (line.indexOf('declare namespace monaco.') === 0) {
 			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
 		}
+
+		if (line.indexOf('declare let MonacoEnvironment') === 0) {
+			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
+			// lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		}
 	}
-	return lines.join('\n');
+	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
 }
 
 function filterStream(testFunc) {
@@ -263,7 +269,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		// package.json
 		gulp.src('build/monaco/package.json')
 			.pipe(es.through(function (data) {
-				var json = JSON.parse(data.contents.toString());
+				let json = JSON.parse(data.contents.toString());
 				json.private = false;
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
@@ -273,7 +279,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		// version.txt
 		gulp.src('build/monaco/version.txt')
 			.pipe(es.through(function (data) {
-				data.contents = Buffer.from(`monaco-editor-core: https://github.com/Microsoft/vscode/tree/${sha1}`);
+				data.contents = Buffer.from(`monaco-editor-core: https://github.com/microsoft/vscode/tree/${sha1}`);
 				this.emit('data', data);
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core')),
@@ -307,10 +313,10 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 				return;
 			}
 
-			var relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
+			let relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
 
-			var strContents = data.contents.toString();
-			var newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
+			let strContents = data.contents.toString();
+			let newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
 			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
 
 			data.contents = Buffer.from(strContents);
@@ -326,6 +332,13 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
 	);
 });
+
+gulp.task('extract-editor-src',
+	task.series(
+		util.rimraf('out-editor-src'),
+		extractEditorSrcTask
+	)
+);
 
 gulp.task('editor-distro',
 	task.series(
@@ -353,6 +366,59 @@ gulp.task('editor-distro',
 	)
 );
 
+const bundleEditorESMTask = task.define('editor-esm-bundle-webpack', () => {
+	const webpack = require('webpack');
+	const webpackGulp = require('webpack-stream');
+
+	const result = es.through();
+
+	const webpackConfigPath = path.join(root, 'build/monaco/monaco.webpack.config.js');
+
+	const webpackConfig = {
+		...require(webpackConfigPath),
+		...{ mode: 'production' }
+	};
+
+	const webpackDone = (err, stats) => {
+		if (err) {
+			result.emit('error', err);
+			return;
+		}
+		const { compilation } = stats;
+		if (compilation.errors.length > 0) {
+			result.emit('error', compilation.errors.join('\n'));
+		}
+		if (compilation.warnings.length > 0) {
+			result.emit('data', compilation.warnings.join('\n'));
+		}
+	};
+
+	return webpackGulp(webpackConfig, webpack, webpackDone)
+		.pipe(gulp.dest('out-editor-esm-bundle'));
+});
+
+gulp.task('editor-esm-bundle',
+	task.series(
+		task.parallel(
+			util.rimraf('out-editor-src'),
+			util.rimraf('out-editor-esm'),
+			util.rimraf('out-monaco-editor-core'),
+			util.rimraf('out-editor-esm-bundle'),
+		),
+		extractEditorSrcTask,
+		createESMSourcesAndResourcesTask,
+		compileEditorESMTask,
+		bundleEditorESMTask,
+	)
+);
+
+gulp.task('monacodts', task.define('monacodts', () => {
+	const result = monacoapi.execute();
+	fs.writeFileSync(result.filePath, result.content);
+	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
+	return Promise.resolve(true);
+}));
+
 //#region monaco type checking
 
 function createTscCompileTask(watch) {
@@ -369,7 +435,7 @@ function createTscCompileTask(watch) {
 				// stdio: [null, 'pipe', 'inherit']
 			});
 			let errors = [];
-			let reporter = createReporter();
+			let reporter = createReporter('monaco');
 			let report;
 			// eslint-disable-next-line no-control-regex
 			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
@@ -391,10 +457,8 @@ function createTscCompileTask(watch) {
 						// e.g. src/vs/base/common/strings.ts(663,5): error TS2322: Type '1234' is not assignable to type 'string'.
 						let fullpath = path.join(root, match[1]);
 						let message = match[3];
-						// @ts-ignore
 						reporter(fullpath + message);
 					} else {
-						// @ts-ignore
 						reporter(str);
 					}
 				}

@@ -46,13 +46,13 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this._register(_editor.onDidChangeModel((e) => {
+		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
 		}));
-		this._register(_editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
-		this._register(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration((e) => {
+		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
+		this._register(ColorProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this._register(_editor.onDidChangeConfiguration(() => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
@@ -110,7 +110,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
+		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
 				this._timeoutTimer = new TimeoutTimer();
 				this._timeoutTimer.cancelAndSet(() => {
@@ -173,7 +173,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-			let subKey = hash(rgba).toString(16);
+			let subKey = hash(`rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a})`).toString(16);
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 			let key = 'colorBox-' + subKey;
 
@@ -192,7 +192,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 							border: 'solid 0.1em #eee'
 						}
 					}
-				});
+				}, undefined, this._editor);
 			}
 
 			newDecorationsTypes[key] = true;

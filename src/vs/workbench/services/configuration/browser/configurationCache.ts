@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 export class ConfigurationCache implements IConfigurationCache {
+
+	needsCaching(resource: URI): boolean {
+		// Cache all non user data resources
+		return resource.scheme !== Schemas.userData;
+	}
 
 	async read(key: ConfigurationKey): Promise<string> {
 		return '';

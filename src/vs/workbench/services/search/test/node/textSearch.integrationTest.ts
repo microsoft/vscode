@@ -11,6 +11,7 @@ import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from 'vs/workbench/services/search/common/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
+import { flakySuite } from 'vs/base/test/node/testUtils';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
@@ -46,8 +47,7 @@ function doSearchTest(query: ITextQuery, expectedResultCount: number | Function)
 	});
 }
 
-suite('Search-integration', function () {
-	this.timeout(1000 * 60); // increase timeout for this suite
+flakySuite('TextSearch-integration', function () {
 
 	test('Text: GameOfLife', () => {
 		const config: ITextQuery = {
@@ -370,7 +370,7 @@ suite('Search-integration', function () {
 			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				const searchError = deserializeSearchError(err.message);
+				const searchError = deserializeSearchError(err);
 				assert.equal(searchError.message, 'Unknown encoding: invalidEncoding');
 				assert.equal(searchError.code, SearchErrorCode.unknownEncoding);
 			});
@@ -386,8 +386,8 @@ suite('Search-integration', function () {
 			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				const searchError = deserializeSearchError(err.message);
-				let regexParseErrorForUnclosedParenthesis = 'Regex parse error: unmatched closing parenthesis';
+				const searchError = deserializeSearchError(err);
+				const regexParseErrorForUnclosedParenthesis = 'Regex parse error: unmatched closing parenthesis';
 				assert.equal(searchError.message, regexParseErrorForUnclosedParenthesis);
 				assert.equal(searchError.code, SearchErrorCode.regexParseError);
 			});
@@ -403,8 +403,8 @@ suite('Search-integration', function () {
 			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				const searchError = deserializeSearchError(err.message);
-				let regexParseErrorForLookAround = 'Regex parse error: lookbehind assertion is not fixed length';
+				const searchError = deserializeSearchError(err);
+				const regexParseErrorForLookAround = 'Regex parse error: lookbehind assertion is not fixed length';
 				assert.equal(searchError.message, regexParseErrorForLookAround);
 				assert.equal(searchError.code, SearchErrorCode.regexParseError);
 			});
@@ -424,7 +424,7 @@ suite('Search-integration', function () {
 			return doSearchTest(config, 0).then(() => {
 				throw new Error('expected fail');
 			}, err => {
-				const searchError = deserializeSearchError(err.message);
+				const searchError = deserializeSearchError(err);
 				assert.equal(searchError.message, 'Error parsing glob \'/{{}\': nested alternate groups are not allowed');
 				assert.equal(searchError.code, SearchErrorCode.globParseError);
 			});

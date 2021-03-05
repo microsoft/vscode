@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vscode';
+import { Event, Disposable, EventEmitter } from 'vscode';
 import { dirname, sep } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
@@ -33,31 +33,19 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 export const EmptyDisposable = toDisposable(() => null);
 
 export function fireEvent<T>(event: Event<T>): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(_ => (listener as any).call(thisArgs), null, disposables);
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(_ => (listener as any).call(thisArgs), null, disposables);
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
+	return (listener: (e: O) => any, thisArgs?: any, disposables?: Disposable[]) => event(i => listener.call(thisArgs, map(i)), null, disposables);
 }
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
-}
-
-export function latchEvent<T>(event: Event<T>): Event<T> {
-	let firstCall = true;
-	let cache: T;
-
-	return filterEvent(event, value => {
-		let shouldEmit = firstCall || value !== cache;
-		firstCall = false;
-		cache = value;
-		return shouldEmit;
-	});
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
 }
 
 export function anyEvent<T>(...events: Event<T>[]): Event<T> {
-	return (listener, thisArgs = null, disposables?) => {
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
 
 		if (disposables) {
@@ -73,7 +61,7 @@ export function done<T>(promise: Promise<T>): Promise<void> {
 }
 
 export function onceEvent<T>(event: Event<T>): Event<T> {
-	return (listener, thisArgs = null, disposables?) => {
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = event(e => {
 			result.dispose();
 			return listener.call(thisArgs, e);
@@ -84,7 +72,7 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 }
 
 export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
-	return (listener, thisArgs = null, disposables?) => {
+	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		let timer: NodeJS.Timer;
 		return event(e => {
 			clearTimeout(timer);
@@ -192,16 +180,6 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 		seen[key] = true;
 		return true;
 	};
-}
-
-export function firstIndex<T>(array: T[], fn: (t: T) => boolean): number {
-	for (let i = 0; i < array.length; i++) {
-		if (fn(array[i])) {
-			return i;
-		}
-	}
-
-	return -1;
 }
 
 export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
@@ -358,7 +336,7 @@ export function* splitInChunks(array: string[], maxChunkLength: number): Iterabl
 
 interface ILimitedTaskFactory<T> {
 	factory: () => Promise<T>;
-	c: (value?: T | Promise<T>) => void;
+	c: (value: T | Promise<T>) => void;
 	e: (error?: any) => void;
 }
 
@@ -397,6 +375,42 @@ export class Limiter<T> {
 
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
+		}
+	}
+}
+
+type Completion<T> = { success: true, value: T } | { success: false, err: any };
+
+export class PromiseSource<T> {
+
+	private _onDidComplete = new EventEmitter<Completion<T>>();
+
+	private _promise: Promise<T> | undefined;
+	get promise(): Promise<T> {
+		if (this._promise) {
+			return this._promise;
+		}
+
+		return eventToPromise(this._onDidComplete.event).then(completion => {
+			if (completion.success) {
+				return completion.value;
+			} else {
+				throw completion.err;
+			}
+		});
+	}
+
+	resolve(value: T): void {
+		if (!this._promise) {
+			this._promise = Promise.resolve(value);
+			this._onDidComplete.fire({ success: true, value });
+		}
+	}
+
+	reject(err: any): void {
+		if (!this._promise) {
+			this._promise = Promise.reject(err);
+			this._onDidComplete.fire({ success: false, err });
 		}
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 
 export interface WebviewInitData {
 	readonly isExtensionDevelopmentDebug: boolean;

@@ -7,9 +7,10 @@ import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { join } from 'vs/base/common/path';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ConfigurationModel', () => {
 
@@ -361,6 +362,17 @@ suite('CustomConfigurationModel', () => {
 
 suite('Configuration', () => {
 
+	test('Test inspect for overrideIdentifiers', () => {
+		const defaultConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 1 }, '[l2]': { 'b': 1 } });
+		const userConfigurationModel = parseConfigurationModel({ '[l3]': { 'a': 2 } });
+		const workspaceConfigurationModel = parseConfigurationModel({ '[l1]': { 'a': 3 }, '[l4]': { 'a': 3 } });
+		const testObject: Configuration = new Configuration(defaultConfigurationModel, userConfigurationModel, new ConfigurationModel(), workspaceConfigurationModel);
+
+		const { overrideIdentifiers } = testObject.inspect('a', {}, undefined);
+
+		assert.deepEqual(overrideIdentifiers, ['l1', 'l3', 'l4']);
+	});
+
 	test('Test update value', () => {
 		const parser = new ConfigurationModelParser('test');
 		parser.parseContent(JSON.stringify({ 'a': 1 }));
@@ -468,7 +480,7 @@ suite('Configuration', () => {
 
 	});
 
-	test('Test compare and deletre workspace folder configuration', () => {
+	test('Test compare and delete workspace folder configuration', () => {
 		const testObject = new Configuration(new ConfigurationModel(), new ConfigurationModel());
 		testObject.updateFolderConfiguration(URI.file('file1'), toConfigurationModel({
 			'editor.lineNumbers': 'off',
@@ -483,6 +495,12 @@ suite('Configuration', () => {
 		assert.deepEqual(actual, { keys: ['editor.lineNumbers', 'editor.fontSize', '[typescript]'], overrides: [['typescript', ['editor.wordWrap']]] });
 
 	});
+
+	function parseConfigurationModel(content: any): ConfigurationModel {
+		const parser = new ConfigurationModelParser('test');
+		parser.parseContent(JSON.stringify(content));
+		return parser.configurationModel;
+	}
 
 });
 

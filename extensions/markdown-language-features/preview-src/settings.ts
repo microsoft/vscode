@@ -5,7 +5,8 @@
 
 export interface PreviewSettings {
 	readonly source: string;
-	readonly line: number;
+	readonly line?: number;
+	readonly fragment?: string
 	readonly lineCount: number;
 	readonly scrollPreviewWithEditor?: boolean;
 	readonly scrollEditorWithPreview: boolean;

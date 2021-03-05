@@ -175,7 +175,7 @@ suite('Tests for Emmet actions on html tags', () => {
 		<li><span>Hello</span></li>
 		<li><span>There</span></li>
 		<div><li><span>Bye</span></li></div>
-\t
+\t\t
 		<span/>
 	</script>
 	`;

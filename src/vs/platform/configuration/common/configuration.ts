@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -83,10 +83,12 @@ export interface IConfigurationValue<T> {
 	readonly workspace?: { value?: T, override?: T };
 	readonly workspaceFolder?: { value?: T, override?: T };
 	readonly memory?: { value?: T, override?: T };
+
+	readonly overrideIdentifiers?: string[];
 }
 
 export interface IConfigurationService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
@@ -112,7 +114,7 @@ export interface IConfigurationService {
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T>;
 
-	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
+	reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void>;
 
 	keys(): {
 		default: string[];
@@ -263,8 +265,12 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 		curr = obj;
 	}
 
-	if (typeof curr === 'object') {
-		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+	if (typeof curr === 'object' && curr !== null) {
+		try {
+			curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
+		} catch (e) {
+			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
+		}
 	} else {
 		conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 	}
@@ -317,14 +323,16 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 
 export function merge(base: any, add: any, overwrite: boolean): void {
 	Object.keys(add).forEach(key => {
-		if (key in base) {
-			if (types.isObject(base[key]) && types.isObject(add[key])) {
-				merge(base[key], add[key], overwrite);
-			} else if (overwrite) {
+		if (key !== '__proto__') {
+			if (key in base) {
+				if (types.isObject(base[key]) && types.isObject(add[key])) {
+					merge(base[key], add[key], overwrite);
+				} else if (overwrite) {
+					base[key] = add[key];
+				}
+			} else {
 				base[key] = add[key];
 			}
-		} else {
-			base[key] = add[key];
 		}
 	});
 }
@@ -344,10 +352,6 @@ export function getDefaultValues(): any {
 	}
 
 	return valueTreeRoot;
-}
-
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
 }
 
 export function keyFromOverrideIdentifier(overrideIdentifier: string): string {

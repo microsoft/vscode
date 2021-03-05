@@ -8,7 +8,7 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
 const path = require('path');
-const tsb = require('gulp-tsb');
+const nodeUtil = require('util');
 const es = require('event-stream');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
@@ -16,19 +16,58 @@ const task = require('./lib/task');
 const watcher = require('./lib/watch');
 const createReporter = require('./lib/reporter').createReporter;
 const glob = require('glob');
-const sourcemaps = require('gulp-sourcemaps');
-const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
+const fancyLog = require('fancy-log');
+const ansiColors = require('ansi-colors');
 const ext = require('./lib/extensions');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
-const compilations = glob.sync('**/tsconfig.json', {
-	cwd: extensionsPath,
-	ignore: ['**/out/**', '**/node_modules/**']
-});
+// To save 250ms for each gulp startup, we are caching the result here
+// const compilations = glob.sync('**/tsconfig.json', {
+// 	cwd: extensionsPath,
+// 	ignore: ['**/out/**', '**/node_modules/**']
+// });
+const compilations = [
+	'configuration-editing/build/tsconfig.json',
+	'configuration-editing/tsconfig.json',
+	'css-language-features/client/tsconfig.json',
+	'css-language-features/server/tsconfig.json',
+	'debug-auto-launch/tsconfig.json',
+	'debug-server-ready/tsconfig.json',
+	'emmet/tsconfig.json',
+	'extension-editing/tsconfig.json',
+	'git-ui/tsconfig.json',
+	'git/tsconfig.json',
+	'github-authentication/tsconfig.json',
+	'github/tsconfig.json',
+	'grunt/tsconfig.json',
+	'gulp/tsconfig.json',
+	'html-language-features/client/tsconfig.json',
+	'html-language-features/server/tsconfig.json',
+	'image-preview/tsconfig.json',
+	'jake/tsconfig.json',
+	'json-language-features/client/tsconfig.json',
+	'json-language-features/server/tsconfig.json',
+	'markdown-language-features/preview-src/tsconfig.json',
+	'markdown-language-features/tsconfig.json',
+	'merge-conflict/tsconfig.json',
+	'microsoft-authentication/tsconfig.json',
+	'npm/tsconfig.json',
+	'php-language-features/tsconfig.json',
+	'search-result/tsconfig.json',
+	'simple-browser/tsconfig.json',
+	'testing-editor-contributions/tsconfig.json',
+	'typescript-language-features/test-workspace/tsconfig.json',
+	'typescript-language-features/tsconfig.json',
+	'vscode-api-tests/tsconfig.json',
+	'vscode-colorize-tests/tsconfig.json',
+	'vscode-custom-editor-tests/tsconfig.json',
+	'vscode-notebook-tests/tsconfig.json',
+	'vscode-test-resolver/tsconfig.json'
+];
 
 const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
 
@@ -60,7 +99,11 @@ const tasks = compilations.map(function (tsconfigFile) {
 	}
 
 	function createPipeline(build, emitError) {
-		const reporter = createReporter();
+		const nlsDev = require('vscode-nls-dev');
+		const tsb = require('gulp-tsb');
+		const sourcemaps = require('gulp-sourcemaps');
+
+		const reporter = createReporter('extensions');
 
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
@@ -161,9 +204,87 @@ gulp.task(compileExtensionsBuildLegacyTask);
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
 const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream().pipe(gulp.dest('.build'))),
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream().pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false).pipe(gulp.dest('.build'))),
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
 ));
 
 gulp.task(compileExtensionsBuildTask);
+gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask)));
+
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
+
+const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));
+gulp.task(compileWebExtensionsTask);
+exports.compileWebExtensionsTask = compileWebExtensionsTask;
+
+const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
+gulp.task(watchWebExtensionsTask);
+exports.watchWebExtensionsTask = watchWebExtensionsTask;
+
+async function buildWebExtensions(isWatch) {
+	const webpack = require('webpack');
+
+	const webpackConfigLocations = await nodeUtil.promisify(glob)(
+		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
+		{ ignore: ['**/node_modules'] }
+	);
+
+	const webpackConfigs = [];
+
+	for (const webpackConfigPath of webpackConfigLocations) {
+		const configOrFnOrArray = require(webpackConfigPath);
+		function addConfig(configOrFn) {
+			if (typeof configOrFn === 'function') {
+				webpackConfigs.push(configOrFn({}, {}));
+			} else {
+				webpackConfigs.push(configOrFn);
+			}
+		}
+		addConfig(configOrFnOrArray);
+	}
+	function reporter(fullStats) {
+		if (Array.isArray(fullStats.children)) {
+			for (const stats of fullStats.children) {
+				const outputPath = stats.outputPath;
+				if (outputPath) {
+					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
+					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
+					fancyLog(`Finished ${ansiColors.green('packaging web extension')} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
+				}
+				if (Array.isArray(stats.errors)) {
+					stats.errors.forEach(error => {
+						fancyLog.error(error);
+					});
+				}
+				if (Array.isArray(stats.warnings)) {
+					stats.warnings.forEach(warning => {
+						fancyLog.warn(warning);
+					});
+				}
+			}
+		}
+	}
+	return new Promise((resolve, reject) => {
+		if (isWatch) {
+			webpack(webpackConfigs).watch({}, (err, stats) => {
+				if (err) {
+					reject();
+				} else {
+					reporter(stats.toJson());
+				}
+			});
+		} else {
+			webpack(webpackConfigs).run((err, stats) => {
+				if (err) {
+					fancyLog.error(err);
+					reject();
+				} else {
+					reporter(stats.toJson());
+					resolve();
+				}
+			});
+		}
+	});
+}
+
+
