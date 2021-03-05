@@ -1342,9 +1342,7 @@ declare module 'vscode' {
 
 	export interface NotebookEditorSelectionChangeEvent {
 		readonly notebookEditor: NotebookEditor;
-		// @rebornix
-		// todo@API show NotebookCellRange[] instead
-		readonly selection?: NotebookCell;
+		readonly selections: ReadonlyArray<NotebookCellRange>
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
