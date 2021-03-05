@@ -19,7 +19,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import type { IThemable } from 'vs/base/common/styler';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfiguration } from 'vs/workbench/services/search/common/search';
 export interface IOptions {
 	placeholder?: string;
 	width?: number;
@@ -209,10 +208,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	}
 
 	protected getSubcontrolsWidth(): number {
-		if (this.configurationService.getValue<ISearchConfiguration>().search?.experimental?.searchInOpenEditors) {
-			return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
-		}
-		return super.getSubcontrolsWidth();
+		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
 	}
 
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
@@ -221,9 +217,6 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
 		}));
-		if (!this.configurationService.getValue<ISearchConfiguration>().search?.experimental?.searchInOpenEditors) {
-			return;
-		}
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
 			this._onChangeSearchInEditorsBoxEmitter.fire();
 			if (!viaKeyboard) {

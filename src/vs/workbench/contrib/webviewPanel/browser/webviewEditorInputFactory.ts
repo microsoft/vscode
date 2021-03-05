@@ -7,7 +7,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewInputOptions } from './webviewWorkbenchService';
 
@@ -69,7 +70,16 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		serializedEditorInput: string
 	): WebviewInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
-		return this._webviewWorkbenchService.reviveWebview(data.id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extension, data.group);
+		return this._webviewWorkbenchService.reviveWebview({
+			id: data.id,
+			viewType: data.viewType,
+			title: data.title,
+			iconPath: data.iconPath,
+			state: data.state,
+			options: data.options,
+			extension: data.extension,
+			group: data.group
+		});
 	}
 
 	protected fromJson(data: SerializedWebview): DeserializedWebview {

@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { Schemas } from 'vs/base/common/network';
@@ -21,13 +21,13 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -57,6 +57,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public remoteAuthority: string | undefined;
 	public os: platform.OperatingSystem | undefined;
 	public userHome: string | undefined;
+	public isDisconnected: boolean = false;
 
 	private _process: ITerminalChildProcess | null = null;
 	private _processType: ProcessType = ProcessType.Process;
@@ -68,9 +69,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
+	private _ptyResponsiveListener: IDisposable | undefined;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
+	private readonly _onPtyReconnect = this._register(new Emitter<void>());
+	public get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
+
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
@@ -96,6 +101,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return this._hasWrittenData;
 	}
 
+	private readonly _localTerminalService?: ILocalTerminalService;
+
 	constructor(
 		private readonly _instanceId: number,
 		private readonly _configHelper: ITerminalConfigHelper,
@@ -112,8 +119,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IPathService private readonly _pathService: IPathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
+		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService,
 	) {
 		super();
+		this._localTerminalService = localTerminalService;
+
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
@@ -148,10 +158,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		rows: number,
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalLaunchError | undefined> {
-		shellLaunchConfig.flowControl = this._configHelper.config.flowControl;
 		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
-			// Flow control is not supported for extension terminals
-			shellLaunchConfig.flowControl = false;
 			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
 		} else {
@@ -188,10 +195,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions;
 				this._process = await this._remoteTerminalService.createRemoteTerminalProcess(this._instanceId, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 			} else {
+				if (!this._localTerminalService) {
+					this._logService.trace(`Tried to launch a local terminal which is not supported in this window`);
+					return undefined;
+				}
 				// Flow control is not needed for ptys hosted in the same process (ie. the electron
 				// renderer).
 				if (shellLaunchConfig.attachPersistentProcess) {
-					const result = await this._terminalInstanceService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
+					const result = await this._localTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						this._process = result;
 					} else {
@@ -199,7 +210,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						return undefined;
 					}
 				} else {
-					this._process = await this._launchLocalProcess(shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
 			}
 		}
@@ -282,6 +293,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private async _launchLocalProcess(
+		localTerminalService: ILocalTerminalService,
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
@@ -323,8 +335,22 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 
-		this._terminalInstanceService.onPtyHostUnresponsive(() => this._onPtyDisconnect.fire());
-		return await this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
+		this._register(localTerminalService.onPtyHostUnresponsive(() => {
+			this.isDisconnected = true;
+			this._onPtyDisconnect.fire();
+		}));
+		this._ptyResponsiveListener = localTerminalService.onPtyHostResponsive(() => {
+			this.isDisconnected = false;
+			this._onPtyReconnect.fire();
+		});
+		this._register(toDisposable(() => this._ptyResponsiveListener?.dispose()));
+		this._register(localTerminalService.onPtyHostRestart(() => {
+			// When the pty host restarts, reconnect is no longer possible
+			this._ptyResponsiveListener?.dispose();
+			this._ptyResponsiveListener = undefined;
+		}));
+
+		return await localTerminalService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
 	}
 
 	public setDimensions(cols: number, rows: number): void {

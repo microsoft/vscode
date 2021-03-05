@@ -55,6 +55,8 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
 
+export const SUGGESTED_RENDERER_TYPE = 'terminal.integrated.suggestedRendererType';
+
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
 	LINE: 'line',
@@ -140,7 +142,6 @@ export interface ITerminalConfiguration {
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
 	enablePersistentSessions: boolean;
-	flowControl: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -246,10 +247,13 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
+	readonly isDisconnected: boolean;
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
 
 	readonly onPtyDisconnect: Event<void>;
+	readonly onPtyReconnect: Event<void>;
+
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;

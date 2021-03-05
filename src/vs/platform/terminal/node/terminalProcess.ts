@@ -188,14 +188,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(data => {
-			if (this._shellLaunchConfig.flowControl) {
-				this._unacknowledgedCharCount += data.length;
-				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
-					this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
-					this._isPtyPaused = true;
-					ptyProcess.pause();
-				}
+			// Handle flow control
+			this._unacknowledgedCharCount += data.length;
+			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
+				this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
+				this._isPtyPaused = true;
+				ptyProcess.pause();
 			}
+
+			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
@@ -369,9 +370,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public acknowledgeDataEvent(charCount: number): void {
-		if (!this._shellLaunchConfig.flowControl) {
-			return;
-		}
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
 		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
@@ -383,10 +381,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public clearUnacknowledgedChars(): void {
-		if (!this._shellLaunchConfig.flowControl) {
-			return;
-		}
-
 		this._unacknowledgedCharCount = 0;
 		this._logService.trace(`Flow control: Cleared all unacknowledged chars, forcing resume`);
 		if (this._isPtyPaused) {

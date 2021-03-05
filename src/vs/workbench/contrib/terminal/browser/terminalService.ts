@@ -14,12 +14,12 @@ import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalService, ITerminalTab, TerminalConnectionState, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalConnectionState, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
@@ -102,6 +102,8 @@ export class TerminalService implements ITerminalService {
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
 
+	private readonly _localTerminalService?: ILocalTerminalService;
+
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
@@ -116,8 +118,10 @@ export class TerminalService implements ITerminalService {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
+		this._localTerminalService = localTerminalService;
+
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
@@ -172,8 +176,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
+		if (!this._localTerminalService) {
+			return;
+		}
 		// Reattach to all local terminals
-		const layoutInfo = await this._terminalInstanceService.getTerminalLayoutInfo();
+		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			this._recreateTerminalTabs(layoutInfo);
 			// now that terminals have been restored,
@@ -317,11 +324,13 @@ export class TerminalService implements ITerminalService {
 		// windows
 		this.terminalInstances.forEach(instance => instance.dispose(!isWindows));
 
-		this._terminalInstanceService.setTerminalLayoutInfo(undefined);
+		this._localTerminalService!.setTerminalLayoutInfo(undefined);
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => {
+			return `${index + 1}: ${tab.title ? tab.title : ''}`;
+		});
 	}
 
 	public getFindState(): FindReplaceState {
@@ -343,7 +352,7 @@ export class TerminalService implements ITerminalService {
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
 		};
-		this._terminalInstanceService.setTerminalLayoutInfo(state);
+		this._localTerminalService!.setTerminalLayoutInfo(state);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {

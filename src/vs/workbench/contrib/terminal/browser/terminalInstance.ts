@@ -25,7 +25,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -156,6 +156,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get shellType(): TerminalShellType { return this._shellType; }
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
+	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -251,6 +252,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
+			}
+			if (e.affectsConfiguration('terminal.integrated.rendererType')) {
+				this._storageService.remove(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 			}
 		}));
 
@@ -418,7 +422,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
+			rendererType: (config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl') ? 'canvas' : config.rendererType,
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -659,11 +663,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// panel was initialized.
 		if (xterm.getOption('disableStdin')) {
 			this._attachPressAnyKeyToCloseListener(xterm);
-		}
-
-		const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
-		if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
-			this._measureRenderTime();
 		}
 	}
 
@@ -945,8 +944,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
-			// Use api source so it cannot be overridden
-			this.setTitle(nls.localize('ptyDisconnected', "{0} (disconnected)", this._title), TitleEventSource.Api);
+			this._onTitleChanged.fire(this);
+		});
+		this._processManager.onPtyReconnect(() => {
+			this._safeSetOption('disableStdin', false);
+			this._onTitleChanged.fire(this);
 		});
 
 		if (this._shellLaunchConfig.name) {
@@ -1026,9 +1028,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
-				if (this._shellLaunchConfig.flowControl) {
-					this._processManager.acknowledgeDataEvent(ev.data.length);
-				}
+				this._processManager.acknowledgeDataEvent(ev.data.length);
 			});
 		}
 	}
@@ -1307,13 +1307,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-		if (config.rendererType === 'experimentalWebgl') {
+		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+		if ((suggestedRendererType === 'auto' && config.rendererType === 'auto') || config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		} else {
-			this._webglAddon?.dispose();
-			this._webglAddon = undefined;
-			// Never set webgl as it's an addon not a rendererType
-			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
+			this._disposeOfWebglRenderer();
+			this._safeSetOption('rendererType', config.rendererType);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
@@ -1324,7 +1323,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
 		this._webglAddon = new Addon();
-		this._xterm.loadAddon(this._webglAddon);
+		try {
+			this._xterm.loadAddon(this._webglAddon);
+			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		} catch (e) {
+			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
+			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			// if it's already set to dom, no need to measure render time
+			if (!neverMeasureRenderTime && this._configHelper.config.rendererType !== 'dom') {
+				this._measureRenderTime();
+			}
+			this._safeSetOption('rendererType', 'canvas');
+			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'canvas', StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this._disposeOfWebglRenderer();
+		}
+	}
+
+	private _disposeOfWebglRenderer(): void {
+		this._webglAddon?.dispose();
+		this._webglAddon = undefined;
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {

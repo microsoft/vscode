@@ -40,7 +40,7 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 				EOL: '\n',
 			}]
 		});
-		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors, null!);
+		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors);
 	});
 
 	test('uses version id if document available', async () => {

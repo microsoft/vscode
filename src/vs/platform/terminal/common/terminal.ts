@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -65,12 +66,44 @@ export enum TerminalIpcChannels {
 	Heartbeat = 'heartbeat'
 }
 
+export interface IOffProcessTerminalService {
+	readonly _serviceBrand: undefined;
+
+	/** Fired when the ptyHost process goes down, losing all connections to the service's ptys. */
+	onPtyHostExit: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
+	 * previously disconnected terminals to reconnect.
+	 */
+	onPtyHostResponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
+	 * that its pty has been lost and will remain disconnected.
+	 */
+	onPtyHostRestart: Event<void>;
+
+	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+}
+
+export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
+export interface ILocalTerminalService extends IOffProcessTerminalService { }
+
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
+	readonly onPtyHostResponsive?: Event<void>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
@@ -224,11 +257,6 @@ export interface IShellLaunchConfig {
 	 * a terminal used to drive some VS Code feature.
 	 */
 	isFeatureTerminal?: boolean;
-
-	/**
-	 * Whether flow control is enabled for this terminal.
-	 */
-	flowControl?: boolean;
 
 	/**
 	 * Whether this terminal was created by an extension.

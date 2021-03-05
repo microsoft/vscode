@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellRange, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
 
@@ -85,28 +84,33 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 }
 
 export class ExtHostNotebookEditor {
-	private _selection?: vscode.NotebookCell;
-	private _selections: vscode.NotebookCellRange[] = [];
 
-	private _visibleRanges: extHostTypes.NotebookCellRange[] = [];
+	private _selections: vscode.NotebookCellRange[] = [];
+	private _visibleRanges: vscode.NotebookCellRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
-	private _active: boolean = false;
+
 	private _visible: boolean = false;
 	private _kernel?: vscode.NotebookKernel;
 
-	private _onDidDispose = new Emitter<void>();
+	private readonly _hasDecorationsForKey = new Set<string>();
+	private readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _hasDecorationsForKey: { [key: string]: boolean; } = Object.create(null);
 
-	private _editor: vscode.NotebookEditor | undefined;
+	private _editor?: vscode.NotebookEditor;
 
 	constructor(
 		readonly id: string,
 		private readonly _viewType: string,
 		private readonly _proxy: MainThreadNotebookShape,
 		readonly notebookData: ExtHostNotebookDocument,
+		visibleRanges: vscode.NotebookCellRange[],
+		selections: vscode.NotebookCellRange[],
+		viewColumn: vscode.ViewColumn | undefined
 	) {
+		this._selections = selections;
+		this._visibleRanges = visibleRanges;
+		this._viewColumn = viewColumn;
 	}
 
 	dispose() {
@@ -122,7 +126,8 @@ export class ExtHostNotebookEditor {
 					return that.notebookData.notebookDocument;
 				},
 				get selection() {
-					return that._selection;
+					const primarySelection = that._selections[0];
+					return primarySelection && that.notebookData.getCellFromIndex(primarySelection.start)?.cell;
 				},
 				get selections() {
 					return that._selections;
@@ -131,7 +136,11 @@ export class ExtHostNotebookEditor {
 					return that._visibleRanges;
 				},
 				revealRange(range, revealType) {
-					that._proxy.$tryRevealRange(that.id, extHostConverter.NotebookCellRange.from(range), revealType ?? extHostTypes.NotebookEditorRevealType.Default);
+					that._proxy.$tryRevealRange(
+						that.id,
+						extHostConverter.NotebookCellRange.from(range),
+						revealType ?? extHostTypes.NotebookEditorRevealType.Default
+					);
 				},
 				get viewColumn() {
 					return that._viewColumn;
@@ -163,34 +172,16 @@ export class ExtHostNotebookEditor {
 		return this._visible;
 	}
 
-	set visible(_state: boolean) {
-		throw readonly('visible');
-	}
-
 	_acceptVisibility(value: boolean) {
 		this._visible = value;
 	}
 
-	_acceptVisibleRanges(value: extHostTypes.NotebookCellRange[]): void {
+	_acceptVisibleRanges(value: vscode.NotebookCellRange[]): void {
 		this._visibleRanges = value;
 	}
 
-	_acceptSelections(selections: ICellRange[]): void {
-		const primarySelection = selections[0];
-		this._selection = primarySelection ? this.notebookData.getCellFromIndex(primarySelection.start)?.cell : undefined;
-		this._selections = selections.map(val => new extHostTypes.NotebookCellRange(val.start, val.end));
-	}
-
-	get active(): boolean {
-		return this._active;
-	}
-
-	set active(_state: boolean) {
-		throw readonly('active');
-	}
-
-	_acceptActive(value: boolean) {
-		this._active = value;
+	_acceptSelections(selections: vscode.NotebookCellRange[]): void {
+		this._selections = selections;
 	}
 
 	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
@@ -230,15 +221,14 @@ export class ExtHostNotebookEditor {
 	}
 
 	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookCellRange): void {
-		const willBeEmpty = (range.start === range.end);
-		if (willBeEmpty && !this._hasDecorationsForKey[decorationType.key]) {
+		if (range.isEmpty && !this._hasDecorationsForKey.has(decorationType.key)) {
 			// avoid no-op call to the renderer
 			return;
 		}
-		if (willBeEmpty) {
-			delete this._hasDecorationsForKey[decorationType.key];
+		if (range.isEmpty) {
+			this._hasDecorationsForKey.delete(decorationType.key);
 		} else {
-			this._hasDecorationsForKey[decorationType.key] = true;
+			this._hasDecorationsForKey.add(decorationType.key);
 		}
 
 		return this._proxy.$trySetDecorations(
