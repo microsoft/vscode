@@ -90,6 +90,15 @@ suite('Stream', () => {
 		assert.strictEqual(result, '');
 	});
 
+	test('WriteableStream - end with error works', async () => {
+		const reducer = (errors: Error[]) => errors.length > 0 ? errors[0] : null as unknown as Error;
+		const stream = newWriteableStream<Error>(reducer);
+		stream.end(new Error('error'));
+
+		const result = await consumeStream(stream, reducer);
+		assert.ok(result instanceof Error);
+	});
+
 	test('WriteableStream - removeListener', () => {
 		const stream = newWriteableStream<string>(strings => strings.join());
 
