@@ -111,6 +111,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
 		throw new Error('Method not implemented.');
 	}
+	updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	async beginComputeContributedKernels(): Promise<INotebookKernel[]> {
 		return [];
 	}

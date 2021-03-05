@@ -11,9 +11,11 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustModel, WorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustModel, WorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, IWorkspaceTrustFolderInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { EditorModel } from 'vs/workbench/common/editor';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { dirname, resolve } from 'vs/base/common/path';
 
 export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
@@ -153,23 +155,26 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 		}
 	}
 
-	getFolderTrustState(folder: URI): WorkspaceTrustState {
-		let result = WorkspaceTrustState.Unknown;
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustFolderInfo {
+		let resultState = WorkspaceTrustState.Unknown;
 		let maxLength = -1;
 
 		const folderPath = folder.fsPath;
+		let resultFolder = folderPath;
+
 		for (const trustInfo of this.trustStateInfo.localFolders) {
 			const trustInfoPath = URI.file(trustInfo.uri).fsPath;
 
 			if (isEqualOrParent(folderPath, trustInfoPath)) {
 				if (trustInfoPath.length > maxLength) {
 					maxLength = trustInfoPath.length;
-					result = trustInfo.trustState;
+					resultState = trustInfo.trustState;
+					resultFolder = trustInfoPath;
 				}
 			}
 		}
 
-		return result;
+		return { trustState: resultState, uri: resultFolder };
 	}
 
 	getTrustStateInfo(): IWorkspaceTrustStateInfo {
@@ -224,6 +229,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -232,6 +238,8 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 		this._workspace = this.workspaceService.getWorkspace();
 		this._currentTrustState = this.calculateWorkspaceTrustState();
+
+		this.logInitialWorkspaceTrustInfo();
 
 		this._register(this.dataModel.onDidChangeTrustState(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
@@ -261,6 +269,63 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		return this.editorModel;
 	}
 
+	private logInitialWorkspaceTrustInfo(): void {
+		if (!this.isWorkspaceTrustEnabled()) {
+			return;
+		}
+
+		type WorkspaceTrustInfoEventClassification = {
+			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			untrustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+
+		type WorkspaceTrustInfoEvent = {
+			trustedFoldersCount: number,
+			untrustedFoldersCount: number
+		};
+
+		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
+			trustedFoldersCount: this.dataModel.getTrustStateInfo().localFolders.filter(item => item.trustState === WorkspaceTrustState.Trusted).length,
+			untrustedFoldersCount: this.dataModel.getTrustStateInfo().localFolders.filter(item => item.trustState === WorkspaceTrustState.Untrusted).length
+		});
+	}
+
+	private logWorkspaceTrustFolderInfo(workspaceFolder: string, trustedFolder: string): void {
+		if (!this.isWorkspaceTrustEnabled()) {
+			return;
+		}
+
+		type WorkspaceTrustFolderInfoEventClassification = {
+			trustedFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			workspaceFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			delta: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+
+		type WorkspaceTrustFolderInfoEvent = {
+			trustedFolderDepth: number,
+			workspaceFolderDepth: number,
+			delta: number
+		};
+
+		const getDepth = (folder: string): number => {
+			let resolvedPath = resolve(folder);
+
+			let depth = 0;
+			while (dirname(resolvedPath) !== resolvedPath && depth < 100) {
+				resolvedPath = dirname(resolvedPath);
+				depth++;
+			}
+
+			return depth;
+		};
+
+		const workspaceFolderDepth = getDepth(workspaceFolder);
+		const trustedFolderDepth = getDepth(trustedFolder);
+		const delta = workspaceFolderDepth - trustedFolderDepth;
+
+		this.telemetryService.publicLog2<WorkspaceTrustFolderInfoEvent, WorkspaceTrustFolderInfoEventClassification>('workspaceFolderDepthBelowTrustedFolder', { workspaceFolderDepth, trustedFolderDepth, delta });
+	}
+
 	private calculateWorkspaceTrustState(): WorkspaceTrustState {
 		if (!this.isWorkspaceTrustEnabled()) {
 			return WorkspaceTrustState.Trusted;
@@ -272,17 +337,18 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 		let state = undefined;
 		for (const folder of this._workspace.folders) {
-			const folderTrust = this.dataModel.getFolderTrustState(folder.uri);
+			const { trustState, uri } = this.dataModel.getFolderTrustStateInfo(folder.uri);
 
-			switch (folderTrust) {
+			switch (trustState) {
 				case WorkspaceTrustState.Untrusted:
 					return WorkspaceTrustState.Untrusted;
 				case WorkspaceTrustState.Unknown:
-					state = folderTrust;
+					state = trustState;
 					break;
 				case WorkspaceTrustState.Trusted:
+					this.logWorkspaceTrustFolderInfo(folder.uri.fsPath, uri);
 					if (state === undefined) {
-						state = folderTrust;
+						state = trustState;
 					}
 					break;
 			}

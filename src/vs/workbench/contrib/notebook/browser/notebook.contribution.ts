@@ -46,8 +46,8 @@ import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/comm
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
-import { INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
-import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetServiceImpl';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorServiceImpl';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -735,7 +735,7 @@ registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
-registerSingleton(INotebookEditorWidgetService, NotebookEditorWidgetService, true);
+registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

@@ -261,6 +261,12 @@ export interface IShowMarkdownMessage {
 	top: number;
 }
 
+export interface IUpdateMarkdownPreviewSelectionState {
+	readonly type: 'updateMarkdownPreviewSelectionState',
+	readonly id: string;
+	readonly isSelected: boolean;
+}
+
 export interface IInitializeMarkdownMessage {
 	type: 'initializeMarkdownPreview';
 	cells: Array<{ cellId: string, content: string }>;
@@ -302,6 +308,7 @@ export type ToWebviewMessage =
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
 	| IUnhideMarkdownMessage
+	| IUpdateMarkdownPreviewSelectionState
 	| IInitializeMarkdownMessage
 	| IViewScrollMarkdownRequestMessage;
 
@@ -406,8 +413,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
-						width: calc(100% - ${this.options.leftMargin + this.options.cellMargin}px);
+						width: calc(100% - ${this.options.cellMargin}px);
 						padding-left: ${this.options.leftMargin}px;
+					}
+
+					#container > div > div.preview.selected {
+						background: var(--vscode-notebook-selectedCellBackground);
 					}
 
 					#container > div > div.preview img {
@@ -556,7 +567,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						background-color: var(--vscode-diffEditor-insertedTextBackground);
 					}
 
-					#container > div > div > div {
+					#container > div > div:not(.preview) > div {
 						overflow-x: scroll;
 					}
 
@@ -1101,6 +1112,30 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'removeMarkdownPreview',
 			id: cellId
+		});
+	}
+
+	async updateMarkdownPreviewSelectionState(cellId: any, isSelected: boolean) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'updateMarkdownPreviewSelectionState',
+			id: cellId,
+			isSelected
+		});
+	}
+
+	async updateMarkdownPreviewDecpratopms(cellId: any, isSelected: boolean) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'updateMarkdownPreviewSelectionState',
+			id: cellId,
+			isSelected
 		});
 	}
 

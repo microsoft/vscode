@@ -158,6 +158,7 @@ suite('Workbench - Test Results Service', () => {
 			const expected = r.getStateById('id-root')!;
 			delete expected.state.duration; // delete undefined props that don't survive serialization
 			delete expected.item.location;
+			delete expected.item.description;
 
 			assert.deepStrictEqual(actual, { ...expected, retired: true });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
