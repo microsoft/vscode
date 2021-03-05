@@ -85,14 +85,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
-	private _wrapInIframe(): boolean {
-		if (this._environmentService.options && typeof this._environmentService.options._wrapWebWorkerExtHostInIframe === 'boolean') {
-			return this._environmentService.options._wrapWebWorkerExtHostInIframe;
-		}
-		// wrap in <iframe> by default
-		return true;
-	}
-
 	private _webWorkerExtensionHostIframeSrc(): string | null {
 		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
 			return this._environmentService.options.webWorkerExtensionHostIframeSrc;
@@ -119,7 +111,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (!this._protocolPromise) {
 			if (platform.isWeb) {
 				const webWorkerExtensionHostIframeSrc = this._webWorkerExtensionHostIframeSrc();
-				if (webWorkerExtensionHostIframeSrc && this._wrapInIframe()) {
+				if (webWorkerExtensionHostIframeSrc) {
 					this._protocolPromise = this._startInsideIframe(webWorkerExtensionHostIframeSrc);
 				} else {
 					console.warn(`The web worker extension host is started without an iframe sandbox!`);

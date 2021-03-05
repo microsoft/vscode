@@ -324,13 +324,6 @@ interface IWorkbenchConstructionOptions {
 	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable `<iframe>` wrapping.
-	 * Defaults to false.
-	 */
-	readonly _wrapWebWorkerExtHostInIframe?: boolean;
-
-	/**
 	 * Support for URL callbacks.
 	 */
 	readonly urlCallbackProvider?: IURLCallbackProvider;
