@@ -587,9 +587,15 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		// Update the menu actions
-		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string) => {
+		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string): boolean => {
 			target.splice(0);
-			let groups = menu.getActions();
+			const groups = menu.getActions();
+			const actionCount = groups.reduce((r, g) => r + g[1].length, 0);
+
+			if (actionCount === 0) {
+				return false;
+			}
+
 			for (let group of groups) {
 				const [, actions] = group;
 
@@ -617,8 +623,9 @@ export class CustomMenubarControl extends MenubarControl {
 						}
 
 						const submenuActions: SubmenuAction[] = [];
-						updateActions(submenu, submenuActions, topLevelTitle);
-						target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
+						if (updateActions(submenu, submenuActions, topLevelTitle)) {
+							target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
+						}
 					} else {
 						const newAction = new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
 						newAction.tooltip = action.tooltip;
@@ -640,6 +647,7 @@ export class CustomMenubarControl extends MenubarControl {
 			}
 
 			target.pop();
+			return true;
 		};
 
 		for (const title of Object.keys(this.topLevelTitles)) {

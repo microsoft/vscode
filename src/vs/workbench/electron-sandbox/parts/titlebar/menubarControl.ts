@@ -105,8 +105,14 @@ export class NativeMenubarControl extends MenubarControl {
 		return true;
 	}
 
-	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
-		let groups = menu.getActions();
+	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }): boolean {
+		const groups = menu.getActions();
+		const actionCount = groups.reduce((r, g) => r + g[1].length, 0);
+
+		if (actionCount === 0) {
+			return false;
+		}
+
 		for (let group of groups) {
 			const [, actions] = group;
 
@@ -126,15 +132,17 @@ export class NativeMenubarControl extends MenubarControl {
 					}
 
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
-					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
-					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
-						id: menuItem.id,
-						label: title,
-						submenu: submenu
-					};
+					if (this.populateMenuItems(menuToDispose, submenu, keybindings)) {
+						let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+							id: menuItem.id,
+							label: title,
+							submenu: submenu
+						};
 
-					menuToPopulate.items.push(menubarSubmenuItem);
+						menuToPopulate.items.push(menubarSubmenuItem);
+					}
+
 					menuToDispose.dispose();
 				} else {
 					if (menuItem.id === 'workbench.action.openRecent') {
@@ -166,6 +174,8 @@ export class NativeMenubarControl extends MenubarControl {
 		if (menuToPopulate.items.length > 0) {
 			menuToPopulate.items.pop();
 		}
+
+		return true;
 	}
 
 	private transformOpenRecentAction(action: Separator | (IAction & { uri: URI })): MenubarMenuItem {
