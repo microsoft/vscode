@@ -64,7 +64,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellEditable: true,
 	cellRunnable: true,
 	cellHasExecutionOrder: true,
-	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
 	runState: NotebookRunState.Idle,
 	trusted: true
@@ -76,7 +75,6 @@ export interface NotebookDocumentMetadata {
 	cellEditable: boolean;
 	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
-	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
 	runState?: NotebookRunState;
 	trusted: boolean;
@@ -510,20 +508,12 @@ function matchGlobUniversal(pattern: string, path: string) {
 }
 
 
-function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], documentDisplayOrder: string[], defaultOrder: string[]) {
+function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], defaultOrder: string[]) {
 	let order = 0;
 	for (let i = 0; i < userDisplayOrder.length; i++) {
 		if (matchGlobUniversal(userDisplayOrder[i], mimeType)) {
 			return order;
 		}
-		order++;
-	}
-
-	for (let i = 0; i < documentDisplayOrder.length; i++) {
-		if (matchGlobUniversal(documentDisplayOrder[i], mimeType)) {
-			return order;
-		}
-
 		order++;
 	}
 
@@ -538,12 +528,8 @@ function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], document
 	return order;
 }
 
-export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], documentDisplayOrder: string[], defaultOrder: string[]) {
-	const sorted = mimeTypes.sort((a, b) => {
-		return getMimeTypeOrder(a, userDisplayOrder, documentDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, documentDisplayOrder, defaultOrder);
-	});
-
-	return sorted;
+export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], defaultOrder: string[]) {
+	return mimeTypes.sort((a, b) => getMimeTypeOrder(a, userDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, defaultOrder));
 }
 
 interface IMutableSplice<T> extends ISplice<T> {

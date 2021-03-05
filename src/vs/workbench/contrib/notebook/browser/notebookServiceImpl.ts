@@ -619,11 +619,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	}
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[] {
-		// TODO@rebornix no string[] casting
-		return this._getOrderedMimeTypes(textModel, output, textModel.metadata.displayOrder as string[] ?? []);
-	}
 
-	private _getOrderedMimeTypes(textModel: NotebookTextModel, output: IOutputDto, documentDisplayOrder: string[]): IOrderedMimeType[] {
 		const mimeTypeSet = new Set<string>();
 		let mimeTypes: string[] = [];
 		output.outputs.forEach(op => {
@@ -633,7 +629,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 			}
 		});
 		const coreDisplayOrder = this._displayOrder;
-		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
+		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder ?? [], coreDisplayOrder?.defaultOrder ?? []);
 
 		const orderMimeTypes: IOrderedMimeType[] = [];
 
