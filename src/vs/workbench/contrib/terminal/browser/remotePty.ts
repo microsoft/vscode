@@ -23,13 +23,12 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
-	// TODO: This never gets fired
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
-	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	private _startBarrier: Barrier;
 
@@ -169,6 +168,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 	handleTitleChanged(e: string) {
 		this._onProcessTitleChanged.fire(e);
+	}
+	handleShellTypeChanged(e: TerminalShellType | undefined) {
+		this._onProcessShellTypeChanged.fire(e);
 	}
 	handleOverrideDimensions(e: ITerminalDimensionsOverride | undefined) {
 		this._onProcessOverrideDimensions.fire(e);

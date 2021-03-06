@@ -60,6 +60,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			});
 			channel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
 			channel.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
+			channel.onProcessShellTypeChanged(e => this._ptys.get(e.id)?.handleShellTypeChanged(e.event));
 			channel.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
 			channel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
