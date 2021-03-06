@@ -267,7 +267,7 @@ suite('Comparers', () => {
 
 		// dotfile comparisons
 		assert(compareFileExtensionsDefault('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileExtensionsDefault('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
+		assert(compareFileExtensionsDefault('.env', '.env.aaa') > 0, 'dotfiles with the same root sort longest first');
 
 		// dotfile vs non-dotfile comparisons
 		assert(compareFileExtensionsDefault('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
