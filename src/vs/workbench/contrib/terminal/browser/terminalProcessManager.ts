@@ -59,6 +59,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public userHome: string | undefined;
 	public isDisconnected: boolean = false;
 
+	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
 	private _processType: ProcessType = ProcessType.Process;
 	private _preLaunchInputQueue: string[] = [];
@@ -137,6 +138,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public dispose(immediate: boolean = false): void {
+		this._isDisposed = true;
 		if (this._process) {
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
@@ -207,6 +209,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
 				this._setupPtyHostListeners(this._remoteTerminalService);
+				if (!this._isDisposed) {
+					this._setupPtyHostListeners(this._remoteTerminalService);
+				}
 			} else {
 				if (!this._localTerminalService) {
 					this._logService.trace(`Tried to launch a local terminal which is not supported in this window`);
@@ -223,8 +228,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				} else {
 					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
-				this._setupPtyHostListeners(this._localTerminalService);
+				if (!this._isDisposed) {
+					this._setupPtyHostListeners(this._localTerminalService);
+				}
 			}
+		}
+
+		if (this._isDisposed) {
+			this._process.shutdown(false);
+			return undefined;
 		}
 
 		this.processState = ProcessState.LAUNCHING;

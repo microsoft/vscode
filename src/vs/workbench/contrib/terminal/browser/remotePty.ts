@@ -176,8 +176,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._onProcessOverrideDimensions.fire(e);
 	}
 	handleResolvedShellLaunchConfig(e: IShellLaunchConfig) {
-		// TODO: Revive shell launch config
-		console.log('handleResolvedShellLaunchConfig', e);
 		this._onProcessResolvedShellLaunchConfig.fire(e);
 	}
 
@@ -200,7 +198,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 
 	handleOrphanQuestion() {
-		console.log('handle orphan question', this._id);
 		this._remoteTerminalChannel.orphanQuestionReply(this._id);
 	}
 
@@ -212,6 +209,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 }
 
+// TODO: Revive?
 // function reviveIShellLaunchConfig(dto: IShellLaunchConfigDto): IShellLaunchConfig {
 // 	return {
 // 		name: dto.name,

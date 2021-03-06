@@ -971,6 +971,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _createProcess(): void {
+		if (this._isDisposed) {
+			return;
+		}
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
