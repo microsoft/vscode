@@ -25,6 +25,8 @@ import { assertNoRpc } from '../utils';
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
 		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
+		// Disable env var relaunch for tests to prevent terminals relaunching themselves
+		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {
