@@ -182,9 +182,10 @@ class NotebookClipboardContribution extends Disposable {
 					? firstSelectIndex
 					: viewModel.notebookDocument.cells.length - 1;
 
-				viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, selections: viewModel.getSelections() }, () => {
+				viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => {
 					return {
 						kind: SelectionStateType.Index,
+						focus: { start: newFocusedCellIndex, end: newFocusedCellIndex + 1 },
 						selections: [{ start: newFocusedCellIndex, end: newFocusedCellIndex + 1 }]
 					};
 				}, undefined, true);

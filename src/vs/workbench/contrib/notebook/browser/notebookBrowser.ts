@@ -318,7 +318,6 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
-	// selection is never undefined when the editor is attached to a document.
 	getFocus(): ICellRange;
 }
 
@@ -331,7 +330,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	// from the old IEditor
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
-	getSelection(): ICellRange | undefined;
 	getSelections(): ICellRange[];
 	visibleRanges: ICellRange[];
 	textModel?: NotebookTextModel;
