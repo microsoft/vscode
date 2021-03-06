@@ -122,28 +122,26 @@ export function compareFileExtensionsDefault(one: string | null, other: string |
 	return compareAndDisambiguateByLength(collatorNumeric, one, other);
 }
 
-const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
+/** Extracts the name and extension from a full filename */
+function extractNameAndExtension(str?: string | null): [string, string] {
+	const match = str ? str.split('.') : [];
 
-/** Extracts the name and extension from a full filename, with optional special handling for dotfiles */
-function extractNameAndExtension(str?: string | null, dotfilesAsNames = false): [string, string] {
-	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
-
-	let result: [string, string] = [(match && match[1]) || '', (match && match[3]) || ''];
-
-	// if the dotfilesAsNames option is selected, treat an empty filename with an extension,
-	// or a filename that starts with a dot, as a dotfile name
-	if (dotfilesAsNames && (!result[0] && result[1] || result[0] && result[0].charAt(0) === '.')) {
-		result = [result[0] + '.' + result[1], ''];
+	if (match.length === 1) {
+		return [match[0], ''];
 	}
 
-	return result;
+	return [match.slice(0, match.length - 1).join('.'), match[match.length - 1] || ''];
 }
 
-/** Extracts the extension from a full filename. Treats dotfiles as names, not extensions. */
+/** Extracts the extension from a full filename */
 function extractExtension(str?: string | null): string {
-	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
+	const match = str ? str.split('.') : [];
 
-	return (match && match[1] && match[1].charAt(0) !== '.' && match[3]) || '';
+	if (match.length === 1) {
+		return '';
+	}
+
+	return match[match.length - 1] || '';
 }
 
 function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, other: string) {
