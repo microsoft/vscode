@@ -208,7 +208,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				} else {
 					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
-				this._setupPtyHostListeners(this._remoteTerminalService);
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
 				}
