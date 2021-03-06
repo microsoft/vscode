@@ -2053,11 +2053,11 @@ registerThemingParticipant((theme, collector) => {
 
 	const selectedCellBackgroundColor = theme.getColor(selectedCellBackground);
 	if (selectedCellBackground) {
-		collector.addRule(`.notebookOverlay .monaco-list .markdown-cell-row.selected { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list .code-cell-row.selected .cell-focus-indicator-top { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list .code-cell-row.selected .cell-focus-indicator-left { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list .code-cell-row.selected .cell-focus-indicator-right { background-color: ${selectedCellBackgroundColor} !important; }`);
-		collector.addRule(`.notebookOverlay .monaco-list .code-cell-row.selected .cell-focus-indicator-bottom { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .markdown-cell-row.selected { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-top { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-left { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-right { background-color: ${selectedCellBackgroundColor} !important; }`);
+		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-bottom { background-color: ${selectedCellBackgroundColor} !important; }`);
 	}
 
 	const cellHoverBackgroundColor = theme.getColor(cellHoverBackground);
