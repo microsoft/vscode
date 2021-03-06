@@ -194,18 +194,26 @@ import { assertNoRpc } from '../utils';
 				disposables.push(tasks.onDidStartTaskProcess(async (e) => {
 					console.log('tasks.onDidStartTaskProcess fired');
 					await taskExecutionShouldBeSet;
+					console.log('tasks.onDidStartTaskProcess success?', e.execution === taskExecution);
 					if (e.execution === taskExecution) {
 						startSucceeded = true;
 						progressMade.fire();
+					} else {
+						console.log('e.execution', e.execution);
+						console.log('taskExecution', taskExecution);
 					}
 				}));
 
 				disposables.push(tasks.onDidEndTaskProcess(async (e) => {
 					console.log('tasks.onDidEndTaskProcess fired');
 					await taskExecutionShouldBeSet;
+					console.log('tasks.onDidEndTaskProcess success?', e.execution === taskExecution);
 					if (e.execution === taskExecution) {
 						endSucceeded = true;
 						progressMade.fire();
+					} else {
+						console.log('e.execution', e.execution);
+						console.log('taskExecution', taskExecution);
 					}
 				}));
 
