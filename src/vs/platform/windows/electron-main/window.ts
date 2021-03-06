@@ -410,7 +410,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.dispose();
 		});
 
-		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+		const svgFileSchemes = new Set([
+			Schemas.file,
+			Schemas.vscodeFileResource,
+			Schemas.vscodeRemoteResource,
+			Schemas.http,
+			Schemas.https,
+			'devtools'
+		]);
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
 			// Prevent loading of remote svgs
