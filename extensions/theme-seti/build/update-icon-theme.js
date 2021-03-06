@@ -27,7 +27,7 @@ let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"kotlin": { extensions: ['kt'] },
 	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
 	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
-	"ocaml": { extensions: ['ml', 'mli'] },
+	"ocaml": { extensions: ['ml', 'mli', 'mll', 'mly', 'eliom', 'eliomi'] },
 	"puppet": { extensions: ['puppet'] },
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
 	"sass": { extensions: ['sass'] },
