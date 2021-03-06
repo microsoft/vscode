@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -27,6 +27,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
+	// TODO: This never gets fired
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	private _startBarrier: Barrier;
 

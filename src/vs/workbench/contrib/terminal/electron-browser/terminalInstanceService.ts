@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
 import { getSystemShell } from 'vs/base/node/shell';
@@ -10,10 +11,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import { createVariableResolver, getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { WindowsShellHelper } from 'vs/workbench/contrib/terminal/electron-browser/windowsShellHelper';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -21,6 +18,7 @@ import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import { createVariableResolver, getDefaultShell, getDefaultShellArgs } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -67,10 +65,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}
 		return WebglAddon;
-	}
-
-	public createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper {
-		return new WindowsShellHelper(shellProcessId, xterm);
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {

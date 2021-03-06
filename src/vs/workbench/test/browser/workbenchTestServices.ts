@@ -1477,7 +1477,6 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	createWindowsShellHelper(shellProcessId: number, xterm: any): any { throw new Error('Method not implemented.'); }
 }
 
-
 export class TestLocalTerminalService implements ILocalTerminalService {
 	declare readonly _serviceBrand: undefined;
 
@@ -1507,7 +1506,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	onProcessExit = Event.None;
 	onProcessReady = Event.None;
 	onProcessTitleChanged = Event.None;
-
+	onProcessShellTypeChanged = Event.None;
 	async start(): Promise<undefined> { return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }

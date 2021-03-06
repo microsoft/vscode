@@ -212,4 +212,3 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.getTerminalLayoutInfo();
 	}
 }
-
