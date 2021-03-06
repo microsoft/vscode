@@ -310,28 +310,27 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	public input(data: string): void {
+	public input(data: string, isBinary?: boolean): void {
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
 		for (let i = 0; i <= Math.floor(data.length / WRITE_MAX_CHUNK_SIZE); i++) {
 			this._writeQueue.push(data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE));
 		}
-		this._startWrite();
+		this._startWrite(isBinary);
 	}
 
 	public writeBinary(data: string): void {
-		this._logService.trace('IPty#writeBinary', `${data.length} characters`);
-		this._ptyProcess!.write(Buffer.from(data, 'binary').toString('binary'));
+		this.input(data, true);
 	}
 
-	private _startWrite(): void {
+	private _startWrite(isBinary?: boolean): void {
 		// Don't write if it's already queued of is there is nothing to write
 		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
 			return;
 		}
 
-		this._doWrite();
+		this._doWrite(isBinary);
 
 		// Don't queue more writes if the queue is empty
 		if (this._writeQueue.length === 0) {
@@ -346,10 +345,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}, WRITE_INTERVAL_MS);
 	}
 
-	private _doWrite(): void {
+	private _doWrite(isBinary?: boolean): void {
 		const data = this._writeQueue.shift()!;
-		this._logService.trace('IPty#write', `${data.length} characters`);
-		this._ptyProcess!.write(data);
+		if (isBinary) {
+			this._logService.trace('IPty#writeBinary', `${data.length} characters`);
+			this._ptyProcess!.write(Buffer.from(data, 'binary').toString('binary'));
+		} else {
+			this._logService.trace('IPty#write', `${data.length} characters`);
+			this._ptyProcess!.write(data);
+		}
 	}
 
 	public resize(cols: number, rows: number): void {
