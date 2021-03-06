@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -34,7 +34,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -48,6 +48,8 @@ import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
+import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -168,7 +170,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private index: number = 0;
 	private change: IChange | undefined;
 	private height: number | undefined = undefined;
-	private contextKeyService: IContextKeyService;
 
 	constructor(
 		editor: ICodeEditor,
@@ -176,16 +177,17 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		this.contextKeyService = contextKeyService.createScoped();
-		this.contextKeyService.createKey('originalResourceScheme', this.model.original!.uri.scheme);
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
+		const contextKeyService = _contextKeyService.createOverlay([
+			['originalResourceScheme', this.model.original!.uri.scheme]
+		]);
+		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
 
 		this.create();
 		if (editor.hasModel()) {
@@ -244,18 +246,21 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	protected _fillHead(container: HTMLElement): void {
-		super._fillHead(container);
+		super._fillHead(container, true);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'codicon-arrow-up');
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'codicon-arrow-down');
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), ThemeIcon.asClassName(gotoNextLocation));
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
-		this._actionbarWidget!.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
 		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
-		this._actionbarWidget!.push(actions, { label: false, icon: true });
+		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
+		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
+		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, async () => {
+			this.dispose();
+		}), { label: false, icon: true });
 	}
 
 	protected _getActionBarOptions(): IActionBarOptions {
@@ -270,8 +275,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		return {
 			...super._getActionBarOptions(),
-			actionRunner,
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			actionRunner
 		};
 	}
 
@@ -563,20 +567,57 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
+	private gutterActionDisposables = new DisposableStore();
+	private stylesheet: HTMLStyleElement;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
+		this.stylesheet = createStyleSheet();
+		this._register(toDisposable(() => this.stylesheet.remove()));
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
-			this._register(editor.onMouseDown(e => this.onEditorMouseDown(e)));
-			this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 			this._register(editor.onDidChangeModel(() => this.close()));
+
+			const onDidChangeGutterAction = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterAction'));
+			this._register(onDidChangeGutterAction(this.onDidChangeGutterAction, this));
+			this.onDidChangeGutterAction();
+		}
+	}
+
+	private onDidChangeGutterAction(): void {
+		const gutterAction = this.configurationService.getValue<'diff' | 'none'>('scm.diffDecorationsGutterAction');
+
+		this.gutterActionDisposables.dispose();
+		this.gutterActionDisposables = new DisposableStore();
+
+		if (gutterAction === 'diff') {
+			this.gutterActionDisposables.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+			this.gutterActionDisposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+			this.stylesheet.textContent = `
+				.monaco-editor .dirty-diff-glyph {
+					cursor: pointer;
+				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
+					width: 9px;
+					left: -6px;
+				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after {
+					bottom: 0;
+					border-top-width: 0;
+					border-bottom-width: 0;
+				}
+			`;
+		} else {
+			this.stylesheet.textContent = ``;
 		}
 	}
 
@@ -797,6 +838,11 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		}
 
 		return model.changes;
+	}
+
+	dispose(): void {
+		this.gutterActionDisposables.dispose();
+		super.dispose();
 	}
 }
 

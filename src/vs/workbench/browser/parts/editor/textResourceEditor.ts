@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { assertIsDefined, isFunction, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { TextEditorOptions, EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -16,7 +16,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Event } from 'vs/base/common/event';
 import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -51,7 +50,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			return this.input.getName();
 		}
 
-		return nls.localize('textEditor', "Text Editor");
+		return localize('textEditor', "Text Editor");
 	}
 
 	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -158,12 +157,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		// Otherwise save it
 		else {
-			super.saveTextEditorViewState(resource);
-
-			// Make sure to clean up when the input gets disposed
-			Event.once(input.onDispose)(() => {
-				super.clearTextEditorViewState([resource]);
-			});
+			super.saveTextEditorViewState(resource, input);
 		}
 	}
 }

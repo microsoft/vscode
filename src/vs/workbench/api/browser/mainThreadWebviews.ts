@@ -8,14 +8,12 @@ import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IWebviewOptions } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { Webview, WebviewExtensionDescription, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInputOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
 
@@ -42,6 +40,10 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public addWebview(handle: extHostProtocol.WebviewHandle, webview: WebviewOverlay): void {
+		if (this._webviews.has(handle)) {
+			throw new Error('Webview already registered');
+		}
+
 		this._webviews.set(handle, webview);
 		this.hookupWebviewEventDelegate(handle, webview);
 	}
@@ -51,9 +53,9 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		webview.html = value;
 	}
 
-	public $setOptions(handle: extHostProtocol.WebviewHandle, options: IWebviewOptions): void {
+	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewOptions): void {
 		const webview = this.getWebview(handle);
-		webview.contentOptions = reviveWebviewOptions(options);
+		webview.contentOptions = reviveWebviewContentOptions(options);
 	}
 
 	public async $postMessage(handle: extHostProtocol.WebviewHandle, message: any): Promise<boolean> {
@@ -78,7 +80,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private onDidClickLink(handle: extHostProtocol.WebviewHandle, link: string): void {
 		const webview = this.getWebview(handle);
 		if (this.isSupportedLink(webview, URI.parse(link))) {
-			this._openerService.open(link, { fromUserGesture: true });
+			this._openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true });
 		}
 	}
 
@@ -116,10 +118,11 @@ export function reviveWebviewExtension(extensionData: extHostProtocol.WebviewExt
 	return { id: extensionData.id, location: URI.revive(extensionData.location) };
 }
 
-export function reviveWebviewOptions(options: IWebviewOptions): WebviewInputOptions {
+export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWebviewOptions): WebviewContentOptions {
 	return {
-		...options,
-		allowScripts: options.enableScripts,
-		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(r => URI.revive(r)) : undefined,
+		allowScripts: webviewOptions.enableScripts,
+		enableCommandUris: webviewOptions.enableCommandUris,
+		localResourceRoots: Array.isArray(webviewOptions.localResourceRoots) ? webviewOptions.localResourceRoots.map(r => URI.revive(r)) : undefined,
+		portMapping: webviewOptions.portMapping,
 	};
 }

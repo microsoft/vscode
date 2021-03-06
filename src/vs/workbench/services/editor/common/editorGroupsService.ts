@@ -21,16 +21,6 @@ export const enum GroupDirection {
 	RIGHT
 }
 
-export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
-	const openSideBySideDirection = configurationService.getValue<'right' | 'down'>('workbench.editor.openSideBySideDirection');
-
-	if (openSideBySideDirection === 'down') {
-		return GroupDirection.DOWN;
-	}
-
-	return GroupDirection.RIGHT;
-}
-
 export const enum GroupOrientation {
 	HORIZONTAL,
 	VERTICAL
@@ -147,7 +137,7 @@ export interface IEditorGroupsService {
 	 * An event for when the active editor group changes. The active editor
 	 * group is the default location for new editors to open.
 	 */
-	readonly onDidActiveGroupChange: Event<IEditorGroup>;
+	readonly onDidChangeActiveGroup: Event<IEditorGroup>;
 
 	/**
 	 * An event for when a new group was added.
@@ -177,7 +167,7 @@ export interface IEditorGroupsService {
 	/**
 	 * An event for when the index of a group changes.
 	 */
-	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+	readonly onDidChangeGroupIndex: Event<IEditorGroup>;
 
 	/**
 	 * The size of the editor groups area.
@@ -339,7 +329,7 @@ export interface IEditorGroupsService {
 	/**
 	 * An event that notifies when editor part options change.
 	 */
-	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Enforce editor part options temporarily.
@@ -595,3 +585,18 @@ export interface IEditorGroup {
 	 */
 	focus(): void;
 }
+
+
+//#region Editor Group Helpers
+
+export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
+	const openSideBySideDirection = configurationService.getValue<'right' | 'down'>('workbench.editor.openSideBySideDirection');
+
+	if (openSideBySideDirection === 'down') {
+		return GroupDirection.DOWN;
+	}
+
+	return GroupDirection.RIGHT;
+}
+
+//#endregion

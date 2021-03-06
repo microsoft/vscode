@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
-
 (function () {
+	'use strict';
+
 	const bootstrap = bootstrapLib();
 	const bootstrapWindow = bootstrapWindowLib();
 
@@ -15,10 +15,7 @@
 
 	// Load shared process into window
 	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
-		sharedProcess.startup({
-			machineId: configuration.machineId,
-			windowId: configuration.windowId
-		});
+		return sharedProcess.main(configuration);
 	});
 
 
@@ -41,5 +38,4 @@
 	}
 
 	//#endregion
-
 }());

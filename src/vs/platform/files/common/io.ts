@@ -46,7 +46,11 @@ export async function readFileIntoStream<T>(
 			error = options.errorTransformer(error);
 		}
 
-		target.end(error);
+		if (typeof error !== 'undefined') {
+			target.error(error);
+		}
+
+		target.end();
 	}
 }
 
@@ -58,10 +62,11 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 	// open handle through provider
 	const handle = await provider.open(resource, { create: false });
 
-	// Check for cancellation
-	throwIfCancelled(token);
-
 	try {
+
+		// Check for cancellation
+		throwIfCancelled(token);
+
 		let totalBytesRead = 0;
 		let bytesRead = 0;
 		let allowedRemainingBytes = (options && typeof options.length === 'number') ? options.length : undefined;

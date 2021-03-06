@@ -101,7 +101,6 @@ suite('PagedModel', () => {
 	test('preemptive cancellation works', async function () {
 		const pager = new TestPager(() => {
 			assert(false);
-			return Promise.resolve([]);
 		});
 
 		const model = new PagedModel(pager);

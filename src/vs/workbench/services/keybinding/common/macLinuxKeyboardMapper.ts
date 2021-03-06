@@ -8,52 +8,9 @@ import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-
-export interface IMacLinuxKeyMapping {
-	value: string;
-	withShift: string;
-	withAltGr: string;
-	withShiftAltGr: string;
-}
-
-function macLinuxKeyMappingEquals(a: IMacLinuxKeyMapping, b: IMacLinuxKeyMapping): boolean {
-	if (!a && !b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-	return (
-		a.value === b.value
-		&& a.withShift === b.withShift
-		&& a.withAltGr === b.withAltGr
-		&& a.withShiftAltGr === b.withShiftAltGr
-	);
-}
-
-export interface IMacLinuxKeyboardMapping {
-	[scanCode: string]: IMacLinuxKeyMapping;
-}
-
-export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping | null, b: IMacLinuxKeyboardMapping | null): boolean {
-	if (!a && !b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-	for (let scanCode = 0; scanCode < ScanCode.MAX_VALUE; scanCode++) {
-		const strScanCode = ScanCodeUtils.toString(scanCode);
-		const aEntry = a[strScanCode];
-		const bEntry = b[strScanCode];
-		if (!macLinuxKeyMappingEquals(aEntry, bEntry)) {
-			return false;
-		}
-	}
-	return true;
-}
+import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 /**
  * A map from character to key codes.
@@ -109,6 +66,22 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 
 	protected _getDispatchPart(keybinding: ScanCodeBinding): string | null {
 		return this._mapper.getDispatchStrForScanCodeBinding(keybinding);
+	}
+
+	protected _getSingleModifierDispatchPart(keybinding: ScanCodeBinding): string | null {
+		if ((keybinding.scanCode === ScanCode.ControlLeft || keybinding.scanCode === ScanCode.ControlRight) && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'ctrl';
+		}
+		if ((keybinding.scanCode === ScanCode.AltLeft || keybinding.scanCode === ScanCode.AltRight) && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.metaKey) {
+			return 'alt';
+		}
+		if ((keybinding.scanCode === ScanCode.ShiftLeft || keybinding.scanCode === ScanCode.ShiftRight) && !keybinding.ctrlKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'shift';
+		}
+		if ((keybinding.scanCode === ScanCode.MetaLeft || keybinding.scanCode === ScanCode.MetaRight) && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.altKey) {
+			return 'meta';
+		}
+		return null;
 	}
 }
 

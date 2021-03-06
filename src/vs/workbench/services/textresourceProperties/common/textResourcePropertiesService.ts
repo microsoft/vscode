@@ -8,7 +8,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -46,7 +46,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 			if (resource && resource.scheme !== Schemas.file) {
 				const osCacheKey = `resource.authority.os.${remoteAuthority}`;
 				os = this.remoteEnvironment ? this.remoteEnvironment.os : /* Get it from cache */ this.storageService.getNumber(osCacheKey, StorageScope.WORKSPACE, OS);
-				this.storageService.store(osCacheKey, os, StorageScope.WORKSPACE);
+				this.storageService.store(osCacheKey, os, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		}
 

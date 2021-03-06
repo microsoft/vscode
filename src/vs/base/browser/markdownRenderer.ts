@@ -15,10 +15,10 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { renderCodicons } from 'vs/base/browser/codicons';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 
@@ -28,7 +28,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
-	codeBlockRenderCallback?: () => void;
+	asyncRenderCallback?: () => void;
 	baseUrl?: URI;
 }
 
@@ -156,7 +156,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 	renderer.paragraph = (text): string => {
 		if (markdown.supportThemeIcons) {
-			const elements = renderCodicons(text);
+			const elements = renderLabelWithIcons(text);
 			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 		}
 		return `<p>${text}</p>`;
@@ -177,8 +177,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				// ignore
 			});
 
-			if (options.codeBlockRenderCallback) {
-				promise.then(options.codeBlockRenderCallback);
+			if (options.asyncRenderCallback) {
+				promise.then(options.asyncRenderCallback);
 			}
 
 			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
@@ -218,7 +218,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// We always pass the output through insane after this so that we don't rely on
 	// marked for sanitization.
 	markedOptions.sanitizer = (html: string): string => {
-		const match = markdown.isTrusted ? html.match(/^(<span[^<]+>)|(<\/\s*span>)$/) : undefined;
+		const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
 		return match ? html : '';
 	};
 	markedOptions.sanitize = true;
@@ -233,16 +233,27 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 	// escape theme icons
 	if (markdown.supportThemeIcons) {
-		value = markdownEscapeEscapedCodicons(value);
+		value = markdownEscapeEscapedIcons(value);
 	}
 
 	const renderedMarkdown = marked.parse(value, markedOptions);
 
 	// sanitize with insane
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown);
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
+
+	// signal size changes for image tags
+	if (options.asyncRenderCallback) {
+		for (const img of element.getElementsByTagName('img')) {
+			const listener = DOM.addDisposableListener(img, 'load', () => {
+				listener.dispose();
+				options.asyncRenderCallback!();
+			});
+		}
+	}
+
 
 	return element;
 }
@@ -250,13 +261,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean },
 	renderedMarkdown: string,
-): string {
+): string | TrustedHTML {
 	const insaneOptions = getInsaneOptions(options);
-	if (_ttpInsane) {
-		return _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
-	} else {
-		return insane(renderedMarkdown, insaneOptions);
-	}
+	return _ttpInsane?.createHTML(renderedMarkdown, insaneOptions) ?? insane(renderedMarkdown, insaneOptions);
 }
 
 function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOptions {
@@ -291,12 +298,12 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 			'td': ['align']
 		},
 		filter(token: { tag: string; attrs: { readonly [key: string]: string; }; }): boolean {
-			if (token.tag === 'span' && options.isTrusted && (Object.keys(token.attrs).length === 1)) {
-				if (token.attrs['style']) {
+			if (token.tag === 'span' && options.isTrusted) {
+				if (token.attrs['style'] && (Object.keys(token.attrs).length === 1)) {
 					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
 				} else if (token.attrs['class']) {
 					// The class should match codicon rendering in src\vs\base\common\codicons.ts
-					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
+					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/);
 				}
 				return false;
 			}
@@ -305,3 +312,87 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 	};
 }
 
+/**
+ * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
+ */
+export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
+	const renderer = new marked.Renderer();
+
+	renderer.code = (code: string): string => {
+		return code;
+	};
+	renderer.blockquote = (quote: string): string => {
+		return quote;
+	};
+	renderer.html = (_html: string): string => {
+		return '';
+	};
+	renderer.heading = (text: string, _level: 1 | 2 | 3 | 4 | 5 | 6, _raw: string): string => {
+		return text + '\n';
+	};
+	renderer.hr = (): string => {
+		return '';
+	};
+	renderer.list = (body: string, _ordered: boolean): string => {
+		return body;
+	};
+	renderer.listitem = (text: string): string => {
+		return text + '\n';
+	};
+	renderer.paragraph = (text: string): string => {
+		return text + '\n';
+	};
+	renderer.table = (header: string, body: string): string => {
+		return header + body + '\n';
+	};
+	renderer.tablerow = (content: string): string => {
+		return content;
+	};
+	renderer.tablecell = (content: string, _flags: {
+		header: boolean;
+		align: 'center' | 'left' | 'right' | null;
+	}): string => {
+		return content + ' ';
+	};
+	renderer.strong = (text: string): string => {
+		return text;
+	};
+	renderer.em = (text: string): string => {
+		return text;
+	};
+	renderer.codespan = (code: string): string => {
+		return code;
+	};
+	renderer.br = (): string => {
+		return '\n';
+	};
+	renderer.del = (text: string): string => {
+		return text;
+	};
+	renderer.image = (_href: string, _title: string, _text: string): string => {
+		return '';
+	};
+	renderer.text = (text: string): string => {
+		return text;
+	};
+	renderer.link = (_href: string, _title: string, text: string): string => {
+		return text;
+	};
+	// values that are too long will freeze the UI
+	let value = markdown.value ?? '';
+	if (value.length > 100_000) {
+		value = `${value.substr(0, 100_000)}…`;
+	}
+
+	const unescapeInfo = new Map<string, string>([
+		['&quot;', '"'],
+		['&amp;', '&'],
+		['&#39;', '\''],
+		['&lt;', '<'],
+		['&gt;', '>'],
+	]);
+
+	const html = marked.parse(value, { renderer }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+}

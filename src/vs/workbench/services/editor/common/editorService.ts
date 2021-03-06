@@ -28,10 +28,10 @@ export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
 export interface IOpenEditorOverrideEntry {
-	id: string;
-	label: string;
-	active: boolean;
-	detail?: string;
+	readonly id: string;
+	readonly label: string;
+	readonly active: boolean;
+	readonly detail?: string;
 }
 
 export interface IOpenEditorOverrideHandler {
@@ -72,18 +72,6 @@ export interface IBaseSaveRevertAllEditorOptions {
 export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
 
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
-
-export interface ICustomEditorInfo {
-	readonly id: string;
-	readonly displayName: string;
-	readonly providerDisplayName: string;
-}
-
-export interface ICustomEditorViewTypesHandler {
-	readonly onDidChangeViewTypes: Event<void>;
-
-	getViewTypes(): ICustomEditorInfo[];
-}
 
 export interface IEditorService {
 
@@ -175,7 +163,7 @@ export interface IEditorService {
 	 * identifier.
 	 *
 	 * @param order the order of the editors to use
-	 * @param options wether to exclude sticky editors or not
+	 * @param options whether to exclude sticky editors or not
 	 */
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
 
@@ -234,6 +222,11 @@ export interface IEditorService {
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
+	 * Find the existing editors for a given resource.
+	 */
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[];
+
+	/**
 	 * Get all available editor overrides for the editor input.
 	 */
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
@@ -244,13 +237,6 @@ export interface IEditorService {
 	 * operation to open a different editor.
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
-
-	/**
-	 * Register handlers for custom editor view types.
-	 * The handler will provide all available custom editors registered
-	 * and also notify the editor service when a custom editor view type is registered/unregistered.
-	 */
-	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.

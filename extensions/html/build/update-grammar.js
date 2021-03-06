@@ -5,7 +5,7 @@
 // @ts-check
 'use strict';
 
-var updateGrammar = require('../../../build/npm/update-grammar');
+var updateGrammar = require('vscode-grammar-updater');
 
 function patchGrammar(grammar) {
 	let patchCount = 0;

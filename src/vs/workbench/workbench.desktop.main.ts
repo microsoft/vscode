@@ -23,13 +23,6 @@ import 'vs/workbench/workbench.sandbox.main';
 //#endregion
 
 
-//#region --- workbench actions
-
-import 'vs/workbench/electron-browser/actions/developerActions';
-
-//#endregion
-
-
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
 // NOTE: Please do NOT register services here. Use `registerSingleton()`
@@ -66,24 +59,11 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/search/electron-browser/searchService';
-import 'vs/workbench/services/output/electron-browser/outputChannelModelService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
-import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
-import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
-import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
-import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/workbench/services/userDataSync/electron-browser/storageKeysSyncRegistryService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreManagementService';
-import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
-import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
-import 'vs/workbench/services/localizations/electron-browser/localizationsService';
-import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
+import 'vs/workbench/services/backup/electron-browser/backupFileService';
+import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
+
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
@@ -96,12 +76,6 @@ import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
-
-registerSingleton(ITunnelService, TunnelService);
 
 //#endregion
 
@@ -119,10 +93,6 @@ registerSingleton(ITunnelService, TunnelService);
 
 
 //#region --- workbench contributions
-
-// Tags
-import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
-import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
@@ -183,8 +153,6 @@ import 'vs/workbench/contrib/cli/node/cli.contribution';
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 
-// User Data Sync
-import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

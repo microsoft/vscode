@@ -24,7 +24,7 @@ export interface IMouseMoveCallback<R> {
 }
 
 export interface IOnStopCallback {
-	(): void;
+	(browserEvent?: MouseEvent | KeyboardEvent): void;
 }
 
 export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData | null, currentEvent: MouseEvent): IStandardMouseMoveEventData {
@@ -50,7 +50,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._hooks.dispose();
 	}
 
-	public stopMonitoring(invokeStopCallback: boolean): void {
+	public stopMonitoring(invokeStopCallback: boolean, browserEvent?: MouseEvent | KeyboardEvent): void {
 		if (!this.isMonitoring()) {
 			// Not monitoring
 			return;
@@ -64,7 +64,7 @@ export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements I
 		this._onStopCallback = null;
 
 		if (invokeStopCallback && onStopCallback) {
-			onStopCallback();
+			onStopCallback(browserEvent);
 		}
 	}
 

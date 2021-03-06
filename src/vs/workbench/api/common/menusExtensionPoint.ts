@@ -44,6 +44,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorTitle', "The editor title menu")
 	},
 	{
+		key: 'editor/title/run',
+		id: MenuId.EditorTitleRun,
+		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
+	},
+	{
 		key: 'editor/context',
 		id: MenuId.EditorContext,
 		description: localize('menus.editorContext', "The editor context menu")
@@ -74,17 +79,17 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.debugToolBar', "The debug toolbar menu")
 	},
 	{
-		key: 'menuBar/webNavigation',
-		id: MenuId.MenubarWebNavigationMenu,
-		description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
-		proposed: true,
-		supportsSubmenus: false
-	},
-	{
 		key: 'menuBar/file',
 		id: MenuId.MenubarFileMenu,
 		description: localize('menus.file', "The top level file menu"),
 		proposed: true
+	},
+	{
+		key: 'menuBar/home',
+		id: MenuId.MenubarHomeMenu,
+		description: localize('menus.home', "The home indicator context menu (web only)"),
+		proposed: true,
+		supportsSubmenus: false
 	},
 	{
 		key: 'scm/title',
@@ -162,6 +167,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: true
 	},
 	{
+		key: 'testing/item/context',
+		id: MenuId.TestItem,
+		description: localize('testing.item.title', "The contributed test item menu"),
+		proposed: true
+	},
+	{
 		key: 'extension/context',
 		id: MenuId.ExtensionContext,
 		description: localize('menus.extensionContext', "The extension context menu")
@@ -176,6 +187,16 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.TimelineItemContext,
 		description: localize('view.timelineContext', "The Timeline view item context menu")
 	},
+	{
+		key: 'ports/item/context',
+		id: MenuId.TunnelContext,
+		description: localize('view.tunnelContext', "The Ports view item context menu")
+	},
+	{
+		key: 'ports/item/origin/inline',
+		id: MenuId.TunnelOriginInline,
+		description: localize('view.tunnelOriginInline', "The Ports view item origin inline menu")
+	}
 ];
 
 namespace schema {
@@ -337,7 +358,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.submenu.icon', '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -461,11 +482,11 @@ namespace schema {
 				type: 'string'
 			},
 			enablement: {
-				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command'),
+				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command in the UI (menu and keybindings). Does not prevent executing the command by other means, like the `executeCommand`-api.'),
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -620,6 +641,7 @@ submenusExtensionPoint.setHandler(extensions => {
 
 const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
+const _submenuMenuItems = new Map<number /* menu id */, Set<number /* submenu id */>>();
 
 const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
 	extensionPoint: 'menus',
@@ -631,6 +653,7 @@ menusExtensionPoint.setHandler(extensions => {
 
 	// remove all previous menu registrations
 	_menuRegistrations.clear();
+	_submenuMenuItems.clear();
 
 	const items: { id: MenuId, item: IMenuItem | ISubmenuItem }[] = [];
 
@@ -697,6 +720,20 @@ menusExtensionPoint.setHandler(extensions => {
 						collector.error(localize('missing.submenu', "Menu item references a submenu `{0}` which is not defined in the 'submenus' section.", menuItem.submenu));
 						continue;
 					}
+
+					let submenuRegistrations = _submenuMenuItems.get(menu.id.id);
+
+					if (!submenuRegistrations) {
+						submenuRegistrations = new Set();
+						_submenuMenuItems.set(menu.id.id, submenuRegistrations);
+					}
+
+					if (submenuRegistrations.has(submenu.id.id)) {
+						collector.warn(localize('submenuItem.duplicate', "The `{0}` submenu was already contributed to the `{1}` menu.", menuItem.submenu, entry.key));
+						continue;
+					}
+
+					submenuRegistrations.add(submenu.id.id);
 
 					item = { submenu: submenu.id, icon: submenu.icon, title: submenu.label, group: undefined, order: undefined, when: undefined };
 				}

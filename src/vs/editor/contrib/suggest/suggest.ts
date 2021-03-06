@@ -6,7 +6,6 @@
 import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import * as modes from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -18,16 +17,21 @@ import { isDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifec
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
 
 export const Context = {
-	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
-	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false),
-	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
-	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
-	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
-	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined),
-	CanResolve: new RawContextKey('suggestionCanResolve', false),
+	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible")),
+	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
+	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
+	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true, localize('acceptSuggestionOnEnter', "Whether suggestions are inserted when pressing Enter")),
+	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false, localize('suggestionHasInsertAndReplaceRange', "Whether the current suggestion has insert and replace behaviour")),
+	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined, { type: 'string', description: localize('suggestionInsertMode', "Whether the default behaviour is to insert or replace") }),
+	CanResolve: new RawContextKey('suggestionCanResolve', false, localize('suggestionCanResolve', "Whether the current suggestion supports to resolve further details")),
 };
 
 export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
@@ -341,31 +345,42 @@ export function getSuggestionComparator(snippetConfig: SnippetSortOrder): (a: Co
 	return _snippetComparators.get(snippetConfig)!;
 }
 
-registerDefaultLanguageCommand('_executeCompletionItemProvider', async (model, position, args) => {
+CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (accessor, ...args: [URI, IPosition, string?, number?]) => {
+	const [uri, position, triggerCharacter, maxItemsToResolve] = args;
+	assertType(URI.isUri(uri));
+	assertType(Position.isIPosition(position));
+	assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
+	assertType(typeof maxItemsToResolve === 'number' || !maxItemsToResolve);
 
-	const result: modes.CompletionList = {
-		incomplete: false,
-		suggestions: []
-	};
-
-	const resolving: Promise<any>[] = [];
-	const maxItemsToResolve = args['maxItemsToResolve'] || 0;
-
-	const completions = await provideSuggestionItems(model, position);
-	for (const item of completions.items) {
-		if (resolving.length < maxItemsToResolve) {
-			resolving.push(item.resolve(CancellationToken.None));
-		}
-		result.incomplete = result.incomplete || item.container.incomplete;
-		result.suggestions.push(item.completion);
-	}
-
+	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
-		await Promise.all(resolving);
-		return result;
+
+		const result: modes.CompletionList = {
+			incomplete: false,
+			suggestions: []
+		};
+
+		const resolving: Promise<any>[] = [];
+		const completions = await provideSuggestionItems(ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerCharacter ? modes.CompletionTriggerKind.TriggerCharacter : modes.CompletionTriggerKind.Invoke });
+		for (const item of completions.items) {
+			if (resolving.length < (maxItemsToResolve ?? 0)) {
+				resolving.push(item.resolve(CancellationToken.None));
+			}
+			result.incomplete = result.incomplete || item.container.incomplete;
+			result.suggestions.push(item.completion);
+		}
+
+		try {
+			await Promise.all(resolving);
+			return result;
+		} finally {
+			setTimeout(() => completions.disposable.dispose(), 100);
+		}
+
 	} finally {
-		setTimeout(() => completions.disposable.dispose(), 100);
+		ref.dispose();
 	}
+
 });
 
 interface SuggestController extends IEditorContribution {

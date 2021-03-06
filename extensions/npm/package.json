@@ -28,7 +28,10 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.11.7"
+    "@types/node": "^12.19.9"
+  },
+  "resolutions": {
+    "which-pm/load-yaml-file/**/argparse": "1.0.9"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",
@@ -59,7 +62,8 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "icon": "images/code.svg",
+          "when": "npm:showScriptExplorer",
+          "icon": "$(json)",
           "visibility": "hidden"
         }
       ]
@@ -225,6 +229,12 @@
             "yarn",
             "pnpm"
           ],
+          "enumDescriptions": [
+            "%config.npm.packageManager.auto%",
+            "%config.npm.packageManager.npm%",
+            "%config.npm.packageManager.yarn%",
+            "%config.npm.packageManager.pnpm%"
+          ],
           "default": "auto",
           "description": "%config.npm.packageManager%"
         },
@@ -302,5 +312,9 @@
         "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

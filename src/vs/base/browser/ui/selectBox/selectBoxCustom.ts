@@ -29,6 +29,7 @@ const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 interface ISelectListTemplateData {
 	root: HTMLElement;
 	text: HTMLElement;
+	detail: HTMLElement;
 	decoratorRight: HTMLElement;
 	disposables: IDisposable[];
 }
@@ -42,6 +43,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
+		data.detail = dom.append(container, $('.option-detail'));
 		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
 
 		return data;
@@ -49,12 +51,16 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 	renderElement(element: ISelectOptionItem, index: number, templateData: ISelectListTemplateData): void {
 		const data: ISelectListTemplateData = templateData;
+
 		const text = element.text;
+		const detail = element.detail;
 		const decoratorRight = element.decoratorRight;
+
 		const isDisabled = element.isDisabled;
 
 		data.text.textContent = text;
-		data.decoratorRight.innerText = (!!decoratorRight ? decoratorRight : '');
+		data.detail.textContent = !!detail ? detail : '';
+		data.decoratorRight.innerText = !!decoratorRight ? decoratorRight : '';
 
 		// pseudo-select disabled option
 		if (isDisabled) {
@@ -287,14 +293,20 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	public focus(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = 0;
 			this.selectElement.focus();
 		}
 	}
 
 	public blur(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = -1;
 			this.selectElement.blur();
 		}
+	}
+
+	public setFocusable(focusable: boolean): void {
+		this.selectElement.tabIndex = focusable ? 0 : -1;
 	}
 
 	public render(container: HTMLElement): void {
@@ -662,7 +674,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			let longestLength = 0;
 
 			this.options.forEach((option, index) => {
-				const len = option.text.length + (!!option.decoratorRight ? option.decoratorRight.length : 0);
+				const detailLength = !!option.detail ? option.detail.length : 0;
+				const rightDecoratorLength = !!option.decoratorRight ? option.decoratorRight.length : 0;
+
+				const len = option.text.length + detailLength + rightDecoratorLength;
 				if (len > longestLength) {
 					longest = index;
 					longestLength = len;
@@ -697,6 +712,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					let label = element.text;
+					if (element.detail) {
+						label += `. ${element.detail}`;
+					}
+
 					if (element.decoratorRight) {
 						label += `. ${element.decoratorRight}`;
 					}
@@ -723,8 +742,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(e => this.onUpArrow(e), this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(e => this.onDownArrow(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDown, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this));
@@ -903,8 +922,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	// List navigation - have to handle a disabled option (jump over)
-	private onDownArrow(): void {
+	private onDownArrow(e: StandardKeyboardEvent): void {
 		if (this.selected < this.options.length - 1) {
+			dom.EventHelper.stop(e, true);
 
 			// Skip disabled options
 			const nextOptionDisabled = this.options[this.selected + 1].isDisabled;
@@ -924,8 +944,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
-	private onUpArrow(): void {
+	private onUpArrow(e: StandardKeyboardEvent): void {
 		if (this.selected > 0) {
+			dom.EventHelper.stop(e, true);
 			// Skip disabled options
 			const previousOptionDisabled = this.options[this.selected - 1].isDisabled;
 			if (previousOptionDisabled && this.selected > 1) {

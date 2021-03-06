@@ -42,25 +42,25 @@ suite('Save Participants', function () {
 		let lineContent = '';
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// No new line if last line already empty
 		lineContent = `Hello New Line${model.textEditorModel.getEOL()}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// New empty line added (single line)
 		lineContent = 'Hello New Line';
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
 
 		// New empty line added (multi line)
 		lineContent = `Hello New Line${model.textEditorModel.getEOL()}Hello New Line${model.textEditorModel.getEOL()}Hello New Line`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${lineContent}${model.textEditorModel.getEOL()}`);
 	});
 
 	test('trim final new lines', async function () {
@@ -77,25 +77,25 @@ suite('Save Participants', function () {
 		let lineContent = `${textContent}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// No new line removal if last line is single new line
 		lineContent = `${textContent}${eol}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), lineContent);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
 
 		// Remove new line (single line with two new lines)
 		lineContent = `${textContent}${eol}${eol}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 
 		// Remove new lines (multiple lines with multiple new lines)
 		lineContent = `${textContent}${eol}${textContent}${eol}${eol}${eol}`;
 		model.textEditorModel.setValue(lineContent);
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${textContent}${eol}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${textContent}${eol}`);
 	});
 
 	test('trim final new lines bug#39750', async function () {
@@ -117,12 +117,12 @@ suite('Save Participants', function () {
 
 		// undo
 		await model.textEditorModel.undo();
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
 
 		// trim final new lines should not mess the undo stack
 		await participant.participate(model, { reason: SaveReason.EXPLICIT });
 		await model.textEditorModel.redo();
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}.`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}.`);
 	});
 
 	test('trim final new lines bug#46075', async function () {
@@ -143,13 +143,13 @@ suite('Save Participants', function () {
 		}
 
 		// confirm trimming
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 
 		// undo should go back to previous content immediately
 		await model.textEditorModel.undo();
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${eol}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}${eol}`);
 		await model.textEditorModel.redo();
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}${eol}`);
 	});
 
 	test('trim whitespace', async function () {
@@ -169,6 +169,6 @@ suite('Save Participants', function () {
 		}
 
 		// confirm trimming
-		assert.equal(snapshotToString(model.createSnapshot()!), `${textContent}`);
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
 	});
 });

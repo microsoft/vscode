@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 
@@ -24,16 +24,18 @@ export interface IExtensionManagementServerService {
 	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
 }
 
-export const IWorkbenchExtensioManagementService = createDecorator<IWorkbenchExtensioManagementService>('extensionManagementService');
-export interface IWorkbenchExtensioManagementService extends IExtensionManagementService {
+export const IWorkbenchExtensionManagementService = createDecorator<IWorkbenchExtensionManagementService>('extensionManagementService');
+export interface IWorkbenchExtensionManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension): Promise<ILocalExtension>;
+	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null
 }
 
 export const enum EnablementState {
+	DisabledByTrustRequirement,
 	DisabledByExtensionKind,
-	DisabledByEnvironemt,
+	DisabledByEnvironment,
 	DisabledGlobally,
 	DisabledWorkspace,
 	EnabledGlobally,
@@ -96,7 +98,7 @@ export interface IWebExtensionsScannerService {
 	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
 	scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]>;
 	scanAndTranslateSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<ITranslatedScannedExtension | null>;
-	canAddExtension(galleryExtension: IGalleryExtension): Promise<boolean>;
+	canAddExtension(galleryExtension: IGalleryExtension): boolean;
 	addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 }

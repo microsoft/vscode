@@ -59,7 +59,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/microsoft/vscode/blob/master/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
+		// https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
 			let idx = alias.indexOf(': ');
@@ -128,5 +128,6 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 export const CATEGORIES = {
 	View: { value: localize('view', "View"), original: 'View' },
 	Help: { value: localize('help', "Help"), original: 'Help' },
+	Preferences: { value: localize('preferences', "Preferences"), original: 'Preferences' },
 	Developer: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' }
 };

@@ -33,7 +33,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined> {
 		if (options.modal) {
-			return this._showModalMessage(severity, message, commands);
+			return this._showModalMessage(severity, message, commands, options.useCustom);
 		} else {
 			return this._showMessage(severity, message, commands, options.extension);
 		}
@@ -97,7 +97,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		});
 	}
 
-	private async _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined> {
+	private async _showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], useCustom?: boolean): Promise<number | undefined> {
 		let cancelId: number | undefined = undefined;
 
 		const buttons = commands.map((command, index) => {
@@ -118,7 +118,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			cancelId = buttons.length - 1;
 		}
 
-		const { choice } = await this._dialogService.show(severity, message, buttons, { cancelId });
+		const { choice } = await this._dialogService.show(severity, message, buttons, { cancelId, useCustom });
 		return choice === commands.length ? undefined : commands[choice].handle;
 	}
 }

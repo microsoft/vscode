@@ -18,7 +18,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 
-export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
+export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
 export const TASKS_CATEGORY = { value: nls.localize('tasksCategory', "Tasks"), original: 'Tasks' };
 
 export enum ShellQuoting {
@@ -1041,6 +1041,7 @@ export class TaskSorter {
 
 export const enum TaskEventKind {
 	DependsOnStarted = 'dependsOnStarted',
+	AcquiredInput = 'acquiredInput',
 	Start = 'start',
 	ProcessStarted = 'processStarted',
 	Active = 'active',
@@ -1080,7 +1081,7 @@ export const enum TaskRunSource {
 export namespace TaskEvent {
 	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): TaskEvent;
 	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent;
-	export function create(kind: TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
+	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
 	export function create(kind: TaskEventKind.Changed): TaskEvent;
 	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent {
 		if (task) {

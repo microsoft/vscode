@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IProcessedOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions, IOutputDto, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 import * as model from 'vs/editor/common/model';
@@ -12,6 +12,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { hash } from 'vs/base/common/hash';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -26,9 +28,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeLanguage = new Emitter<string>();
 	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 
-	private _outputs: IProcessedOutput[];
+	private _outputs: NotebookCellOutputTextModel[];
 
-	get outputs(): IProcessedOutput[] {
+	get outputs(): ICellOutput[] {
 		return this._outputs;
 	}
 
@@ -64,7 +66,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		const builder = new PieceTreeTextBufferBuilder();
 		builder.acceptChunk(this._source);
 		const bufferFactory = builder.finish(true);
-		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF);
+		const { textBuffer, disposable } = bufferFactory.create(model.DefaultEndOfLine.LF);
+		this._textBuffer = textBuffer;
+		this._register(disposable);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
@@ -83,13 +87,13 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		private _source: string,
 		private _language: string,
 		public cellKind: CellKind,
-		outputs: IProcessedOutput[],
+		outputs: IOutputDto[],
 		metadata: NotebookCellMetadata | undefined,
 		public readonly transientOptions: TransientOptions,
 		private readonly _modelService: ITextModelService
 	) {
 		super();
-		this._outputs = outputs;
+		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
 		this._metadata = metadata || {};
 	}
 
@@ -171,6 +175,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	dispose() {
+		// Manually release reference to previous text buffer to avoid large leaks
+		// in case someone leaks a CellTextModel reference
+		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
+		emptyDisposedTextBuffer.dispose();
+		this._textBuffer = emptyDisposedTextBuffer;
 		super.dispose();
 	}
 }

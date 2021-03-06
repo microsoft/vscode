@@ -20,10 +20,6 @@
 	display: inline-block;
 }
 
-.monaco-action-bar.reverse .actions-container {
-	flex-direction: row-reverse;
-}
-
 .monaco-action-bar .action-item {
 	cursor: pointer;
 	display: inline-block;
@@ -55,6 +51,7 @@
 }
 
 .monaco-action-bar .action-item.disabled .action-label,
+.monaco-action-bar .action-item.disabled .action-label::before,
 .monaco-action-bar .action-item.disabled .action-label:hover {
 	opacity: 0.4;
 }
@@ -103,8 +100,4 @@
 
 .monaco-action-bar .action-item.action-dropdown-item > .action-label {
 	margin-right: 1px;
-}
-
-.monaco-action-bar .action-item.action-dropdown-item > .monaco-dropdown {
-	margin-right: 4px;
 }

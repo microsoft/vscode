@@ -7,7 +7,7 @@ import { Constants } from 'vs/base/common/uint';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { IDebugService, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
@@ -16,6 +16,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { distinct } from 'vs/base/common/arrays';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
 const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
@@ -23,7 +24,7 @@ const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 // we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
 const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-	glyphMarginClassName: 'codicon-debug-stackframe',
+	glyphMarginClassName: ThemeIcon.asClassName(debugStackframe),
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -31,7 +32,7 @@ const TOP_STACK_FRAME_MARGIN: IModelDecorationOptions = {
 	}
 };
 const FOCUSED_STACK_FRAME_MARGIN: IModelDecorationOptions = {
-	glyphMarginClassName: 'codicon-debug-stackframe-focused',
+	glyphMarginClassName: ThemeIcon.asClassName(debugStackframeFocused),
 	stickiness,
 	overviewRuler: {
 		position: OverviewRulerLane.Full,
@@ -126,17 +127,21 @@ export class CallStackEditorContribution implements IEditorContribution {
 			const isSessionFocused = s === focusedStackFrame?.thread.session;
 			s.getAllThreads().forEach(t => {
 				if (t.stopped) {
-					let candidateStackFrame = t === focusedStackFrame?.thread ? focusedStackFrame : undefined;
-					if (!candidateStackFrame) {
-						const callStack = t.getCallStack();
-						if (callStack.length) {
-							candidateStackFrame = callStack[0];
+					const callStack = t.getCallStack();
+					const stackFrames: IStackFrame[] = [];
+					if (callStack.length > 0) {
+						// Always decorate top stack frame, and decorate focused stack frame if it is not the top stack frame
+						if (focusedStackFrame && !focusedStackFrame.equals(callStack[0])) {
+							stackFrames.push(focusedStackFrame);
 						}
+						stackFrames.push(callStack[0]);
 					}
 
-					if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
-						decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange, isSessionFocused));
-					}
+					stackFrames.forEach(candidateStackFrame => {
+						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
+							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange, isSessionFocused));
+						}
+					});
 				}
 			});
 		});

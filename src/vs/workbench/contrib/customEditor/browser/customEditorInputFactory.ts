@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { ICustomEditorInputFactory, IEditorInput } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { IWebviewService, WebviewExtensionDescription, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
-import { reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory, DeserializedWebview } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputFactory';
-import { IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { SerializedWebviewOptions, DeserializedWebview, reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory, restoreWebviewContentOptions, restoreWebviewOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputFactory';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export interface CustomDocumentBackupData {
@@ -25,7 +24,7 @@ export interface CustomDocumentBackupData {
 
 	readonly webview: {
 		readonly id: string;
-		readonly options: WebviewInputOptions;
+		readonly options: SerializedWebviewOptions;
 		readonly state: any;
 	};
 }
@@ -85,27 +84,27 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 		serializedEditorInput: string
 	): CustomEditorInput {
 		const data = this.fromJson(JSON.parse(serializedEditorInput));
-		const webview = CustomEditorInputFactory.reviveWebview(data, this._webviewService);
+		const webview = reviveWebview(this._webviewService, data);
 		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
 		return customInput;
 	}
+}
 
-	private static reviveWebview(data: { id: string, state: any, options: WebviewInputOptions, extension?: WebviewExtensionDescription, }, webviewService: IWebviewService) {
-		return new Lazy(() => {
-			const webview = webviewService.createWebviewOverlay(data.id, {
-				purpose: WebviewContentPurpose.CustomEditor,
-				enableFindWidget: data.options.enableFindWidget,
-				retainContextWhenHidden: data.options.retainContextWhenHidden
-			}, data.options, data.extension);
-			webview.state = data.state;
-			return webview;
-		});
-	}
+function reviveWebview(webviewService: IWebviewService, data: { id: string, state: any, webviewOptions: WebviewOptions, contentOptions: WebviewContentOptions, extension?: WebviewExtensionDescription, }) {
+	const webview = webviewService.createWebviewOverlay(data.id, {
+		purpose: WebviewContentPurpose.CustomEditor,
+		enableFindWidget: data.webviewOptions.enableFindWidget,
+		retainContextWhenHidden: data.webviewOptions.retainContextWhenHidden
+	}, data.contentOptions, data.extension);
+	webview.state = data.state;
+	return webview;
+}
 
-	public static createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput> {
+export const customEditorInputFactory = new class implements ICustomEditorInputFactory {
+	public createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput> {
 		return instantiationService.invokeFunction(async accessor => {
 			const webviewService = accessor.get<IWebviewService>(IWebviewService);
 			const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
@@ -118,7 +117,13 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			const backupData = backup.meta;
 			const id = backupData.webview.id;
 			const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
-			const webview = CustomEditorInputFactory.reviveWebview({ id, options: backupData.webview.options, state: backupData.webview.state, extension, }, webviewService);
+			const webview = reviveWebview(webviewService, {
+				id,
+				webviewOptions: restoreWebviewOptions(backupData.webview.options),
+				contentOptions: restoreWebviewContentOptions(backupData.webview.options),
+				state: backupData.webview.state,
+				extension,
+			});
 
 			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { backupId: backupData.backupId });
 			editor.updateGroup(0);
@@ -126,7 +131,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 		});
 	}
 
-	public static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+	public canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
 		if (editorInput instanceof CustomEditorInput) {
 			if (editorInput.resource.path === backupResource.path && backupResource.authority === editorInput.viewType) {
 				return true;
@@ -135,4 +140,4 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 
 		return false;
 	}
-}
+};

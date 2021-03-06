@@ -8,12 +8,12 @@ import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMement
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { isEmptyObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
@@ -51,7 +51,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
 	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
-	readonly onDidSizeConstraintsChange = Event.None;
+	readonly onDidChangeSizeConstraints = Event.None;
 
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }
@@ -156,7 +156,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 		let editorMemento = EditorPane.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
+			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE), limit, editorGroupService);
 			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
@@ -166,11 +166,11 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected saveState(): void {
 
 		// Save all editor memento for this editor type
-		EditorPane.EDITOR_MEMENTOS.forEach(editorMemento => {
+		for (const [, editorMemento] of EditorPane.EDITOR_MEMENTOS) {
 			if (editorMemento.id === this.getId()) {
 				editorMemento.saveState();
 			}
-		});
+		}
 
 		super.saveState();
 	}
@@ -220,53 +220,35 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		// Automatically clear when editor input gets disposed if any
 		if (resourceOrEditor instanceof EditorInput) {
-			const editor = resourceOrEditor;
-
-			if (!this.editorDisposables) {
-				this.editorDisposables = new Map<EditorInput, IDisposable>();
-			}
-
-			if (!this.editorDisposables.has(editor)) {
-				this.editorDisposables.set(editor, Event.once(resourceOrEditor.onDispose)(() => {
-					this.clearEditorState(resource);
-					this.editorDisposables?.delete(editor);
-				}));
-			}
+			this.clearEditorStateOnDispose(resource, resourceOrEditor);
 		}
 	}
 
-	loadEditorState(group: IEditorGroup, resource: URI, fallbackToOtherGroupState?: boolean): T | undefined;
-	loadEditorState(group: IEditorGroup, editor: EditorInput, fallbackToOtherGroupState?: boolean): T | undefined;
-	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, fallbackToOtherGroupState?: boolean): T | undefined {
+	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T | undefined {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
-			return undefined; // we are not in a good state to load any state for a resource
+			return; // we are not in a good state to load any state for a resource
 		}
 
 		const cache = this.doLoad();
 
 		const mementoForResource = cache.get(resource.toString());
 		if (mementoForResource) {
-			let mementoForResourceAndGroup = mementoForResource[group.id];
-			if (!fallbackToOtherGroupState || !isUndefinedOrNull(mementoForResourceAndGroup)) {
-				return mementoForResourceAndGroup;
-			}
-
-			// Fallback to retrieve state from the most recently active editor group as instructed
-			for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				mementoForResourceAndGroup = mementoForResource[group.id];
-				if (!isUndefinedOrNull(mementoForResourceAndGroup)) {
-					return mementoForResourceAndGroup;
-				}
-			}
+			return mementoForResource[group.id];
 		}
 
-		return undefined;
+		return;
 	}
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
 	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 	clearEditorState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
+		if (resourceOrEditor instanceof EditorInput) {
+			this.editorDisposables?.delete(resourceOrEditor);
+		}
+
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
@@ -283,6 +265,19 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 			} else {
 				cache.delete(resource.toString());
 			}
+		}
+	}
+
+	clearEditorStateOnDispose(resource: URI, editor: EditorInput): void {
+		if (!this.editorDisposables) {
+			this.editorDisposables = new Map<EditorInput, IDisposable>();
+		}
+
+		if (!this.editorDisposables.has(editor)) {
+			this.editorDisposables.set(editor, Event.once(editor.onDispose)(() => {
+				this.clearEditorState(resource);
+				this.editorDisposables?.delete(editor);
+			}));
 		}
 	}
 
@@ -342,7 +337,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	saveState(): void {
 		const cache = this.doLoad();
 
-		// Cleanup once during shutdown
+		// Cleanup once during session
 		if (!this.cleanedUp) {
 			this.cleanUp();
 			this.cleanedUp = true;

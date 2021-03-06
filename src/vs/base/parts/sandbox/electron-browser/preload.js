@@ -37,6 +37,17 @@
 
 			/**
 			 * @param {string} channel
+			 * @param {any[]} args
+			 * @returns {Promise<any> | undefined}
+			 */
+			invoke(channel, ...args) {
+				if (validateIPC(channel)) {
+					return ipcRenderer.invoke(channel, ...args);
+				}
+			},
+
+			/**
+			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
 			 */
 			on(channel, listener) {
@@ -62,6 +73,33 @@
 			removeListener(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.removeListener(channel, listener);
+				}
+			}
+		},
+
+		ipcMessagePort: {
+
+			/**
+			 * @param {string} channelRequest
+			 * @param {string} channelResponse
+			 * @param {string} requestNonce
+			 */
+			connect(channelRequest, channelResponse, requestNonce) {
+				if (validateIPC(channelRequest) && validateIPC(channelResponse)) {
+					const responseListener = (/** @type {import('electron').IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
+						// validate that the nonce from the response is the same
+						// as when requested. and if so, use `postMessage` to
+						// send the `MessagePort` safely over, even when context
+						// isolation is enabled
+						if (requestNonce === responseNonce) {
+							ipcRenderer.off(channelResponse, responseListener);
+							window.postMessage(requestNonce, '*', e.ports);
+						}
+					};
+
+					// request message port from main and await result
+					ipcRenderer.on(channelResponse, responseListener);
+					ipcRenderer.send(channelRequest, requestNonce);
 				}
 			}
 		},
@@ -97,80 +135,56 @@
 
 		/**
 		 * Support for a subset of access to node.js global `process`.
+		 *
+		 * Note: when `sandbox` is enabled, the only properties available
+		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
 		 */
 		process: {
 			get platform() { return process.platform; },
+			get arch() { return process.arch; },
 			get env() { return process.env; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
+			get execPath() { return process.execPath; },
 
-			_whenEnvResolved: undefined,
-			whenEnvResolved:
-				/**
-				 * @returns when the shell environment has been resolved.
-				 */
-				function () {
-					if (!this._whenEnvResolved) {
-						this._whenEnvResolved = resolveEnv();
-					}
+			/**
+			 * @returns {Promise<typeof process.env>}
+			 */
+			getShellEnv() {
+				return shellEnv;
+			},
 
-					return this._whenEnvResolved;
-				},
+			/**
+			 * @param {{[key: string]: string}} userEnv
+			 * @returns {Promise<void>}
+			 */
+			resolveEnv(userEnv) {
+				return resolveEnv(userEnv);
+			},
 
-			nextTick:
-				/**
-				 * Adds callback to the "next tick queue". This queue is fully drained
-				 * after the current operation on the JavaScript stack runs to completion
-				 * and before the event loop is allowed to continue.
-				 *
-				 * @param {Function} callback
-				 * @param {any[]} args
-				 */
-				function nextTick(callback, ...args) {
-					return process.nextTick(callback, ...args);
-				},
+			/**
+			 * @returns {Promise<import('electron').ProcessMemoryInfo>}
+			 */
+			getProcessMemoryInfo() {
+				return process.getProcessMemoryInfo();
+			},
 
-			cwd:
-				/**
-				 * @returns the current working directory.
-				 */
-				function () {
-					return process.cwd();
-				},
-
-			getuid:
-				/**
-				 * @returns the numeric user identity of the process
-				 */
-				function () {
-					return process.getuid();
-				},
-
-			getProcessMemoryInfo:
-				/**
-				 * @returns {Promise<import('electron').ProcessMemoryInfo>}
-				 */
-				function () {
-					return process.getProcessMemoryInfo();
-				},
-
-			on:
-				/**
-				 * @param {string} type
-				 * @param {() => void} callback
-				 */
-				function (type, callback) {
-					if (validateProcessEventType(type)) {
-						process.on(type, callback);
-					}
+			/**
+			 * @param {string} type
+			 * @param {() => void} callback
+			 */
+			on(type, callback) {
+				if (validateProcessEventType(type)) {
+					process.on(type, callback);
 				}
+			}
 		},
 
 		/**
 		 * Some information about the context we are running in.
 		 */
 		context: {
-			get sandbox() { return process.argv.includes('--enable-sandbox'); }
+			get sandbox() { return process.sandboxed; }
 		}
 	};
 
@@ -197,6 +211,7 @@
 
 	/**
 	 * @param {string} channel
+	 * @returns {true | never}
 	 */
 	function validateIPC(channel) {
 		if (!channel || !channel.startsWith('vscode:')) {
@@ -218,32 +233,41 @@
 		return true;
 	}
 
+	/** @type {Promise<typeof process.env> | undefined} */
+	let shellEnv = undefined;
+
 	/**
 	 * If VSCode is not run from a terminal, we should resolve additional
 	 * shell specific environment from the OS shell to ensure we are seeing
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
+	 *
+	 * @param {{[key: string]: string}} userEnv
+	 * @returns {Promise<void>}
 	 */
-	function resolveEnv() {
-		return new Promise(function (resolve) {
-			const handle = setTimeout(function () {
-				console.warn('Preload: Unable to resolve shell environment in a reasonable time');
+	async function resolveEnv(userEnv) {
+		if (!shellEnv) {
 
-				// It took too long to fetch the shell environment, return
-				resolve();
-			}, 3000);
+			// Apply `userEnv` directly
+			Object.assign(process.env, userEnv);
 
-			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
-				clearTimeout(handle);
+			// Resolve `shellEnv` from the main side
+			shellEnv = new Promise(function (resolve) {
+				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnvResult) {
+					if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+						// Assign all keys of the shell environment to our process environment
+						// But make sure that the user environment wins in the end over shell environment
+						Object.assign(process.env, shellEnvResult, userEnv);
+					}
 
-				// Assign all keys of the shell environment to our process environment
-				Object.assign(process.env, shellEnv);
+					resolve({ ...process.env, ...shellEnvResult, ...userEnv });
+				});
 
-				resolve();
+				ipcRenderer.send('vscode:fetchShellEnv');
 			});
+		}
 
-			ipcRenderer.send('vscode:fetchShellEnv');
-		});
+		await shellEnv;
 	}
 
 	//#endregion

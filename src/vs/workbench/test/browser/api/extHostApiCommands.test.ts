@@ -28,26 +28,28 @@ import 'vs/workbench/contrib/search/browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { mock } from 'vs/base/test/common/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 import 'vs/editor/contrib/codeAction/codeAction';
 import 'vs/editor/contrib/codelens/codelens';
 import 'vs/editor/contrib/colorPicker/color';
 import 'vs/editor/contrib/format/format';
 import 'vs/editor/contrib/gotoSymbol/goToCommands';
-import 'vs/editor/contrib/gotoSymbol/documentSymbols';
+import 'vs/editor/contrib/documentSymbols/documentSymbols';
 import 'vs/editor/contrib/hover/getHover';
 import 'vs/editor/contrib/links/getLinks';
 import 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
 import 'vs/editor/contrib/rename/rename';
+import 'vs/editor/contrib/inlineHints/inlineHintsController';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = createTextModel(
@@ -107,6 +109,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		services.set(IMarkerService, new MarkerService());
 		services.set(IModelService, new class extends mock<IModelService>() {
 			getModel() { return model; }
+		});
+		services.set(ITextModelService, new class extends mock<ITextModelService>() {
+			async createModelReference() {
+				return new ImmortalReference<IResolvedTextEditorModel>(new class extends mock<IResolvedTextEditorModel>() {
+					textEditorModel = model;
+				});
+			}
 		});
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 			async computeMoreMinimalEdits(_uri: any, edits: any) {
@@ -192,11 +201,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', 'testing').then(value => {
 
 				for (let info of value) {
-					assert.ok(info instanceof types.SymbolInformation);
-					assert.equal(info.name, 'testing');
-					assert.equal(info.kind, types.SymbolKind.Array);
+					assert.strictEqual(info instanceof types.SymbolInformation, true);
+					assert.strictEqual(info.name, 'testing');
+					assert.strictEqual(info.kind, types.SymbolKind.Array);
 				}
-				assert.equal(value.length, 3);
+				assert.strictEqual(value.length, 3);
 			});
 		});
 	});
@@ -211,11 +220,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 		let symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '');
-		assert.equal(symbols.length, 1);
+		assert.strictEqual(symbols.length, 1);
 
 		await rpcProtocol.sync();
 		symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '*');
-		assert.equal(symbols.length, 1);
+		assert.strictEqual(symbols.length, 1);
 	});
 
 	// --- formatting
@@ -229,7 +238,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 		let edits = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeFormatDocumentProvider', model.uri);
-		assert.equal(edits.length, 1);
+		assert.strictEqual(edits.length, 1);
 	});
 
 
@@ -248,10 +257,10 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const edit = await commands.executeCommand<vscode.WorkspaceEdit>('vscode.executeDocumentRenameProvider', model.uri, new types.Position(0, 12), 'newNameOfThis');
 
 		assert.ok(edit);
-		assert.equal(edit.has(model.uri), true);
+		assert.strictEqual(edit.has(model.uri), true);
 		const textEdits = edit.get(model.uri);
-		assert.equal(textEdits.length, 1);
-		assert.equal(textEdits[0].newText, 'newNameOfThis');
+		assert.strictEqual(textEdits.length, 1);
+		assert.strictEqual(textEdits[0].newText, 'newNameOfThis');
 	});
 
 	// --- definition
@@ -271,22 +280,28 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
+			provideDefinition(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 4);
+				assert.strictEqual(values.length, 4);
 				for (let v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
@@ -300,14 +315,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 2);
+				assert.strictEqual(values.length, 2);
 				for (let v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
@@ -329,22 +344,28 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
 			provideDeclaration(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
 			provideDeclaration(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeDeclarationProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 4);
+				assert.strictEqual(values.length, 4);
 				for (let v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
@@ -358,14 +379,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDeclaration(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDeclarationProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 2);
+				assert.strictEqual(values.length, 2);
 				for (let v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
@@ -398,22 +419,28 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeTypeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 4);
+				assert.strictEqual(values.length, 4);
 				for (const v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
@@ -427,14 +454,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideTypeDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeTypeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 2);
+				assert.strictEqual(values.length, 2);
 				for (let v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
@@ -467,22 +494,28 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
 			provideImplementation(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
 			provideImplementation(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Location[]>('vscode.executeImplementationProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 4);
+				assert.strictEqual(values.length, 4);
 				for (const v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
@@ -496,14 +529,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideImplementation(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeImplementationProvider', model.uri, new types.Position(0, 0)).then(values => {
-				assert.equal(values.length, 2);
+				assert.strictEqual(values.length, 2);
 				for (let v of values) {
 					if (isLocation(v)) {
 						assert.ok(v.uri instanceof URI);
@@ -532,13 +565,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		return commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', model.uri, new types.Position(0, 0)).then(values => {
-			assert.equal(values.length, 1);
+			assert.strictEqual(values.length, 1);
 			let [first] = values;
-			assert.equal(first.uri.toString(), 'some:uri/path');
-			assert.equal(first.range.start.line, 0);
-			assert.equal(first.range.start.character, 1);
-			assert.equal(first.range.end.line, 0);
-			assert.equal(first.range.end.character, 5);
+			assert.strictEqual(first.uri.toString(), 'some:uri/path');
+			assert.strictEqual(first.range.start.line, 0);
+			assert.strictEqual(first.range.start.character, 1);
+			assert.strictEqual(first.range.end.line, 0);
+			assert.strictEqual(first.range.end.character, 5);
 		});
 	});
 
@@ -556,12 +589,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
-				assert.equal(values.length, 2);
+				assert.strictEqual(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(second instanceof types.SymbolInformation);
-				assert.equal(first.name, 'testing2');
-				assert.equal(second.name, 'testing1');
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
+				assert.strictEqual(first.name, 'testing2');
+				assert.strictEqual(second.name, 'testing1');
 			});
 		});
 	});
@@ -584,14 +617,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
-				assert.equal(values.length, 2);
+				assert.strictEqual(values.length, 2);
 				let [first, second] = values;
-				assert.ok(first instanceof types.SymbolInformation);
-				assert.ok(!(first instanceof types.DocumentSymbol));
-				assert.ok(second instanceof types.SymbolInformation);
-				assert.equal(first.name, 'DocumentSymbol');
-				assert.equal(first.children.length, 1);
-				assert.equal(second.name, 'SymbolInformation');
+				assert.strictEqual(first instanceof types.SymbolInformation, true);
+				assert.strictEqual(first instanceof types.DocumentSymbol, false);
+				assert.strictEqual(second instanceof types.SymbolInformation, true);
+				assert.strictEqual(first.name, 'DocumentSymbol');
+				assert.strictEqual(first.children.length, 1);
+				assert.strictEqual(second.name, 'SymbolInformation');
 			});
 		});
 	});
@@ -621,37 +654,37 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.ok(list instanceof types.CompletionList);
 				let values = list.items;
 				assert.ok(Array.isArray(values));
-				assert.equal(values.length, 4);
+				assert.strictEqual(values.length, 4);
 				let [first, second, third, fourth] = values;
-				assert.equal(first.label, 'item1');
-				assert.equal(first.textEdit, undefined);// no text edit, default ranges
+				assert.strictEqual(first.label, 'item1');
+				assert.strictEqual(first.textEdit, undefined);// no text edit, default ranges
 				assert.ok(!types.Range.isRange(first.range));
 
-				assert.equal(second.label, 'item2');
-				assert.equal(second.textEdit!.newText, 'foo');
-				assert.equal(second.textEdit!.range.start.line, 0);
-				assert.equal(second.textEdit!.range.start.character, 4);
-				assert.equal(second.textEdit!.range.end.line, 0);
-				assert.equal(second.textEdit!.range.end.character, 8);
+				assert.strictEqual(second.label, 'item2');
+				assert.strictEqual(second.textEdit!.newText, 'foo');
+				assert.strictEqual(second.textEdit!.range.start.line, 0);
+				assert.strictEqual(second.textEdit!.range.start.character, 4);
+				assert.strictEqual(second.textEdit!.range.end.line, 0);
+				assert.strictEqual(second.textEdit!.range.end.character, 8);
 
-				assert.equal(third.label, 'item3');
-				assert.equal(third.textEdit!.newText, 'foobar');
-				assert.equal(third.textEdit!.range.start.line, 0);
-				assert.equal(third.textEdit!.range.start.character, 1);
-				assert.equal(third.textEdit!.range.end.line, 0);
-				assert.equal(third.textEdit!.range.end.character, 6);
+				assert.strictEqual(third.label, 'item3');
+				assert.strictEqual(third.textEdit!.newText, 'foobar');
+				assert.strictEqual(third.textEdit!.range.start.line, 0);
+				assert.strictEqual(third.textEdit!.range.start.character, 1);
+				assert.strictEqual(third.textEdit!.range.end.line, 0);
+				assert.strictEqual(third.textEdit!.range.end.character, 6);
 
-				assert.equal(fourth.label, 'item4');
-				assert.equal(fourth.textEdit, undefined);
+				assert.strictEqual(fourth.label, 'item4');
+				assert.strictEqual(fourth.textEdit, undefined);
 
 				const range: any = fourth.range!;
 				assert.ok(types.Range.isRange(range));
-				assert.equal(range.start.line, 0);
-				assert.equal(range.start.character, 1);
-				assert.equal(range.end.line, 0);
-				assert.equal(range.end.character, 4);
+				assert.strictEqual(range.start.line, 0);
+				assert.strictEqual(range.start.character, 1);
+				assert.strictEqual(range.end.line, 0);
+				assert.strictEqual(range.end.character, 4);
 				assert.ok(fourth.insertText instanceof types.SnippetString);
-				assert.equal((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
+				assert.strictEqual((<types.SnippetString>fourth.insertText).value, 'foo$0bar');
 			});
 		});
 	});
@@ -668,7 +701,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', model.uri, new types.Position(0, 4)).then(list => {
 				assert.ok(list instanceof types.CompletionList);
-				assert.equal(list.isIncomplete, true);
+				assert.strictEqual(list.isIncomplete, true);
 			});
 		});
 	});
@@ -702,7 +735,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		);
 
 		assert.ok(list instanceof types.CompletionList);
-		assert.equal(resolveCount, 2);
+		assert.strictEqual(resolveCount, 2);
 
 	});
 
@@ -729,13 +762,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		);
 
 		assert.ok(list instanceof types.CompletionList);
-		assert.equal(list.items.length, 4);
+		assert.strictEqual(list.items.length, 4);
 
 		let [a, b, c, d] = list.items;
-		assert.equal(a.preselect, true);
-		assert.equal(b.preselect, undefined);
-		assert.equal(c.preselect, true);
-		assert.equal(d.preselect, undefined);
+		assert.strictEqual(a.preselect, true);
+		assert.strictEqual(b.preselect, undefined);
+		assert.strictEqual(c.preselect, true);
+		assert.strictEqual(d.preselect, undefined);
 	});
 
 	test('executeCompletionItemProvider doesn\'t capture commitCharacters #58228', async function () {
@@ -758,11 +791,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		);
 
 		assert.ok(list instanceof types.CompletionList);
-		assert.equal(list.items.length, 2);
+		assert.strictEqual(list.items.length, 2);
 
 		let [a, b] = list.items;
-		assert.deepEqual(a.commitCharacters, ['a', 'b']);
-		assert.equal(b.commitCharacters, undefined);
+		assert.deepStrictEqual(a.commitCharacters, ['a', 'b']);
+		assert.strictEqual(b.commitCharacters, undefined);
 	});
 
 	test('vscode.executeCompletionItemProvider returns the wrong CompletionItemKinds in insiders #95715', async function () {
@@ -785,11 +818,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		);
 
 		assert.ok(list instanceof types.CompletionList);
-		assert.equal(list.items.length, 2);
+		assert.strictEqual(list.items.length, 2);
 
 		const [a, b] = list.items;
-		assert.equal(a.kind, types.CompletionItemKind.Method);
-		assert.equal(b.kind, types.CompletionItemKind.Property);
+		assert.strictEqual(a.kind, types.CompletionItemKind.Method);
+		assert.strictEqual(b.kind, types.CompletionItemKind.Property);
 	});
 
 	// --- signatureHelp
@@ -832,11 +865,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Command[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				let [first] = value;
-				assert.equal(first.title, 'Title');
-				assert.equal(first.command, 'testing');
-				assert.deepEqual(first.arguments, [1, 2, true]);
+				assert.strictEqual(first.title, 'Title');
+				assert.strictEqual(first.command, 'testing');
+				assert.deepStrictEqual(first.arguments, [1, 2, true]);
 			});
 		});
 	});
@@ -858,13 +891,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, new types.Range(0, 0, 1, 1)).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				const [first] = value;
 				assert.ok(first.command);
-				assert.equal(first.command!.command, 'command');
-				assert.equal(first.command!.title, 'command_title');
-				assert.equal(first.kind!.value, 'foo');
-				assert.equal(first.title, 'title');
+				assert.strictEqual(first.command!.command, 'command');
+				assert.strictEqual(first.command!.title, 'command_title');
+				assert.strictEqual(first.kind!.value, 'foo');
+				assert.strictEqual(first.title, 'title');
 
 			});
 		});
@@ -889,7 +922,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				const [first] = value;
 				assert.ok(first.command);
 				assert.ok(first.command!.arguments![1] instanceof types.Selection);
@@ -918,9 +951,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				const [first] = value;
-				assert.equal(first.isPreferred, true);
+				assert.strictEqual(first.isPreferred, true);
 			});
 		});
 	});
@@ -949,11 +982,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		await rpcProtocol.sync();
 
 		const value = await commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection, undefined, 1000);
-		assert.equal(didCallResolve, 1);
-		assert.equal(value.length, 1);
+		assert.strictEqual(didCallResolve, 1);
+		assert.strictEqual(value.length, 1);
 
 		const [first] = value;
-		assert.equal(first.title, 'title'); // does NOT change
+		assert.strictEqual(first.title, 'title'); // does NOT change
 		assert.ok(first.edit); // is set
 	});
 
@@ -975,14 +1008,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				const [first] = value;
 
-				assert.equal(first.command!.title, 'Title');
-				assert.equal(first.command!.command, 'cmd');
-				assert.equal(first.command!.arguments![0], 1);
-				assert.equal(first.command!.arguments![1], true);
-				assert.equal(first.command!.arguments![2], complexArg);
+				assert.strictEqual(first.command!.title, 'Title');
+				assert.strictEqual(first.command!.command, 'cmd');
+				assert.strictEqual(first.command!.arguments![0], 1);
+				assert.strictEqual(first.command!.arguments![1], true);
+				assert.strictEqual(first.command!.arguments![2], complexArg);
 			});
 		});
 	});
@@ -1011,14 +1044,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		let value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri, 2);
 
-		assert.equal(value.length, 3); // the resolve argument defines the number of results being returned
-		assert.equal(resolveCount, 2);
+		assert.strictEqual(value.length, 3); // the resolve argument defines the number of results being returned
+		assert.strictEqual(resolveCount, 2);
 
 		resolveCount = 0;
 		value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri);
 
-		assert.equal(value.length, 4);
-		assert.equal(resolveCount, 0);
+		assert.strictEqual(value.length, 4);
+		assert.strictEqual(resolveCount, 0);
 	});
 
 	test('Links, back and forth', function () {
@@ -1031,14 +1064,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				let [first] = value;
 
-				assert.equal(first.target + '', 'foo:bar');
-				assert.equal(first.range.start.line, 0);
-				assert.equal(first.range.start.character, 0);
-				assert.equal(first.range.end.line, 0);
-				assert.equal(first.range.end.character, 20);
+				assert.strictEqual(first.target + '', 'foo:bar');
+				assert.strictEqual(first.range.start.line, 0);
+				assert.strictEqual(first.range.start.character, 0);
+				assert.strictEqual(first.range.end.line, 0);
+				assert.strictEqual(first.range.end.character, 20);
 			});
 		});
 	});
@@ -1057,12 +1090,12 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		await rpcProtocol.sync();
 
 		const links1 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri);
-		assert.equal(links1.length, 1);
-		assert.equal(links1[0].target, undefined);
+		assert.strictEqual(links1.length, 1);
+		assert.strictEqual(links1[0].target, undefined);
 
 		const links2 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri, 1000);
-		assert.equal(links2.length, 1);
-		assert.equal(links2[0].target!.toString(), URI.parse('foo:bar').toString());
+		assert.strictEqual(links2.length, 1);
+		assert.strictEqual(links2[0].target!.toString(), URI.parse('foo:bar').toString());
 
 	});
 
@@ -1083,36 +1116,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.ColorInformation[]>('vscode.executeDocumentColorProvider', model.uri).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				let [first] = value;
 
-				assert.equal(first.color.red, 0.1);
-				assert.equal(first.color.green, 0.2);
-				assert.equal(first.color.blue, 0.3);
-				assert.equal(first.color.alpha, 0.4);
-				assert.equal(first.range.start.line, 0);
-				assert.equal(first.range.start.character, 0);
-				assert.equal(first.range.end.line, 0);
-				assert.equal(first.range.end.character, 20);
+				assert.strictEqual(first.color.red, 0.1);
+				assert.strictEqual(first.color.green, 0.2);
+				assert.strictEqual(first.color.blue, 0.3);
+				assert.strictEqual(first.color.alpha, 0.4);
+				assert.strictEqual(first.range.start.line, 0);
+				assert.strictEqual(first.range.start.character, 0);
+				assert.strictEqual(first.range.end.line, 0);
+				assert.strictEqual(first.range.end.character, 20);
 			});
 		}).then(() => {
 			const color = new types.Color(0.5, 0.6, 0.7, 0.8);
 			const range = new types.Range(0, 0, 0, 20);
 			return commands.executeCommand<vscode.ColorPresentation[]>('vscode.executeColorPresentationProvider', color, { uri: model.uri, range }).then(value => {
-				assert.equal(value.length, 1);
+				assert.strictEqual(value.length, 1);
 				let [first] = value;
 
-				assert.equal(first.label, '#ABC');
-				assert.equal(first.textEdit!.newText, '#ABC');
-				assert.equal(first.textEdit!.range.start.line, 1);
-				assert.equal(first.textEdit!.range.start.character, 0);
-				assert.equal(first.textEdit!.range.end.line, 1);
-				assert.equal(first.textEdit!.range.end.character, 20);
-				assert.equal(first.additionalTextEdits!.length, 1);
-				assert.equal(first.additionalTextEdits![0].range.start.line, 2);
-				assert.equal(first.additionalTextEdits![0].range.start.character, 20);
-				assert.equal(first.additionalTextEdits![0].range.end.line, 2);
-				assert.equal(first.additionalTextEdits![0].range.end.character, 20);
+				assert.strictEqual(first.label, '#ABC');
+				assert.strictEqual(first.textEdit!.newText, '#ABC');
+				assert.strictEqual(first.textEdit!.range.start.line, 1);
+				assert.strictEqual(first.textEdit!.range.start.character, 0);
+				assert.strictEqual(first.textEdit!.range.end.line, 1);
+				assert.strictEqual(first.textEdit!.range.end.character, 20);
+				assert.strictEqual(first.additionalTextEdits!.length, 1);
+				assert.strictEqual(first.additionalTextEdits![0].range.start.line, 2);
+				assert.strictEqual(first.additionalTextEdits![0].range.start.character, 20);
+				assert.strictEqual(first.additionalTextEdits![0].range.end.line, 2);
+				assert.strictEqual(first.additionalTextEdits![0].range.end.character, 20);
 			});
 		});
 	});
@@ -1127,10 +1160,93 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		return rpcProtocol.sync().then(() => {
 			return commands.executeCommand<vscode.Hover[]>('vscode.executeHoverProvider', model.uri, new types.Position(1, 1)).then(value => {
-				assert.equal(value.length, 1);
-				assert.equal(value[0].contents.length, 1);
+				assert.strictEqual(value.length, 1);
+				assert.strictEqual(value[0].contents.length, 1);
 			});
 		});
+	});
+
+	// --- inline hints
+
+	test('Inline Hints, back and forth', async function () {
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		assert.strictEqual(value.length, 1);
+
+		const [first] = value;
+		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.range.start.line, 0);
+		assert.strictEqual(first.range.start.character, 1);
+		assert.strictEqual(first.range.end.line, 2);
+		assert.strictEqual(first.range.end.character, 3);
+	});
+
+	test('Inline Hints, merge', async function () {
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				return [new types.InlineHint('Bar', new types.Range(10, 11, 12, 13))];
+			}
+		}));
+
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				const hint = new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), types.InlineHintKind.Parameter);
+				hint.description = new types.MarkdownString('**Hello**');
+				return [hint];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		assert.strictEqual(value.length, 2);
+
+		const [first, second] = value;
+		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.range.start.line, 0);
+		assert.strictEqual(first.range.start.character, 1);
+		assert.strictEqual(first.range.end.line, 2);
+		assert.strictEqual(first.range.end.character, 3);
+		assert.ok(first.description instanceof types.MarkdownString);
+		assert.strictEqual((<types.MarkdownString>first.description).value, '**Hello**');
+
+		assert.strictEqual(second.text, 'Bar');
+		assert.strictEqual(second.range.start.line, 10);
+		assert.strictEqual(second.range.start.character, 11);
+		assert.strictEqual(second.range.end.line, 12);
+		assert.strictEqual(second.range.end.character, 13);
+	});
+
+	test('Inline Hints, bad provider', async function () {
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
+			}
+		}));
+		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
+			provideInlineHints() {
+				throw new Error();
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.InlineHint[]>('vscode.executeInlineHintProvider', model.uri, new types.Range(0, 0, 20, 20));
+		assert.strictEqual(value.length, 1);
+
+		const [first] = value;
+		assert.strictEqual(first.text, 'Foo');
+		assert.strictEqual(first.range.start.line, 0);
+		assert.strictEqual(first.range.start.character, 1);
+		assert.strictEqual(first.range.end.line, 2);
+		assert.strictEqual(first.range.end.character, 3);
 	});
 
 	// --- selection ranges
@@ -1147,7 +1263,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
-		assert.equal(value.length, 1);
+		assert.strictEqual(value.length, 1);
 		assert.ok(value[0].parent);
 	});
 
@@ -1182,16 +1298,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const root = await commands.executeCommand<vscode.CallHierarchyItem[]>('vscode.prepareCallHierarchy', model.uri, new types.Position(0, 0));
 
 		assert.ok(Array.isArray(root));
-		assert.equal(root.length, 1);
-		assert.equal(root[0].name, 'ROOT');
+		assert.strictEqual(root.length, 1);
+		assert.strictEqual(root[0].name, 'ROOT');
 
 		const incoming = await commands.executeCommand<vscode.CallHierarchyIncomingCall[]>('vscode.provideIncomingCalls', root[0]);
-		assert.equal(incoming.length, 1);
-		assert.equal(incoming[0].from.name, 'INCOMING');
+		assert.strictEqual(incoming.length, 1);
+		assert.strictEqual(incoming[0].from.name, 'INCOMING');
 
 		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
-		assert.equal(outgoing.length, 1);
-		assert.equal(outgoing[0].to.name, 'OUTGOING');
+		assert.strictEqual(outgoing.length, 1);
+		assert.strictEqual(outgoing[0].to.name, 'OUTGOING');
 	});
 
 	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
@@ -1207,11 +1323,11 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
-		assert.equal(value.length, 1);
-		assert.equal(value[0].range.start.line, 0);
-		assert.equal(value[0].range.start.character, 10);
-		assert.equal(value[0].range.end.line, 0);
-		assert.equal(value[0].range.end.character, 10);
+		assert.strictEqual(value.length, 1);
+		assert.strictEqual(value[0].range.start.line, 0);
+		assert.strictEqual(value[0].range.start.character, 10);
+		assert.strictEqual(value[0].range.end.line, 0);
+		assert.strictEqual(value[0].range.end.character, 10);
 	});
 
 	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
@@ -1232,14 +1348,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			model.uri,
 			[new types.Position(0, 0), new types.Position(0, 10)]
 		);
-		assert.equal(value.length, 2);
-		assert.equal(value[0].range.start.line, 0);
-		assert.equal(value[0].range.start.character, 0);
-		assert.equal(value[0].range.end.line, 0);
-		assert.equal(value[0].range.end.character, 0);
-		assert.equal(value[1].range.start.line, 0);
-		assert.equal(value[1].range.start.character, 10);
-		assert.equal(value[1].range.end.line, 0);
-		assert.equal(value[1].range.end.character, 10);
+		assert.strictEqual(value.length, 2);
+		assert.strictEqual(value[0].range.start.line, 0);
+		assert.strictEqual(value[0].range.start.character, 0);
+		assert.strictEqual(value[0].range.end.line, 0);
+		assert.strictEqual(value[0].range.end.character, 0);
+		assert.strictEqual(value[1].range.start.line, 0);
+		assert.strictEqual(value[1].range.start.character, 10);
+		assert.strictEqual(value[1].range.end.line, 0);
+		assert.strictEqual(value[1].range.end.character, 10);
 	});
 });

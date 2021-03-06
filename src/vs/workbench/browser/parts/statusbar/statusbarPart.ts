@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/statusbarpart';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
+import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Part } from 'vs/workbench/browser/part';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,15 +15,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator } from 'vs/base/common/actions';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
-import { Color } from 'vs/base/common/color';
-import { EventHelper, createStyleSheet, addDisposableListener, EventType, hide, show, isAncestor, appendChildren } from 'vs/base/browser/dom';
+import { EventHelper, createStyleSheet, addDisposableListener, EventType, hide, show, isAncestor, append } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, IStorageChangeEvent } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
@@ -32,14 +31,14 @@ import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/la
 import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { renderCodicon, renderCodicons } from 'vs/base/browser/codicons';
+import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { syncing } from 'vs/platform/theme/common/iconRegistry';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -59,7 +58,7 @@ interface IStatusbarViewModelEntry {
 	labelContainer: HTMLElement;
 }
 
-const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false);
+const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false, localize('statusBarFocused', "Whether the status bar has keyboard focus"));
 
 class StatusbarViewModel extends Disposable {
 
@@ -102,10 +101,10 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e)));
 	}
 
-	private onDidStorageChange(event: IStorageChangeEvent): void {
+	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
 		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
 
 			// Keep current hidden entries
@@ -275,7 +274,7 @@ class StatusbarViewModel extends Disposable {
 
 	private saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL);
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL, StorageTarget.USER);
 		} else {
 			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
 		}
@@ -365,7 +364,7 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 class HideStatusbarEntryAction extends Action {
 
 	constructor(id: string, name: string, private model: StatusbarViewModel) {
-		super(id, nls.localize('hide', "Hide '{0}'", name), undefined, true);
+		super(id, localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
 	async run(): Promise<void> {
@@ -405,11 +404,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-
-		storageKeysSyncRegistryService.registerStorageKey({ key: StatusbarViewModel.HIDDEN_ENTRIES_KEY, version: 1 });
 
 		this.registerListeners();
 	}
@@ -614,10 +610,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private getContextMenuActions(event: StandardMouseEvent): IAction[] {
-		const actions: Action[] = [];
+		const actions: IAction[] = [];
 
 		// Provide an action to hide the status bar at last
-		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, nls.localize('hideStatusBar', "Hide Status Bar")));
+		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, localize('hideStatusBar', "Hide Status Bar")));
 		actions.push(new Separator());
 
 		// Show an entry per known status entry
@@ -708,9 +704,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 }
 
-class StatusBarCodiconLabel extends CodiconLabel {
+class StatusBarCodiconLabel extends SimpleIconLabel {
 
-	private readonly progressCodicon = renderCodicon('sync', 'spin');
+	private readonly progressCodicon = renderIcon(syncing);
 
 	private currentText = '';
 	private currentShowProgress = false;
@@ -753,7 +749,7 @@ class StatusBarCodiconLabel extends CodiconLabel {
 			}
 
 			// Append new elements
-			appendChildren(this.container, ...renderCodicons(textContent));
+			append(this.container, ...renderLabelWithIcons(textContent));
 		}
 
 		// No Progress: no special handling
@@ -872,12 +868,8 @@ class StatusbarEntryItem extends Disposable {
 
 		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
-			if (entry.backgroundColor) {
-				this.applyColor(this.container, entry.backgroundColor, true);
-				this.container.classList.add('has-background-color');
-			} else {
-				this.container.classList.remove('has-background-color');
-			}
+			this.container.classList.toggle('has-background-color', !!entry.backgroundColor);
+			this.applyColor(this.container, entry.backgroundColor, true);
 		}
 
 		// Remember for next round
@@ -897,7 +889,7 @@ class StatusbarEntryItem extends Disposable {
 	}
 
 	private applyColor(container: HTMLElement, color: string | ThemeColor | undefined, isBackground?: boolean): void {
-		let colorResult: string | null = null;
+		let colorResult: string | undefined = undefined;
 
 		if (isBackground) {
 			this.backgroundListener.clear();
@@ -907,15 +899,15 @@ class StatusbarEntryItem extends Disposable {
 
 		if (color) {
 			if (isThemeColor(color)) {
-				colorResult = (this.themeService.getColorTheme().getColor(color.id) || Color.transparent).toString();
+				colorResult = this.themeService.getColorTheme().getColor(color.id)?.toString();
 
 				const listener = this.themeService.onDidColorThemeChange(theme => {
-					const colorValue = (theme.getColor(color.id) || Color.transparent).toString();
+					const colorValue = theme.getColor(color.id)?.toString();
 
 					if (isBackground) {
-						container.style.backgroundColor = colorValue;
+						container.style.backgroundColor = colorValue ?? '';
 					} else {
-						container.style.color = colorValue;
+						container.style.color = colorValue ?? '';
 					}
 				});
 
@@ -930,9 +922,9 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		if (isBackground) {
-			container.style.backgroundColor = colorResult || '';
+			container.style.backgroundColor = colorResult ?? '';
 		} else {
-			container.style.color = colorResult || '';
+			container.style.color = colorResult ?? '';
 		}
 	}
 
@@ -946,7 +938,7 @@ class StatusbarEntryItem extends Disposable {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 	if (theme.type !== ColorScheme.HIGH_CONTRAST) {
 		const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 		if (statusBarItemHoverBackground) {

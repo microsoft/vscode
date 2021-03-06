@@ -37,6 +37,8 @@ import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
+import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { listenStream } from 'vs/base/common/stream';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -63,33 +65,33 @@ export function createTextBufferFactoryFromStream(stream: ITextStream | VSBuffer
 
 		let done = false;
 
-		stream.on('data', (chunk: string | VSBuffer) => {
-			if (validator) {
-				const error = validator(chunk);
-				if (error) {
+		listenStream<string | VSBuffer>(stream, {
+			onData: chunk => {
+				if (validator) {
+					const error = validator(chunk);
+					if (error) {
+						done = true;
+						reject(error);
+					}
+				}
+
+				if (filter) {
+					chunk = filter(chunk);
+				}
+
+				builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
+			},
+			onError: error => {
+				if (!done) {
 					done = true;
 					reject(error);
 				}
-			}
-
-			if (filter) {
-				chunk = filter(chunk);
-			}
-
-			builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
-		});
-
-		stream.on('error', (error) => {
-			if (!done) {
-				done = true;
-				reject(error);
-			}
-		});
-
-		stream.on('end', () => {
-			if (!done) {
-				done = true;
-				resolve(builder.finish());
+			},
+			onEnd: () => {
+				if (!done) {
+					done = true;
+					resolve(builder.finish());
+				}
 			}
 		});
 	});
@@ -106,7 +108,7 @@ export function createTextBufferFactoryFromSnapshot(snapshot: model.ITextSnapsho
 	return builder.finish();
 }
 
-export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): model.ITextBuffer {
+export function createTextBuffer(value: string | model.ITextBufferFactory, defaultEOL: model.DefaultEndOfLine): { textBuffer: model.ITextBuffer; disposable: IDisposable; } {
 	const factory = (typeof value === 'string' ? createTextBufferFactory(value) : value);
 	return factory.create(defaultEOL);
 }
@@ -268,6 +270,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _undoRedoService: IUndoRedoService;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
+	private _bufferDisposable: IDisposable;
 	private _options: model.TextModelResolvedOptions;
 
 	private _isDisposed: boolean;
@@ -328,7 +331,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._undoRedoService = undoRedoService;
 		this._attachedEditorCount = 0;
 
-		this._buffer = createTextBuffer(source, creationOptions.defaultEOL);
+		const { textBuffer, disposable } = createTextBuffer(source, creationOptions.defaultEOL);
+		this._buffer = textBuffer;
+		this._bufferDisposable = disposable;
 
 		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
 
@@ -386,7 +391,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._tokenization.dispose();
 		this._isDisposed = true;
 		super.dispose();
+		this._bufferDisposable.dispose();
 		this._isDisposing = false;
+		// Manually release reference to previous text buffer to avoid large leaks
+		// in case someone leaks a TextModel reference
+		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
+		emptyDisposedTextBuffer.dispose();
+		this._buffer = emptyDisposedTextBuffer;
 	}
 
 	private _assertNotDisposed(): void {
@@ -420,8 +431,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return;
 		}
 
-		const textBuffer = createTextBuffer(value, this._options.defaultEOL);
-		this.setValueFromTextBuffer(textBuffer);
+		const { textBuffer, disposable } = createTextBuffer(value, this._options.defaultEOL);
+		this._setValueFromTextBuffer(textBuffer, disposable);
 	}
 
 	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
@@ -440,18 +451,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		};
 	}
 
-	public setValueFromTextBuffer(textBuffer: model.ITextBuffer): void {
+	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable): void {
 		this._assertNotDisposed();
-		if (textBuffer === null) {
-			// There's nothing to do
-			return;
-		}
 		const oldFullModelRange = this.getFullModelRange();
 		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
 		const endLineNumber = this.getLineCount();
 		const endColumn = this.getLineMaxColumn(endLineNumber);
 
 		this._buffer = textBuffer;
+		this._bufferDisposable.dispose();
+		this._bufferDisposable = textBufferDisposable;
 		this._increaseVersionId();
 
 		// Flush all tokens
@@ -828,6 +837,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getEOL(): string {
 		this._assertNotDisposed();
 		return this._buffer.getEOL();
+	}
+
+	public getEndOfLineSequence(): model.EndOfLineSequence {
+		this._assertNotDisposed();
+		return (
+			this._buffer.getEOL() === '\n'
+				? model.EndOfLineSequence.LF
+				: model.EndOfLineSequence.CRLF
+		);
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
@@ -1211,6 +1229,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public pushStackElement(): void {
 		this._commandManager.pushStackElement();
+	}
+
+	public popStackElement(): void {
+		this._commandManager.popStackElement();
 	}
 
 	public pushEOL(eol: model.EndOfLineSequence): void {
@@ -1868,12 +1890,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		});
 	}
 
-	public hasSemanticTokens(): boolean {
+	public hasCompleteSemanticTokens(): boolean {
 		return this._tokens2.isComplete();
 	}
 
+	public hasSomeSemanticTokens(): boolean {
+		return !this._tokens2.isEmpty();
+	}
+
 	public setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[]): void {
-		if (this.hasSemanticTokens()) {
+		if (this.hasCompleteSemanticTokens()) {
 			return;
 		}
 		const changedRange = this._tokens2.setPartial(range, tokens);

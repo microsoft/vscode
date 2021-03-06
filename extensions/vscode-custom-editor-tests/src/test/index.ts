@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
-const testRunner = require('vscode/lib/testrunner');
+const testRunner = require('../../../../test/integration/electron/testrunner');
 
 const suite = 'Custom Editor Tests';
 
 const options: any = {
 	ui: 'tdd',
-	useColors: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
+	color: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
 	timeout: 6000000
 };
 

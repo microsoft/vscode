@@ -10,10 +10,9 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IOSConfiguration } from 'vs/platform/windows/common/windows';
 
 export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
-
-	declare readonly _serviceBrand: undefined;
 
 	@memoize
 	get machineId() { return this.configuration.machineId; }
@@ -29,20 +28,6 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
-
-	// Do NOT! memoize as `backupPath` can change in configuration
-	// via the `updateBackupPath` method below
-	get backupWorkspaceHome(): URI | undefined {
-		if (this.configuration.backupPath) {
-			return URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme });
-		}
-
-		return undefined;
-	}
-
-	updateBackupPath(newBackupPath: string | undefined): void {
-		this.configuration.backupPath = newBackupPath;
-	}
 
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
@@ -80,6 +65,10 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 		}
 
 		return undefined;
+	}
+
+	get os(): IOSConfiguration {
+		return this.configuration.os;
 	}
 
 	constructor(

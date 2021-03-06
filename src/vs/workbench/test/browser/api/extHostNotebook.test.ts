@@ -21,6 +21,7 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 import { isEqual } from 'vs/base/common/resources';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Event } from 'vs/base/common/event';
 
 suite('NotebookCell#Document', function () {
 
@@ -33,9 +34,11 @@ suite('NotebookCell#Document', function () {
 	const notebookUri = URI.parse('test:///notebook.file');
 	const disposables = new DisposableStore();
 
-	setup(async function () {
+	teardown(function () {
 		disposables.clear();
+	});
 
+	setup(async function () {
 		rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
 			$registerCommand() { }
@@ -82,7 +85,7 @@ suite('NotebookCell#Document', function () {
 			addedEditors: [{
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
-				selections: [0],
+				selections: [{ start: 0, end: 1 }],
 				visibleRanges: []
 			}]
 		});
@@ -104,14 +107,14 @@ suite('NotebookCell#Document', function () {
 		const d1 = extHostDocuments.getDocument(c1.uri);
 
 		assert.ok(d1);
-		assert.equal(d1.languageId, c1.language);
-		assert.equal(d1.version, 1);
+		assert.strictEqual(d1.languageId, c1.language);
+		assert.strictEqual(d1.version, 1);
 		assert.ok(d1.notebook === notebook.notebookDocument);
 
 		const d2 = extHostDocuments.getDocument(c2.uri);
 		assert.ok(d2);
-		assert.equal(d2.languageId, c2.language);
-		assert.equal(d2.version, 1);
+		assert.strictEqual(d2.languageId, c2.language);
+		assert.strictEqual(d2.version, 1);
 		assert.ok(d2.notebook === notebook.notebookDocument);
 	});
 
@@ -197,7 +200,7 @@ suite('NotebookCell#Document', function () {
 		for (let cell of notebook.notebookDocument.cells) {
 			const doc = extHostDocuments.getDocument(cell.uri);
 			assert.ok(doc);
-			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
+			assert.strictEqual(extHostDocuments.getDocument(cell.uri).isClosed, false);
 			docs.push(doc);
 			addData.push({
 				EOL: '\n',
@@ -218,7 +221,7 @@ suite('NotebookCell#Document', function () {
 		// notebook is still open -> cell documents stay open
 		for (let cell of notebook.notebookDocument.cells) {
 			assert.ok(extHostDocuments.getDocument(cell.uri));
-			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
+			assert.strictEqual(extHostDocuments.getDocument(cell.uri).isClosed, false);
 		}
 
 		// close notebook -> docs are closed
@@ -227,13 +230,13 @@ suite('NotebookCell#Document', function () {
 			assert.throws(() => extHostDocuments.getDocument(cell.uri));
 		}
 		for (let doc of docs) {
-			assert.equal(doc.isClosed, true);
+			assert.strictEqual(doc.isClosed, true);
 		}
 	});
 
 	test('cell document goes when cell is removed', async function () {
 
-		assert.equal(notebook.notebookDocument.cells.length, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
 		const [cell1, cell2] = notebook.notebookDocument.cells;
 
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
@@ -246,25 +249,25 @@ suite('NotebookCell#Document', function () {
 			]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1);
-		assert.equal(cell1.document.isClosed, true); // ref still alive!
-		assert.equal(cell2.document.isClosed, false);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1);
+		assert.strictEqual(cell1.document.isClosed, true); // ref still alive!
+		assert.strictEqual(cell2.document.isClosed, false);
 
 		assert.throws(() => extHostDocuments.getDocument(cell1.uri));
 	});
 
 	test('cell document knows notebook', function () {
 		for (let cells of notebook.notebookDocument.cells) {
-			assert.equal(cells.document.notebook === notebook.notebookDocument, true);
+			assert.strictEqual(cells.document.notebook === notebook.notebookDocument, true);
 		}
 	});
 
 	test('cell#index', function () {
 
-		assert.equal(notebook.notebookDocument.cells.length, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
 		const [first, second] = notebook.notebookDocument.cells;
-		assert.equal(first.index, 0);
-		assert.equal(second.index, 1);
+		assert.strictEqual(first.index, 0);
+		assert.strictEqual(second.index, 1);
 
 		// remove first cell
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
@@ -275,8 +278,8 @@ suite('NotebookCell#Document', function () {
 			}]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1);
-		assert.equal(second.index, 0);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1);
+		assert.strictEqual(second.index, 0);
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			versionId: notebook.notebookDocument.version + 1,
@@ -302,7 +305,52 @@ suite('NotebookCell#Document', function () {
 			}]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 3);
-		assert.equal(second.index, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 3);
+		assert.strictEqual(second.index, 2);
+	});
+
+	test('ERR MISSING extHostDocument for notebook cell: #116711', async function () {
+
+		const p = Event.toPromise(extHostNotebooks.onDidChangeNotebookCells);
+
+		// DON'T call this, make sure the cell-documents have not been created yet
+		// assert.strictEqual(notebook.notebookDocument.cells.length, 2);
+
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			versionId: 100,
+			rawEvents: [{
+				kind: NotebookCellsChangeType.ModelChange,
+				changes: [[0, 2, [{
+					handle: 3,
+					uri: CellUri.generate(notebookUri, 3),
+					source: ['### Heading'],
+					eol: '\n',
+					language: 'markdown',
+					cellKind: CellKind.Markdown,
+					outputs: [],
+				}, {
+					handle: 4,
+					uri: CellUri.generate(notebookUri, 4),
+					source: ['console.log("aaa")', 'console.log("bbb")'],
+					eol: '\n',
+					language: 'javascript',
+					cellKind: CellKind.Code,
+					outputs: [],
+				}]]]
+			}]
+		}, false);
+
+		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
+
+		const event = await p;
+
+		assert.strictEqual(event.document === notebook.notebookDocument, true);
+		assert.strictEqual(event.changes.length, 1);
+		assert.strictEqual(event.changes[0].deletedCount, 2);
+		assert.strictEqual(event.changes[0].deletedItems[0].document.isClosed, true);
+		assert.strictEqual(event.changes[0].deletedItems[1].document.isClosed, true);
+		assert.strictEqual(event.changes[0].items.length, 2);
+		assert.strictEqual(event.changes[0].items[0].document.isClosed, false);
+		assert.strictEqual(event.changes[0].items[1].document.isClosed, false);
 	});
 });

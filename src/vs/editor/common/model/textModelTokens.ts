@@ -359,7 +359,7 @@ export class TextModelTokenization extends Disposable {
 			const text = this._textModel.getLineContent(lineIndex + 1);
 			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
 
-			const r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, lineStartState!);
+			const r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, true, lineStartState!);
 			builder.add(lineIndex + 1, r.tokens);
 			this._tokenizationStateStore.setEndState(linesLength, lineIndex, r.endState);
 			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
@@ -410,13 +410,13 @@ export class TextModelTokenization extends Disposable {
 		const languageIdentifier = this._textModel.getLanguageIdentifier();
 		let state = initialState;
 		for (let i = fakeLines.length - 1; i >= 0; i--) {
-			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, fakeLines[i], state);
+			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, fakeLines[i], false, state);
 			state = r.endState;
 		}
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			let text = this._textModel.getLineContent(lineNumber);
-			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, state);
+			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, true, state);
 			builder.add(lineNumber, r.tokens);
 			this._tokenizationStateStore.setFakeTokens(lineNumber - 1);
 			state = r.endState;
@@ -443,12 +443,12 @@ function initializeTokenization(textModel: TextModel): [ITokenizationSupport | n
 	return [tokenizationSupport, initialState];
 }
 
-function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null, text: string, state: IState): TokenizationResult2 {
+function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): TokenizationResult2 {
 	let r: TokenizationResult2 | null = null;
 
 	if (tokenizationSupport) {
 		try {
-			r = tokenizationSupport.tokenize2(text, state.clone(), 0);
+			r = tokenizationSupport.tokenize2(text, hasEOL, state.clone(), 0);
 		} catch (e) {
 			onUnexpectedError(e);
 		}

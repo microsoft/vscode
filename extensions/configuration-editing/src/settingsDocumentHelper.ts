@@ -48,7 +48,16 @@ export class SettingsDocument {
 			try {
 				ignoredExtensions = parse(this.document.getText())['settingsSync.ignoredExtensions'];
 			} catch (e) {/* ignore error */ }
-			return provideInstalledExtensionProposals(ignoredExtensions, range, true);
+			return provideInstalledExtensionProposals(ignoredExtensions, '', range, true);
+		}
+
+		// remote.extensionKind
+		if (location.path[0] === 'remote.extensionKind' && location.path.length === 2 && location.isAtPropertyKey) {
+			let alreadyConfigured: string[] = [];
+			try {
+				alreadyConfigured = Object.keys(parse(this.document.getText())['remote.extensionKind']);
+			} catch (e) {/* ignore error */ }
+			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
 		}
 
 		return this.provideLanguageOverridesCompletionItems(location, position);

@@ -5,10 +5,10 @@
 
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IActionRunner, IAction, SubmenuAction, Separator, IActionViewItemProvider, EmptySubmenuAction } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionRunner, IAction, SubmenuAction, Separator, EmptySubmenuAction } from 'vs/base/common/actions';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, addDisposableListener, append, $, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
+import { EventType, EventHelper, EventLike, isAncestor, addDisposableListener, append, $, clearNode, createStyleSheet, isInShadowDOM, getActiveElement, Dimension, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -18,17 +18,18 @@ import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event } from 'vs/base/common/event';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { BaseActionViewItem, ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { formatRule } from 'vs/base/browser/ui/codicons/codiconStyles';
 import { isFirefox } from 'vs/base/browser/browser';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
-const menuSelectionIcon = registerIcon('menu-selection', Codicon.check);
-const menuSubmenuIcon = registerIcon('menu-submenu', Codicon.chevronRight);
+const menuSelectionIcon = registerCodicon('menu-selection', Codicon.check);
+const menuSubmenuIcon = registerCodicon('menu-submenu', Codicon.chevronRight);
 
 export enum Direction {
 	Right,
@@ -85,6 +86,7 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
+			focusOnlyEnabledItems: true,
 			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
 		});
 
@@ -532,7 +534,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		if (this.options.label) {
 			clearNode(this.label);
 
-			let label = stripCodicons(this.getAction().label);
+			let label = stripIcons(this.getAction().label);
 			if (label) {
 				const cleanLabel = cleanMnemonic(label);
 				if (!this.options.enableMnemonics) {
@@ -616,20 +618,23 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		if (this.getAction().enabled) {
 			if (this.element) {
 				this.element.classList.remove('disabled');
+				this.element.removeAttribute('aria-disabled');
 			}
 
 			if (this.item) {
 				this.item.classList.remove('disabled');
+				this.item.removeAttribute('aria-disabled');
 				this.item.tabIndex = 0;
 			}
 		} else {
 			if (this.element) {
 				this.element.classList.add('disabled');
+				this.element.setAttribute('aria-disabled', 'true');
 			}
 
 			if (this.item) {
 				this.item.classList.add('disabled');
-				removeTabIndexAndUpdateFocus(this.item);
+				this.item.setAttribute('aria-disabled', 'true');
 			}
 		}
 	}
@@ -728,6 +733,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 		if (this.item) {
 			this.item.classList.add('monaco-submenu-item');
+			this.item.tabIndex = 0;
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
 			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
@@ -775,6 +781,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			this.parentData.parent.focus(false);
 			this.cleanupExistingSubmenu(false);
 		}));
+	}
+
+	updateEnabled(): void {
+		// override on submenu entry
+		// native menus do not observe enablement on sumbenus
+		// we mimic that behavior
 	}
 
 	open(selectFirst?: boolean): void {
@@ -1189,6 +1201,7 @@ ${formatRule(menuSubmenuIcon)}
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
+	-webkit-app-region: no-drag;
 }
 
 .context-view.monaco-menu-container :focus,

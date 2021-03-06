@@ -23,7 +23,6 @@ export interface IBuiltInExtension {
 }
 
 export type ConfigurationSyncStore = {
-	web?: Partial<Omit<ConfigurationSyncStore, 'web'>>,
 	url: string,
 	insidersUrl: string,
 	stableUrl: string,
@@ -45,7 +44,7 @@ export interface IProductConfiguration {
 	readonly applicationName: string;
 
 	readonly urlProtocol: string;
-	readonly dataFolderName: string;
+	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 
@@ -80,6 +79,7 @@ export interface IProductConfiguration {
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
+	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -122,12 +122,15 @@ export interface IProductConfiguration {
 	readonly portable?: string;
 
 	readonly extensionKind?: { readonly [extensionId: string]: ExtensionKind[]; };
+	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+
+	readonly darwinUniversalAssetId?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };

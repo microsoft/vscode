@@ -14,7 +14,7 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onStartupFinished"
   ],
   "main": "./out/mergeConflictMain",
   "browser": "./dist/browser/mergeConflictMain",
@@ -139,6 +139,10 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7"
+    "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

@@ -50,7 +50,7 @@ export interface IModeService {
 	// --- instantiation
 	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;
 	createByLanguageName(languageName: string): ILanguageSelection;
-	createByFilepathOrFirstLine(rsource: URI | null, firstLine?: string): ILanguageSelection;
+	createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection;
 
 	triggerMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): void;
 }

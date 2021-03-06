@@ -91,7 +91,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private registerListeners(): void {
 
 		// Layout
-		this._register(this.layoutService.onLayout(dimension => this.layout(Dimension.lift(dimension))));
+		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
 
 		// Delay some tasks until after we can show notifications
 		this.onCanShowNotifications().then(() => {
@@ -482,7 +482,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			toast.style.background = backgroundColor ? backgroundColor : '';
 
 			const widgetShadowColor = this.getColor(widgetShadow);
-			toast.style.boxShadow = widgetShadowColor ? `0 0px 8px ${widgetShadowColor}` : '';
+			toast.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
 			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
 			toast.style.border = borderColor ? `1px solid ${borderColor}` : '';

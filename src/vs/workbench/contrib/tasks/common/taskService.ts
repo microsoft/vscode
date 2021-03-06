@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { LinkedMap } from 'vs/base/common/map';
@@ -17,9 +18,9 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export { ITaskSummary, Task, TaskTerminateResponse };
 
-export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true);
-export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false);
-export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false);
+export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
+export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false, nls.localize('tasks.shellExecutionSupported', "Whether ShellExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
+export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false, nls.localize('tasks.processExecutionSupported', "Whether ProcessExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
@@ -77,6 +78,7 @@ export interface ITaskService {
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
 	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
+	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */

@@ -11,7 +11,7 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 function createClient(): Client {
 	return new Client(getPathFromAmdModule(require, 'bootstrap-fork'), {
 		serverName: 'TestServer',
-		env: { AMD_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
+		env: { VSCODE_AMD_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
 	});
 }
 

@@ -440,10 +440,9 @@ export class SuggestController implements IEditorContribution {
 		};
 	}
 
-	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
-		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
-			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", textLabel, suggestion.additionalTextEdits.length);
+	private _alertCompletionItem(item: CompletionItem): void {
+		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
+			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
@@ -583,6 +582,10 @@ export class SuggestController implements IEditorContribution {
 
 	toggleSuggestionFocus(): void {
 		this.widget.value.toggleDetailsFocus();
+	}
+
+	resetWidgetSize(): void {
+		this.widget.value.resetPersistedSize();
 	}
 }
 
@@ -875,3 +878,20 @@ registerEditorCommand(new SuggestCommand({
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
+
+
+registerEditorAction(class extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.resetSuggestSize',
+			label: nls.localize('suggest.reset.label', "Reset Suggest Widget Size"),
+			alias: 'Reset Suggest Widget Size',
+			precondition: undefined
+		});
+	}
+
+	run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		SuggestController.get(editor).resetWidgetSize();
+	}
+});

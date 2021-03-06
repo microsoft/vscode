@@ -56,7 +56,7 @@ export class OutputLinkComputer {
 		}
 
 		const links: ILink[] = [];
-		const lines = model.getValue().split(/\r\n|\r|\n/);
+		const lines = strings.splitLines(model.getValue());
 
 		// For each workspace root patterns
 		for (const [folderUri, folderPatterns] of this.patterns) {

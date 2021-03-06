@@ -5,8 +5,8 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
-
 import { asText } from 'vs/platform/request/common/request';
+import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
@@ -16,7 +16,6 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
-
 
 interface ColorInfo {
 	description: string;
@@ -106,7 +105,7 @@ async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
 	let result: { [id: string]: string } = Object.create(null);
 	for (let folder of extFolders) {
 		try {
-			let packageJSON = JSON.parse((await pfs.readFile(path.join(extPath, folder, 'package.json'))).toString());
+			let packageJSON = JSON.parse((await fs.promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
 			let contributes = packageJSON['contributes'];
 			if (contributes) {
 				let colors = contributes['colors'];

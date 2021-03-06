@@ -18,6 +18,7 @@ import { Color } from 'vs/base/common/color';
 import { IFileService } from 'vs/platform/files/common/files';
 import { basename } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { splitLines } from 'vs/base/common/strings';
 
 interface IToken {
 	c: string;
@@ -220,7 +221,7 @@ class Snapper {
 			if (!grammar) {
 				return [];
 			}
-			let lines = content.split(/\r\n|\r|\n/);
+			let lines = splitLines(content);
 
 			let result = this._tokenize(grammar, lines);
 			return this._getThemesResult(grammar, lines).then((themesResult) => {

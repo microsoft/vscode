@@ -53,7 +53,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, false);
+			assert.strictEqual(actual, false);
 		}
 	});
 
@@ -142,7 +142,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, false);
+			assert.strictEqual(actual, false);
 		}
 	});
 
@@ -202,7 +202,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, true);
+			assert.strictEqual(actual, true);
 		}
 	});
 
@@ -241,7 +241,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, true);
+			assert.strictEqual(actual, true);
 		}
 	});
 
@@ -285,7 +285,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, false);
+			assert.strictEqual(actual, false);
 		}
 	});
 
@@ -374,7 +374,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, true);
+			assert.strictEqual(actual, true);
 		}
 	});
 
@@ -464,7 +464,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, true);
+			assert.strictEqual(actual, true);
 		}
 	});
 
@@ -518,7 +518,7 @@ suite('MouseWheelClassifier', () => {
 			classifier.accept(timestamp, deltaX, deltaY);
 
 			const actual = classifier.isPhysicalMouseWheel();
-			assert.equal(actual, true);
+			assert.strictEqual(actual, true);
 		}
 	});
 });

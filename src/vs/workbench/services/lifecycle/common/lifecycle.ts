@@ -22,8 +22,11 @@ export interface BeforeShutdownEvent {
 	/**
 	 * Allows to veto the shutdown. The veto can be a long running operation but it
 	 * will block the application from closing.
+	 *
+	 * @param id to identify the veto operation in case it takes very long or never
+	 * completes.
 	 */
-	veto(value: boolean | Promise<boolean>): void;
+	veto(value: boolean | Promise<boolean>, id: string): void;
 
 	/**
 	 * The reason why the application will be shutting down.
@@ -44,8 +47,11 @@ export interface WillShutdownEvent {
 	/**
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
+	 *
+	 * @param id to identify the join operation in case it takes very long or never
+	 * completes.
 	 */
-	join(promise: Promise<void>): void;
+	join(promise: Promise<void>, id: string): void;
 
 	/**
 	 * The reason why the application is shutting down.

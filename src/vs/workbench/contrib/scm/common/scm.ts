@@ -34,7 +34,8 @@ export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
-	readonly contextValue?: string;
+	readonly contextValue: string | undefined;
+	readonly command: Command | undefined;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -144,7 +145,6 @@ export interface ISCMRepositoryMenus {
 }
 
 export interface ISCMMenus {
-	readonly titleMenu: ISCMTitleMenu;
 	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
 }
 

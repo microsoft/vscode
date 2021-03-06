@@ -16,10 +16,14 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
+
+	private readonly editorInputFactories = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -27,7 +31,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.restoreBackups();
 	}
@@ -44,7 +49,11 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		// Some failed to restore or were not opened at all so we open and resolve them manually
 		if (unresolvedBackups.length > 0) {
-			await this.doOpenEditors(unresolvedBackups);
+			try {
+				await this.doOpenEditors(unresolvedBackups);
+			} catch (error) {
+				this.logService.error(error);
+			}
 
 			return this.doResolveOpenedBackups(unresolvedBackups);
 		}
@@ -55,7 +64,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private async doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
 		const unresolvedBackups: URI[] = [];
 
-		await Promise.all(backups.map(async backup => {
+		await Promises.settled(backups.map(async backup => {
 			const openedEditor = this.findEditorByResource(backup);
 			if (openedEditor) {
 				try {
@@ -73,10 +82,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private findEditorByResource(resource: URI): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
-			const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
-			if (customFactory && customFactory.canResolveBackup(editor, resource)) {
-				return editor;
-			} else if (isEqual(editor.resource, resource)) {
+			const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
+			if (customFactory?.canResolveBackup(editor, resource) || isEqual(editor.resource, resource)) {
 				return editor;
 			}
 		}
@@ -86,7 +93,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private async doOpenEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
-		const inputs = await Promise.all(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
+		const inputs = await Promises.settled(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
 
 		// Open all remaining backups as editors and resolve them to load their backups
 		await this.editorService.openEditors(inputs);
@@ -104,8 +111,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		// handle custom editors by asking the custom editor input factory
 		// to create the input.
-		const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
-
+		const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
 		if (customFactory) {
 			const editor = await customFactory.createCustomEditorInput(resource, this.instantiationService);
 			return { editor, options };

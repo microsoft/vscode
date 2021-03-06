@@ -34,6 +34,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -138,6 +139,7 @@ export class SimpleFileDialog {
 		@IPathService protected readonly pathService: IPathService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		this.remoteAuthority = this.environmentService.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
@@ -212,11 +214,16 @@ export class SimpleFileDialog {
 			path = path.replace(/\\/g, '/');
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority, this.pathService.defaultUriScheme);
+		// If the default scheme is file, then we don't care about the remote authority
+		const authority = uri.scheme === Schemas.file ? undefined : this.remoteAuthority;
+		return resources.toLocalResource(uri, authority,
+			// If there is a remote authority, then we should use the system's default URI as the local scheme.
+			// If there is *no* remote authority, then we should use the default scheme for this dialog as that is already local.
+			authority ? this.pathService.defaultUriScheme : uri.scheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
-		if (available) {
+		if (available && available.length > 0) {
 			if (defaultUri && (available.indexOf(defaultUri.scheme) >= 0)) {
 				return defaultUri.scheme;
 			}
@@ -563,7 +570,8 @@ export class SimpleFileDialog {
 				return UpdateResult.InvalidPath;
 			} else {
 				const inputUriDirname = resources.dirname(valueUri);
-				if (!resources.extUriIgnorePathCase.isEqual(resources.removeTrailingPathSeparator(this.currentFolder), inputUriDirname)) {
+				if (!resources.extUriIgnorePathCase.isEqual(resources.removeTrailingPathSeparator(this.currentFolder), inputUriDirname)
+					&& (!/^[a-zA-Z]:$/.test(this.filePickBox.value) || !equalsIgnoreCase(this.pathFromUri(this.currentFolder).substring(0, this.filePickBox.value.length), this.filePickBox.value))) {
 					let statWithoutTrailing: IFileStat | undefined;
 					try {
 						statWithoutTrailing = await this.fileService.resolve(inputUriDirname);
@@ -606,6 +614,7 @@ export class SimpleFileDialog {
 		} else {
 			this.userEnteredPathSegment = inputBasename;
 			this.autoCompletePathSegment = '';
+			this.filePickBox.activeItems = [];
 		}
 	}
 
@@ -637,12 +646,16 @@ export class SimpleFileDialog {
 			return true;
 		} else if (force && (!equalsIgnoreCase(this.basenameWithTrailingSlash(quickPickItem.uri), (this.userEnteredPathSegment + this.autoCompletePathSegment)))) {
 			this.userEnteredPathSegment = '';
-			this.autoCompletePathSegment = this.trimTrailingSlash(itemBasename);
+			if (!this.accessibilityService.isScreenReaderOptimized()) {
+				this.autoCompletePathSegment = this.trimTrailingSlash(itemBasename);
+			}
 			this.activeItem = quickPickItem;
-			this.filePickBox.valueSelection = [this.pathFromUri(this.currentFolder, true).length, this.filePickBox.value.length];
-			// use insert text to preserve undo buffer
-			this.insertText(this.pathAppend(this.currentFolder, this.autoCompletePathSegment), this.autoCompletePathSegment);
-			this.filePickBox.valueSelection = [this.filePickBox.value.length - this.autoCompletePathSegment.length, this.filePickBox.value.length];
+			if (!this.accessibilityService.isScreenReaderOptimized()) {
+				this.filePickBox.valueSelection = [this.pathFromUri(this.currentFolder, true).length, this.filePickBox.value.length];
+				// use insert text to preserve undo buffer
+				this.insertText(this.pathAppend(this.currentFolder, this.autoCompletePathSegment), this.autoCompletePathSegment);
+				this.filePickBox.valueSelection = [this.filePickBox.value.length - this.autoCompletePathSegment.length, this.filePickBox.value.length];
+			}
 			return true;
 		} else {
 			this.userEnteredPathSegment = startingBasename;
@@ -871,7 +884,7 @@ export class SimpleFileDialog {
 	}
 
 	private createBackItem(currFolder: URI): FileQuickPickItem | null {
-		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file });
+		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file, authority: '' });
 		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
 		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);
@@ -919,7 +932,8 @@ export class SimpleFileDialog {
 			const ext = resources.extname(file);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
-					if (ext === ('.' + this.options.filters[i].extensions[j])) {
+					const testExt = this.options.filters[i].extensions[j];
+					if ((testExt === '*') || (ext === ('.' + testExt))) {
 						return true;
 					}
 				}

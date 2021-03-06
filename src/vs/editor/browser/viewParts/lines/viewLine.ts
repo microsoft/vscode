@@ -44,8 +44,6 @@ const canUseFastRenderedViewLine = (function () {
 
 let monospaceAssumptionsAreValid = true;
 
-const alwaysRenderInlineSelection = (browser.isEdge);
-
 export class DomReadingContext {
 
 	private readonly _domNode: HTMLElement;
@@ -163,7 +161,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (alwaysRenderInlineSelection || this._options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (this._options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -184,7 +182,7 @@ export class ViewLine implements IVisibleLine {
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: LineRange[] | null = null;
-		if (alwaysRenderInlineSelection || options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
 

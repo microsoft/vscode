@@ -18,11 +18,12 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
@@ -38,16 +39,18 @@ ModesRegistry.registerLanguage({
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
+const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
+
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	name: localize('source control', "Source Control"),
+	title: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
-	icon: Codicon.sourceControl.classNames,
+	icon: sourceControlViewIcon,
 	alwaysUseContainerInfo: true,
 	order: 2,
-	hideIfEmpty: true
-}, ViewContainerLocation.Sidebar);
+	hideIfEmpty: true,
+}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -65,7 +68,18 @@ viewsRegistry.registerViews([{
 	canMoveView: true,
 	weight: 80,
 	order: -999,
-	containerIcon: Codicon.sourceControl.classNames
+	containerIcon: sourceControlViewIcon,
+	openCommandActionDescriptor: {
+		id: viewContainer.id,
+		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
+		keybindings: {
+			primary: 0,
+			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
+		},
+		order: 2,
+	}
 }], viewContainer);
 
 viewsRegistry.registerViews([{
@@ -80,27 +94,11 @@ viewsRegistry.registerViews([{
 	order: -1000,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
-	containerIcon: Codicon.sourceControl.classNames
+	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
-
-// Register Action to Open View
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: VIEWLET_ID,
-	description: { description: localize('toggleSCMViewlet', "Show SCM"), args: [] },
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: 0,
-	win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
-	handler: async accessor => {
-		const viewsService = accessor.get(IViewsService);
-		const view = await viewsService.openView(VIEW_PANE_ID);
-		view?.focus();
-	}
-});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
@@ -137,6 +135,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.diffDecorationsGutterVisibility', "Controls the visibility of the Source Control diff decorator in the gutter."),
 			default: 'always'
+		},
+		'scm.diffDecorationsGutterAction': {
+			type: 'string',
+			enum: ['diff', 'none'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff peek view on click."),
+				localize('scm.diffDecorationsGutterAction.none', "Do nothing.")
+			],
+			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
+			default: 'diff'
 		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
@@ -196,17 +204,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 10
 		}
 	}
-});
-
-// View menu
-
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '3_views',
-	command: {
-		id: VIEWLET_ID,
-		title: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM")
-	},
-	order: 3
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

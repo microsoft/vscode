@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as marked from 'vs/base/common/marked/marked';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { MarkdownString, IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { parse } from 'vs/base/common/marshalling';
@@ -57,7 +57,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
 		test('render appendMarkdown', () => {
@@ -85,7 +85,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
 			let result: HTMLElement = renderMarkdown(mds);
-			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
 		test('render appendMarkdown with escaped icon', () => {
@@ -115,4 +115,20 @@ suite('MarkdownRenderer', () => {
 		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));
 	});
 
+	suite('PlaintextMarkdownRender', () => {
+
+		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
+			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
+			const expected = 'code\nquote\nheading\nlist\ntable table2 one two \nbold\nitalic\ndel\nsome text\n';
+			const result: string = renderMarkdownAsPlaintext(markdown);
+			assert.strictEqual(result, expected);
+		});
+
+		test('test html, hr, image, link are rendered plaintext', () => {
+			const markdown = { value: '<div>html</div>\n\n---\n![image](imageLink)\n[text](textLink)' };
+			const expected = '\ntext\n';
+			const result: string = renderMarkdownAsPlaintext(markdown);
+			assert.strictEqual(result, expected);
+		});
+	});
 });

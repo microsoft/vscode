@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 // @ts-ignore: interface is implemented via proxy
 export class NativeHostService implements INativeHostService {
@@ -16,7 +16,7 @@ export class NativeHostService implements INativeHostService {
 		readonly windowId: number,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		return createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), {
+		return ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), {
 			context: windowId,
 			properties: (() => {
 				const properties = new Map<string, unknown>();

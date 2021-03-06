@@ -4,39 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { importEntries, mark } from 'vs/base/common/performance';
+import { mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
-import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { domContentLoaded } from 'vs/base/browser/dom';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { basename } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleSignService, SimpleStorageService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { SimpleConfigurationService, simpleFileSystemProvider, SimpleSignService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService, SimpleLogService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 class DesktopMain extends Disposable {
 
+	private readonly productService: IProductService = { _serviceBrand: undefined, ...product };
 	private readonly environmentService = new SimpleNativeWorkbenchEnvironmentService(this.configuration);
 
 	constructor(private configuration: INativeWorkbenchConfiguration) {
@@ -50,9 +60,6 @@ class DesktopMain extends Disposable {
 		// Massage configuration file URIs
 		this.reviveUris();
 
-		// Setup perf
-		importEntries(this.configuration.perfEntries);
-
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
@@ -61,14 +68,14 @@ class DesktopMain extends Disposable {
 	}
 
 	private reviveUris() {
-		if (this.configuration.folderUri) {
-			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
+
+		// Workspace
+		const workspace = reviveIdentifier(this.configuration.workspace);
+		if (isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace)) {
+			this.configuration.workspace = workspace;
 		}
 
-		if (this.configuration.workspace) {
-			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
-		}
-
+		// Files
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
 		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
@@ -90,7 +97,7 @@ class DesktopMain extends Disposable {
 		const services = await this.initServices();
 
 		await domContentLoaded();
-		mark('willStartWorkbench');
+		mark('code/willStartWorkbench');
 
 		// Create Workbench
 		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
@@ -108,36 +115,16 @@ class DesktopMain extends Disposable {
 		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
-	private registerListeners(workbench: Workbench, storageService: SimpleStorageService): void {
-
-		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true, workbench)));
+	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Workbench Lifecycle
+		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
 		this._register(workbench.onShutdown(() => this.dispose()));
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close())));
 	}
 
-	private onWindowResize(e: Event, retry: boolean, workbench: Workbench): void {
-		if (e.target === window) {
-			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@Ben this is an electron issue on macOS when simple fullscreen is enabled
-				// where for some reason the window clientWidth is reported as 0 when switching
-				// between simple fullscreen and normal screen. In that case we schedule the layout
-				// call at the next animation frame once, in the hope that the dimensions are
-				// proper then.
-				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false, workbench));
-				}
-				return;
-			}
-
-			workbench.layout();
-		}
-	}
-
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: SimpleStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
+
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -153,32 +140,26 @@ class DesktopMain extends Disposable {
 
 
 		// Main Process
-		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
+		const mainProcessService = this._register(new ElectronIPCMainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
-		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
-		serviceCollection.set(IProductService, productService);
+		serviceCollection.set(IProductService, this.productService);
 
-		// Log
+		// Logger
+		const loggerService = new LoggerChannelClient(mainProcessService.getChannel('logger'));
+		serviceCollection.set(ILoggerService, loggerService);
+
+		// Log (we can only use the real logger, once `IEnvironmentService#logFile` has a proper file:// based value (https://github.com/microsoft/vscode/issues/116829))
 		const logService = new SimpleLogService();
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
-
-		// Sign
-		const signService = new SimpleSignService();
-		serviceCollection.set(ISignService, signService);
-
-		// Remote Agent
-		const remoteAgentService = new SimpleRemoteAgentService();
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -193,6 +174,14 @@ class DesktopMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+
+		// Sign
+		const signService = new SimpleSignService();
+		serviceCollection.set(ISignService, signService);
+
+		// Remote Agent
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, this.productService, remoteAuthorityResolverService, signService, logService));
+		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Native Host
 		const nativeHostService = new NativeHostService(this.configuration.windowId, mainProcessService) as INativeHostService;
@@ -205,13 +194,12 @@ class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, simpleFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(URI.file('user-home'), undefined, simpleFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, simpleFileSystemProvider, Schemas.userData, logService));
 
-		const connection = remoteAgentService.getConnection();
-		if (connection) {
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
-			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
-		}
+		// Uri Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		serviceCollection.set(IUriIdentityService, uriIdentityService);
+
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -226,6 +214,14 @@ class DesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
+		const connection = remoteAgentService.getConnection();
+		if (connection) {
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
+			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
+		}
+
+		const payload = this.resolveWorkspaceInitializationPayload();
+
 		const services = await Promise.all([
 			this.createWorkspaceService().then(service => {
 
@@ -233,15 +229,23 @@ class DesktopMain extends Disposable {
 				serviceCollection.set(IWorkspaceContextService, service);
 
 				// Configuration
-				serviceCollection.set(IConfigurationService, new SimpleConfigurationService());
+				serviceCollection.set(IWorkbenchConfigurationService, new SimpleConfigurationService());
 
 				return service;
 			}),
 
-			this.createStorageService().then(service => {
+			this.createStorageService(payload, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
+
+				return service;
+			}),
+
+			this.createKeyboardLayoutService(mainProcessService).then(service => {
+
+				// KeyboardLayout
+				serviceCollection.set(IKeyboardLayoutService, service);
 
 				return service;
 			})
@@ -264,12 +268,56 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
+
+		// Fallback to empty workspace if we have no payload yet.
+		if (!workspaceInitializationPayload) {
+			let id: string;
+			if (this.configuration.backupPath) {
+				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			} else if (this.environmentService.isExtensionDevelopment) {
+				id = 'ext-dev'; // extension development window never stores backups and is a singleton
+			} else {
+				throw new Error('Unexpected window configuration without backupPath');
+			}
+
+			workspaceInitializationPayload = { id };
+		}
+
+		return workspaceInitializationPayload;
+	}
+
 	private async createWorkspaceService(): Promise<IWorkspaceContextService> {
 		return new SimpleWorkspaceService();
 	}
 
-	private async createStorageService(): Promise<SimpleStorageService> {
-		return new SimpleStorageService();
+	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+		const storageService = new NativeStorageService(payload, mainProcessService, this.environmentService);
+
+		try {
+			await storageService.initialize();
+
+			return storageService;
+		} catch (error) {
+			onUnexpectedError(error);
+
+			return storageService;
+		}
+	}
+
+	private async createKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
+		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+
+		try {
+			await keyboardLayoutService.initialize();
+
+			return keyboardLayoutService;
+		} catch (error) {
+			onUnexpectedError(error);
+
+			return keyboardLayoutService;
+		}
 	}
 }
 

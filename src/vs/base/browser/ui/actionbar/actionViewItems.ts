@@ -8,13 +8,14 @@ import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, Separator, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, Separator } from 'vs/base/common/actions';
 import * as types from 'vs/base/common/types';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { isFirefox } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
@@ -163,8 +164,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		this.actionRunner.run(this._action, context);
 	}
 
+	// Only set the tabIndex on the element once it is about to get focused
+	// That way this element wont be a tab stop when it is not needed #106441
 	focus(): void {
 		if (this.element) {
+			this.element.tabIndex = 0;
 			this.element.focus();
 			this.element.classList.add('focused');
 		}
@@ -173,8 +177,19 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	blur(): void {
 		if (this.element) {
 			this.element.blur();
+			this.element.tabIndex = -1;
 			this.element.classList.remove('focused');
 		}
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this.element) {
+			this.element.tabIndex = focusable ? 0 : -1;
+		}
+	}
+
+	get trapsArrowNavigation(): boolean {
+		return false;
 	}
 
 	protected updateEnabled(): void {
@@ -259,11 +274,24 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateChecked();
 	}
 
+	// Only set the tabIndex on the element once it is about to get focused
+	// That way this element wont be a tab stop when it is not needed #106441
 	focus(): void {
-		super.focus();
-
 		if (this.label) {
+			this.label.tabIndex = 0;
 			this.label.focus();
+		}
+	}
+
+	blur(): void {
+		if (this.label) {
+			this.label.tabIndex = -1;
+		}
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this.label) {
+			this.label.tabIndex = focusable ? 0 : -1;
 		}
 	}
 
@@ -320,7 +348,6 @@ export class ActionViewItem extends BaseActionViewItem {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
 				this.label.classList.remove('disabled');
-				this.label.tabIndex = 0;
 			}
 
 			if (this.element) {
@@ -330,7 +357,6 @@ export class ActionViewItem extends BaseActionViewItem {
 			if (this.label) {
 				this.label.setAttribute('aria-disabled', 'true');
 				this.label.classList.add('disabled');
-				removeTabIndexAndUpdateFocus(this.label);
 			}
 
 			if (this.element) {
@@ -357,6 +383,7 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		super(ctx, action);
 
 		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
+		this.selectBox.setFocusable(false);
 
 		this._register(this.selectBox);
 		this.registerListeners();
@@ -378,6 +405,10 @@ export class SelectActionViewItem extends BaseActionViewItem {
 
 	protected getActionContext(option: string, index: number) {
 		return option;
+	}
+
+	setFocusable(focusable: boolean): void {
+		this.selectBox.setFocusable(focusable);
 	}
 
 	focus(): void {

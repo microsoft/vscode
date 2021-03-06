@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { isFirefox } from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -235,7 +236,7 @@ export namespace RevealLine_ {
 				name: 'Reveal line argument object',
 				description: `Property-value pairs that can be passed through this argument:
 					* 'lineNumber': A mandatory line number value.
-					* 'at': Logical position at which line has to be revealed .
+					* 'at': Logical position at which line has to be revealed.
 						\`\`\`
 						'top', 'center', 'bottom'
 						\`\`\`
@@ -554,6 +555,8 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.Right:
 				case CursorMove_.Direction.Up:
 				case CursorMove_.Direction.Down:
+				case CursorMove_.Direction.PrevBlankLine:
+				case CursorMove_.Direction.NextBlankLine:
 				case CursorMove_.Direction.WrappedLineStart:
 				case CursorMove_.Direction.WrappedLineFirstNonWhitespaceCharacter:
 				case CursorMove_.Direction.WrappedLineColumnCenter:
@@ -1591,6 +1594,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			viewModel.revealPrimaryCursor(args.source, true);
+			status(nls.localize('removedCursor', "Removed secondary cursors"));
 		}
 	});
 
@@ -1929,6 +1933,7 @@ registerOverwritableCommand(Handler.Type, {
 	}]
 });
 registerOverwritableCommand(Handler.ReplacePreviousChar);
+registerOverwritableCommand(Handler.CompositionType);
 registerOverwritableCommand(Handler.CompositionStart);
 registerOverwritableCommand(Handler.CompositionEnd);
 registerOverwritableCommand(Handler.Paste);

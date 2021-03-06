@@ -58,6 +58,10 @@
 	};
 
 	const defaultCssRules = `
+	html {
+		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+	}
+
 	body {
 		background-color: transparent;
 		color: var(--vscode-editor-foreground);
@@ -308,6 +312,21 @@
 				repeat: e.repeat
 			});
 		};
+		/**
+		 * @param {KeyboardEvent} e
+		 */
+		const handleInnerUp = (e) => {
+			host.postMessage('did-keyup', {
+				key: e.key,
+				keyCode: e.keyCode,
+				code: e.code,
+				shiftKey: e.shiftKey,
+				altKey: e.altKey,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				repeat: e.repeat
+			});
+		};
 
 		/**
 		 * @param {KeyboardEvent} e
@@ -315,7 +334,8 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['c', 'v', 'x'].includes(e.key);
+			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
+			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
 		}
 
 		/**
@@ -324,7 +344,7 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key);
+			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
 		}
 
 		let isHandlingScroll = false;
@@ -439,10 +459,20 @@
 
 			// propagate focus
 			host.onMessage('focus', () => {
-				const target = getActiveFrame();
-				if (target) {
-					target.contentWindow.focus();
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					// Focus the top level webview instead
+					window.focus();
+					return;
 				}
+
+				if (document.activeElement === activeFrame) {
+					// We are already focused on the iframe (or one of its children) so no need
+					// to refocus.
+					return;
+				}
+
+				activeFrame.contentWindow.focus();
 			});
 
 			// update iframe-contents
@@ -493,12 +523,15 @@
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
 				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
+				newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
 				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.
 					// Fake load an empty on the correct origin and then write real html
 					// into it to get around this.
 					newFrame.src = `./fake.html?id=${ID}`;
+				} else {
+					newFrame.src = `about:blank?webviewFrame`;
 				}
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
@@ -576,6 +609,10 @@
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
 
+						if (document.hasFocus()) {
+							contentWindow.focus();
+						}
+
 						pendingMessages.forEach((data) => {
 							contentWindow.postMessage(data, '*');
 						});
@@ -611,6 +648,7 @@
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 					newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
 					newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+					newFrame.contentWindow.addEventListener('keyup', handleInnerUp);
 					newFrame.contentWindow.addEventListener('contextmenu', e => e.preventDefault());
 
 					if (host.onIframeLoaded) {

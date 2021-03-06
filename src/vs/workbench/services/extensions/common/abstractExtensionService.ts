@@ -21,7 +21,7 @@ import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensi
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription, ExtensionType, ITranslatedScannedExtension, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, ExtensionType, ITranslatedScannedExtension, IExtension, ExtensionKind, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -407,21 +407,20 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#endregion
 
 	protected async _initialize(): Promise<void> {
-		perf.mark('willLoadExtensions');
+		perf.mark('code/willLoadExtensions');
 		this._startExtensionHosts(true, []);
-		this.whenInstalledExtensionsRegistered().then(() => perf.mark('didLoadExtensions'));
 		await this._scanAndHandleExtensions();
 		this._releaseBarrier();
+		perf.mark('code/didLoadExtensions');
 	}
 
 	private _releaseBarrier(): void {
-		perf.mark('extensionHostReady');
 		this._installedExtensionsReady.open();
 		this._onDidRegisterExtensions.fire(undefined);
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
-	private _stopExtensionHosts(): void {
+	protected _stopExtensionHosts(): void {
 		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);
@@ -465,7 +464,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
-		this._stopExtensionHosts();
+		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
+			this._stopExtensionHosts();
+		}
 	}
 
 	//#region IExtensionService
@@ -534,14 +535,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		});
 	}
 
-	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
+	public readExtensionPointContributions<T extends IExtensionContributions[keyof IExtensionContributions]>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> {
 		return this._installedExtensionsReady.wait().then(() => {
 			const availableExtensions = this._registry.getAllExtensionDescriptions();
 
 			const result: ExtensionPointContribution<T>[] = [];
 			for (const desc of availableExtensions) {
 				if (desc.contributes && hasOwnProperty.call(desc.contributes, extPoint.name)) {
-					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes]));
+					result.push(new ExtensionPointContribution<T>(desc, desc.contributes[extPoint.name as keyof typeof desc.contributes] as T));
 				}
 			}
 
@@ -644,11 +645,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
+		perf.mark('code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
 			if (affectedExtensionPoints[extensionPoint.name]) {
 				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
 			}
 		}
+		perf.mark('code/didHandleExtensionPoints');
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {
@@ -688,20 +691,18 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private static _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
+	private static _handleExtensionPoint<T extends IExtensionContributions[keyof IExtensionContributions]>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
 		const users: IExtensionPointUser<T>[] = [];
 		for (const desc of availableExtensions) {
 			if (desc.contributes && hasOwnProperty.call(desc.contributes, extensionPoint.name)) {
 				users.push({
 					description: desc,
-					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes],
+					value: desc.contributes[extensionPoint.name as keyof typeof desc.contributes] as T,
 					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
 				});
 			}
 		}
-		perf.mark(`willHandleExtensionPoint/${extensionPoint.name}`);
 		extensionPoint.acceptUsers(users);
-		perf.mark(`didHandleExtensionPoint/${extensionPoint.name}`);
 	}
 
 	private _showMessageToUser(severity: Severity, msg: string): void {

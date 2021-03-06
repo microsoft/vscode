@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.search-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.search-view .results {
+	flex-grow: 1;
+	min-height: 0; /* Allow it to be smaller than its contents */
+}
+
 .search-view .search-widgets-container {
 	margin: 0px 12px 0 2px;
 	padding-top: 6px;
@@ -30,18 +41,18 @@
 	margin-left: 18px;
 }
 
-.search-view .search-widget .monaco-inputbox > .wrapper {
+.search-view .search-widget .monaco-inputbox > .ibwrapper {
 	height: 100%;
 }
 
-.search-view .search-widget .monaco-inputbox > .wrapper > .mirror,
-.search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
+.search-view .search-widget .monaco-inputbox > .ibwrapper > .mirror,
+.search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	padding: 3px;
 	padding-left: 4px;
 }
 
 /* NOTE: height is also used in searchWidget.ts as a constant*/
-.search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
+.search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
 	overflow: initial;
 	height: 24px; /* set initial height before measure */
 }
@@ -50,11 +61,11 @@
 	opacity: 0;
 }
 
-.search-view .monaco-inputbox > .wrapper > textarea.input {
+.search-view .monaco-inputbox > .ibwrapper > textarea.input {
 	scrollbar-width: none; /* Firefox: hide scrollbar */
 }
 
-.search-view .monaco-inputbox > .wrapper > textarea.input::-webkit-scrollbar {
+.search-view .monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
 	display: none;
 }
 

@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IAction, IActionRunner, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 const $ = dom.$;
 
-export class StartDebugActionViewItem implements IActionViewItem {
+export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	private static readonly SEPARATOR = '─────────';
 
-	actionRunner!: IActionRunner;
 	private container!: HTMLElement;
 	private start!: HTMLElement;
 	private selectBox: SelectBox;
-	private options: { label: string, handler: (() => Promise<boolean>) }[] = [];
+	private debugOptions: { label: string, handler: (() => Promise<boolean>) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
 	private providers: { label: string, type: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
@@ -46,8 +46,10 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
+		super(context, action);
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox.setFocusable(false);
 		this.toDispose.push(this.selectBox);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
@@ -68,14 +70,15 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
-		this.start = dom.append(container, $('.codicon.codicon-debug-start'));
+		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		this.start.title = this.action.label;
 		this.start.setAttribute('role', 'button');
-		this.start.tabIndex = 0;
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
 			this.start.blur();
-			this.actionRunner.run(this.action, this.context);
+			if (this.debugService.state !== State.Initializing) {
+				this.actionRunner.run(this.action, this.context);
+			}
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
@@ -92,16 +95,17 @@ export class StartDebugActionViewItem implements IActionViewItem {
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter)) {
+			if (event.equals(KeyCode.Enter) && this.debugService.state !== State.Initializing) {
 				this.actionRunner.run(this.action, this.context);
 			}
 			if (event.equals(KeyCode.RightArrow)) {
+				this.start.tabIndex = -1;
 				this.selectBox.focus();
 				event.stopPropagation();
 			}
 		}));
 		this.toDispose.push(this.selectBox.onDidSelect(async e => {
-			const target = this.options[e.index];
+			const target = this.debugOptions[e.index];
 			const shouldBeSelected = target.handler ? await target.handler() : false;
 			if (shouldBeSelected) {
 				this.selected = e.index;
@@ -116,6 +120,8 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.toDispose.push(dom.addDisposableListener(selectBoxContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
+				this.selectBox.setFocusable(false);
+				this.start.tabIndex = 0;
 				this.start.focus();
 				event.stopPropagation();
 			}
@@ -148,12 +154,24 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		if (fromRight) {
 			this.selectBox.focus();
 		} else {
+			this.start.tabIndex = 0;
 			this.start.focus();
 		}
 	}
 
 	blur(): void {
+		this.start.tabIndex = -1;
+		this.selectBox.blur();
 		this.container.blur();
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (focusable) {
+			this.start.tabIndex = 0;
+		} else {
+			this.start.tabIndex = -1;
+			this.selectBox.setFocusable(false);
+		}
 	}
 
 	dispose(): void {
@@ -162,7 +180,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 
 	private updateOptions(): void {
 		this.selected = 0;
-		this.options = [];
+		this.debugOptions = [];
 		const manager = this.debugService.getConfigurationManager();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let lastGroup: string | undefined;
@@ -170,17 +188,17 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
-				if (this.options.length) {
-					this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
-					disabledIdxs.push(this.options.length - 1);
+				if (this.debugOptions.length) {
+					this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
+					disabledIdxs.push(this.debugOptions.length - 1);
 				}
 			}
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
-				this.selected = this.options.length;
+				this.selected = this.debugOptions.length;
 			}
 
 			const label = inWorkspace ? `${name} (${launch.name})` : name;
-			this.options.push({
+			this.debugOptions.push({
 				label, handler: async () => {
 					await manager.selectConfiguration(launch, name);
 					return true;
@@ -188,23 +206,35 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		if (this.options.length === 0) {
-			this.options.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
-		} else {
-			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
-			disabledIdxs.push(this.options.length - 1);
+		// Only take 3 elements from the recent dynamic configurations to not clutter the dropdown
+		manager.getRecentDynamicConfigurations().slice(0, 3).forEach(({ name, type }) => {
+			if (type === manager.selectedConfiguration.type && manager.selectedConfiguration.name === name) {
+				this.selected = this.debugOptions.length;
+			}
+			this.debugOptions.push({
+				label: name,
+				handler: async () => {
+					await manager.selectConfiguration(undefined, name, undefined, { type });
+					return true;
+				}
+			});
+		});
+
+		if (this.debugOptions.length === 0) {
+			this.debugOptions.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
 		}
 
-		this.providers.forEach(p => {
-			if (p.type === manager.selectedConfiguration.type) {
-				this.selected = this.options.length;
-			}
+		this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
+		disabledIdxs.push(this.debugOptions.length - 1);
 
-			this.options.push({
-				label: `${p.label}...`, handler: async () => {
+		this.providers.forEach(p => {
+
+			this.debugOptions.push({
+				label: `${p.label}...`,
+				handler: async () => {
 					const picked = await p.pick();
 					if (picked) {
-						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, p.type);
+						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, { type: p.type });
 						return true;
 					}
 					return false;
@@ -212,14 +242,9 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		if (this.providers.length > 0) {
-			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
-			disabledIdxs.push(this.options.length - 1);
-		}
-
 		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
-			this.options.push({
+			this.debugOptions.push({
 				label, handler: async () => {
 					await this.commandService.executeCommand(ADD_CONFIGURATION_ID, l.uri.toString());
 					return false;
@@ -227,7 +252,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.options.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 }), this.selected);
+		this.selectBox.setOptions(this.debugOptions.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 }), this.selected);
 	}
 }
 
@@ -263,7 +288,8 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 
-		this.update(session);
+		const selectedSession = session ? this.mapFocusedSessionToSelected(session) : undefined;
+		this.update(selectedSession);
 	}
 
 	protected getActionContext(_: string, index: number): any {

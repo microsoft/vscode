@@ -3,92 +3,150 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as path from 'vs/base/common/path';
+import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellOutputKind, IDisplayOutput, IInsetRenderOutput, INotebookRendererInfo, IProcessedOutput, ITransformedDisplayOutputDto, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewElement, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
-import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { getExtensionForMimeType } from 'vs/base/common/mime';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export interface WebviewIntialized {
-	__vscode_notebook_message: boolean;
-	type: 'initialized'
+interface BaseToWebviewMessage {
+	readonly __vscode_notebook_message: true;
 }
 
-export interface IDimensionMessage {
-	__vscode_notebook_message: boolean;
+export interface WebviewIntialized extends BaseToWebviewMessage {
+	type: 'initialized';
+}
+
+export interface IDimensionMessage extends BaseToWebviewMessage {
 	type: 'dimension';
 	id: string;
-	data: DOM.Dimension;
+	init?: boolean;
+	data: { height: number };
+	isOutput?: boolean;
 }
 
-export interface IMouseEnterMessage {
-	__vscode_notebook_message: boolean;
+export interface IMouseEnterMessage extends BaseToWebviewMessage {
 	type: 'mouseenter';
 	id: string;
 }
 
-export interface IMouseLeaveMessage {
-	__vscode_notebook_message: boolean;
+export interface IMouseLeaveMessage extends BaseToWebviewMessage {
 	type: 'mouseleave';
 	id: string;
 }
 
-export interface IWheelMessage {
-	__vscode_notebook_message: boolean;
+export interface IWheelMessage extends BaseToWebviewMessage {
 	type: 'did-scroll-wheel';
 	payload: any;
 }
 
-
-export interface IScrollAckMessage {
-	__vscode_notebook_message: boolean;
+export interface IScrollAckMessage extends BaseToWebviewMessage {
 	type: 'scroll-ack';
 	data: { top: number };
 	version: number;
 }
 
-export interface IBlurOutputMessage {
-	__vscode_notebook_message: boolean;
+export interface IBlurOutputMessage extends BaseToWebviewMessage {
 	type: 'focus-editor';
 	id: string;
 	focusNext?: boolean;
 }
 
-export interface IClickedDataUrlMessage {
-	__vscode_notebook_message: boolean;
+export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	type: 'clicked-data-url';
-	data: string;
+	data: string | ArrayBuffer | null;
 	downloadName?: string;
+}
+
+export interface IFocusMarkdownPreviewMessage extends BaseToWebviewMessage {
+	type: 'focusMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
+	type: 'mouseEnterMarkdownPreview';
+	cellId: string;
+}
+
+export interface IMouseLeaveMarkdownPreviewMessage extends BaseToWebviewMessage {
+	type: 'mouseLeaveMarkdownPreview';
+	cellId: string;
+}
+
+export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
+	type: 'toggleMarkdownPreview';
+	cellId: string;
+}
+
+export interface ICellDragStartMessage extends BaseToWebviewMessage {
+	type: 'cell-drag-start';
+	cellId: string;
+	position: { clientX: number, clientY: number };
+}
+
+export interface ICellDragMessage extends BaseToWebviewMessage {
+	type: 'cell-drag';
+	cellId: string;
+	position: { clientX: number, clientY: number };
+}
+
+export interface ICellDragEndMessage extends BaseToWebviewMessage {
+	readonly type: 'cell-drag-end';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly position: {
+		readonly clientX: number;
+		readonly clientY: number;
+	};
+}
+export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'initializedMarkdownPreview';
 }
 
 export interface IClearMessage {
 	type: 'clear';
 }
 
+export interface IOutputRequestMetadata {
+	/**
+	 * Additional attributes of a cell metadata.
+	 */
+	custom?: { [key: string]: unknown };
+}
+
+export interface IOutputRequestDto {
+	/**
+	 * { mime_type: value }
+	 */
+	data: { [key: string]: unknown; }
+
+	metadata?: IOutputRequestMetadata;
+	outputId: string;
+}
+
 export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; output: IDisplayOutput; mimeType: string };
+	| { type: RenderOutputType.Extension; output: IOutputRequestDto; mimeType: string };
 	cellId: string;
 	outputId: string;
 	top: number;
@@ -110,6 +168,11 @@ export interface IViewScrollTopRequestMessage {
 	forceDisplay: boolean;
 	widgets: IContentWidgetTopRequest[];
 	version: number;
+}
+
+export interface IViewScrollMarkdownRequestMessage {
+	type: 'view-scroll-markdown';
+	cells: { id: string; top: number }[];
 }
 
 export interface IScrollRequestMessage {
@@ -164,11 +227,49 @@ export interface IUpdateDecorationsMessage {
 	removedClassNames: string[];
 }
 
-export interface ICustomRendererMessage {
-	__vscode_notebook_message: boolean;
+export interface ICustomRendererMessage extends BaseToWebviewMessage {
 	type: 'customRendererMessage';
 	rendererId: string;
 	message: unknown;
+}
+
+export interface ICreateMarkdownMessage {
+	type: 'createMarkdownPreview',
+	id: string;
+	content: string;
+	top: number;
+}
+export interface IRemoveMarkdownMessage {
+	type: 'removeMarkdownPreview',
+	id: string;
+}
+
+export interface IHideMarkdownMessage {
+	type: 'hideMarkdownPreview';
+	id: string;
+}
+
+export interface IUnhideMarkdownMessage {
+	type: 'unhideMarkdownPreview';
+	id: string;
+}
+
+export interface IShowMarkdownMessage {
+	type: 'showMarkdownPreview',
+	id: string;
+	content: string;
+	top: number;
+}
+
+export interface IUpdateMarkdownPreviewSelectionState {
+	readonly type: 'updateMarkdownPreviewSelectionState',
+	readonly id: string;
+	readonly isSelected: boolean;
+}
+
+export interface IInitializeMarkdownMessage {
+	type: 'initializeMarkdownPreview';
+	cells: Array<{ cellId: string, content: string }>;
 }
 
 export type FromWebviewMessage =
@@ -180,8 +281,16 @@ export type FromWebviewMessage =
 	| IScrollAckMessage
 	| IBlurOutputMessage
 	| ICustomRendererMessage
-	| IClickedDataUrlMessage;
-
+	| IClickedDataUrlMessage
+	| IFocusMarkdownPreviewMessage
+	| IMouseEnterMarkdownPreviewMessage
+	| IMouseLeaveMarkdownPreviewMessage
+	| IToggleMarkdownPreviewMessage
+	| ICellDragStartMessage
+	| ICellDragMessage
+	| ICellDragEndMessage
+	| IInitializedMarkdownPreviewMessage
+	;
 export type ToWebviewMessage =
 	| IClearMessage
 	| IFocusOutputMessage
@@ -193,13 +302,21 @@ export type ToWebviewMessage =
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
 	| IUpdateDecorationsMessage
-	| ICustomRendererMessage;
+	| ICustomRendererMessage
+	| ICreateMarkdownMessage
+	| IRemoveMarkdownMessage
+	| IShowMarkdownMessage
+	| IHideMarkdownMessage
+	| IUnhideMarkdownMessage
+	| IUpdateMarkdownPreviewSelectionState
+	| IInitializeMarkdownMessage
+	| IViewScrollMarkdownRequestMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
-interface ICachedInset {
+export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
-	cell: CodeCellViewModel;
+	cellInfo: K;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
 }
@@ -217,13 +334,18 @@ export interface INotebookWebviewMessage {
 	forRenderer?: string;
 }
 
+export interface IResolvedBackLayerWebview {
+	webview: WebviewElement;
+}
+
 let version = 0;
-export class BackLayerWebView extends Disposable {
+export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
-	insetMapping: Map<IProcessedOutput, ICachedInset> = new Map();
-	hiddenInsetMapping: Set<IProcessedOutput> = new Set();
-	reversedInsetMapping: Map<string, IProcessedOutput> = new Map();
+	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	markdownPreviewMapping: Set<string> = new Set();
+	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
+	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
 	kernelRootsCache: URI[] = [];
@@ -235,9 +357,16 @@ export class BackLayerWebView extends Disposable {
 	private _disposed = false;
 
 	constructor(
-		public notebookEditor: INotebookEditor,
+		public notebookEditor: ICommonNotebookEditor,
 		public id: string,
 		public documentUri: URI,
+		public options: {
+			outputNodePadding: number,
+			outputNodeLeftPadding: number,
+			leftMargin: number,
+			cellMargin: number,
+			runGutter: number,
+		},
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
@@ -250,30 +379,195 @@ export class BackLayerWebView extends Disposable {
 
 		this.element = document.createElement('div');
 
-		this.element.style.width = `calc(100% - ${CODE_CELL_LEFT_MARGIN + (CELL_MARGIN * 2) + CELL_RUN_GUTTER}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
-		this.element.style.margin = `0px 0 0px ${CODE_CELL_LEFT_MARGIN + CELL_RUN_GUTTER}px`;
 	}
-	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
+	private generateContent(coreDependencies: string, baseUrl: string) {
+		const markdownRenderersSrc = this.getMarkdownRendererScripts();
 		return html`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
 				<base href="${baseUrl}/"/>
 				<style>
-					#container > div > div {
-						width: 100%;
-						padding: ${outputNodePadding}px;
+					#container > div > div.output {
+						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
+						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
+						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
+					}
+
+					#container > div > div.preview {
+						width: 100%;
+						box-sizing: border-box;
+						white-space: nowrap;
+						overflow: hidden;
+						user-select: text;
+						-webkit-user-select: text;
+						-ms-user-select: text;
+						white-space: initial;
+						cursor: grab;
+					}
+
+					/* markdown */
+					#container > div > div.preview {
+						color: var(--vscode-foreground);
+						width: calc(100% - ${this.options.cellMargin}px);
+						padding-left: ${this.options.leftMargin}px;
+					}
+
+					#container > div > div.preview.selected {
+						background: var(--vscode-notebook-selectedCellBackground);
+					}
+
+					#container > div > div.preview img {
+						max-width: 100%;
+						max-height: 100%;
+					}
+
+					#container > div > div.preview a {
+						text-decoration: none;
+					}
+
+					#container > div > div.preview a:hover {
+						text-decoration: underline;
+					}
+
+					#container > div > div.preview a:focus,
+					#container > div > div.preview input:focus,
+					#container > div > div.preview select:focus,
+					#container > div > div.preview textarea:focus {
+						outline: 1px solid -webkit-focus-ring-color;
+						outline-offset: -1px;
+					}
+
+					#container > div > div.preview hr {
+						border: 0;
+						height: 2px;
+						border-bottom: 2px solid;
+					}
+
+					#container > div > div.preview h1 {
+						padding-bottom: 0.3em;
+						line-height: 1.2;
+						border-bottom-width: 1px;
+						border-bottom-style: solid;
+						border-color: var(--vscode-foreground);
+					}
+
+					#container > div > div.preview h1,
+					#container > div > div.preview h2,
+					#container > div > div.preview h3 {
+						font-weight: normal;
+					}
+
+					#container > div > div.preview div {
+						width: 100%;
+					}
+
+					/* Adjust margin of first item in markdown cell */
+					#container > div > div.preview *:first-child {
+						margin-top: 0px;
+					}
+
+					/* h1 tags don't need top margin */
+					#container > div > div.preview h1:first-child {
+						margin-top: 0;
+					}
+
+					/* Removes bottom margin when only one item exists in markdown cell */
+					#container > div > div.preview *:only-child,
+					#container > div > div.preview *:last-child {
+						margin-bottom: 0;
+						padding-bottom: 0;
+					}
+
+					/* makes all markdown cells consistent */
+					#container > div > div.preview div {
+						min-height: 24px;
+					}
+
+					#container > div > div.preview table {
+						border-collapse: collapse;
+						border-spacing: 0;
+					}
+
+					#container > div > div.preview table th,
+					#container > div > div.preview table td {
+						border: 1px solid;
+					}
+
+					#container > div > div.preview table > thead > tr > th {
+						text-align: left;
+						border-bottom: 1px solid;
+					}
+
+					#container > div > div.preview table > thead > tr > th,
+					#container > div > div.preview table > thead > tr > td,
+					#container > div > div.preview table > tbody > tr > th,
+					#container > div > div.preview table > tbody > tr > td {
+						padding: 5px 10px;
+					}
+
+					#container > div > div.preview table > tbody > tr + tr > td {
+						border-top: 1px solid;
+					}
+
+					#container > div > div.preview blockquote {
+						margin: 0 7px 0 5px;
+						padding: 0 16px 0 10px;
+						border-left-width: 5px;
+						border-left-style: solid;
+					}
+
+					#container > div > div.preview code,
+					#container > div > div.preview .code {
+						font-family: var(--monaco-monospace-font);
+						font-size: 1em;
+						line-height: 1.357em;
+					}
+
+					#container > div > div.preview .code {
+						white-space: pre-wrap;
+					}
+
+					#container > div > div.preview .latex-block {
+						display: block;
+					}
+
+					#container > div > div.preview .latex {
+						vertical-align: middle;
+						display: inline-block;
+					}
+
+					#container > div > div.preview .latex img,
+					#container > div > div.preview .latex-block img {
+						filter: brightness(0) invert(0)
+					}
+
+					#container > div > div.preview.dragging {
+						background-color: var(--vscode-editor-background);
+					}
+
+					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
+					.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex-block img {
+						filter: brightness(0) invert(1)
 					}
 
 					#container > div.nb-symbolHighlight > div {
 						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 
-					#container > div > div > div {
+					#container > div.nb-cellDeleted > div {
+						background-color: var(--vscode-diffEditor-removedTextBackground);
+					}
+
+					#container > div.nb-cellAdded > div {
+						background-color: var(--vscode-diffEditor-insertedTextBackground);
+					}
+
+					#container > div > div:not(.preview) > div {
 						overflow-x: scroll;
 					}
 
@@ -323,9 +617,33 @@ export class BackLayerWebView extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(outputNodePadding)}</script>
+				<script>${preloadsScriptStr({
+			outputNodePadding: this.options.outputNodePadding,
+			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
+			previewNodePadding: 8,
+			leftMargin: this.options.leftMargin
+		})}</script>
+				${markdownRenderersSrc}
 			</body>
 		</html>`;
+	}
+
+	private getMarkdownRendererScripts() {
+		const markdownRenderers = this.notebookService.getMarkdownRendererInfo();
+
+		return markdownRenderers
+			.sort((a, b) => {
+				// prefer built-in extension
+				if (a.extensionIsBuiltin) {
+					return b.extensionIsBuiltin ? 0 : -1;
+				}
+				return b.extensionIsBuiltin ? 1 : -1;
+			})
+			.map(renderer => {
+				return asWebviewUri(this.environmentService, this.id, renderer.entrypoint);
+			})
+			.map(src => `<script src="${src}"></script>`)
+			.join('\n');
 	}
 
 	postRendererMessage(rendererId: string, message: any) {
@@ -337,20 +655,18 @@ export class BackLayerWebView extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IProcessedOutput } | undefined {
+	private resolveOutputId(id: string): { cellInfo: T, output: ICellOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
 		}
 
-		const cell = this.insetMapping.get(output)!.cell;
+		const cellInfo = this.insetMapping.get(output)!.cellInfo;
+		return { cellInfo, output };
+	}
 
-		const currCell = this.notebookEditor.viewModel?.viewCells.find(vc => vc.handle === cell.handle);
-		if (currCell !== cell && currCell !== undefined) {
-			this.insetMapping.get(output)!.cell = currCell as CodeCellViewModel;
-		}
-
-		return { cell: this.insetMapping.get(output)!.cell, output };
+	isResolved(): this is IResolvedBackLayerWebview {
+		return !!this.webview;
 	}
 
 	async createWebview(): Promise<void> {
@@ -372,8 +688,8 @@ export class BackLayerWebView extends Disposable {
 				return require;
 			}());
 			</script>`;
-			const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
-			this.initialize(htmlContent);
+			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
+			this._initialize(htmlContent);
 			resolveFunc!();
 		} else {
 			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
@@ -396,8 +712,8 @@ var requirejs = (function() {
 </script>
 `;
 
-				const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
-				this.initialize(htmlContent);
+				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
+				this._initialize(htmlContent);
 				resolveFunc!();
 			});
 		}
@@ -405,7 +721,7 @@ var requirejs = (function() {
 		await this._initalized;
 	}
 
-	async initialize(content: string) {
+	private async _initialize(content: string) {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
@@ -425,7 +741,7 @@ var requirejs = (function() {
 
 			if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
 				|| matchesScheme(link, Schemas.command)) {
-				this.openerService.open(link, { fromUserGesture: true });
+				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true });
 			}
 		}));
 
@@ -449,77 +765,161 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: FromWebviewMessage) => {
+		this._register(this.webview.onMessage((data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined }) => {
 			if (this._disposed) {
 				return;
 			}
 
-			if (data.__vscode_notebook_message) {
-				if (data.type === 'dimension') {
-					const height = data.data.height;
-					const outputHeight = height;
-
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						const { cell, output } = info;
-						const outputIndex = cell.outputs.indexOf(output);
-						cell.updateOutputHeight(outputIndex, outputHeight);
-						this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
-					}
-				} else if (data.type === 'mouseenter') {
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						const { cell } = info;
-						cell.outputIsHovered = true;
-					}
-				} else if (data.type === 'mouseleave') {
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						const { cell } = info;
-						cell.outputIsHovered = false;
-					}
-				} else if (data.type === 'scroll-ack') {
-					// const date = new Date();
-					// const top = data.data.top;
-					// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-				} else if (data.type === 'did-scroll-wheel') {
-					this.notebookEditor.triggerScroll({
-						...data.payload,
-						preventDefault: () => { },
-						stopPropagation: () => { }
-					});
-				} else if (data.type === 'focus-editor') {
-					const info = this.resolveOutputId(data.id);
-					if (info) {
-						if (data.focusNext) {
-							const idx = this.notebookEditor.viewModel?.getCellIndex(info.cell);
-							if (typeof idx !== 'number') {
-								return;
-							}
-
-							const newCell = this.notebookEditor.viewModel?.viewCells[idx + 1];
-							if (!newCell) {
-								return;
-							}
-
-							this.notebookEditor.focusNotebookCell(newCell, 'editor');
-						} else {
-							this.notebookEditor.focusNotebookCell(info.cell, 'editor');
-						}
-					}
-				} else if (data.type === 'clicked-data-url') {
-					this._onDidClickDataLink(data);
-				} else if (data.type === 'customRendererMessage') {
-					this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
-				}
+			if (!data.__vscode_notebook_message) {
+				this._onMessage.fire({ message: data });
 				return;
 			}
 
-			this._onMessage.fire({ message: data });
+			switch (data.type) {
+				case 'dimension':
+					{
+						if (data.isOutput) {
+							const height = data.data.height;
+							const outputHeight = height;
+
+							const resolvedResult = this.resolveOutputId(data.id);
+							if (resolvedResult) {
+								const { cellInfo, output } = resolvedResult;
+								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
+							}
+						} else {
+							const cellId = data.id.substr(0, data.id.length - '_preview'.length);
+							this.notebookEditor.updateMarkdownCellHeight(cellId, data.data.height, !!data.init);
+						}
+						break;
+					}
+				case 'mouseenter':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsHovered = true;
+							}
+						}
+						break;
+					}
+				case 'mouseleave':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsHovered = false;
+							}
+						}
+						break;
+					}
+				case 'scroll-ack':
+					{
+						// const date = new Date();
+						// const top = data.data.top;
+						// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+						break;
+					}
+				case 'did-scroll-wheel':
+					{
+						this.notebookEditor.triggerScroll({
+							...data.payload,
+							preventDefault: () => { },
+							stopPropagation: () => { }
+						});
+						break;
+					}
+				case 'focus-editor':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (!latestCell) {
+								return;
+							}
+
+							if (data.focusNext) {
+								this.notebookEditor.focusNextNotebookCell(latestCell, 'editor');
+							} else {
+								this.notebookEditor.focusNotebookCell(latestCell, 'editor');
+							}
+						}
+						break;
+					}
+				case 'clicked-data-url':
+					{
+						this._onDidClickDataLink(data);
+						break;
+					}
+				case 'customRendererMessage':
+					{
+						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
+						break;
+					}
+				case 'focusMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+						}
+						break;
+					}
+				case 'toggleMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
+						}
+						break;
+					}
+				case 'mouseEnterMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell instanceof MarkdownCellViewModel) {
+							cell.cellIsHovered = true;
+						}
+						break;
+					}
+				case 'mouseLeaveMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell instanceof MarkdownCellViewModel) {
+							cell.cellIsHovered = false;
+						}
+						break;
+					}
+				case 'cell-drag-start':
+					{
+						this.notebookEditor.markdownCellDragStart(data.cellId, data.position);
+						break;
+					}
+				case 'cell-drag':
+					{
+						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
+						break;
+					}
+				case 'cell-drag-end':
+					{
+						this.notebookEditor.markdownCellDragEnd(data.cellId, {
+							clientY: data.position.clientY,
+							ctrlKey: data.ctrlKey,
+							altKey: data.altKey,
+						});
+						break;
+					}
+			}
+
 		}));
 	}
 
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
+		if (typeof event.data !== 'string') {
+			return;
+		}
+
 		const [splitStart, splitData] = event.data.split(';base64,');
 		if (!splitData || !splitStart) {
 			return;
@@ -555,16 +955,21 @@ var requirejs = (function() {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const rootPathStr = path.dirname(FileAccess.asFileUri('', require).fsPath);
+		const rootPath = isWeb ? FileAccess.asBrowserUri('', require) : FileAccess.asFileUri('', require);
 
-		const rootPath = isWeb ? FileAccess.asBrowserUri(rootPathStr, require) : FileAccess.asFileUri(rootPathStr, require);
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
-		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
+		this.localResourceRootsCache = [
+			...this.notebookService.getNotebookProviderResourceRoots(),
+			...this.notebookService.getMarkdownRendererInfo().map(x => dirname(x.entrypoint)),
+			...workspaceFolders,
+			rootPath,
+		];
 
 		const webview = webviewService.createWebviewElement(this.id, {
 			purpose: WebviewContentPurpose.NotebookRenderer,
 			enableFindWidget: false,
+			transformCssVariables: transformWebviewThemeVars,
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
@@ -587,7 +992,7 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number) {
+	shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -597,7 +1002,7 @@ var requirejs = (function() {
 		}
 
 		const outputCache = this.insetMapping.get(output)!;
-		const outputIndex = cell.outputs.indexOf(output);
+		const outputIndex = cell.outputsViewModels.indexOf(output);
 		const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
 		if (this.hiddenInsetMapping.has(output)) {
@@ -611,7 +1016,14 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
+	updateMarkdownScrollTop(items: { id: string, top: number }[]) {
+		this._sendMessageToWebview({
+			type: 'view-scroll-markdown',
+			cells: items
+		});
+	}
+
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -619,9 +1031,7 @@ var requirejs = (function() {
 		const widgets: IContentWidgetTopRequest[] = items.map(item => {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
-			const outputIndex = item.cell.outputs.indexOf(item.output);
-
-			const outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
+			const outputOffset = item.outputOffset;
 			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);
 
@@ -641,7 +1051,119 @@ var requirejs = (function() {
 		});
 	}
 
-	async createInset(cell: CodeCellViewModel, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	async createMarkdownPreview(cellId: string, content: string, cellTop: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		const initialTop = cellTop;
+		this.markdownPreviewMapping.add(cellId);
+
+		this._sendMessageToWebview({
+			type: 'createMarkdownPreview',
+			id: cellId,
+			content: content,
+			top: initialTop,
+		});
+	}
+
+	async showMarkdownPreview(cellId: string, content: string, cellTop: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'showMarkdownPreview',
+			id: cellId,
+			content: content,
+			top: cellTop
+		});
+	}
+
+	async hideMarkdownPreview(cellId: string,) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'hideMarkdownPreview',
+			id: cellId
+		});
+	}
+
+	async unhideMarkdownPreview(cellId: string,) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'unhideMarkdownPreview',
+			id: cellId
+		});
+	}
+
+	async removeMarkdownPreview(cellId: string,) {
+		if (this._disposed) {
+			return;
+		}
+
+		this.markdownPreviewMapping.delete(cellId);
+
+		this._sendMessageToWebview({
+			type: 'removeMarkdownPreview',
+			id: cellId
+		});
+	}
+
+	async updateMarkdownPreviewSelectionState(cellId: any, isSelected: boolean) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'updateMarkdownPreviewSelectionState',
+			id: cellId,
+			isSelected
+		});
+	}
+
+	async updateMarkdownPreviewDecpratopms(cellId: any, isSelected: boolean) {
+		if (this._disposed) {
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'updateMarkdownPreviewSelectionState',
+			id: cellId,
+			isSelected
+		});
+	}
+
+	async initializeMarkdown(cells: Array<{ cellId: string, content: string }>) {
+		await this._loaded;
+
+		// TODO: use proper handler
+		const p = new Promise<void>(resolve => {
+			this.webview?.onMessage(e => {
+				if (e.type === 'initializedMarkdownPreview') {
+					resolve();
+				}
+			});
+		});
+
+		for (const cell of cells) {
+			this.markdownPreviewMapping.add(cell.cellId);
+		}
+
+		this._sendMessageToWebview({
+			type: 'initializeMarkdownPreview',
+			cells: cells,
+		});
+
+		await p;
+	}
+
+	async createInset(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -655,7 +1177,7 @@ var requirejs = (function() {
 				this.hiddenInsetMapping.delete(content.source);
 				this._sendMessageToWebview({
 					type: 'showOutput',
-					cellId: outputCache.cell.id,
+					cellId: outputCache.cellInfo.cellId,
 					outputId: outputCache.outputId,
 					top: initialTop
 				});
@@ -665,7 +1187,7 @@ var requirejs = (function() {
 
 		const messageBase = {
 			type: 'html',
-			cellId: cell.id,
+			cellId: cellInfo.cellId,
 			top: initialTop,
 			left: 0,
 			requiredPreloads: [],
@@ -674,8 +1196,12 @@ var requirejs = (function() {
 		let message: ICreationRequestMessage;
 		let renderer: INotebookRendererInfo | undefined;
 		if (content.type === RenderOutputType.Extension) {
-			const output = content.source as ITransformedDisplayOutputDto;
+			const output = content.source.model;
 			renderer = content.renderer;
+			let data: { [key: string]: unknown } = {};
+			let metadata: { [key: string]: unknown } = {};
+			data[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.value || undefined;
+			metadata[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.metadata || undefined;
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -685,9 +1211,9 @@ var requirejs = (function() {
 					type: RenderOutputType.Extension,
 					mimeType: content.mimeType,
 					output: {
-						outputKind: CellOutputKind.Rich,
-						metadata: output.metadata,
-						data: output.data,
+						metadata: metadata,
+						data: data,
+						outputId: output.outputId
 					},
 				},
 			};
@@ -703,12 +1229,12 @@ var requirejs = (function() {
 		}
 
 		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cell, renderer, cachedCreation: message });
+		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
 		this.hiddenInsetMapping.delete(content.source);
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
-	removeInset(output: IProcessedOutput) {
+	removeInset(output: ICellOutputViewModel) {
 		if (this._disposed) {
 			return;
 		}
@@ -723,15 +1249,15 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'clearOutput',
 			apiNamespace: outputCache.cachedCreation.apiNamespace,
-			cellUri: outputCache.cell.uri.toString(),
+			cellUri: outputCache.cellInfo.cellUri.toString(),
 			outputId: id,
-			cellId: outputCache.cell.id
+			cellId: outputCache.cellInfo.cellId
 		});
 		this.insetMapping.delete(output);
 		this.reversedInsetMapping.delete(id);
 	}
 
-	hideInset(output: IProcessedOutput) {
+	hideInset(output: ICellOutputViewModel) {
 		if (this._disposed) {
 			return;
 		}
@@ -746,7 +1272,7 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'hideOutput',
 			outputId: outputCache.outputId,
-			cellId: outputCache.cell.id,
+			cellId: outputCache.cellInfo.cellId,
 		});
 	}
 

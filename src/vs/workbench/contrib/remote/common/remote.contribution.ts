@@ -11,7 +11,7 @@ import { OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
@@ -63,7 +63,7 @@ class RemoteChannelsContribution extends Disposable implements IWorkbenchContrib
 			if (!connection) {
 				return;
 			}
-			connection.withChannel('logger', (channel) => LoggerChannelClient.setLevel(channel, logService.getLevel()));
+			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
 		};
 		updateRemoteLogLevel();
 		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
@@ -127,12 +127,67 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.restoreForwardedPorts': {
 				type: 'boolean',
 				markdownDescription: localize('remote.restoreForwardedPorts', "Restores the ports you forwarded in a workspace."),
-				default: false
+				default: true
 			},
 			'remote.autoForwardPorts': {
 				type: 'boolean',
-				markdownDescription: localize('remote.autoForwardPorts', "When enabled, URLs with ports (ex. `http://127.0.0.1:3000`) that are printed to your terminals are automatically forwarded."),
+				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded."),
 				default: true
+			},
+			'remote.autoForwardPortsSource': {
+				type: 'string',
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when `remote.autoForwardPorts` is true. On Windows and Mac remotes, the `process` option has no effect and `output` will be used. Requires a reload to take effect."),
+				enum: ['process', 'output'],
+				enumDescriptions: [
+					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
+					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
+				],
+				default: 'process'
+			},
+			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
+			// and extensions\configuration-editing\schemas\attachContainer.schema.json
+			// to keep in sync with devcontainer.json schema.
+			'remote.portsAttributes': {
+				type: 'object',
+				patternProperties: {
+					'^\\d+(\\-\\d+)?$': {
+						type: 'object',
+						description: localize('remote.portsAttributes.port', "A port, or range of ports (ex. \"40000-55000\") that the attributes should apply to"),
+						properties: {
+							'onAutoForward': {
+								type: 'string',
+								enum: ['notify', 'openBrowser', 'openPreview', 'silent', 'ignore'],
+								enumDescriptions: [
+									localize('remote.portsAttributes.notify', "Shows a notification when a port is automatically forwarded."),
+									localize('remote.portsAttributes.openBrowser', "Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser."),
+									localize('remote.portsAttributes.openPreview', "Opens a preview in the same window when the port is automatically forwarded."),
+									localize('remote.portsAttributes.silent', "Shows no notification and takes no action when this port is automatically forwarded."),
+									localize('remote.portsAttributes.ignore', "This port will not be automatically forwarded.")
+								],
+								description: localize('remote.portsAttributes.onForward', "Defines the action that occurs when the port is discovered for automatic forwarding"),
+								default: 'notify'
+							},
+							'elevateIfNeeded': {
+								type: 'boolean',
+								description: localize('remote.portsAttributes.elevateIfNeeded', "Automatically prompt for elevation (if needed) when this port is forwarded. Elevate is required if the local port is a privileged port."),
+								default: false
+							},
+							'label': {
+								type: 'string',
+								description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
+								default: localize('remote.portsAttributes.labelDefault', "Labeled Port")
+							}
+						},
+						default: {
+							'label': localize('remote.portsAttributes.labelDefault', "Labeled Port"),
+							'onAutoForward': 'notify'
+						}
+					}
+				},
+				markdownDescription: localize('remote.portsAttributes', "Set default properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Labeled Port\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n}\n```"),
+				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:My Port}', onAutoForward: 'notify' } } }],
+				errorMessage: localize('remote.portsAttributes.patternError', "Must be a port number or a range of port numbers"),
+				additionalProperties: false
 			}
 		}
 	});

@@ -21,7 +21,7 @@ import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegist
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { CharCode } from 'vs/base/common/charCode';
-import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
@@ -515,7 +515,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't pesist names
+			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't persist names
 			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			themeSemanticHighlighting: this.themeSemanticHighlighting,
@@ -523,7 +523,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			watch: this.watch
 		});
 
-		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL);
+		// roam persisted color theme colors. Don't enable for icons as they contain references to fonts and images.
+		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	get baseTheme(): string {

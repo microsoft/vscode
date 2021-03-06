@@ -142,6 +142,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 
 		templateData.commentText.appendChild(renderedComment);
+		templateData.commentText.title = renderedComment.textContent ?? '';
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {

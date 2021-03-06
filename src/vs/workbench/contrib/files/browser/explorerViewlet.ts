@@ -28,7 +28,8 @@ import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/ed
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { KeyChord, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -38,6 +39,10 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
+const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book, localize('openEditorsIcon', 'View icon of the open editors view.'));
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -108,12 +113,13 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
 			ctorDescriptor: new SyncDescriptor(OpenEditorsView),
-			containerIcon: 'codicon-files',
+			containerIcon: openEditorsViewIcon,
 			order: 0,
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			canMoveView: true,
-			collapsed: true,
+			collapsed: false,
+			hideByDefault: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
 				keybindings: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }
@@ -125,7 +131,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			containerIcon: Codicon.files.classNames,
+			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
 			canToggleVisibility: true,
@@ -139,7 +145,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		return {
 			id: VIEW_ID,
 			name: localize('folders', "Folders"),
-			containerIcon: Codicon.files.classNames,
+			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
 			canToggleVisibility: false,
@@ -198,13 +204,13 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			// without causing the animation in the opened editors view to kick in and change scroll position.
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (delegate, group, editor, options): Promise<IEditorPane | null> => {
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (group, delegate): Promise<IEditorPane | undefined> => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {
 					let delay = 0;
 
 					const config = this.configurationService.getValue<IFilesConfiguration>();
-					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview; // No need to delay if preview is disabled
+					const delayEditorOpeningInOpenedEditors = !!config.workbench?.editor?.enablePreview; // No need to delay if preview is disabled
 
 					const activeGroup = this.editorGroupService.activeGroup;
 					if (delayEditorOpeningInOpenedEditors && group === activeGroup && !activeGroup.previewEditor) {
@@ -215,9 +221,9 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 				}
 
 				try {
-					return await delegate(group, editor, options);
+					return await delegate();
 				} catch (error) {
-					return null; // ignore
+					return undefined; // ignore
 				} finally {
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
@@ -264,13 +270,20 @@ const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.Vi
  */
 export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
-	name: localize('explore', "Explorer"),
+	title: localize('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
-	icon: Codicon.files.classNames,
+	icon: explorerViewIcon,
 	alwaysUseContainerInfo: true,
-	order: 0
-}, ViewContainerLocation.Sidebar, true);
+	order: 0,
+	openCommandActionDescriptor: {
+		id: VIEWLET_ID,
+		title: localize('explore', "Explorer"),
+		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E },
+		order: 0
+	},
+}, ViewContainerLocation.Sidebar, { isDefault: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {

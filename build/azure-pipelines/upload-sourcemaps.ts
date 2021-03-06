@@ -11,7 +11,7 @@ import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 // @ts-ignore
-import * as deps from '../dependencies';
+import * as deps from '../lib/dependencies';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));

@@ -49,7 +49,7 @@ class PartsSplash {
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
 			this._removePartsSplash();
-			perf.mark('didRemovePartsSplash');
+			perf.mark('code/didRemovePartsSplash');
 		});
 		Event.debounce(Event.any<any>(
 			onDidChangeFullscreen,
@@ -102,7 +102,7 @@ class PartsSplash {
 				layoutInfo,
 				baseTheme
 			}),
-			{ encoding: 'utf8', overwriteEncoding: true }
+			{ encoding: 'utf8' }
 		);
 
 		if (baseTheme !== this._lastBaseTheme || colorInfo.editorBackground !== this._lastBackground) {

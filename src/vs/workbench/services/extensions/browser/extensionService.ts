@@ -9,7 +9,7 @@ import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } fr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -26,8 +26,6 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -54,7 +52,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			new ExtensionRunningLocationClassifier(
 				productService,
 				configurationService,
-				(extensionKinds, isInstalledLocally, isInstalledRemotely) => this._pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely)
+				(extensionKinds, isInstalledLocally, isInstalledRemotely) => ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely)
 			),
 			instantiationService,
 			notificationService,
@@ -79,20 +77,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	dispose(): void {
 		this._disposables.dispose();
 		super.dispose();
-	}
-
-	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
-		super._onExtensionHostCrashed(extensionHost, code, signal);
-		if (extensionHost.kind === ExtensionHostKind.LocalWebWorker) {
-			if (code === ExtensionHostExitCode.StartTimeout10s) {
-				this._notificationService.prompt(
-					Severity.Error,
-					nls.localize('extensionService.startTimeout', "The Web Worker Extension Host did not start in 10s."),
-					[]
-				);
-				return;
-			}
-		}
 	}
 
 	protected async _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
@@ -137,11 +121,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	private _pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean): ExtensionRunningLocation {
+	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean): ExtensionRunningLocation {
+		let canRunRemotely = false;
 		for (const extensionKind of extensionKinds) {
 			if (extensionKind === 'ui' && isInstalledRemotely) {
-				// ui extensions run remotely if possible
-				return ExtensionRunningLocation.Remote;
+				// ui extensions run remotely if possible (but only as a last resort)
+				canRunRemotely = true;
 			}
 			if (extensionKind === 'workspace' && isInstalledRemotely) {
 				// workspace extensions run remotely if possible
@@ -152,7 +137,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				return ExtensionRunningLocation.LocalWebWorker;
 			}
 		}
-		return ExtensionRunningLocation.None;
+		return (canRunRemotely ? ExtensionRunningLocation.Remote : ExtensionRunningLocation.None);
 	}
 
 	protected _createExtensionHosts(_isInitialStart: boolean): IExtensionHost[] {
@@ -209,6 +194,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	public _onExtensionHostExit(code: number): void {
+		// Dispose everything associated with the extension host
+		this._stopExtensionHosts();
+
 		// We log the exit code to the console. Do NOT remove this
 		// code as the automated integration tests in browser rely
 		// on this message to exit properly.

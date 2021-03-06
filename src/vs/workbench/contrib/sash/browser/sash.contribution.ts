@@ -36,7 +36,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 registerThemingParticipant((theme, collector) => {
 	const sashHoverBorderColor = theme.getColor(sashHoverBorder);
 	collector.addRule(`
-		.monaco-sash:hover,
+		.monaco-sash.hover,
 		.monaco-sash.active {
 			background: ${sashHoverBorderColor}
 		}

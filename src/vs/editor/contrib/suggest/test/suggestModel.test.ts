@@ -71,7 +71,7 @@ suite('SuggestModel - Context', function () {
 			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
 				getInitialState: (): IState => NULL_STATE,
 				tokenize: undefined!,
-				tokenize2: (line: string, state: IState): TokenizationResult2 => {
+				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
 					const tokensArr: number[] = [];
 					let prevLanguageId: LanguageIdentifier | undefined = undefined;
 					for (let i = 0; i < line.length; i++) {

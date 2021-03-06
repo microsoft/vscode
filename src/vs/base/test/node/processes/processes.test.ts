@@ -13,9 +13,9 @@ import { getPathFromAmdModule } from 'vs/base/common/amd';
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
 		env: objects.mixin(objects.deepClone(process.env), {
-			AMD_ENTRYPOINT: id,
-			PIPE_LOGGING: 'true',
-			VERBOSE_LOGGING: true
+			VSCODE_AMD_ENTRYPOINT: id,
+			VSCODE_PIPE_LOGGING: 'true',
+			VSCODE_VERBOSE_LOGGING: true
 		})
 	};
 
@@ -59,11 +59,7 @@ suite('Processes', () => {
 		});
 	});
 
-	test('buffered sending - lots of data (potential deadlock on win32)', function (done: () => void) {
-		if (!platform.isWindows || process.env['VSCODE_PID']) {
-			return done(); // test is only relevant for Windows and seems to crash randomly on some Linux builds
-		}
-
+	(!platform.isWindows || process.env['VSCODE_PID'] ? test.skip : test)('buffered sending - lots of data (potential deadlock on win32)', function (done: () => void) { // test is only relevant for Windows and seems to crash randomly on some Linux builds
 		const child = fork('vs/base/test/node/processes/fixtures/fork_large');
 		const sender = processes.createQueuedSender(child);
 

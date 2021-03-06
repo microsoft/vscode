@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -16,6 +16,7 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Table } from 'vs/base/browser/ui/table/tableWidget';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -32,7 +33,7 @@ function focusDown(accessor: ServicesAccessor, arg2?: number, loop: boolean = fa
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
 	// List
-	if (focused instanceof List || focused instanceof PagedList) {
+	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 
 		list.focusNext(count);
@@ -71,10 +72,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, arg2) => focusDown(accessor, arg2)
 });
 
-function expandMultiSelection(focused: List<unknown> | PagedList<unknown> | ObjectTree<unknown, unknown> | DataTree<unknown, unknown, unknown> | AsyncDataTree<unknown, unknown, unknown>, previousFocus: unknown): void {
+function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unknown): void {
 
 	// List
-	if (focused instanceof List || focused instanceof PagedList) {
+	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 
 		const focus = list.getFocus() ? list.getFocus()[0] : undefined;
@@ -118,7 +119,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List / Tree
-		if (focused instanceof List || focused instanceof PagedList || focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table || focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 
 			// Focus down first
@@ -136,7 +137,7 @@ function focusUp(accessor: ServicesAccessor, arg2?: number, loop: boolean = fals
 	const count = typeof arg2 === 'number' ? arg2 : 1;
 
 	// List
-	if (focused instanceof List || focused instanceof PagedList) {
+	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 
 		list.focusPrevious(count);
@@ -184,7 +185,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List / Tree
-		if (focused instanceof List || focused instanceof PagedList || focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table || focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 			const list = focused;
 
 			// Focus up first
@@ -210,7 +211,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// Tree only
-		if (focused && !(focused instanceof List || focused instanceof PagedList)) {
+		if (focused && !(focused instanceof List || focused instanceof PagedList || focused instanceof Table)) {
 			if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 				const tree = focused;
 				const focusedElements = tree.getFocus();
@@ -245,10 +246,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow]
 	},
 	handler: (accessor) => {
-		const focusedTree = accessor.get(IListService).lastFocusedList;
+		const focused = accessor.get(IListService).lastFocusedList;
 
-		if (focusedTree && !(focusedTree instanceof List || focusedTree instanceof PagedList)) {
-			focusedTree.collapseAll();
+		if (focused && !(focused instanceof List || focused instanceof PagedList || focused instanceof Table)) {
+			focused.collapseAll();
 		}
 	}
 });
@@ -261,7 +262,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
 
-		if (!focused || focused instanceof List || focused instanceof PagedList) {
+		if (!focused || focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 			return;
 		}
 
@@ -291,7 +292,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// Tree only
-		if (focused && !(focused instanceof List || focused instanceof PagedList)) {
+		if (focused && !(focused instanceof List || focused instanceof PagedList || focused instanceof Table)) {
 			if (focused instanceof ObjectTree || focused instanceof DataTree) {
 				// TODO@Joao: instead of doing this here, just delegate to a tree method
 				const tree = focused;
@@ -355,20 +356,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List
-		if (focused instanceof List || focused instanceof PagedList) {
-			const list = focused;
-
-			list.focusPreviousPage();
-			list.reveal(list.getFocus()[0]);
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
+			focused.focusPreviousPage();
 		}
 
 		// Tree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const list = focused;
-
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			list.focusPreviousPage(fakeKeyboardEvent);
-			list.reveal(list.getFocus()[0]);
+			focused.focusPreviousPage(fakeKeyboardEvent);
 		}
 
 		// Ensure DOM Focus
@@ -385,20 +380,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List
-		if (focused instanceof List || focused instanceof PagedList) {
-			const list = focused;
-
-			list.focusNextPage();
-			list.reveal(list.getFocus()[0]);
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
+			focused.focusNextPage();
 		}
 
 		// Tree
 		else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
-			const list = focused;
-
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			list.focusNextPage(fakeKeyboardEvent);
-			list.reveal(list.getFocus()[0]);
+			focused.focusNextPage(fakeKeyboardEvent);
 		}
 
 		// Ensure DOM Focus
@@ -426,7 +415,7 @@ function listFocusFirst(accessor: ServicesAccessor, options?: { fromFocused: boo
 	const focused = accessor.get(IListService).lastFocusedList;
 
 	// List
-	if (focused instanceof List || focused instanceof PagedList) {
+	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 
 		list.setFocus([0]);
@@ -470,7 +459,7 @@ function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: bool
 	const focused = accessor.get(IListService).lastFocusedList;
 
 	// List
-	if (focused instanceof List || focused instanceof PagedList) {
+	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 
 		list.setFocus([list.length - 1]);
@@ -499,7 +488,7 @@ function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): 
 	const focused = accessor.get(IListService).lastFocusedList;
 	const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', retainCurrentFocus);
 	// List
-	if (focused instanceof List || focused instanceof PagedList) {
+	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 		list.setSelection(list.getFocus(), fakeKeyboardEvent);
 	}
@@ -558,7 +547,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List
-		if (focused instanceof List || focused instanceof PagedList) {
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 			const list = focused;
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 			list.setSelection(range(list.length), fakeKeyboardEvent);
@@ -678,7 +667,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List
-		if (focused instanceof List || focused instanceof PagedList) {
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 			const list = focused;
 
 			list.setSelection([]);
@@ -702,7 +691,7 @@ CommandsRegistry.registerCommand({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List
-		if (focused instanceof List || focused instanceof PagedList) {
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 			const list = focused;
 			list.toggleKeyboardNavigation();
 		}
@@ -721,7 +710,7 @@ CommandsRegistry.registerCommand({
 		const focused = accessor.get(IListService).lastFocusedList;
 
 		// List
-		if (focused instanceof List || focused instanceof PagedList) {
+		if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 			// TODO@joao
 		}
 

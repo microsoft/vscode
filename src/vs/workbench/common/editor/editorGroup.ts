@@ -724,11 +724,18 @@ export class EditorGroup extends Disposable {
 
 	clone(): EditorGroup {
 		const group = this.instantiationService.createInstance(EditorGroup, undefined);
+
+		// Copy over group properties
 		group.editors = this.editors.slice(0);
 		group.mru = this.mru.slice(0);
 		group.preview = this.preview;
 		group.active = this.active;
 		group.sticky = this.sticky;
+
+		// Ensure to register listeners for each editor
+		for (const editor of group.editors) {
+			group.registerEditorListeners(editor);
+		}
 
 		return group;
 	}

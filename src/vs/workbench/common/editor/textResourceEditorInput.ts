@@ -199,14 +199,14 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 
 		// Normal save
-		return this.doSave(group, options, false);
+		return this.doSave(options, false);
 	}
 
 	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
-		return this.doSave(group, options, true);
+		return this.doSave(options, true);
 	}
 
-	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+	private async doSave(options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
 
 		// Save / Save As
 		let target: URI | undefined;
@@ -220,8 +220,13 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 			return undefined; // save cancelled
 		}
 
-		// If the target is a different resource, return with a new editor input
-		if (!isEqual(target, this.preferredResource)) {
+		// If this save operation results in a new editor, either
+		// because it was saved to disk (e.g. from untitled) or
+		// through an explicit "Save As", make sure to replace it.
+		if (
+			target.scheme !== this.resource.scheme ||
+			(saveAs && !isEqual(target, this.preferredResource))
+		) {
 			return this.editorService.createEditorInput({ resource: target });
 		}
 

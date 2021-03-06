@@ -5,14 +5,17 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled, revertAllDirty } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled, revertAllDirty, assertNoRpc } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 import { TestFS } from '../memfs';
 
 suite('vscode API - workspace', () => {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	test('MarkdownString', function () {
 		let md = new vscode.MarkdownString();
@@ -132,7 +135,10 @@ suite('vscode API - workspace', () => {
 			let d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
 
 			return vscode.window.showTextDocument(doc).then(() => {
-				return doc.save().then(() => {
+				return doc.save().then((didSave: boolean) => {
+
+					assert.equal(didSave, true, `FAILED to save${doc.uri.toString()}`);
+
 					assert.ok(closed === doc);
 					assert.ok(!doc.isDirty);
 					assert.ok(fs.existsSync(path));
@@ -975,6 +981,81 @@ suite('vscode API - workspace', () => {
 		assert.equal(document.getText(), expected);
 	});
 
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+
+		const file1New = await createRandomFile();
+		const file2New = await createRandomFile();
+
+		const event = new Promise<vscode.FileWillRenameEvent>(resolve => {
+			let sub = vscode.workspace.onWillRenameFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const we = new vscode.WorkspaceEdit();
+		we.renameFile(file1, file1New, { overwrite: true });
+		we.renameFile(file2, file2New, { overwrite: true });
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].oldUri.toString(), file1.toString());
+		assert.strictEqual(e.files[1].oldUri.toString(), file2.toString());
+	});
+
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
+			let sub = vscode.workspace.onWillCreateFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const file1 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
+		const file2 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
+
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(file1, { overwrite: true });
+		we.createFile(file2, { overwrite: true });
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].toString(), file1.toString());
+		assert.strictEqual(e.files[1].toString(), file2.toString());
+	});
+
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+
+		const event = new Promise<vscode.FileWillDeleteEvent>(resolve => {
+			let sub = vscode.workspace.onWillDeleteFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const we = new vscode.WorkspaceEdit();
+		we.deleteFile(file1);
+		we.deleteFile(file2);
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].toString(), file1.toString());
+		assert.strictEqual(e.files[1].toString(), file2.toString());
+	});
+
 	test('issue #107739 - Redo of rename Java Class name has no effect', async () => {
 		const file = await createRandomFile('hello');
 		const fileName = basename(file.fsPath);
@@ -1013,5 +1094,39 @@ suite('vscode API - workspace', () => {
 			assert.equal(document.isDirty, true);
 		}
 
+	});
+
+	test('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
+		const file = await createRandomFile('hello\nworld');
+
+		const document = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(document);
+
+		// apply edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.insert(file, new vscode.Position(0, 5), '2');
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// check the document
+		{
+			assert.equal(document.getText(), 'hello2\nworld');
+			assert.equal(document.isDirty, true);
+		}
+
+		// apply no-op edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.set(file, [vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]);
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// undo
+		{
+			await vscode.commands.executeCommand('undo');
+			assert.equal(document.getText(), 'hello\nworld');
+			assert.equal(document.isDirty, false);
+		}
 	});
 });

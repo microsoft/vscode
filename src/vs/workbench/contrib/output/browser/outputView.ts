@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -22,7 +21,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -37,6 +36,7 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Dimension } from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export class OutputViewPane extends ViewPane {
 
@@ -164,11 +164,6 @@ export class OutputViewPane extends ViewPane {
 
 export class OutputEditor extends AbstractTextResourceEditor {
 
-	// Override the instantiation service to use to be the scoped one
-	private scopedInstantiationService: IInstantiationService;
-	protected get instantiationService(): IInstantiationService { return this.scopedInstantiationService; }
-	protected set instantiationService(instantiationService: IInstantiationService) { }
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -177,15 +172,10 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private readonly outputService: IOutputService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService
 	) {
 		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
-
-		// Initially, the scoped instantiation service is the global
-		// one until the editor is created later on
-		this.scopedInstantiationService = instantiationService;
 	}
 
 	getId(): string {
@@ -258,13 +248,12 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 		parent.setAttribute('role', 'document');
 
-		// First create the scoped instantiation service and only then construct the editor using the scoped service
-		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-
 		super.createEditor(parent);
 
-		CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
+		const scopedContextKeyService = this.scopedContextKeyService;
+		if (scopedContextKeyService) {
+			CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
+		}
 	}
 }
 

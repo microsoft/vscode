@@ -28,6 +28,9 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@ILabelService labelService: ILabelService
 	) {
 		super({
+			getAppRoot: (): string | undefined => {
+				return environmentService.appRoot;
+			},
 			getExecPath: (): string | undefined => {
 				return environmentService.execPath;
 			}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
@@ -20,11 +21,12 @@ import {
 	INSTALL_ERROR_MALICIOUS,
 	INSTALL_ERROR_INCOMPATIBLE,
 	ExtensionManagementError,
-	InstallOptions
+	InstallOptions,
+	UninstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise, Promises } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
@@ -129,7 +131,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {
 			let entries = await pfs.readdir(dir);
 			entries = entries.map(e => path.join(dir, e));
-			const stats = await Promise.all(entries.map(e => pfs.stat(e)));
+			const stats = await Promise.all(entries.map(e => fs.promises.stat(e)));
 			let promise: Promise<string[]> = Promise.resolve([]);
 			stats.forEach((stat, index) => {
 				const entry = entries[index];
@@ -297,11 +299,13 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 			try { await this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)); } catch (error) { /* Ignore */ }
 
-			try {
-				await this.installDependenciesAndPackExtensions(local, existingExtension, options);
-			} catch (error) {
-				try { await this.uninstall(local); } catch (error) { /* Ignore */ }
-				throw error;
+			if (!options.donotIncludePackAndDependencies) {
+				try {
+					await this.installDependenciesAndPackExtensions(local, existingExtension, options);
+				} catch (error) {
+					try { await this.uninstall(local); } catch (error) { /* Ignore */ }
+					throw error;
+				}
 			}
 
 			if (existingExtension && semver.neq(existingExtension.manifest.version, extension.version)) {
@@ -456,7 +460,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				const galleryResult = await this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length }, CancellationToken.None);
 				const extensionsToInstall = galleryResult.firstPage;
 				try {
-					await Promise.all(extensionsToInstall.map(e => this.installFromGallery(e, options)));
+					await Promises.settled(extensionsToInstall.map(e => this.installFromGallery(e, options)));
 				} catch (error) {
 					try { await this.rollback(extensionsToInstall); } catch (e) { /* ignore */ }
 					throw error;
@@ -468,10 +472,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private async rollback(extensions: IGalleryExtension[]): Promise<void> {
 		const installed = await this.getInstalled(ExtensionType.User);
 		const extensionsToUninstall = installed.filter(local => extensions.some(galleryExtension => new ExtensionIdentifierWithVersion(local.identifier, local.manifest.version).equals(new ExtensionIdentifierWithVersion(galleryExtension.identifier, galleryExtension.version)))); // Check with version because we want to rollback the exact version
-		await Promise.all(extensionsToUninstall.map(local => this.uninstall(local)));
+		await Promises.settled(extensionsToUninstall.map(local => this.uninstall(local)));
 	}
 
-	async uninstall(extension: ILocalExtension): Promise<void> {
+	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
 		this.logService.trace('ExtensionManagementService#uninstall', extension.identifier.id);
 		const installed = await this.getInstalled(ExtensionType.User);
 		const extensionToUninstall = installed.find(e => areSameExtensions(e.identifier, extension.identifier));
@@ -480,7 +484,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}
 
 		try {
-			await this.checkForDependenciesAndUninstall(extensionToUninstall, installed);
+			await this.checkForDependenciesAndUninstall(extensionToUninstall, installed, options);
 		} catch (error) {
 			throw this.joinErrors(error);
 		}
@@ -533,15 +537,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}, new Error(''));
 	}
 
-	private async checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[]): Promise<void> {
+	private async checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], options: UninstallOptions): Promise<void> {
 		try {
 			await this.preUninstallExtension(extension);
-			const packedExtensions = this.getAllPackExtensionsToUninstall(extension, installed);
-			if (packedExtensions.length) {
-				await this.uninstallExtensions(extension, packedExtensions, installed);
-			} else {
-				await this.uninstallExtensions(extension, [], installed);
-			}
+			const packedExtensions = options.donotIncludePack ? [] : this.getAllPackExtensionsToUninstall(extension, installed);
+			await this.uninstallExtensions(extension, packedExtensions, installed, options);
 		} catch (error) {
 			await this.postUninstallExtension(extension, new ExtensionManagementError(error instanceof Error ? error.message : error, INSTALL_ERROR_LOCAL));
 			throw error;
@@ -549,12 +549,14 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		await this.postUninstallExtension(extension);
 	}
 
-	private async uninstallExtensions(extension: ILocalExtension, otherExtensionsToUninstall: ILocalExtension[], installed: ILocalExtension[]): Promise<void> {
+	private async uninstallExtensions(extension: ILocalExtension, otherExtensionsToUninstall: ILocalExtension[], installed: ILocalExtension[], options: UninstallOptions): Promise<void> {
 		const extensionsToUninstall = [extension, ...otherExtensionsToUninstall];
-		for (const e of extensionsToUninstall) {
-			this.checkForDependents(e, extensionsToUninstall, installed, extension);
+		if (!options.donotCheckDependents) {
+			for (const e of extensionsToUninstall) {
+				this.checkForDependents(e, extensionsToUninstall, installed, extension);
+			}
 		}
-		await Promise.all([this.uninstallExtension(extension), ...otherExtensionsToUninstall.map(d => this.doUninstall(d))]);
+		await Promises.settled([this.uninstallExtension(extension), ...otherExtensionsToUninstall.map(d => this.doUninstall(d))]);
 	}
 
 	private checkForDependents(extension: ILocalExtension, extensionsToUninstall: ILocalExtension[], installed: ILocalExtension[], extensionToUninstall: ILocalExtension): void {

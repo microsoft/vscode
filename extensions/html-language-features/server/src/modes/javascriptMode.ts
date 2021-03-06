@@ -6,7 +6,7 @@
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
-	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover, MarkedString,
+	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
 	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext
 } from './languageModes';
@@ -65,9 +65,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 			return compilerOptions;
 		},
 		dispose() {
-			if (jsLanguageService) {
-				jsLanguageService.then(s => s.dispose());
-			}
+			jsLanguageService.then(s => s.dispose());
 		}
 	};
 }
@@ -142,10 +140,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			let info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (info) {
-				let contents = ts.displayPartsToString(info.displayParts);
+				const contents = ts.displayPartsToString(info.displayParts);
 				return {
 					range: convertRange(jsDocument, info.textSpan),
-					contents: MarkedString.fromPlainText(contents)
+					contents: ['```typescript', contents, '```'].join('\n')
 				};
 			}
 			return null;
@@ -187,6 +185,28 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return ret;
 			}
 			return null;
+		},
+		async doRename(document: TextDocument, position: Position, newName: string) {
+			const jsDocument = jsDocuments.get(document);
+			const jsLanguageService = await host.getLanguageService(jsDocument);
+			const jsDocumentPosition = jsDocument.offsetAt(position);
+			const { canRename } = jsLanguageService.getRenameInfo(jsDocument.uri, jsDocumentPosition);
+			if (!canRename) {
+				return null;
+			}
+			const renameInfos = jsLanguageService.findRenameLocations(jsDocument.uri, jsDocumentPosition, false, false);
+
+			const edits: TextEdit[] = [];
+			renameInfos?.map(renameInfo => {
+				edits.push({
+					range: convertRange(jsDocument, renameInfo.textSpan),
+					newText: newName,
+				});
+			});
+
+			return {
+				changes: { [document.uri]: edits },
+			};
 		},
 		async findDocumentHighlight(document: TextDocument, position: Position): Promise<DocumentHighlight[]> {
 			const jsDocument = jsDocuments.get(document);

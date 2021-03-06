@@ -389,7 +389,7 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean
 	// - description (if provided)
 	// - query (normalized)
 	// - number of query pieces (i.e. 'hello world' and 'helloworld' are different)
-	// - wether fuzzy matching is enabled or not
+	// - whether fuzzy matching is enabled or not
 	let cacheHash: string;
 	if (description) {
 		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;

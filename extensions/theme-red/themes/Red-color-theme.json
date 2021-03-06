@@ -49,7 +49,7 @@
 		"list.activeSelectionBackground": "#880000",
 		"list.inactiveSelectionBackground": "#770000",
 		"list.dropBackground": "#662222",
-		"list.focusBackground": "#660000",
+		"quickInput.list.focusBackground": "#660000",
 		"list.highlightForeground": "#ff4444",
 		"pickerGroup.foreground": "#cc9999",
 		"pickerGroup.border": "#ff000033",

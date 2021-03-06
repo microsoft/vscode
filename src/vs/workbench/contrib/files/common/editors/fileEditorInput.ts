@@ -21,6 +21,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { Schemas } from 'vs/base/common/network';
 
 const enum ForceOpenAs {
 	None,
@@ -33,6 +34,8 @@ const enum ForceOpenAs {
  */
 export class FileEditorInput extends AbstractTextResourceEditorInput implements IFileEditorInput {
 
+	private preferredName: string | undefined;
+	private preferredDescription: string | undefined;
 	private preferredEncoding: string | undefined;
 	private preferredMode: string | undefined;
 
@@ -46,6 +49,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	constructor(
 		resource: URI,
 		preferredResource: URI | undefined,
+		preferredName: string | undefined,
+		preferredDescription: string | undefined,
 		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -60,6 +65,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		super(resource, preferredResource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.model = this.textFileService.files.get(resource);
+
+		if (preferredName) {
+			this.setPreferredName(preferredName);
+		}
+
+		if (preferredDescription) {
+			this.setPreferredDescription(preferredDescription);
+		}
 
 		if (preferredEncoding) {
 			this.setPreferredEncoding(preferredEncoding);
@@ -119,7 +132,47 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	getName(): string {
-		return this.decorateLabel(super.getName());
+		return this.preferredName || this.decorateLabel(super.getName());
+	}
+
+	setPreferredName(name: string): void {
+		if (!this.allowLabelOverride()) {
+			return; // block for specific schemes we own
+		}
+
+		if (this.preferredName !== name) {
+			this.preferredName = name;
+
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	private allowLabelOverride(): boolean {
+		return this.resource.scheme !== Schemas.file && this.resource.scheme !== Schemas.vscodeRemote && this.resource.scheme !== Schemas.userData;
+	}
+
+	getPreferredName(): string | undefined {
+		return this.preferredName;
+	}
+
+	getDescription(verbosity?: Verbosity): string | undefined {
+		return this.preferredDescription || super.getDescription(verbosity);
+	}
+
+	setPreferredDescription(description: string): void {
+		if (!this.allowLabelOverride()) {
+			return; // block for specific schemes we own
+		}
+
+		if (this.preferredDescription !== description) {
+			this.preferredDescription = description;
+
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	getPreferredDescription(): string | undefined {
+		return this.preferredDescription;
 	}
 
 	getTitle(verbosity: Verbosity): string {
@@ -135,20 +188,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private decorateLabel(label: string): string {
 		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
 		const readonly = this.isReadonly();
-
-		if (orphaned && readonly) {
-			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-		}
-
-		if (orphaned) {
-			return localize('orphanedFile', "{0} (deleted)", label);
-		}
-
-		if (readonly) {
-			return localize('readonlyFile', "{0} (read-only)", label);
-		}
-
-		return label;
+		return decorateFileEditorLabel(label, { orphaned: !!orphaned, readonly });
 	}
 
 	getEncoding(): string | undefined {
@@ -346,4 +386,20 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		dispose(this.cachedTextFileModelReference);
 		this.cachedTextFileModelReference = undefined;
 	}
+}
+
+export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
+	if (state.orphaned && state.readonly) {
+		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
+	}
+
+	if (state.orphaned) {
+		return localize('orphanedFile', "{0} (deleted)", label);
+	}
+
+	if (state.readonly) {
+		return localize('readonlyFile', "{0} (read-only)", label);
+	}
+
+	return label;
 }

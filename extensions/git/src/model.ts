@@ -12,10 +12,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler } from './api/git';
+import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler, PublishEvent } from './api/git';
 import { Askpass } from './askpass';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
 import { IPushErrorHandlerRegistry } from './pushError';
+import { ApiRepository } from './api/api1';
 
 const localize = nls.loadMessageBundle();
 
@@ -68,6 +69,13 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState = this._onDidChangeState.event;
+
+	private _onDidPublish = new EventEmitter<PublishEvent>();
+	readonly onDidPublish = this._onDidPublish.event;
+
+	firePublishEvent(repository: Repository, branch?: string) {
+		this._onDidPublish.fire({ repository: new ApiRepository(repository), branch: branch });
+	}
 
 	private _state: State = 'uninitialized';
 	get state(): State { return this._state; }

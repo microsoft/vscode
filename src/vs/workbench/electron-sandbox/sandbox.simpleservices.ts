@@ -6,32 +6,26 @@
 /* eslint-disable code-no-standalone-editor */
 /* eslint-disable code-import-patterns */
 
-import { ConsoleLogService } from 'vs/platform/log/common/log';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
-import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IAddressProvider, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ExtensionIdentifier, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
-import { IKeymapService } from 'vs/workbench/services/keybinding/common/keymapInfo';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { isWindows } from 'vs/base/common/platform';
-import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
@@ -44,7 +38,7 @@ import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTa
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { AsbtractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
+import { AbstractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
@@ -53,10 +47,11 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { BrowserKeymapService } from 'vs/workbench/services/keybinding/browser/keymapService';
+import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 
 
 //#region Environment
@@ -84,12 +79,10 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
 
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
-	updateBackupPath(newPath: string | undefined): void { }
-
 	sessionId = this.configuration.sessionId;
 	machineId = this.configuration.machineId;
 	remoteAuthority = this.configuration.remoteAuthority;
+	os = { release: 'unknown' };
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -122,9 +115,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 
 	installSourcePath: string = undefined!;
 
-	sharedIPCHandle: string = undefined!;
-
-	extensionsPath?: string | undefined;
+	extensionsPath: string = undefined!;
 	extensionsDownloadPath: string = undefined!;
 	builtinExtensionsPath: string = undefined!;
 
@@ -179,7 +170,7 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null { return resource && resource.scheme === workspaceResource.scheme ? this.workspace.folders[0] : null; }
 	isInsideWorkspace(resource: URI): boolean { return resource && resource.scheme === workspaceResource.scheme; }
-	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean { return true; }
+	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean { return true; }
 }
 
 //#endregion
@@ -187,21 +178,14 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 
 //#region Configuration
 
-export class SimpleStorageService extends InMemoryStorageService { }
+export class SimpleConfigurationService extends BaseSimpleConfigurationService implements IWorkbenchConfigurationService {
+	async whenRemoteConfigurationLoaded() { }
+}
 
 //#endregion
 
 
-//#region Configuration
-
-export class SimpleConfigurationService extends BaseSimpleConfigurationService { }
-
-//#endregion
-
-
-//#region Logger
-
-export class SimpleLogService extends ConsoleLogService { }
+//#region Signing
 
 export class SimpleSignService implements ISignService {
 
@@ -211,6 +195,16 @@ export class SimpleSignService implements ISignService {
 }
 
 //#endregion
+
+//#region Logger
+
+export class SimpleLogService extends LogService {
+
+	constructor() {
+		super(new ConsoleLogger());
+	}
+
+}
 
 
 //#region Files
@@ -413,27 +407,6 @@ module.exports = testRunner;`);
 
 //#endregion
 
-//#region Remote
-
-export class SimpleRemoteAgentService implements IRemoteAgentService {
-
-	declare readonly _serviceBrand: undefined;
-
-	socketFactory: ISocketFactory = new BrowserSocketFactory(null);
-
-	getConnection(): IRemoteAgentConnection | null { return null; }
-	async getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> { return null; }
-	async getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> { return undefined; }
-	async disableTelemetry(): Promise<void> { }
-	async logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> { }
-	async flushTelemetry(): Promise<void> { }
-	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
-	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
-	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
-}
-
-//#endregion
-
 
 //#region Backup File
 
@@ -486,7 +459,8 @@ class SimpleTelemetryService implements ITelemetryService {
 		return {
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		};
 	}
 }
@@ -498,9 +472,9 @@ registerSingleton(ITelemetryService, SimpleTelemetryService);
 
 //#region Keymap Service (borrowed from browser for now to enable keyboard access)
 
-class SimpleKeymapService extends BrowserKeymapService { }
+class SimpleKeyboardLayoutService extends BrowserKeyboardLayoutService { }
 
-registerSingleton(IKeymapService, SimpleKeymapService);
+registerSingleton(IKeyboardLayoutService, SimpleKeyboardLayoutService);
 
 //#endregion
 
@@ -514,7 +488,6 @@ class SimpleWebviewService implements IWebviewService {
 
 	createWebviewElement(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewElement { throw new Error('Method not implemented.'); }
 	createWebviewOverlay(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewOverlay { throw new Error('Method not implemented.'); }
-	setIcons(id: string, value: WebviewIcons | undefined): void { }
 }
 
 registerSingleton(IWebviewService, SimpleWebviewService);
@@ -558,13 +531,16 @@ class SimpleTunnelService implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
-
+	canElevate: boolean = false;
+	canMakePublic = false;
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
 
+	canTunnel(uri: URI): boolean { return false; }
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
+	async changeTunnelPrivacy(remoteHost: string, remotePort: number, isPublic: boolean): Promise<RemoteTunnel | undefined> { return undefined; }
 	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> { }
-	setTunnelProvider(provider: ITunnelProvider | undefined): IDisposable { return Disposable.None; }
+	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable { return Disposable.None; }
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);
@@ -671,32 +647,6 @@ registerSingleton(IUserDataSyncStoreManagementService, SimpleUserDataSyncStoreMa
 
 //#endregion
 
-//#region IStorageKeysSyncRegistryService
-
-class SimpleStorageKeysSyncRegistryService implements IStorageKeysSyncRegistryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeStorageKeys = Event.None;
-
-	storageKeys = [];
-
-	registerStorageKey(): void { }
-
-	onDidChangeExtensionStorageKeys = Event.None;
-
-	extensionsStorageKeys = [];
-
-	getExtensioStorageKeys() { return undefined; }
-
-	registerExtensionStorageKeys(): void { }
-}
-
-registerSingleton(IStorageKeysSyncRegistryService, SimpleStorageKeysSyncRegistryService);
-
-//#endregion
-
-
 //#region Task
 
 class SimpleTaskService implements ITaskService {
@@ -725,6 +675,7 @@ class SimpleTaskService implements ITaskService {
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
 	getTasksForGroup(group: string): Promise<Task[]> { throw new Error('Method not implemented.'); }
 	getRecentlyUsedTasks(): LinkedMap<string, string> { throw new Error('Method not implemented.'); }
+	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void { throw new Error('Method not implemented.'); }
 	migrateRecentTasks(tasks: Task[]): Promise<void> { throw new Error('Method not implemented.'); }
 	createSorter(): TaskSorter { throw new Error('Method not implemented.'); }
 	getTaskDescription(task: CustomTask | ContributedTask | InMemoryTask | ConfiguringTask): string | undefined { throw new Error('Method not implemented.'); }
@@ -769,7 +720,7 @@ class SimpleWorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
 
 	async getTags(): Promise<Tags> { return Object.create(null); }
-	getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): string | undefined { return undefined; }
+	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> { return undefined; }
 	async getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> { return []; }
 }
 
@@ -780,7 +731,7 @@ registerSingleton(IWorkspaceTagsService, SimpleWorkspaceTagsService);
 
 //#region Output Channel
 
-class SimpleOutputChannelModelService extends AsbtractOutputChannelModelService {
+class SimpleOutputChannelModelService extends AbstractOutputChannelModelService {
 	declare readonly _serviceBrand: undefined;
 }
 

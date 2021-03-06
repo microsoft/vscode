@@ -19,13 +19,12 @@ import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -44,12 +43,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, version: 1 });
-		storageKeysSyncRegistryService.registerStorageKey({ key: 'langugage.update.donotask', version: 1 });
 		this.checkAndInstall();
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 	}
@@ -64,7 +60,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
 						: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
 					[{
-						label: updateAndRestart ? localize('yes', "Yes") : localize('restart now', "Restart Now"),
+						label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
 						run: () => {
 							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
 							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
@@ -175,7 +171,8 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.GLOBAL
+											StorageScope.GLOBAL,
+											StorageTarget.USER
 										);
 										logUserReaction('neverShowAgain');
 									}

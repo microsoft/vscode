@@ -182,6 +182,7 @@ export class ExtensionHostManager extends Disposable {
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			remoteAuthority: this._extensionHost.remoteAuthority,
+			extensionHostKind: this.kind,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._rpcProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),
@@ -260,12 +261,12 @@ export class ExtensionHostManager extends Disposable {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			const pieces = remoteAuthority.split(':');
+			const lastColon = remoteAuthority.lastIndexOf(':');
 			return Promise.resolve({
 				authority: {
 					authority: remoteAuthority,
-					host: pieces[0],
-					port: parseInt(pieces[1], 10),
+					host: remoteAuthority.substring(0, lastColon),
+					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
 					connectionToken: undefined
 				}
 			});

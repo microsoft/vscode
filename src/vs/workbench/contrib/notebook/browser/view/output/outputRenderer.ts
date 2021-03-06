@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessedOutput, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
 
 export class OutputRenderer {
 	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
-	protected readonly _mimeTypeMapping: { [key: number]: IOutputTransformContribution; };
+	protected readonly _renderers: IOutputTransformContribution[];
+	private _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
-		notebookEditor: INotebookEditor,
+		notebookEditor: ICommonNotebookEditor,
 		private readonly instantiationService: IInstantiationService
 	) {
 		this._contributions = {};
-		this._mimeTypeMapping = {};
+		this._renderers = [];
 
 		const contributions = NotebookRegistry.getOutputTransformContributions();
 
@@ -27,28 +27,51 @@ export class OutputRenderer {
 			try {
 				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
 				this._contributions[desc.id] = contribution;
-				this._mimeTypeMapping[desc.kind] = contribution;
+				contribution.getMimetypes().forEach(mimetype => {
+					this._richMimeTypeRenderers.set(mimetype, contribution);
+				});
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 		}
 	}
 
-	renderNoop(output: IProcessedOutput, container: HTMLElement): IRenderOutput {
+	renderNoop(viewModel: ICellOutputViewModel, container: HTMLElement): IRenderOutput {
 		const contentNode = document.createElement('p');
 
-		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.outputKind}`;
+		contentNode.innerText = `No renderer could be found for output.`;
 		container.appendChild(contentNode);
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe };
 	}
 
-	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
-		const transform = this._mimeTypeMapping[output.outputKind];
+	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
+		if (!viewModel.model.outputs.length) {
+			return this.renderNoop(viewModel, container);
+		}
 
-		if (transform) {
-			return transform.render(output, container, preferredMimeType, notebookUri);
+		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
+			const contentNode = document.createElement('p');
+			const mimeTypes = viewModel.model.outputs.map(op => op.mime);
+
+			const mimeTypesMessage = mimeTypes.join(', ');
+
+			if (preferredMimeType) {
+				contentNode.innerText = `No renderer could be found for MIME type: ${preferredMimeType}`;
+			} else {
+				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
+			}
+
+			container.appendChild(contentNode);
+			return { type: RenderOutputType.Mainframe };
+		}
+
+		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
+		const items = viewModel.model.outputs.filter(op => op.mime === preferredMimeType);
+
+		if (items.length && renderer) {
+			return renderer.render(viewModel, items, container, notebookUri);
 		} else {
-			return this.renderNoop(output, container);
+			return this.renderNoop(viewModel, container);
 		}
 	}
 }

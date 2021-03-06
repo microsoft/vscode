@@ -112,7 +112,7 @@ export interface IFileService {
 	/**
 	 * Read the contents of the provided resource buffered as stream.
 	 */
-	readFileStream(resource: URI, options?: IReadFileOptions): Promise<IFileStreamContent>;
+	readFileStream(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStreamContent>;
 
 	/**
 	 * Updates the content replacing its previous value.
@@ -278,7 +278,7 @@ export interface IFileSystemProvider {
 	readonly capabilities: FileSystemProviderCapabilities;
 	readonly onDidChangeCapabilities: Event<void>;
 
-	readonly onDidErrorOccur?: Event<string>; // TODO@ben remove once file watchers are solid
+	readonly onDidErrorOccur?: Event<string>; // TODO@bpasero remove once file watchers are solid
 
 	readonly onDidChangeFile: Event<readonly IFileChange[]>;
 	watch(resource: URI, opts: IWatchOptions): IDisposable;
@@ -521,19 +521,19 @@ export class FileChangesEvent {
 			switch (change.type) {
 				case FileChangeType.ADDED:
 					if (!this.added) {
-						this.added = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+						this.added = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
 					}
 					this.added.set(change.resource, change);
 					break;
 				case FileChangeType.UPDATED:
 					if (!this.updated) {
-						this.updated = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+						this.updated = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
 					}
 					this.updated.set(change.resource, change);
 					break;
 				case FileChangeType.DELETED:
 					if (!this.deleted) {
-						this.deleted = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+						this.deleted = TernarySearchTree.forUris<IFileChange>(() => this.ignorePathCasing);
 					}
 					this.deleted.set(change.resource, change);
 					break;
@@ -810,7 +810,7 @@ export interface IFileStreamContent extends IBaseStatWithMetadata {
 	value: VSBufferReadableStream;
 }
 
-export interface IReadFileOptions extends FileReadStreamOptions {
+export interface IBaseReadFileOptions extends FileReadStreamOptions {
 
 	/**
 	 * The optional etag parameter allows to return early from resolving the resource if
@@ -819,6 +819,28 @@ export interface IReadFileOptions extends FileReadStreamOptions {
 	 * It is the task of the caller to makes sure to handle this error case from the promise.
 	 */
 	readonly etag?: string;
+}
+
+export interface IReadFileStreamOptions extends IBaseReadFileOptions { }
+
+export interface IReadFileOptions extends IBaseReadFileOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `readFile` method is not running in parallel with
+	 * any `write` operations in the same process.
+	 *
+	 * Typically you should not need to use this flag but if
+	 * for example you are quickly reading a file right after
+	 * a file event occured and the file changes a lot, there
+	 * is a chance that a read returns an empty or partial file
+	 * because a pending write has not finished yet.
+	 *
+	 * Note: this does not prevent the file from being written
+	 * to from a different process. If you need such atomic
+	 * operations, you better use a real database as storage.
+	 */
+	readonly atomic?: boolean;
 }
 
 export interface IWriteFileOptions {
@@ -947,9 +969,9 @@ export function etag(stat: { mtime: number | undefined, size: number | undefined
 	return stat.mtime.toString(29) + stat.size.toString(31);
 }
 
-export function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
+export async function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
 	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
-		return Promise.resolve();
+		return;
 	}
 
 	return new Promise(resolve => {

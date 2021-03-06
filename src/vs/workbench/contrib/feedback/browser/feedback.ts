@@ -35,13 +35,13 @@ export interface IFeedbackDelegate {
 	getCharacterLimit(sentiment: number): number;
 }
 
-export interface IFeedbackDropdownOptions {
+export interface IFeedbackWidgetOptions {
 	contextViewProvider: IContextViewService;
 	feedbackService: IFeedbackDelegate;
 	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
-export class FeedbackDropdown extends Dropdown {
+export class FeedbackWidget extends Dropdown {
 	private maxFeedbackCharacters: number;
 
 	private feedback: string = '';
@@ -50,13 +50,13 @@ export class FeedbackDropdown extends Dropdown {
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement | null = null;
-	private feedbackDescriptionInput: HTMLTextAreaElement | null = null;
-	private smileyInput: HTMLElement | null = null;
-	private frownyInput: HTMLElement | null = null;
-	private sendButton: Button | null = null;
-	private hideButton: HTMLInputElement | null = null;
-	private remainingCharacterCount: HTMLElement | null = null;
+	private feedbackForm: HTMLFormElement | undefined = undefined;
+	private feedbackDescriptionInput: HTMLTextAreaElement | undefined = undefined;
+	private smileyInput: HTMLElement | undefined = undefined;
+	private frownyInput: HTMLElement | undefined = undefined;
+	private sendButton: Button | undefined = undefined;
+	private hideButton: HTMLInputElement | undefined = undefined;
+	private remainingCharacterCount: HTMLElement | undefined = undefined;
 
 	private requestFeatureLink: string | undefined;
 
@@ -64,7 +64,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	constructor(
 		container: HTMLElement,
-		private options: IFeedbackDropdownOptions,
+		private options: IFeedbackWidgetOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
@@ -277,7 +277,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.sendButton = new Button(buttonsContainer);
 		this.sendButton.enabled = false;
 		this.sendButton.label = nls.localize('tweet', "Tweet");
-		dom.prepend(this.sendButton.element, dom.$('span.codicon.codicon-twitter'));
+		dom.prepend(this.sendButton.element, dom.$('span' + Codicon.twitter.cssSelector));
 		this.sendButton.element.classList.add('send');
 		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
 		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
@@ -288,7 +288,7 @@ export class FeedbackDropdown extends Dropdown {
 			if (this.feedbackForm) {
 				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
 				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : '';
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : '';
+				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px 2px ${colors.widgetShadow}` : '';
 			}
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
@@ -302,10 +302,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		return {
 			dispose: () => {
-				this.feedbackForm = null;
-				this.feedbackDescriptionInput = null;
-				this.smileyInput = null;
-				this.frownyInput = null;
+				this.feedbackForm = undefined;
+				this.feedbackDescriptionInput = undefined;
+				this.smileyInput = undefined;
+				this.frownyInput = undefined;
 
 				disposables.dispose();
 			}

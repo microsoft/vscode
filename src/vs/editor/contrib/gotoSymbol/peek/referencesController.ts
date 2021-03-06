@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel, OneReference } from '../referencesModel';
@@ -27,7 +27,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
+export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
 
 export abstract class ReferencesController implements IEditorContribution {
 
@@ -101,7 +101,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._disposables.add(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {
-				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
+				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this._widget = undefined;
 			}
 			this.closeWidget();
@@ -139,13 +139,11 @@ export abstract class ReferencesController implements IEditorContribution {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
+				model.dispose();
 				return undefined;
 			}
 
-			if (this._model) {
-				this._model.dispose();
-			}
-
+			this._model?.dispose();
 			this._model = model;
 
 			// show widget
@@ -367,7 +365,7 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 KeybindingsRegistry.registerKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: KeybindingWeight.EditorContrib + 50,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
@@ -376,7 +374,7 @@ KeybindingsRegistry.registerKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'revealReference',
-	weight: KeybindingWeight.EditorContrib,
+	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.Enter,
 	mac: {
 		primary: KeyCode.Enter,

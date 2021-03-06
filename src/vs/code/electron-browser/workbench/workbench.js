@@ -6,17 +6,13 @@
 /// <reference path="../../../../typings/require.d.ts" />
 
 //@ts-check
-'use strict';
-
 (function () {
+	'use strict';
+
+	const bootstrapWindow = bootstrapWindowLib();
 
 	// Add a perf entry right from the top
-	const perf = perfLib();
-	perf.mark('renderer/started');
-
-	// Load environment in parallel to workbench loading to avoid waterfall
-	const bootstrapWindow = bootstrapWindowLib();
-	const whenEnvResolved = bootstrapWindow.globals().process.whenEnvResolved();
+	performance.mark('code/didStartRenderer');
 
 	// Load workbench main JS, CSS and NLS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
@@ -27,16 +23,10 @@
 		'vs/nls!vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'
 	],
-		async function (workbench, configuration) {
+		function (_, configuration) {
 
 			// Mark start of workbench
-			perf.mark('didLoadWorkbenchMain');
-			performance.mark('workbench-start');
-
-			// Wait for process environment being fully resolved
-			await whenEnvResolved;
-
-			perf.mark('main/startup');
+			performance.mark('code/didLoadWorkbenchMain');
 
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
@@ -50,30 +40,33 @@
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function () {
-				perf.mark('willLoadWorkbenchMain');
+				performance.mark('code/willLoadWorkbenchMain');
 			}
 		}
 	);
 
+	// add default trustedTypes-policy for logging and to workaround
+	// lib/platform limitations
+	window.trustedTypes?.createPolicy('default', {
+		createHTML(value) {
+			// see https://github.com/electron/electron/issues/27211
+			// Electron webviews use a static innerHTML default value and
+			// that isn't trusted. We use a default policy to check for the
+			// exact value of that innerHTML-string and only allow that.
+			if (value === '<!DOCTYPE html><style type="text/css">:host { display: flex; }</style>') {
+				return value;
+			}
+			throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			// console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
+			// return value;
+		}
+	});
 
 	//region Helpers
 
-	function perfLib() {
-		globalThis.MonacoPerformanceMarks = globalThis.MonacoPerformanceMarks || [];
-
-		return {
-			/**
-			 * @param {string} name
-			 */
-			mark(name) {
-				globalThis.MonacoPerformanceMarks.push(name, Date.now());
-			}
-		};
-	}
-
 	/**
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: object) => any, options: object) => unknown,
+	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => any, options: object) => unknown,
 	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals')
 	 * }}
 	 */
@@ -88,12 +81,11 @@
 	 *	colorScheme: ('light' | 'dark' | 'hc'),
 	 *	autoDetectHighContrast?: boolean,
 	 *	extensionDevelopmentPath?: string[],
-	 *	folderUri?: object,
-	 *	workspace?: object
+	 *	workspace?: import('../../../platform/workspaces/common/workspaces').IWorkspaceIdentifier | import('../../../platform/workspaces/common/workspaces').ISingleFolderWorkspaceIdentifier
 	 * }} configuration
 	 */
 	function showPartsSplash(configuration) {
-		perf.mark('willShowPartsSplash');
+		performance.mark('code/willShowPartsSplash');
 
 		let data;
 		if (typeof configuration.partsSplashPath === 'string') {
@@ -168,7 +160,7 @@
 			splash.appendChild(activityDiv);
 
 			// part: side bar (only when opening workspace/folder)
-			if (configuration.folderUri || configuration.workspace) {
+			if (configuration.workspace) {
 				// folder or workspace -> status bar color, sidebar
 				const sideDiv = document.createElement('div');
 				sideDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};`);
@@ -177,15 +169,14 @@
 
 			// part: statusbar
 			const statusDiv = document.createElement('div');
-			statusDiv.setAttribute('style', `position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${configuration.folderUri || configuration.workspace ? colorInfo.statusBarBackground : colorInfo.statusBarNoFolderBackground};`);
+			statusDiv.setAttribute('style', `position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${configuration.workspace ? colorInfo.statusBarBackground : colorInfo.statusBarNoFolderBackground};`);
 			splash.appendChild(statusDiv);
 
 			document.body.appendChild(splash);
 		}
 
-		perf.mark('didShowPartsSplash');
+		performance.mark('code/didShowPartsSplash');
 	}
 
 	//#endregion
-	
 }());
