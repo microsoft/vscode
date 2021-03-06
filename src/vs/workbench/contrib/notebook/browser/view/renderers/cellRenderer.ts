@@ -204,9 +204,13 @@ abstract class AbstractCellRenderer {
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
+		const updateActions = () => {
+			const actions = this.getCellToolbarActions(menu, false);
+			toolbar.setActions(actions.primary, actions.secondary);
+		};
 
-		const actions = this.getCellToolbarActions(menu, false);
-		toolbar.setActions(actions.primary, actions.secondary);
+		disposables.add(menu.onDidChange(() => updateActions()));
+		updateActions();
 
 		return toolbar;
 	}
