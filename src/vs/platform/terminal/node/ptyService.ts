@@ -325,7 +325,7 @@ export class PersistentTerminalProcess extends Disposable {
 		return this._terminalProcess.input(data);
 	}
 	writeBinary(data: string): void {
-		return this._terminalProcess.writeBinary(data);
+		return this._terminalProcess.processBinary(data);
 	}
 	resize(cols: number, rows: number): void {
 		if (this._inReplay) {

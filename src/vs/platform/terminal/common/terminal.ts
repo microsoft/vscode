@@ -329,6 +329,7 @@ export interface ITerminalChildProcess {
 	 */
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
+	processBinary(data: string): void;
 	resize(cols: number, rows: number): void;
 
 	/**

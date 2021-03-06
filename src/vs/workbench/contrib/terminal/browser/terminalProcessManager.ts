@@ -387,7 +387,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	public processBinary(data: string): void {
 		if (this._process) {
-			this._localTerminalService?.processBinary(this._process.id, data);
+			this._process?.processBinary(data);
 		}
 	}
 

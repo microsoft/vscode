@@ -205,6 +205,10 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 		});
 	}
 
+	processBinary(data: string): void {
+		throw new Error('not implemented');
+	}
+
 	private setupTerminalEventListener(): void {
 		this._register(this._remoteTerminalChannel.onTerminalProcessEvent(this._persistentProcessId)(event => {
 			switch (event.type) {

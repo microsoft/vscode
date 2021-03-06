@@ -320,7 +320,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._startWrite(isBinary);
 	}
 
-	public writeBinary(data: string): void {
+	public processBinary(data: string): void {
 		this.input(data, true);
 	}
 
