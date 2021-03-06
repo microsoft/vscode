@@ -27,7 +27,7 @@ import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } fr
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -84,6 +84,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onProcessData(): Event<IProcessDataEvent> { return this._onProcessData.event; }
 	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	public get onProcessTitle(): Event<string> { return this._onProcessTitle.event; }
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public get onProcessShellTypeChanged(): Event<TerminalShellType> { return this._onProcessShellTypeChanged.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	public get onProcessExit(): Event<number | undefined> { return this._onProcessExit.event; }
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
@@ -240,6 +242,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 
 		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
+		this._process.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type));
 		this._process.onProcessExit(exitCode => this._onExit(exitCode));
 		if (this._process.onProcessOverrideDimensions) {
 			this._process.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e));

@@ -66,6 +66,10 @@ suite('Stream', () => {
 		stream.error(new Error());
 		assert.strictEqual(error, true);
 
+		error = false;
+		stream.error(new Error());
+		assert.strictEqual(error, true);
+
 		stream.end('Final Bit');
 		assert.strictEqual(chunks.length, 4);
 		assert.strictEqual(chunks[3], 'Final Bit');
@@ -84,6 +88,15 @@ suite('Stream', () => {
 
 		const result = await consumeStream(stream, reducer);
 		assert.strictEqual(result, '');
+	});
+
+	test('WriteableStream - end with error works', async () => {
+		const reducer = (errors: Error[]) => errors.length > 0 ? errors[0] : null as unknown as Error;
+		const stream = newWriteableStream<Error>(reducer);
+		stream.end(new Error('error'));
+
+		const result = await consumeStream(stream, reducer);
+		assert.ok(result instanceof Error);
 	});
 
 	test('WriteableStream - removeListener', () => {

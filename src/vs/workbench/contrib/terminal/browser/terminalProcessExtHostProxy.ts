@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -42,6 +42,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
 	private readonly _onRequestLatency = this._register(new Emitter<void>());
 	public readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];

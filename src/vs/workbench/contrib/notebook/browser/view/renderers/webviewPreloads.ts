@@ -775,13 +775,21 @@ function webviewPreloads() {
 	}
 
 	function updateMarkdownPreview(cellId: string, content: string) {
-		const previewNode = document.getElementById(`${cellId}_preview`);
-		if (previewNode) {
+		const previewContainerNode = document.getElementById(`${cellId}_preview`);
+		if (previewContainerNode) {
 			// TODO: handle namespace
 			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-				element: previewNode,
+				element: previewContainerNode,
 				content: content
 			}]);
+
+			postNotebookMessage<IDimensionMessage>('dimension', {
+				id: `${cellId}_preview`,
+				data: {
+					height: previewContainerNode.clientHeight,
+				},
+				isOutput: false
+			});
 		}
 	}
 }

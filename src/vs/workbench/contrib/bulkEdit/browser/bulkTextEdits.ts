@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeSort } from 'vs/base/common/arrays';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -92,7 +91,7 @@ class ModelEditTask implements IDisposable {
 
 	apply(): void {
 		if (this._edits.length > 0) {
-			this._edits = mergeSort(this._edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			this.model.pushEditOperations(null, this._edits, () => null);
 		}
 		if (this._newEol !== undefined) {
@@ -116,7 +115,7 @@ class EditorEditTask extends ModelEditTask {
 
 	apply(): void {
 		if (this._edits.length > 0) {
-			this._edits = mergeSort(this._edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			this._editor.executeEdits('', this._edits);
 		}
 		if (this._newEol !== undefined) {

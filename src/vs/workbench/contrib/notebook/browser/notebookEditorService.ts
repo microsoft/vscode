@@ -7,15 +7,29 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { Event } from 'vs/base/common/event';
+import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export const INotebookEditorWidgetService = createDecorator<INotebookEditorWidgetService>('INotebookEditorWidgetService');
+export const INotebookEditorService = createDecorator<INotebookEditorService>('INotebookEditorWidgetService');
 
 export interface IBorrowValue<T> {
 	readonly value: T | undefined;
 }
 
-export interface INotebookEditorWidgetService {
+export interface INotebookEditorService {
 	_serviceBrand: undefined;
-	widgets: NotebookEditorWidget[];
+
 	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput): IBorrowValue<NotebookEditorWidget>;
+
+	onDidAddNotebookEditor: Event<INotebookEditor>;
+	onDidRemoveNotebookEditor: Event<INotebookEditor>;
+	addNotebookEditor(editor: INotebookEditor): void;
+	removeNotebookEditor(editor: INotebookEditor): void;
+	getNotebookEditor(editorId: string): INotebookEditor | undefined;
+	listNotebookEditors(): readonly INotebookEditor[];
+
+	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
+	removeEditorDecorationType(key: string): void;
+	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;
 }

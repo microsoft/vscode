@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeSort } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -59,7 +58,7 @@ export async function getCodeLensModel(model: ITextModel, token: CancellationTok
 
 	await Promise.all(promises);
 
-	result.lenses = mergeSort(result.lenses, (a, b) => {
+	result.lenses = result.lenses.sort((a, b) => {
 		// sort by lineNumber, provider-rank, and column
 		if (a.symbol.range.startLineNumber < b.symbol.range.startLineNumber) {
 			return -1;

@@ -1168,10 +1168,6 @@ declare module 'vscode' {
 		 */
 		readonly trusted: boolean;
 
-		// todo@API how does glob apply to mime times?
-		// todo@API remove displayOrder
-		readonly displayOrder: GlobPattern[];
-
 		// todo@API is this a kernel property?
 		readonly cellHasExecutionOrder: boolean;
 
@@ -1182,9 +1178,9 @@ declare module 'vscode' {
 		readonly cellRunnable: boolean;
 		readonly runState: NotebookRunState;
 
-		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, displayOrder?: GlobPattern[], custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
+		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
 
-		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, displayOrder?: GlobPattern[] | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1231,6 +1227,8 @@ declare module 'vscode' {
 		 * exclusive
 		 */
 		readonly end: number;
+
+		isEmpty: boolean;
 
 		constructor(start: number, end: number);
 	}
@@ -1288,8 +1286,7 @@ declare module 'vscode' {
 		 * The column in which this editor shows.
 		 */
 		// @jrieken
-		// todo@API maybe never undefined because notebooks always show in the editor area (unlike text editors)
-		// maybe for notebook diff editor
+		// this is not implemented...
 		readonly viewColumn?: ViewColumn;
 
 		/**
@@ -1346,9 +1343,7 @@ declare module 'vscode' {
 
 	export interface NotebookEditorSelectionChangeEvent {
 		readonly notebookEditor: NotebookEditor;
-		// @rebornix
-		// todo@API show NotebookCellRange[] instead
-		readonly selection?: NotebookCell;
+		readonly selections: ReadonlyArray<NotebookCellRange>
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
@@ -1356,23 +1351,23 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
-	// todo@API make class
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
-	export interface NotebookCellData {
-		readonly cellKind: NotebookCellKind;
-		readonly source: string;
-		readonly language: string;
-		// todo@API maybe use a separate data type?
-		readonly outputs: NotebookCellOutput[];
-		readonly metadata: NotebookCellMetadata | undefined;
+	export class NotebookCellData {
+		kind: NotebookCellKind;
+		// todo@API better names: value? text?
+		source: string;
+		// todo@API how does language and MD relate?
+		language: string;
+		outputs?: NotebookCellOutput[];
+		metadata?: NotebookCellMetadata;
+		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata)
 	}
 
-	// todo@API make class
-	export interface NotebookData {
-		readonly cells: NotebookCellData[];
-		readonly metadata: NotebookDocumentMetadata;
+	export class NotebookData {
+		cells: NotebookCellData[];
+		metadata?: NotebookDocumentMetadata;
+		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
-
 
 	/**
 	 * Communication object passed to the {@link NotebookContentProvider} and
@@ -1427,7 +1422,6 @@ declare module 'vscode' {
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 
-		// todo@API really needed?
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
@@ -1451,7 +1445,8 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
-		// TODO@API add overload for just a URI
+
+		export function showNotebookDocument(uri: Uri, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 
@@ -1477,6 +1472,7 @@ declare module 'vscode' {
 	}
 
 	// @jrieken
+	// todo@API think about readonly...
 	//TODO@API add execution count to cell output?
 	export class NotebookCellOutput {
 		readonly id: string;

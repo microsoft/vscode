@@ -612,7 +612,7 @@ export class GettingStartedPage extends EditorPane {
 			const progressAmount = assertIsDefined(progress.querySelector('.progress-bar-inner') as HTMLDivElement).style.width;
 			if (!toFocus && progressAmount !== '100%') { toFocus = assertIsDefined(progress.parentElement?.parentElement); }
 		});
-		(toFocus ?? assertIsDefined(this.container.querySelector('button.skip')) as HTMLButtonElement).focus();
+		(toFocus ?? assertIsDefined(this.container.querySelector('button.getting-started-category')) as HTMLButtonElement)?.focus();
 	}
 
 	private setSlide(toEnable: 'details' | 'categories') {
