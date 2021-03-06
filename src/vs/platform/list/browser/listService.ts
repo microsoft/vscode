@@ -130,7 +130,6 @@ const treeRenderIndentGuidesKey = 'workbench.tree.renderIndentGuides';
 const listSmoothScrolling = 'workbench.list.smoothScrolling';
 const mouseWheelScrollSensitivity = 'workbench.list.mouseWheelScrollSensitivity';
 const fastScrollSensitivity = 'workbench.list.fastScrollSensitivity';
-const treeExpandOnFolderClick = 'workbench.tree.expandOnFolderClick';
 const treeExpandMode = 'workbench.tree.expandMode';
 
 function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
