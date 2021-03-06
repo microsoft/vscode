@@ -322,7 +322,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	public writeBinary(data: string): void {
 		this._logService.trace('IPty#writeBinary', `${data.length} characters`);
-		this._ptyProcess!.write(`'${Buffer.from(data, 'binary')}'`);
+		this._ptyProcess!.write(JSON.parse(Buffer.from(data, 'binary').toString()));
 	}
 
 	private _startWrite(): void {
