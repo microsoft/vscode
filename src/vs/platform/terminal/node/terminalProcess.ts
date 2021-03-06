@@ -10,12 +10,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -54,6 +55,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
+	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _writeQueue: string[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
@@ -63,9 +65,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
-
 	public get exitMessage(): string | undefined { return this._exitMessage; }
-	public get currentTitle(): string { return this._currentTitle; }
+
+	public get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
+	public get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -75,6 +78,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -111,15 +116,23 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
-		if (platform.isWindows && useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-			this._delayedResizer = new DelayedResizer();
-			this._register(this._delayedResizer.onTrigger(dimensions => {
-				this._delayedResizer?.dispose();
-				this._delayedResizer = undefined;
-				if (dimensions.cols && dimensions.rows) {
-					this.resize(dimensions.cols, dimensions.rows);
-				}
-			}));
+		if (platform.isWindows) {
+			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+				this._delayedResizer = new DelayedResizer();
+				this._register(this._delayedResizer.onTrigger(dimensions => {
+					this._delayedResizer?.dispose();
+					this._delayedResizer = undefined;
+					if (dimensions.cols && dimensions.rows) {
+						this.resize(dimensions.cols, dimensions.rows);
+					}
+				}));
+			}
+			// WindowsShellHelper is used to fetch the process title and shell type
+			this.onProcessReady(e => {
+				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
+				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
+				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
+			});
 		}
 	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
@@ -196,12 +209,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				ptyProcess.pause();
 			}
 
+
 			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
+			this._windowsShellHelper?.checkShell();
 		});
 		ptyProcess.onExit(e => {
 			this._exitCode = e.exitCode;
@@ -217,10 +232,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			clearInterval(this._titleInterval);
 		}
 		this._titleInterval = null;
-		this._onProcessData.dispose();
-		this._onProcessExit.dispose();
-		this._onProcessReady.dispose();
-		this._onProcessTitleChanged.dispose();
 		super.dispose();
 	}
 
