@@ -84,11 +84,11 @@
           "description": "%emmetExclude%"
         },
         "emmet.extensionsPath": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
           "description": "%emmetExtensionsPath%"
         },
         "emmet.triggerExpansionOnTab": {
@@ -217,6 +217,11 @@
               "type": "boolean",
               "default": false,
               "description": "%emmetPreferencesOutputReverseAttributes%"
+            },
+            "css.color.short": {
+              "type": "boolean",
+              "default": true,
+              "description": "%emmetPreferencesCssColorShort%"
             }
           }
         },
@@ -233,11 +238,6 @@
       }
     },
     "commands": [
-      {
-        "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation",
-        "title": "%command.wrapIndividualLinesWithAbbreviation%",
-        "category": "Emmet"
-      },
       {
         "command": "editor.emmet.action.wrapWithAbbreviation",
         "title": "%command.wrapWithAbbreviation%",
@@ -356,9 +356,6 @@
     ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation"
-        },
         {
           "command": "editor.emmet.action.wrapWithAbbreviation"
         },

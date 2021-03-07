@@ -33,7 +33,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -44,7 +44,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
-import { insert } from 'vs/base/common/arrays';
+import { coalesce, insert } from 'vs/base/common/arrays';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
@@ -197,16 +197,6 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		return TabsTitleControl.SCROLLBAR_SIZES.large;
-	}
-
-	private updateBreadcrumbsControl(): void {
-		if (this.breadcrumbsControl?.update()) {
-			this.group.relayout(); // relayout when we have a breadcrumbs and when update changed its hidden-status
-		}
-	}
-
-	protected handleBreadcrumbsEnablementChange(): void {
-		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
@@ -411,7 +401,7 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 
 		// Update Breadcrumbs
-		this.updateBreadcrumbsControl();
+		this.breadcrumbsControl?.update();
 	}
 
 	closeEditor(editor: IEditorInput): void {
@@ -419,9 +409,13 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	closeEditors(editors: IEditorInput[]): void {
+
+		// Cleanup closed editors
 		this.handleClosedEditors();
+
+		// Update Breadcrumbs when last editor closed
 		if (this.group.count === 0) {
-			this.updateBreadcrumbsControl();
+			this.breadcrumbsControl?.update();
 		}
 	}
 
@@ -1130,14 +1124,14 @@ export class TabsTitleControl extends TitleControl {
 		// or their first character of the name otherwise
 		let name: string | undefined;
 		let forceLabel = false;
-		let forceDisableBadgeDecorations = false;
+		let fileDecorationBadges = Boolean(options.decorations?.badges);
 		let description: string;
 		if (options.pinnedTabSizing === 'compact' && this.group.isSticky(index)) {
 			const isShowingIcons = options.showIcons && options.hasIcons;
 			name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
 			description = '';
 			forceLabel = true;
-			forceDisableBadgeDecorations = true; // not enough space when sticky tabs are compact
+			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
 			name = tabLabel.name;
 			description = tabLabel.description || '';
@@ -1158,12 +1152,12 @@ export class TabsTitleControl extends TitleControl {
 			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
 			{
 				title,
-				extraClasses: ['tab-label'],
+				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined]),
 				italic: !this.group.isPinned(editor),
 				forceLabel,
 				fileDecorations: {
 					colors: Boolean(options.decorations?.colors),
-					badges: forceDisableBadgeDecorations ? false : Boolean(options.decorations?.badges)
+					badges: fileDecorationBadges
 				}
 			}
 		);
@@ -1290,25 +1284,42 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 	}
 
-	getDimensions(): IEditorGroupTitleDimensions {
-		let height: number;
+	getHeight(): IEditorGroupTitleHeight {
+		const showsBreadcrumbs = this.breadcrumbsControl && !this.breadcrumbsControl.isHidden();
+
+		// Return quickly if our used dimensions are known
+		if (this.dimensions.used) {
+			return {
+				total: this.dimensions.used.height,
+				offset: showsBreadcrumbs ? this.dimensions.used.height - BreadcrumbsControl.HEIGHT : this.dimensions.used.height
+			};
+		}
+
+		// Otherwise compute via browser APIs
+		else {
+			return this.computeHeight();
+		}
+	}
+
+	private computeHeight(): IEditorGroupTitleHeight {
+		let total: number;
 
 		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
-			height = this.tabsAndActionsContainer.offsetHeight;
+			total = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			height = TabsTitleControl.TAB_HEIGHT;
+			total = TabsTitleControl.TAB_HEIGHT;
 		}
 
-		const offset = height;
+		const offset = total;
 
 		// Account for breadcrumbs if visible
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			height += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
+			total += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
 		}
 
-		return { height, offset };
+		return { total, offset };
 	}
 
 	layout(dimensions: ITitleControlDimensions): Dimension {
@@ -1329,7 +1340,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// First time layout: compute the dimensions and store it
 		if (!this.dimensions.used) {
-			this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+			this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
 		}
 
 		return this.dimensions.used;
@@ -1353,7 +1364,7 @@ export class TabsTitleControl extends TitleControl {
 		// return it fast from the `layout` call without having to
 		// compute it over and over again
 		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.getDimensions().height);
+		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
 
 		// In case the height of the title control changed from before
 		// (currently only possible if wrapping changed on/off), we need
@@ -1362,6 +1373,10 @@ export class TabsTitleControl extends TitleControl {
 		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.group.relayout();
 		}
+	}
+
+	protected handleBreadcrumbsEnablementChange(): void {
+		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
@@ -1415,7 +1430,14 @@ export class TabsTitleControl extends TitleControl {
 					return true; // no tab always fits
 				}
 
-				return lastTab.offsetWidth <= (dimensions.available.width - editorToolbarContainer.offsetWidth);
+				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarContainer.offsetWidth - dimensions.available.width;
+				if (lastTabOverlapWithToolbarWidth > 1) {
+					// Allow for slight rounding errors related to zooming here
+					// https://github.com/microsoft/vscode/issues/116385
+					return false;
+				}
+
+				return true;
 			};
 
 			// If tabs wrap or should start to wrap (when width exceeds visible width)
@@ -1458,6 +1480,48 @@ export class TabsTitleControl extends TitleControl {
 				width: visibleTabsWidth,
 				scrollWidth: visibleTabsWidth
 			});
+		}
+
+		// Update the `last-in-row` class on tabs when wrapping
+		// is enabled (it doesn't do any harm otherwise). This
+		// class controls additional properties of tab when it is
+		// the last tab in a row
+		if (tabsWrapMultiLine) {
+
+			// Using a map here to change classes after the for loop is
+			// crucial for performance because changing the class on a
+			// tab can result in layouts of the rendering engine.
+			const tabs = new Map<HTMLElement, boolean /* last in row */>();
+
+			let currentTabsPosY: number | undefined = undefined;
+			let lastTab: HTMLElement | undefined = undefined;
+			for (const child of tabsContainer.children) {
+				const tab = child as HTMLElement;
+				const tabPosY = tab.offsetTop;
+
+				// Marks a new or the first row of tabs
+				if (tabPosY !== currentTabsPosY) {
+					currentTabsPosY = tabPosY;
+					if (lastTab) {
+						tabs.set(lastTab, true); // previous tab must be last in row then
+					}
+				}
+
+				// Always remember last tab and ensure the
+				// last-in-row class is not present until
+				// we know the tab is last
+				lastTab = tab;
+				tabs.set(tab, false);
+			}
+
+			// Last tab overally is always last-in-row
+			if (lastTab) {
+				tabs.set(lastTab, true);
+			}
+
+			for (const [tab, lastInRow] of tabs) {
+				tab.classList.toggle('last-in-row', lastInRow);
+			}
 		}
 
 		return tabsWrapMultiLine;
@@ -1853,11 +1917,11 @@ registerThemingParticipant((theme, collector) => {
 
 		// Adjust gradient for focused and unfocused hover background
 		const makeTabHoverBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
-			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label::after {
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
 				background: linear-gradient(to left, ${color}, transparent) !important;
 			}
 
-			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label::after {
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
 				background: linear-gradient(to left, ${colorDrag}, transparent) !important;
 			}
 		`;
@@ -1880,19 +1944,19 @@ registerThemingParticipant((theme, collector) => {
 		if (editorDragAndDropBackground && adjustedTabDragBackground) {
 			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label::after,
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 		`);
 		}
 
 		const makeTabBackgroundRule = (color: Color, colorDrag: Color, focused: boolean, active: boolean) => `
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label::after {
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
 					background: linear-gradient(to left, ${color}, transparent);
 				}
 
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
 					background: linear-gradient(to left, ${colorDrag}, transparent);
 				}
 		`;

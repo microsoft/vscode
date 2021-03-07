@@ -36,21 +36,25 @@ export interface IWorkspaceTrustModel {
 	readonly onDidChangeTrustState: Event<void>;
 
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
-	getFolderTrustState(folder: URI): WorkspaceTrustState;
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustFolderInfo;
+
+	setTrustedFolders(folders: URI[]): void;
+	setUntrustedFolders(folders: URI[]): void;
+
+	getTrustStateInfo(): IWorkspaceTrustStateInfo;
 }
 
-export interface IWorkspaceTrustRequest {
-	immediate: boolean;
-	message?: string;
+export interface WorkspaceTrustRequest {
+	modal: boolean;
 }
 
 export interface IWorkspaceTrustRequestModel {
-	readonly trustRequest: IWorkspaceTrustRequest | undefined;
+	readonly trustRequest: WorkspaceTrustRequest | undefined;
 
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
 
-	initiateRequest(request?: IWorkspaceTrustRequest): void;
+	initiateRequest(request?: WorkspaceTrustRequest): void;
 	completeRequest(trustState?: WorkspaceTrustState): void;
 }
 
@@ -71,11 +75,16 @@ export interface IWorkspaceTrustService {
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState>;
+	requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState>;
+}
+
+export interface IWorkspaceTrustFolderInfo {
+	uri: string,
+	trustState: WorkspaceTrustState
 }
 
 export interface IWorkspaceTrustStateInfo {
-	localFolders: { uri: string, trustState: WorkspaceTrustState }[]
+	localFolders: IWorkspaceTrustFolderInfo[]
 
 	// Removing complexity of remote items
 	//trustedRemoteItems: { uri: string }[]

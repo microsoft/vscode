@@ -157,6 +157,7 @@ export class UserDataSyncStoreManagementServiceChannelClient extends Disposable 
 	private revive(userDataSyncStore: IUserDataSyncStore): IUserDataSyncStore {
 		return {
 			url: URI.revive(userDataSyncStore.url),
+			type: userDataSyncStore.type,
 			defaultUrl: URI.revive(userDataSyncStore.defaultUrl),
 			insidersUrl: URI.revive(userDataSyncStore.insidersUrl),
 			stableUrl: URI.revive(userDataSyncStore.stableUrl),

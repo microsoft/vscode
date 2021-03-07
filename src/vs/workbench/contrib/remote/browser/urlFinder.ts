@@ -104,7 +104,12 @@ export class UrlFinder extends Disposable {
 		if (urlMatches && urlMatches.length > 0) {
 			urlMatches.forEach((match) => {
 				// check if valid url
-				const serverUrl = new URL(match);
+				let serverUrl;
+				try {
+					serverUrl = new URL(match);
+				} catch (e) {
+					// Not a valid URL
+				}
 				if (serverUrl) {
 					// check if the port is a valid integer value
 					const portMatch = match.match(UrlFinder.extractPortRegex);

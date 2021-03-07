@@ -7,39 +7,44 @@ import * as glob from 'vs/base/common/glob';
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { isEqual, basename, joinPath } from 'vs/base/common/resources';
+import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
-import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
 }
 
 export class NotebookEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType, options);
+
+	static create(instantiationService: IInstantiationService, resource: URI, viewType: string, options: NotebookEditorInputOptions = {}) {
+		return instantiationService.createInstance(NotebookEditorInput, resource, viewType, options);
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
 
-	private _textModel: IReference<INotebookEditorModel> | null = null;
+	private readonly _name: string;
+
+	private _textModel: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(
 		public readonly resource: URI,
-		public readonly name: string,
-		public readonly viewType: string | undefined,
+		public readonly viewType: string,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
 		this._defaultDirtyState = !!options.startDirty;
+		this._name = labelService.getUriBasenameLabel(resource);
 	}
 
 	getTypeId(): string {
@@ -47,7 +52,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return this.name;
+		return this._name;
 	}
 
 	isDirty() {
@@ -81,17 +86,17 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._textModel || !this.viewType) {
+		if (!this._textModel) {
 			return undefined;
 		}
 
-		const provider = this._notebookService.getContributedNotebookProvider(this.viewType!);
+		const provider = this._notebookService.getContributedNotebookProvider(this.viewType);
 
 		if (!provider) {
 			return undefined;
 		}
 
-		const dialogPath = this.isUntitled() ? await this.suggestName(this.name) : this._textModel.object.resource;
+		const dialogPath = this.isUntitled() ? await this._suggestName(this._name) : this._textModel.object.resource;
 
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
@@ -124,7 +129,7 @@ ${patterns}
 		return this._move(group, target)?.editor;
 	}
 
-	async suggestName(suggestedFilename: string) {
+	private async _suggestName(suggestedFilename: string) {
 		return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
@@ -141,7 +146,7 @@ ${patterns}
 	}
 
 	private _move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
-		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, basename(newResource), this.viewType);
+		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
 		return { editor: editorInput };
 	}
 
@@ -153,13 +158,13 @@ ${patterns}
 		return;
 	}
 
-	async resolve(): Promise<INotebookEditorModel | null> {
-		if (!await this._notebookService.canResolve(this.viewType!)) {
+	async resolve(): Promise<IResolvedNotebookEditorModel | null> {
+		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
 			if (this.isDisposed()) {
 				this._textModel.dispose();
 				this._textModel = null;
@@ -179,8 +184,7 @@ ${patterns}
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
-			return this.viewType === otherInput.viewType
-				&& isEqual(this.resource, otherInput.resource);
+			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
 		}
 		return false;
 	}

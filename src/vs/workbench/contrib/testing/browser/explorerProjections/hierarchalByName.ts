@@ -45,7 +45,7 @@ export class HierarchicalByNameElement extends HierarchicalElement {
 	}
 
 	public get testId() {
-		return `hintest:${this.test.id}`;
+		return `hintest:${this.test.item.extId}`;
 	}
 
 	/**

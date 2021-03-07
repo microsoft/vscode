@@ -13,7 +13,7 @@ import { StaticRouter, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -58,8 +58,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
+import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
@@ -81,6 +80,9 @@ import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProc
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { join } from 'vs/base/common/path';
+import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { LocalPtyService } from 'vs/platform/terminal/electron-browser/localPtyService';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 
 class SharedProcessMain extends Disposable {
@@ -141,7 +143,6 @@ class SharedProcessMain extends Disposable {
 
 		// Environment
 		const environmentService = new NativeEnvironmentService(this.configuration.args);
-		services.set(IEnvironmentService, environmentService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Log
@@ -172,8 +173,8 @@ class SharedProcessMain extends Disposable {
 
 		await configurationService.initialize();
 
-		// Storage
-		const storageService = new NativeStorageService(new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage')), logService, environmentService);
+		// Storage (global access only)
+		const storageService = new NativeStorageService(undefined, mainProcessService, environmentService);
 		services.set(IStorageService, storageService);
 
 		await storageService.initialize();
@@ -260,6 +261,10 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncResourceEnablementService, new SyncDescriptor(UserDataSyncResourceEnablementService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
+		// Terminal
+		const localPtyService = this._register(new LocalPtyService(logService));
+		services.set(ILocalPtyService, localPtyService);
+
 		return new InstantiationService(services);
 	}
 
@@ -297,6 +302,11 @@ class SharedProcessMain extends Disposable {
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+
+		// Terminal
+		const localPtyService = accessor.get(ILocalPtyService);
+		const localPtyChannel = ProxyChannel.fromService(localPtyService);
+		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

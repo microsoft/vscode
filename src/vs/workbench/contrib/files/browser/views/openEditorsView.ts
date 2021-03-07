@@ -21,7 +21,7 @@ import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platfo
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -30,7 +30,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -229,7 +229,7 @@ export class OpenEditorsView extends ViewPane {
 			this.listLabels.clear();
 		}
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.list = <WorkbenchList<OpenEditor | IEditorGroup>>this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
+		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
@@ -239,7 +239,7 @@ export class OpenEditorsView extends ViewPane {
 				listBackground: this.getBackgroundColor()
 			},
 			accessibilityProvider: new OpenEditorsAccessibilityProvider()
-		});
+		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
 		this._register(this.listLabels);
 
@@ -281,8 +281,7 @@ export class OpenEditorsView extends ViewPane {
 				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
 			}
 		}));
-		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
-		this._register(resourceNavigator.onDidOpen(e => {
+		this._register(this.list.onDidOpen(e => {
 			if (!e.element) {
 				return;
 			} else if (e.element instanceof OpenEditor) {
@@ -794,5 +793,27 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const closeAll = instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL);
 		await closeAll.run();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'openEditors.newUntitledFile',
+			title: { value: nls.localize('newUntitledFile', "New Untitled File"), original: 'New Untitled File' },
+			f1: false,
+			icon: Codicon.newFile,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				order: 5
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
 	}
 });

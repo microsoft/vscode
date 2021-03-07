@@ -16,7 +16,7 @@ export function setup() {
 		after(async function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
 		afterEach(async function () {
@@ -34,7 +34,7 @@ export function setup() {
 			await app.workbench.notebook.stopEditingCell();
 		});
 
-		it.skip('inserts/edits markdown cell', async function () {
+		it('inserts/edits markdown cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();

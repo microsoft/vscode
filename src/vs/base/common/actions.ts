@@ -39,19 +39,6 @@ export interface IActionRunner extends IDisposable {
 	readonly onBeforeRun: Event<IRunEvent>;
 }
 
-export interface IActionViewItem extends IDisposable {
-	actionRunner: IActionRunner;
-	setActionContext(context: any): void;
-	render(element: any /* HTMLElement */): void;
-	isEnabled(): boolean;
-	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
-	blur(): void;
-}
-
-export interface IActionViewItemProvider {
-	(action: IAction): IActionViewItem | undefined;
-}
-
 export interface IActionChangeEvent {
 	readonly label?: string;
 	readonly tooltip?: string;

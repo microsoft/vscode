@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import * as objects from 'vs/base/common/objects';
+import { deepClone, equals } from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
 import { basename, dirname, extname, relativePath } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -22,15 +23,15 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
 	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
 
-	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined);
-	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined);
-	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined);
-	static readonly Path = new RawContextKey<string>('resourcePath', undefined);
-	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined);
-	static readonly Resource = new RawContextKey<URI>('resource', undefined);
-	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined);
-	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined);
-	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined);
+	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the rsource") });
+	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined, { type: 'string', description: localize('resourceFilename', "The file name of the resource") });
+	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
+	static readonly Path = new RawContextKey<string>('resourcePath', undefined, { type: 'string', description: localize('resourcePath', "The full path of the resource") });
+	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined, { type: 'string', description: localize('resourceLangId', "The language identifier of the resource") });
+	static readonly Resource = new RawContextKey<URI>('resource', undefined, { type: 'URI', description: localize('resource', "The full value of the resource including scheme and path") });
+	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") });
+	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
+	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
 
 	private readonly _resourceKey: IContextKey<URI | null>;
 	private readonly _schemeKey: IContextKey<string | null>;
@@ -159,11 +160,11 @@ export class ResourceGlobMatcher extends Disposable {
 		// Add excludes per workspaces that got added
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const rootExcludes = this.globFn(folder.uri);
-			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !objects.equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
+			if (!this.mapRootToExpressionConfig.has(folder.uri.toString()) || !equals(this.mapRootToExpressionConfig.get(folder.uri.toString()), rootExcludes)) {
 				changed = true;
 
 				this.mapRootToParsedExpression.set(folder.uri.toString(), parse(rootExcludes));
-				this.mapRootToExpressionConfig.set(folder.uri.toString(), objects.deepClone(rootExcludes));
+				this.mapRootToExpressionConfig.set(folder.uri.toString(), deepClone(rootExcludes));
 			}
 		});
 
@@ -183,11 +184,11 @@ export class ResourceGlobMatcher extends Disposable {
 
 		// Always set for resources outside root as well
 		const globalExcludes = this.globFn();
-		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !objects.equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT), globalExcludes)) {
+		if (!this.mapRootToExpressionConfig.has(ResourceGlobMatcher.NO_ROOT) || !equals(this.mapRootToExpressionConfig.get(ResourceGlobMatcher.NO_ROOT), globalExcludes)) {
 			changed = true;
 
 			this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalExcludes));
-			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, objects.deepClone(globalExcludes));
+			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, deepClone(globalExcludes));
 		}
 
 		if (fromEvent && changed) {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeSort } from 'vs/base/common/arrays';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { globals } from 'vs/base/common/platform';
@@ -455,7 +454,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		const result: TextEdit[] = [];
 		let lastEol: EndOfLineSequence | undefined = undefined;
 
-		edits = mergeSort(edits, (a, b) => {
+		edits = edits.slice(0).sort((a, b) => {
 			if (a.range && b.range) {
 				return Range.compareRangesUsingStarts(a.range, b.range);
 			}

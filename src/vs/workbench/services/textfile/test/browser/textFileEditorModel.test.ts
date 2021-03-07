@@ -111,7 +111,7 @@ suite('Files - TextFileEditorModel', () => {
 		const pendingSave = model.save();
 		assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
 
-		await pendingSave;
+		await Promise.all([pendingSave, model.joinState(TextFileEditorModelState.PENDING_SAVE)]);
 
 		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
 		assert.ok(!model.isDirty());
@@ -512,7 +512,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.load();
 
 		const mtime = getLastModifiedTime(model);
-		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_MODIFIED_SINCE));
+		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_MODIFIED_SINCE));
 
 		model = await model.load() as TextFileEditorModel;
 
@@ -525,7 +525,7 @@ suite('Files - TextFileEditorModel', () => {
 		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		await model.load();
-		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_FOUND));
+		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_FOUND));
 
 		model = await model.load() as TextFileEditorModel;
 		assert.ok(model);

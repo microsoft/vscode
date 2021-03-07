@@ -3,29 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import * as os from 'os';
-import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfiguration, ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { generateUuid } from 'vs/base/common/uuid';
+import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalProcess } from 'vs/workbench/contrib/terminal/node/terminalProcess';
-import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IShellAndArgsDto, IShellDefinitionDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfigProvider, ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
-import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
-import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
-import { generateUuid } from 'vs/base/common/uuid';
+import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
+import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import type * as vscode from 'vscode';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -41,8 +34,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		@IExtHostConfiguration private _extHostConfiguration: ExtHostConfiguration,
 		@IExtHostWorkspace private _extHostWorkspace: ExtHostWorkspace,
 		@IExtHostDocumentsAndEditors private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		@ILogService private _logService: ILogService,
-		@IExtHostInitDataService private _extHostInitDataService: IExtHostInitDataService
+		@ILogService private _logService: ILogService
 	) {
 		super(true, extHostRpc);
 
@@ -74,7 +66,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			/*options.waitOnExit*/ undefined,
 			withNullAsUndefined(options.strictEnv),
 			withNullAsUndefined(options.hideFromUser),
-			withNullAsUndefined(isFeatureTerminal));
+			withNullAsUndefined(isFeatureTerminal),
+			true
+		);
 		return terminal.value;
 	}
 
@@ -119,12 +113,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		};
 	}
 
-	private async _getNonInheritedEnv(): Promise<platform.IProcessEnvironment> {
-		const env = await getMainProcessParentEnv();
-		env.VSCODE_IPC_HOOK_CLI = process.env['VSCODE_IPC_HOOK_CLI']!;
-		return env;
-	}
-
 	private _registerListeners(): void {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this._updateLastActiveWorkspace());
 		this._extHostWorkspace.onDidChangeWorkspace(() => this._updateVariableResolver());
@@ -141,98 +129,6 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, process.env as platform.IProcessEnvironment);
-	}
-
-	public async $spawnExtHostProcess(id: number, shellLaunchConfigDto: IShellLaunchConfigDto, activeWorkspaceRootUriComponents: UriComponents | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
-		const shellLaunchConfig: IShellLaunchConfig = {
-			name: shellLaunchConfigDto.name,
-			executable: shellLaunchConfigDto.executable,
-			args: shellLaunchConfigDto.args,
-			cwd: typeof shellLaunchConfigDto.cwd === 'string' ? shellLaunchConfigDto.cwd : URI.revive(shellLaunchConfigDto.cwd),
-			env: shellLaunchConfigDto.env,
-			flowControl: shellLaunchConfigDto.flowControl
-		};
-
-		// Merge in shell and args from settings
-		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		if (!shellLaunchConfig.executable) {
-			shellLaunchConfig.executable = this.getDefaultShell(false, configProvider);
-			shellLaunchConfig.args = this.getDefaultShellArgs(false, configProvider);
-		} else {
-			if (this._variableResolver) {
-				shellLaunchConfig.executable = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.executable);
-				if (shellLaunchConfig.args) {
-					if (Array.isArray(shellLaunchConfig.args)) {
-						const resolvedArgs: string[] = [];
-						for (const arg of shellLaunchConfig.args) {
-							resolvedArgs.push(this._variableResolver.resolve(this._lastActiveWorkspace, arg));
-						}
-						shellLaunchConfig.args = resolvedArgs;
-					} else {
-						shellLaunchConfig.args = this._variableResolver.resolve(this._lastActiveWorkspace, shellLaunchConfig.args);
-					}
-				}
-			}
-		}
-
-		const activeWorkspaceRootUri = URI.revive(activeWorkspaceRootUriComponents);
-		let lastActiveWorkspace: IWorkspaceFolder | undefined;
-		if (activeWorkspaceRootUriComponents && activeWorkspaceRootUri) {
-			// Get the environment
-			const apiLastActiveWorkspace = await this._extHostWorkspace.getWorkspaceFolder(activeWorkspaceRootUri);
-			if (apiLastActiveWorkspace) {
-				lastActiveWorkspace = {
-					uri: apiLastActiveWorkspace.uri,
-					name: apiLastActiveWorkspace.name,
-					index: apiLastActiveWorkspace.index,
-					toResource: () => {
-						throw new Error('Not implemented');
-					}
-				};
-			}
-		}
-
-		// Get the initial cwd
-		const terminalConfig = configProvider.getConfiguration('terminal.integrated');
-
-		const initialCwd = terminalEnvironment.getCwd(shellLaunchConfig, os.homedir(), terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver), activeWorkspaceRootUri, terminalConfig.cwd, this._logService);
-		shellLaunchConfig.cwd = initialCwd;
-
-		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
-		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
-		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver);
-		const env = terminalEnvironment.createTerminalEnvironment(
-			shellLaunchConfig,
-			envFromConfig,
-			variableResolver,
-			isWorkspaceShellAllowed,
-			this._extHostInitDataService.version,
-			terminalConfig.get<'auto' | 'off' | 'on'>('detectLocale', 'auto'),
-			baseEnv
-		);
-
-		// Apply extension environment variable collections to the environment
-		if (!shellLaunchConfig.strictEnv) {
-			const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
-			mergedCollection.applyToProcessEnvironment(env, variableResolver);
-		}
-
-		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);
-		// Fork the process and listen for messages
-		this._logService.debug(`Terminal process launching on ext host`, { shellLaunchConfig, initialCwd, cols, rows, env });
-		// TODO: Support conpty on remote, it doesn't seem to work for some reason?
-		// TODO: When conpty is enabled, only enable it when accessibilityMode is off
-		const enableConpty = false; //terminalConfig.get('windowsEnableConpty') as boolean;
-
-		const terminalProcess = new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, process.env as platform.IProcessEnvironment, enableConpty, this._logService);
-		this._setupExtHostProcessListeners(id, terminalProcess);
-		const error = await terminalProcess.start();
-		if (error) {
-			// TODO: Teardown?
-			return error;
-		}
-		return undefined;
 	}
 
 	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {

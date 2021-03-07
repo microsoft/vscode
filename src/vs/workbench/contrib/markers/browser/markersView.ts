@@ -7,7 +7,7 @@ import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import { IAction, IActionViewItem, Action, Separator } from 'vs/base/common/actions';
+import { IAction, Action, Separator } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
@@ -32,7 +32,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -56,6 +56,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -798,16 +799,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}
 
 		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, this.tree!.contextKeyService);
-		const groups = menu.getActions();
+		createAndFillInContextMenuActions(menu, undefined, result);
 		menu.dispose();
-
-		for (let group of groups) {
-			const [, actions] = group;
-			result.push(...actions);
-			result.push(new Separator());
-		}
-
-		result.pop(); // remove last separator
 		return result;
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
@@ -78,7 +78,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	protected registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(this.dispose, this);
+		this.lifecycleService.onShutdown(() => this.dispose());
 	}
 
 	//#region text file read / write / create
@@ -143,7 +143,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// validate binary
 		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
-			throw new TextFileOperationError(nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
+			throw new TextFileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
 		}
 
 		return [bufferStream, decoder];
@@ -414,9 +414,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
 		const confirm: IConfirmation = {
-			message: nls.localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: nls.localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
-			primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
+			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
+			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 			type: 'warning'
 		};
 

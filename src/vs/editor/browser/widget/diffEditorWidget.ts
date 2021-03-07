@@ -1151,6 +1151,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		} else {
 			result.wordWrapOverride1 = this._diffWordWrap;
 		}
+		if (options.originalAriaLabel) {
+			result.ariaLabel = options.originalAriaLabel;
+		}
 		result.readOnly = !this._originalIsEditable;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return {
@@ -1164,6 +1167,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _adjustOptionsForRightHandSide(options: Readonly<editorBrowser.IDiffEditorConstructionOptions>): editorBrowser.IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(options);
+		if (options.modifiedAriaLabel) {
+			result.ariaLabel = options.modifiedAriaLabel;
+		}
+
 		result.wordWrapOverride1 = this._diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;

@@ -3,24 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OwnedTestCollection, SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
+import { Iterable } from 'vs/base/common/iterator';
+import { OwnedTestCollection, SingleUseTestCollection, TestTree } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
 import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 
 export class TestSingleUseCollection extends SingleUseTestCollection {
-	private idCounter = 0;
-
 	public get itemToInternal() {
 		return this.testItemToInternal;
 	}
 
 	public get currentDiff() {
 		return this.diff;
-	}
-
-	protected getId() {
-		return String(this.idCounter++);
 	}
 
 	public setDiff(diff: TestsDiff) {
@@ -30,11 +25,11 @@ export class TestSingleUseCollection extends SingleUseTestCollection {
 
 export class TestOwnedTestCollection extends OwnedTestCollection {
 	public get idToInternal() {
-		return this.testIdToInternal;
+		return Iterable.first(this.testIdsToInternal)!;
 	}
 
 	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new TestSingleUseCollection(this.testIdToInternal, publishDiff);
+		return new TestSingleUseCollection(this.createIdMap(), publishDiff);
 	}
 }
 
@@ -44,7 +39,7 @@ export class TestOwnedTestCollection extends OwnedTestCollection {
  */
 export const getInitializedMainTestCollection = (root = testStubs.nested()) => {
 	const c = new MainThreadTestCollection(0);
-	const singleUse = new TestSingleUseCollection(new Map(), () => undefined);
+	const singleUse = new TestSingleUseCollection({ object: new TestTree(), dispose: () => undefined }, () => undefined);
 	singleUse.addRoot(root, 'provider');
 	c.apply(singleUse.collectDiff());
 	return c;

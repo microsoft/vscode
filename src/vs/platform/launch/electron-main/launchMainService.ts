@@ -21,6 +21,7 @@ import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch'
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -293,8 +294,9 @@ export class LaunchMainService implements ILaunchMainService {
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
 		const folderURIs = this.getFolderURIs(window);
+		const win = assertIsDefined(window.win);
 
-		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
+		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
 	}
 
 	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {

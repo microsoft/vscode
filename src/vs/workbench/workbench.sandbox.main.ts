@@ -59,20 +59,17 @@ import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncService'
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
+import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
+import 'vs/workbench/services/timer/electron-sandbox/timerService';
+import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { SharedProcessService } from 'vs/platform/ipc/electron-sandbox/sharedProcessService';
 
-registerSingleton(ITimerService, TimerService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablementService);
-registerSingleton(ISharedProcessService, SharedProcessService, true);
 
 //#endregion
 
@@ -113,6 +110,9 @@ import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper.contribution';
 
+// Terminal
+import 'vs/workbench/contrib/terminal/electron-sandbox/terminal.contribution';
+
 // Themes Support
 import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
 
@@ -121,5 +121,9 @@ import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribu
 
 // Output
 import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
+
+// Tags
+import 'vs/workbench/contrib/tags/electron-sandbox/workspaceTagsService';
+import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
 
 //#endregion

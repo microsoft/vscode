@@ -73,7 +73,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 
 		if (expectWalkthroughPart) {
-			await this.code.waitForActiveElement(`.editor-instance > div > div.welcomePageFocusElement[tabIndex="0"]`);
+			await this.code.waitForElement(`.editor-instance > div > div.welcomePageFocusElement[tabIndex="0"]`);
 		}
 	}
 

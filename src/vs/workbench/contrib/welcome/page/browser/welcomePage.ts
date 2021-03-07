@@ -10,7 +10,7 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -48,91 +48,194 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
+
+
+export const DEFAULT_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.startupEditor': {
+			'scope': ConfigurationScope.RESOURCE,
+			'type': 'string',
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'gettingStarted'],
+			'enumDescriptions': [...[
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStarted' }, "Open the Getting Started page.")]
+			],
+			'default': 'welcomePage',
+			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+		},
+	}
+};
+
+export const EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
+	...workbenchConfigurationNodeBase,
+	'properties': {
+		'workbench.startupEditor': {
+			'scope': ConfigurationScope.RESOURCE,
+			'type': 'string',
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'gettingStarted'],
+			'enumDescriptions': [...[
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStarted' }, "Open the Getting Started page.")]
+			],
+			'default': 'gettingStarted',
+			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+		},
+	}
+};
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
+	private experimentManagementComplete: Promise<void>;
+	private tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IBackupFileService backupFileService: IBackupFileService,
-		@IFileService fileService: IFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
-		const enabled = isWelcomePageEnabled(configurationService, contextService);
-		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			backupFileService.hasBackups().then(hasBackups => {
-				// Open the welcome even if we opened a set of default editors
-				if ((!editorService.activeEditor || layoutService.openedDefaultEditors) && !hasBackups) {
-					const startupEditorSetting = configurationService.inspect<string>(configurationKey);
+		this.tasExperimentService = tasExperimentService;
 
-					// 'readme' should not be set in workspace settings to prevent tracking,
-					// but it can be set as a default (as in codespaces) or a user setting
-					const openWithReadme = startupEditorSetting.value === 'readme' &&
-						(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+		// Run immediately to minimize time spent waiting for exp service.
+		this.experimentManagementComplete = this.manageDefaultValuesForGettingStartedExperiment().catch(onUnexpectedError);
+		this.run().then(undefined, onUnexpectedError);
+	}
 
-					if (openWithReadme) {
-						return Promise.all(contextService.getWorkspace().folders.map(folder => {
-							const folderUri = folder.uri;
-							return fileService.resolve(folderUri)
-								.then(folder => {
-									const files = folder.children ? folder.children.map(child => child.name).sort() : [];
+	private async manageDefaultValuesForGettingStartedExperiment() {
+		const config = this.configurationService.inspect(configurationKey);
 
-									const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
+		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || config.value !== config.defaultValue) {
+			return;
+		}
 
-									if (file) {
-										return joinPath(folderUri, file);
-									}
-									return undefined;
-								}, onUnexpectedError);
-						})).then(arrays.coalesce)
-							.then<any>(readmes => {
-								if (!editorService.activeEditor) {
-									if (readmes.length) {
-										const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
-										return Promise.all([
-											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
-											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
-												.map(readme => ({ resource: readme }))),
-										]);
-									} else {
-										return instantiationService.createInstance(WelcomePage).openEditor();
-									}
-								}
-								return undefined;
-							});
-					} else {
-						const startupEditorTypeID = startupEditorSetting.value === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
-						let options: IEditorOptions;
-						let editor = editorService.activeEditor;
-						if (editor) {
-							// Ensure that the welcome editor won't get opened more than once
-							if (editor.getTypeId() === startupEditorTypeID || editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
-								return undefined;
-							}
-							options = { pinned: false, index: 0 };
-						} else {
-							options = { pinned: false };
-						}
+		if (this.configurationService.getValue('workbench.gettingStartedTreatmentOverride')) {
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
+		}
 
-						if (startupEditorTypeID === gettingStartedInputTypeId) {
-							const launchEditor = instantiationService.createInstance(GettingStartedInput, {});
-							return editorService.openEditor(launchEditor, options);
-						} else {
-							const launchEditor = instantiationService.createInstance(WelcomePage);
-							return launchEditor.openEditor(options);
-						}
-					}
+		let someValueReturned = false;
+		type GettingStartedTreatmentData = { value: string; };
+		type GettingStartedTreatmentClassification = { value: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' }; };
+
+		const tasUseGettingStartedAsDefault = this.tasExperimentService?.getTreatment<boolean>('StartupGettingStarted')
+			.then(result => {
+				this.logService.trace('StartupGettingStarted:', result);
+				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: '' + !!result });
+				someValueReturned = true;
+				return result;
+			})
+			.catch(error => {
+				this.logService.error('Recieved error when consulting experiment service for getting started experiment', error);
+				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: 'err' });
+				someValueReturned = true;
+				return false;
+			});
+
+		const fallback = new Promise<false>(c => setTimeout(() => c(false), 2000)).then(
+			() => {
+				if (!someValueReturned) { this.logService.trace('Unable to read getting started treatment data in time, falling back to welcome'); }
+				someValueReturned = true;
+			}
+		);
+
+		const useGettingStartedAsDefault = !!await Promise.race([tasUseGettingStartedAsDefault, fallback]);
+		if (useGettingStartedAsDefault) {
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
+			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
+		}
+	}
+
+	private async run() {
+		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
+		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			const hasBackups = await this.backupFileService.hasBackups();
+			if (hasBackups) { return; }
+
+			// Open the welcome even if we opened a set of default editors
+			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
+				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
+
+				// 'readme' should not be set in workspace settings to prevent tracking,
+				// but it can be set as a default (as in codespaces) or a user setting
+				const openWithReadme = startupEditorSetting.value === 'readme' &&
+					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+
+				if (openWithReadme) {
+					await this.openReadme();
+				} else {
+					await this.openWelcome();
 				}
-				return undefined;
-			}).then(undefined, onUnexpectedError);
+			}
+		}
+	}
+
+	private async openReadme() {
+		const readmes = arrays.coalesce(
+			await Promise.all(this.contextService.getWorkspace().folders.map(
+				async folder => {
+					const folderUri = folder.uri;
+					const folderStat = await this.fileService.resolve(folderUri).catch(onUnexpectedError);
+					const files = folderStat?.children ? folderStat.children.map(child => child.name).sort() : [];
+					const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
+					if (file) { return joinPath(folderUri, file); }
+					else { return undefined; }
+				})));
+
+		if (!this.editorService.activeEditor) {
+			if (readmes.length) {
+				const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
+				await Promise.all([
+					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
+					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
+				]);
+			} else {
+				await this.openWelcome();
+			}
+		}
+	}
+
+	private async openWelcome() {
+		await this.experimentManagementComplete;
+
+		const startupEditorSetting = this.configurationService.getValue(configurationKey);
+		const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
+		const editor = this.editorService.activeEditor;
+
+		// Ensure that the welcome editor won't get opened more than once
+		if (editor?.getTypeId() === startupEditorTypeID || this.editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
+			return;
+		}
+		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
+		if (startupEditorTypeID === gettingStartedInputTypeId) {
+			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, {}), options);
+		} else {
+			this.instantiationService.createInstance(WelcomePage).openEditor(options);
 		}
 	}
 }

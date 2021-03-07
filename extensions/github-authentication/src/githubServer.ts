@@ -40,7 +40,7 @@ export class GitHubServer {
 	private _statusBarItem: vscode.StatusBarItem | undefined;
 
 	private _pendingStates = new Map<string, string[]>();
-	private _codeExchangePromises = new Map<string, Promise<string>>();
+	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
 
 	constructor(private readonly telemetryReporter: TelemetryReporter) { }
 
@@ -86,17 +86,21 @@ export class GitHubServer {
 
 		// Register a single listener for the URI callback, in case the user starts the login process multiple times
 		// before completing it.
-		let existingPromise = this._codeExchangePromises.get(scopes);
-		if (!existingPromise) {
-			existingPromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
-			this._codeExchangePromises.set(scopes, existingPromise);
+		let codeExchangePromise = this._codeExchangePromises.get(scopes);
+		if (!codeExchangePromise) {
+			codeExchangePromise = promiseFromEvent(uriHandler.event, this.exchangeCodeForToken(scopes));
+			this._codeExchangePromises.set(scopes, codeExchangePromise);
 		}
 
 		return Promise.race([
-			existingPromise,
-			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined): string => { if (!token) { throw new Error('Cancelled'); } return token; })
+			codeExchangePromise.promise,
+			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined): string => {
+				if (!token) { throw new Error('Cancelled'); }
+				return token;
+			}).promise
 		]).finally(() => {
 			this._pendingStates.delete(scopes);
+			codeExchangePromise?.cancel.fire();
 			this._codeExchangePromises.delete(scopes);
 			this.updateStatusBarItem(false);
 		});
@@ -156,7 +160,7 @@ export class GitHubServer {
 		}
 
 		try {
-			const uri = vscode.Uri.parse(uriOrToken);
+			const uri = vscode.Uri.parse(uriOrToken.trim());
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
 			uriHandler.handleUri(uri);
 		} catch (e) {
@@ -229,7 +233,7 @@ export class GitHubServer {
 
 				/* __GDPR__
 					"session" : {
-						"isEdu": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryReporter.sendTelemetryEvent('session', {

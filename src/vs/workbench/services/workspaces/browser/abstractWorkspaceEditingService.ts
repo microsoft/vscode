@@ -5,7 +5,7 @@
 
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult, hasWorkspaceFileExtension, WORKSPACE_EXTENSION, isUntitledWorkspace, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
@@ -51,8 +51,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
 		let workspacePath = await this.fileDialogService.showSaveDialog({
-			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
-			title: nls.localize('saveWorkspace', "Save Workspace"),
+			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
+			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME)
 		});
@@ -292,19 +292,19 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	private onInvalidWorkspaceConfigurationFileError(): void {
-		const message = nls.localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
+		const message = localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
 		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
 	private onWorkspaceConfigurationFileDirtyError(): void {
-		const message = nls.localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
+		const message = localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
 		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
 	private askToOpenWorkspaceConfigurationFile(message: string): void {
 		this.notificationService.prompt(Severity.Error, message,
 			[{
-				label: nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration"),
+				label: localize('openWorkspaceConfigurationFile', "Open Workspace Configuration"),
 				run: () => this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile')
 			}]
 		);

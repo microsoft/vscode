@@ -38,7 +38,7 @@ export class IssueMainService implements ICommonIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
@@ -271,7 +271,7 @@ export class IssueMainService implements ICommonIssueService {
 				this._processExplorerWindow.setMenuBarVisibility(false);
 
 				const windowConfiguration = {
-					appRoot: this.environmentService.appRoot,
+					appRoot: this.environmentMainService.appRoot,
 					windowId: this._processExplorerWindow.id,
 					userEnv: this.userEnv,
 					machineId: this.machineId,
@@ -397,13 +397,13 @@ export class IssueMainService implements ICommonIssueService {
 		}
 
 		const windowConfiguration = {
-			appRoot: this.environmentService.appRoot,
+			appRoot: this.environmentMainService.appRoot,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			userEnv: this.userEnv,
 			data,
 			features,
-			disableExtensions: this.environmentService.disableExtensions,
+			disableExtensions: this.environmentMainService.disableExtensions,
 			os: {
 				type: os.type(),
 				arch: os.arch(),

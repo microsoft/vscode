@@ -11,7 +11,7 @@ import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
 import { EventType, Dimension, addDisposableListener, isAncestor } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -37,6 +37,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{

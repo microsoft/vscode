@@ -60,6 +60,7 @@ steps:
     displayName: Extract node_modules cache
 
   - script: |
+      set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))

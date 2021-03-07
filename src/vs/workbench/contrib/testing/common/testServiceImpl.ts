@@ -7,12 +7,15 @@ import { groupBy } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
+import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -39,12 +42,54 @@ export class TestService extends Disposable implements ITestService {
 	private readonly busyStateChangeEmitter = new Emitter<TestLocationIdent & { busy: boolean }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
 	private readonly providerCount: IContextKey<number>;
+	private readonly hasRunnable: IContextKey<boolean>;
+	private readonly hasDebuggable: IContextKey<boolean>;
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
 	private rootProviderCount = 0;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService, @INotificationService private readonly notificationService: INotificationService, @ITestResultService private readonly testResults: ITestResultService) {
+	public readonly excludeTests = ObservableValue.stored(new StoredValue<ReadonlySet<string>>({
+		key: 'excludedTestItes',
+		scope: StorageScope.WORKSPACE,
+		target: StorageTarget.USER,
+		serialization: {
+			deserialize: v => new Set(JSON.parse(v)),
+			serialize: v => JSON.stringify([...v])
+		},
+	}, this.storageService), new Set());
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITestResultService private readonly testResults: ITestResultService,
+	) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
+		this.hasDebuggable = TestingContextKeys.hasDebuggableTests.bindTo(contextKeyService);
+		this.hasRunnable = TestingContextKeys.hasRunnableTests.bindTo(contextKeyService);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public clearExcludedTests() {
+		this.excludeTests.value = new Set();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public setTestExcluded(testId: string, exclude = !this.excludeTests.value.has(testId)) {
+		const newSet = new Set(this.excludeTests.value);
+		if (exclude) {
+			newSet.add(testId);
+		} else {
+			newSet.delete(testId);
+		}
+
+		if (newSet.size !== this.excludeTests.value.size) {
+			this.excludeTests.value = newSet;
+		}
 	}
 
 	/**
@@ -114,6 +159,9 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public updateRootProviderCount(delta: number) {
 		this.rootProviderCount += delta;
+		for (const { collection } of this.testSubscriptions.values()) {
+			collection.updatePendingRoots(delta);
+		}
 	}
 
 
@@ -121,6 +169,10 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async runTests(req: RunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
+		if (!req.exclude) {
+			req.exclude = [...this.excludeTests.value];
+		}
+
 		const subscriptions = [...this.testSubscriptions.values()]
 			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
 			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri));
@@ -135,7 +187,13 @@ export class TestService extends Disposable implements ITestService {
 				const providerId = group[0].providerId;
 				const controller = this.testControllers.get(providerId);
 				return controller?.runTests(
-					{ runId: result.id, providerId, debug: req.debug, ids: group.map(t => t.testId) },
+					{
+						runId: result.id,
+						providerId,
+						debug: req.debug,
+						excludeExtIds: req.exclude ?? [],
+						ids: group.map(t => t.testId),
+					},
 					cancelSource.token,
 				).catch(err => {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
@@ -216,29 +274,42 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff) {
 		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
-		if (sub) {
-			sub.collection.apply(diff);
-			// console.log('accept', sub.collection, diff);
-			sub.onDiff.fire(diff);
+		if (!sub) {
+			return;
 		}
+
+		sub.collection.apply(diff);
+		sub.onDiff.fire(diff);
+		this.hasDebuggable.set(!!this.findTest(t => t.item.debuggable));
+		this.hasRunnable.set(!!this.findTest(t => t.item.runnable));
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public registerTestController(id: string, controller: MainTestController): void {
+	public registerTestController(id: string, controller: MainTestController): IDisposable {
 		this.testControllers.set(id, controller);
 		this.providerCount.set(this.testControllers.size);
 		this.changeProvidersEmitter.fire({ delta: 1 });
+
+		return toDisposable(() => {
+			if (this.testControllers.delete(id)) {
+				this.providerCount.set(this.testControllers.size);
+				this.changeProvidersEmitter.fire({ delta: -1 });
+			}
+		});
 	}
 
-	/**
-	 * @inheritdoc
-	 */
-	public unregisterTestController(id: string): void {
-		this.testControllers.delete(id);
-		this.providerCount.set(this.testControllers.size);
-		this.changeProvidersEmitter.fire({ delta: -1 });
+	private findTest(predicate: (t: InternalTestItem) => boolean): InternalTestItem | undefined {
+		for (const { collection } of this.testSubscriptions.values()) {
+			for (const test of collection.all) {
+				if (predicate(test)) {
+					return test;
+				}
+			}
+		}
+
+		return undefined;
 	}
 }
 
@@ -303,7 +374,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 		while (queue.length) {
 			for (const child of queue.pop()!) {
 				const item = this.items.get(child)!;
-				ops.push([TestDiffOpType.Add, { id: item.id, providerId: item.providerId, item: item.item, parent: item.parent }]);
+				ops.push([TestDiffOpType.Add, { providerId: item.providerId, item: item.item, parent: item.parent }]);
 				queue.push(item.children);
 			}
 		}
@@ -338,8 +409,8 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * @override
 	 */
-	protected updatePendingRoots(delta: number) {
-		this._pendingRootProviders += delta;
+	public updatePendingRoots(delta: number) {
+		this._pendingRootProviders = Math.max(0, this._pendingRootProviders + delta);
 		this.pendingRootChangeEmitter.fire(this._pendingRootProviders);
 	}
 

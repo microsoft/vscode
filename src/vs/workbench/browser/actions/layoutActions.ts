@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -33,7 +33,7 @@ class CloseSidebarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeSidebar',
-			title: { value: nls.localize('closeSidebar', "Close Side Bar"), original: 'Close Side Bar' },
+			title: { value: localize('closeSidebar', "Close Side Bar"), original: 'Close Side Bar' },
 			category: CATEGORIES.View,
 			f1: true
 		});
@@ -51,7 +51,7 @@ registerAction2(CloseSidebarAction);
 export class ToggleActivityBarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleActivityBarVisibility';
-	static readonly LABEL = nls.localize('toggleActivityBar', "Toggle Activity Bar Visibility");
+	static readonly LABEL = localize('toggleActivityBar', "Toggle Activity Bar Visibility");
 
 	private static readonly activityBarVisibleKey = 'workbench.activityBar.visible';
 
@@ -81,7 +81,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleActivityBarVisibilityAction.ID,
-		title: nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
+		title: localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
 		toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true)
 	},
 	order: 4
@@ -96,7 +96,7 @@ class ToggleCenteredLayout extends Action2 {
 	constructor() {
 		super({
 			id: ToggleCenteredLayout.ID,
-			title: { value: nls.localize('toggleCenteredLayout', "Toggle Centered Layout"), original: 'Toggle Centered Layout' },
+			title: { value: localize('toggleCenteredLayout', "Toggle Centered Layout"), original: 'Toggle Centered Layout' },
 			category: CATEGORIES.View,
 			f1: true
 		});
@@ -115,7 +115,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleCenteredLayout.ID,
-		title: nls.localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
+		title: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
 		toggled: IsCenteredLayoutContext
 	},
 	order: 3
@@ -126,7 +126,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 export class ToggleSidebarPositionAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleSidebarPosition';
-	static readonly LABEL = nls.localize('toggleSidebarPosition', "Toggle Side Bar Position");
+	static readonly LABEL = localize('toggleSidebarPosition', "Toggle Side Bar Position");
 
 	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 
@@ -147,7 +147,7 @@ export class ToggleSidebarPositionAction extends Action {
 	}
 
 	static getLabel(layoutService: IWorkbenchLayoutService): string {
-		return layoutService.getSideBarPosition() === Position.LEFT ? nls.localize('moveSidebarRight', "Move Side Bar Right") : nls.localize('moveSidebarLeft', "Move Side Bar Left");
+		return layoutService.getSideBarPosition() === Position.LEFT ? localize('moveSidebarRight', "Move Side Bar Right") : localize('moveSidebarLeft', "Move Side Bar Left");
 	}
 }
 
@@ -155,7 +155,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSidebarPositionAction.ID,
-			title: { value: nls.localize('toggleSidebarPosition', "Toggle Side Bar Position"), original: 'Toggle Side Bar Position' },
+			title: { value: localize('toggleSidebarPosition', "Toggle Side Bar Position"), original: 'Toggle Side Bar Position' },
 			category: CATEGORIES.View,
 			f1: true
 		});
@@ -170,7 +170,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: nls.localize('move sidebar right', "Move Side Bar Right")
+			title: localize('move sidebar right', "Move Side Bar Right")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -181,7 +181,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: nls.localize('move sidebar right', "Move Side Bar Right")
+			title: localize('move sidebar right', "Move Side Bar Right")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -192,7 +192,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: nls.localize('move sidebar left', "Move Side Bar Left")
+			title: localize('move sidebar left', "Move Side Bar Left")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -203,7 +203,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: nls.localize('move sidebar left', "Move Side Bar Left")
+			title: localize('move sidebar left', "Move Side Bar Left")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -214,7 +214,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
-		title: nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right")
+		title: localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right")
 	},
 	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
 	order: 2
@@ -224,7 +224,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
-		title: nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
+		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
 	},
 	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
@@ -234,7 +234,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 export class ToggleEditorVisibilityAction extends Action {
 	static readonly ID = 'workbench.action.toggleEditorVisibility';
-	static readonly LABEL = nls.localize('toggleEditor', "Toggle Editor Area Visibility");
+	static readonly LABEL = localize('toggleEditor', "Toggle Editor Area Visibility");
 
 	constructor(
 		id: string,
@@ -255,7 +255,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleEditorVisibilityAction.ID,
-		title: nls.localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
+		title: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
 		toggled: EditorAreaVisibleContext
 	},
 	order: 5
@@ -263,7 +263,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
-	title: nls.localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
+	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
 	submenu: MenuId.MenubarAppearanceMenu,
 	order: 1
 });
@@ -273,7 +273,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
-			title: { value: nls.localize('toggleSidebar', "Toggle Side Bar Visibility"), original: 'Toggle Side Bar Visibility' },
+			title: { value: localize('toggleSidebar', "Toggle Side Bar Visibility"), original: 'Toggle Side Bar Visibility' },
 			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
@@ -293,7 +293,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
-			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
 		},
 		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 2
@@ -304,7 +304,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
-			title: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
 		},
 		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 2
@@ -315,7 +315,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: TOGGLE_SIDEBAR_VISIBILITY_ACTION_ID,
-		title: nls.localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
+		title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
 		toggled: SideBarVisibleContext
 	},
 	order: 1
@@ -326,7 +326,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 export class ToggleStatusbarVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleStatusbarVisibility';
-	static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
+	static readonly LABEL = localize('toggleStatusbar', "Toggle Status Bar Visibility");
 
 	private static readonly statusbarVisibleKey = 'workbench.statusBar.visible';
 
@@ -353,7 +353,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleStatusbarVisibilityAction.ID,
-		title: nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
+		title: localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
 		toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true)
 	},
 	order: 3
@@ -364,7 +364,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 class ToggleTabsVisibilityAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleTabsVisibility';
-	static readonly LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
+	static readonly LABEL = localize('toggleTabs', "Toggle Tab Visibility");
 
 	private static readonly tabsVisibleKey = 'workbench.editor.showTabs';
 
@@ -395,7 +395,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleTabsVisibilityA
 class ToggleZenMode extends Action {
 
 	static readonly ID = 'workbench.action.toggleZenMode';
-	static readonly LABEL = nls.localize('toggleZenMode', "Toggle Zen Mode");
+	static readonly LABEL = localize('toggleZenMode', "Toggle Zen Mode");
 
 	constructor(
 		id: string,
@@ -416,7 +416,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleZenMode.ID,
-		title: nls.localize('miToggleZenMode', "Zen Mode"),
+		title: localize('miToggleZenMode', "Zen Mode"),
 		toggled: InEditorZenModeContext
 	},
 	order: 2
@@ -438,7 +438,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 export class ToggleMenuBarAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleMenuBar';
-	static readonly LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
+	static readonly LABEL = localize('toggleMenuBar', "Toggle Menu Bar");
 
 	constructor(
 		id: string,
@@ -461,7 +461,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '2_workbench_layout',
 	command: {
 		id: ToggleMenuBarAction.ID,
-		title: nls.localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
+		title: localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
 		toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 	},
 	when: IsMacNativeContext.toNegated(),
@@ -472,7 +472,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 export class ResetViewLocationsAction extends Action {
 	static readonly ID = 'workbench.action.resetViewLocations';
-	static readonly LABEL = nls.localize('resetViewLocations', "Reset View Locations");
+	static readonly LABEL = localize('resetViewLocations', "Reset View Locations");
 
 	constructor(
 		id: string,
@@ -492,7 +492,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetViewLocationsAct
 // --- Move View with Command
 export class MoveViewAction extends Action {
 	static readonly ID = 'workbench.action.moveView';
-	static readonly LABEL = nls.localize('moveView', "Move View");
+	static readonly LABEL = localize('moveView', "Move View");
 
 	constructor(
 		id: string,
@@ -521,7 +521,7 @@ export class MoveViewAction extends Action {
 					if (!hasAddedView) {
 						results.push({
 							type: 'separator',
-							label: nls.localize('sidebarContainer', "Side Bar / {0}", containerModel.title)
+							label: localize('sidebarContainer', "Side Bar / {0}", containerModel.title)
 						});
 						hasAddedView = true;
 					}
@@ -545,7 +545,7 @@ export class MoveViewAction extends Action {
 					if (!hasAddedView) {
 						results.push({
 							type: 'separator',
-							label: nls.localize('panelContainer', "Panel / {0}", containerModel.title)
+							label: localize('panelContainer', "Panel / {0}", containerModel.title)
 						});
 						hasAddedView = true;
 					}
@@ -563,7 +563,7 @@ export class MoveViewAction extends Action {
 
 	private async getView(viewId?: string): Promise<string> {
 		const quickPick = this.quickInputService.createQuickPick();
-		quickPick.placeholder = nls.localize('moveFocusedView.selectView', "Select a View to Move");
+		quickPick.placeholder = localize('moveFocusedView.selectView', "Select a View to Move");
 		quickPick.items = this.getViewItems();
 		quickPick.selectedItems = quickPick.items.filter(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
 
@@ -608,7 +608,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveViewAction), 'Vie
 // --- Move Focused View with Command
 export class MoveFocusedViewAction extends Action {
 	static readonly ID = 'workbench.action.moveFocusedView';
-	static readonly LABEL = nls.localize('moveFocusedView', "Move Focused View");
+	static readonly LABEL = localize('moveFocusedView', "Move Focused View");
 
 	constructor(
 		id: string,
@@ -628,19 +628,19 @@ export class MoveFocusedViewAction extends Action {
 		const focusedViewId = viewId || FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
-			this.notificationService.error(nls.localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
+			this.notificationService.error(localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
 			return;
 		}
 
 		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
-			this.notificationService.error(nls.localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
+			this.notificationService.error(localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return;
 		}
 
 		const quickPick = this.quickInputService.createQuickPick();
-		quickPick.placeholder = nls.localize('moveFocusedView.selectDestination', "Select a Destination for the View");
-		quickPick.title = nls.localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name);
+		quickPick.placeholder = localize('moveFocusedView.selectDestination', "Select a Destination for the View");
+		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name);
 
 		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
 		const currentContainer = this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
@@ -650,20 +650,20 @@ export class MoveFocusedViewAction extends Action {
 		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
 			items.push({
 				id: '_.panel.newcontainer',
-				label: nls.localize({ key: 'moveFocusedView.newContainerInPanel', comment: ['Creates a new top-level tab in the panel.'] }, "New Panel Entry"),
+				label: localize({ key: 'moveFocusedView.newContainerInPanel', comment: ['Creates a new top-level tab in the panel.'] }, "New Panel Entry"),
 			});
 		}
 
 		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
 			items.push({
 				id: '_.sidebar.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Side Bar Entry")
+				label: localize('moveFocusedView.newContainerInSidebar', "New Side Bar Entry")
 			});
 		}
 
 		items.push({
 			type: 'separator',
-			label: nls.localize('sidebar', "Side Bar")
+			label: localize('sidebar', "Side Bar")
 		});
 
 		const pinnedViewlets = this.activityBarService.getVisibleViewContainerIds();
@@ -678,13 +678,13 @@ export class MoveFocusedViewAction extends Action {
 			.map(viewletId => {
 				return {
 					id: viewletId,
-					label: this.viewDescriptorService.getViewContainerById(viewletId)!.title
+					label: this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerById(viewletId)!)!.title
 				};
 			}));
 
 		items.push({
 			type: 'separator',
-			label: nls.localize('panel', "Panel")
+			label: localize('panel', "Panel")
 		});
 
 		const pinnedPanels = this.panelService.getPinnedPanels();
@@ -699,7 +699,7 @@ export class MoveFocusedViewAction extends Action {
 			.map(panel => {
 				return {
 					id: panel.id,
-					label: this.viewDescriptorService.getViewContainerById(panel.id)!.title
+					label: this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerById(panel.id)!)!.title
 				};
 			}));
 
@@ -731,7 +731,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveFocusedViewAction
 // --- Reset View Location with Command
 export class ResetFocusedViewLocationAction extends Action {
 	static readonly ID = 'workbench.action.resetFocusedViewLocation';
-	static readonly LABEL = nls.localize('resetFocusedViewLocation', "Reset Focused View Location");
+	static readonly LABEL = localize('resetFocusedViewLocation', "Reset Focused View Location");
 
 	constructor(
 		id: string,
@@ -753,7 +753,7 @@ export class ResetFocusedViewLocationAction extends Action {
 		}
 
 		if (!viewDescriptor) {
-			this.notificationService.error(nls.localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
+			this.notificationService.error(localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
 			return;
 		}
 
@@ -807,7 +807,7 @@ export class IncreaseViewSizeAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewSize',
-			title: { value: nls.localize('increaseViewSize', "Increase Current View Size"), original: 'Increase Current View Size' },
+			title: { value: localize('increaseViewSize', "Increase Current View Size"), original: 'Increase Current View Size' },
 			f1: true
 		});
 	}
@@ -822,7 +822,7 @@ export class IncreaseViewWidthAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewWidth',
-			title: { value: nls.localize('increaseEditorWidth', "Increase Editor Width"), original: 'Increase Editor Width' },
+			title: { value: localize('increaseEditorWidth', "Increase Editor Width"), original: 'Increase Editor Width' },
 			f1: true
 		});
 	}
@@ -837,7 +837,7 @@ export class IncreaseViewHeightAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.increaseViewHeight',
-			title: { value: nls.localize('increaseEditorHeight', "Increase Editor Height"), original: 'Increase Editor Height' },
+			title: { value: localize('increaseEditorHeight', "Increase Editor Height"), original: 'Increase Editor Height' },
 			f1: true
 		});
 	}
@@ -851,7 +851,7 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewSize',
-			title: { value: nls.localize('decreaseViewSize', "Decrease Current View Size"), original: 'Decrease Current View Size' },
+			title: { value: localize('decreaseViewSize', "Decrease Current View Size"), original: 'Decrease Current View Size' },
 			f1: true
 		});
 	}
@@ -865,7 +865,7 @@ export class DecreaseViewWidthAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewWidth',
-			title: { value: nls.localize('decreaseEditorWidth', "Decrease Editor Width"), original: 'Decrease Editor Width' },
+			title: { value: localize('decreaseEditorWidth', "Decrease Editor Width"), original: 'Decrease Editor Width' },
 			f1: true
 		});
 	}
@@ -881,7 +881,7 @@ export class DecreaseViewHeightAction extends BaseResizeViewAction {
 	constructor() {
 		super({
 			id: 'workbench.action.decreaseViewHeight',
-			title: { value: nls.localize('decreaseEditorHeight', "Decrease Editor Height"), original: 'Decrease Editor Height' },
+			title: { value: localize('decreaseEditorHeight', "Decrease Editor Height"), original: 'Decrease Editor Height' },
 			f1: true
 		});
 	}

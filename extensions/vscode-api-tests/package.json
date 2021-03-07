@@ -116,6 +116,27 @@
           }
         ]
       }
+    ],
+    "notebookProvider": [
+      {
+        "viewType": "notebookCoreTest",
+        "displayName": "Notebook Core Test",
+        "selector": [
+          {
+            "filenamePattern": "*.vsctestnb",
+            "excludeFileNamePattern": ""
+          }
+        ]
+      },
+      {
+        "viewType": "notebook.nbdtest",
+        "displayName": "notebook.nbdtest",
+        "selector": [
+          {
+            "filenamePattern": "**/*.nbdtest"
+          }
+        ]
+      }
     ]
   },
   "scripts": {

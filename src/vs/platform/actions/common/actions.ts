@@ -121,11 +121,14 @@ export class MenuId {
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
+	static readonly TestItem = new MenuId('TestItem');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
-	static readonly TunnelInline = new MenuId('TunnelInline');
+	static readonly TunnelPortInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
+	static readonly TunnelLocalAddressInline = new MenuId('TunnelLocalAddressInline');
+	static readonly TunnelOriginInline = new MenuId('TunnelOriginInline');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
 	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
@@ -321,34 +324,30 @@ export class ExecuteCommandAction extends Action {
 
 export class SubmenuItemAction extends SubmenuAction {
 
-	readonly item: ISubmenuItem;
-
 	constructor(
-		item: ISubmenuItem,
-		menuService: IMenuService,
-		contextKeyService: IContextKeyService,
-		options?: IMenuActionOptions
+		readonly item: ISubmenuItem,
+		private readonly _menuService: IMenuService,
+		private readonly _contextKeyService: IContextKeyService,
+		private readonly _options?: IMenuActionOptions
 	) {
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
+	}
+
+	get actions(): readonly IAction[] {
 		const result: IAction[] = [];
-		const menu = menuService.createMenu(item.submenu, contextKeyService);
-		const groups = menu.getActions(options);
+		const menu = this._menuService.createMenu(this.item.submenu, this._contextKeyService);
+		const groups = menu.getActions(this._options);
 		menu.dispose();
-
-		for (let group of groups) {
-			const [, actions] = group;
-
+		for (const [, actions] of groups) {
 			if (actions.length > 0) {
 				result.push(...actions);
 				result.push(new Separator());
 			}
 		}
-
 		if (result.length) {
 			result.pop(); // remove last separator
 		}
-
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, result, 'submenu');
-		this.item = item;
+		return result;
 	}
 }
 

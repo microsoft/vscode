@@ -343,10 +343,38 @@ function configureCrashReporter() {
 		if (appCenter && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']) {
 			const isWindows = (process.platform === 'win32');
 			const isLinux = (process.platform === 'linux');
+			const isDarwin = (process.platform === 'darwin');
 			const crashReporterId = argvConfig['crash-reporter-id'];
 			const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 			if (uuidPattern.test(crashReporterId)) {
-				submitURL = isWindows ? appCenter[process.arch === 'ia32' ? 'win32-ia32' : 'win32-x64'] : isLinux ? appCenter[`linux-x64`] : appCenter.darwin;
+				if (isWindows) {
+					switch (process.arch) {
+						case 'ia32':
+							submitURL = appCenter['win32-ia32'];
+							break;
+						case 'x64':
+							submitURL = appCenter['win32-x64'];
+							break;
+						case 'arm64':
+							submitURL = appCenter['win32-arm64'];
+							break;
+					}
+				} else if (isDarwin) {
+					if (product.darwinUniversalAssetId) {
+						submitURL = appCenter['darwin-universal'];
+					} else {
+						switch (process.arch) {
+							case 'x64':
+								submitURL = appCenter['darwin'];
+								break;
+							case 'arm64':
+								submitURL = appCenter['darwin-arm64'];
+								break;
+						}
+					}
+				} else if (isLinux) {
+					submitURL = appCenter['linux-x64'];
+				}
 				submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 				// Send the id for child node process that are explicitly starting crash reporter.
 				// For vscode this is ExtensionHost process currently.
@@ -371,7 +399,8 @@ function configureCrashReporter() {
 		companyName: companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL,
-		uploadToServer: !crashReporterDirectory
+		uploadToServer: !crashReporterDirectory,
+		compress: true
 	});
 }
 

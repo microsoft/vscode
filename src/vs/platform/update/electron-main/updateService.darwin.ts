@@ -32,11 +32,11 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService);
 	}
 
 	initialize(): void {

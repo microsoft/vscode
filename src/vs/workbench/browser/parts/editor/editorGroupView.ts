@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -199,7 +199,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Editor control
 			this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
-			this._onDidChange.input = this.editorControl.onDidSizeConstraintsChange;
+			this._onDidChange.input = this.editorControl.onDidChangeSizeConstraints;
 
 			// Track Focus
 			this.doTrackFocus();
@@ -489,7 +489,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this._group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
 
 		// Option Changes
-		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
+		this._register(this.accessor.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 
 		// Visibility
 		this._register(this.accessor.onDidVisibilityChange(e => this.onDidVisibilityChange(e)));
@@ -597,16 +597,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Split between visible and hidden editors
 		let activeEditor: EditorInput | undefined;
 		const inactiveEditors: EditorInput[] = [];
-		editors.forEach(editor => {
+		for (const editor of editors) {
 			if (this._group.isActive(editor)) {
 				activeEditor = editor;
 			} else if (this._group.contains(editor)) {
 				inactiveEditors.push(editor);
 			}
-		});
+		}
 
 		// Close all inactive editors first to prevent UI flicker
-		inactiveEditors.forEach(hidden => this.doCloseEditor(hidden, false));
+		for (const inactiveEditor of inactiveEditors) {
+			this.doCloseEditor(inactiveEditor, false);
+		}
 
 		// Close active one last
 		if (activeEditor) {
@@ -614,7 +616,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private onDidEditorPartOptionsChange(event: IEditorPartOptionsChangeEvent): void {
+	private onDidChangeEditorPartOptions(event: IEditorPartOptionsChangeEvent): void {
 
 		// Title container
 		this.updateTitleContainer();
@@ -710,8 +712,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count === 0;
 	}
 
-	get titleDimensions(): IEditorGroupTitleDimensions {
-		return this.titleAreaControl.getDimensions();
+	get titleHeight(): IEditorGroupTitleHeight {
+		return this.titleAreaControl.getHeight();
 	}
 
 	get isMinimized(): boolean {
@@ -1028,7 +1030,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				if (options?.context === EditorOpenContext.USER) {
 					const buttons: string[] = [];
 					if (Array.isArray(errorActions) && errorActions.length > 0) {
-						errorActions.forEach(action => buttons.push(action.label));
+						for (const errorAction of errorActions) {
+							buttons.push(errorAction.label);
+						}
 					} else {
 						buttons.push(localize('ok', 'OK'));
 					}
@@ -1215,18 +1219,24 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region closeEditor()
 
 	async closeEditor(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<void> {
+		await this.doCloseEditorWithDirtyHandling(editor, options);
+	}
+
+	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<boolean> {
 		if (!editor) {
-			return;
+			return false;
 		}
 
 		// Check for dirty and veto
 		const veto = await this.handleDirtyClosing([editor]);
 		if (veto) {
-			return;
+			return false;
 		}
 
 		// Do close
 		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined);
+
+		return true;
 	}
 
 	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
@@ -1277,7 +1287,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Open next active if there are more to show
 		const nextActiveEditor = this._group.activeEditor;
 		if (nextActiveEditor) {
-			const options = EditorOptions.create({ preserveFocus: !focusNext });
+			const preserveFocus = !focusNext;
+
+			let activation: EditorActivation | undefined = undefined;
+			if (preserveFocus && this.accessor.activeGroup !== this) {
+				// If we are opening the next editor in an inactive group
+				// without focussing it, ensure we preserve the editor
+				// group sizes in case that group is minimized.
+				// https://github.com/microsoft/vscode/issues/117686
+				activation = EditorActivation.PRESERVE;
+			}
+
+			const options = EditorOptions.create({ preserveFocus, activation });
 
 			// When closing an editor due to an error we can end up in a loop where we continue closing
 			// editors that fail to open (e.g. when the file no longer exists). We do not want to show
@@ -1522,13 +1543,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close all inactive editors first
 		let closeActiveEditor = false;
-		editors.forEach(editor => {
+		for (const editor of editors) {
 			if (!this.isActive(editor)) {
 				this.doCloseInactiveEditor(editor);
 			} else {
 				closeActiveEditor = true;
 			}
-		});
+		}
 
 		// Close active editor last if contained in editors list to close
 		if (closeActiveEditor) {
@@ -1572,13 +1593,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close all inactive editors first
 		const editorsToClose: EditorInput[] = [];
-		this._group.getEditors(EditorsOrder.SEQUENTIAL, options).forEach(editor => {
+		for (const editor of this._group.getEditors(EditorsOrder.SEQUENTIAL, options)) {
 			if (!this.isActive(editor)) {
 				this.doCloseInactiveEditor(editor);
 			}
 
 			editorsToClose.push(editor);
-		});
+		}
 
 		// Close active editor last (unless we skip it, e.g. because it is sticky)
 		if (this.activeEditor && editorsToClose.includes(this.activeEditor)) {
@@ -1600,11 +1621,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Extract active vs. inactive replacements
 		let activeReplacement: EditorReplacement | undefined;
 		const inactiveReplacements: EditorReplacement[] = [];
-		editors.forEach(({ editor, replacement, options }) => {
-			if (editor.isDirty() && !editor.isSaving()) {
-				return; // we do not handle dirty in this method, so ignore all dirty
-			}
-
+		for (let { editor, replacement, options } of editors) {
 			const index = this.getIndexOfEditor(editor);
 			if (index >= 0) {
 				const isActiveEditor = this.isActive(editor);
@@ -1626,20 +1643,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					inactiveReplacements.push(editorToReplace);
 				}
 			}
-		});
+		}
 
 		// Handle inactive first
-		inactiveReplacements.forEach(async ({ editor, replacement, options }) => {
+		for (const { editor, replacement, options } of inactiveReplacements) {
 
 			// Open inactive editor
 			await this.doOpenEditor(replacement, options);
 
 			// Close replaced inactive editor unless they match
 			if (!editor.matches(replacement)) {
-				this.doCloseInactiveEditor(editor);
-				this.titleAreaControl.closeEditor(editor);
+				const closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true });
+				if (!closed) {
+					return; // canceled
+				}
 			}
-		});
+		}
 
 		// Handle active last
 		if (activeReplacement) {
@@ -1649,8 +1668,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
-				this.doCloseInactiveEditor(activeReplacement.editor);
-				this.titleAreaControl.closeEditor(activeReplacement.editor);
+				await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
 			}
 
 			await openEditorResult;

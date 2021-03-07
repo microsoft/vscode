@@ -23,12 +23,12 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
-		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService);
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string {

@@ -28,9 +28,9 @@ steps:
       git config user.name "VSCode"
 
       git checkout origin/electron-11.x.y
-      git merge origin/master
+      git merge origin/main
 
-      # Push master branch into exploration branch
+      # Push main branch into exploration branch
       git push origin HEAD:electron-11.x.y
 
     displayName: Sync & Merge Exploration

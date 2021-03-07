@@ -19,7 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
+import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -27,7 +27,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as DOM from 'vs/base/browser/dom';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -205,11 +205,11 @@ export class TreeView extends Disposable implements ITreeView {
 	) {
 		super();
 		this.root = new Root();
-		this.collapseAllContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableCollapseAll`, false);
+		this.collapseAllContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableCollapseAll`, false, localize('treeView.enableCollapseAll', "Whether the the tree view with id {0} enables collapse all.", this.id));
 		this.collapseAllContext = this.collapseAllContextKey.bindTo(contextKeyService);
-		this.collapseAllToggleContextKey = new RawContextKey<boolean>(`treeView.${this.id}.toggleCollapseAll`, false);
+		this.collapseAllToggleContextKey = new RawContextKey<boolean>(`treeView.${this.id}.toggleCollapseAll`, false, localize('treeView.toggleCollapseAll', "Whether collapse all is toggled for the tree view with id {0}.", this.id));
 		this.collapseAllToggleContext = this.collapseAllToggleContextKey.bindTo(contextKeyService);
-		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false);
+		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false, localize('treeView.enableRefresh', "Whether the tree view with id {0} enables refresh.", this.id));
 		this.refreshContext = this.refreshContextKey.bindTo(contextKeyService);
 
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
@@ -1133,7 +1133,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
 		menu.dispose();
 
 		return result;

@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
@@ -25,6 +25,11 @@ export interface ITestTreeProjection extends IDisposable {
 	 * Event that fires when the projection changes.
 	 */
 	onUpdate: Event<void>;
+
+	/**
+	 * Gets an element by its extension-assigned ID.
+	 */
+	getElementByTestId(testId: string): ITestTreeElement | undefined;
 
 	/**
 	 * Gets the test at the given position in th editor. Should be fast,
@@ -85,14 +90,14 @@ export interface ITestTreeElement {
 	/**
 	 * Element state to display.
 	 */
-	state: TestRunState;
+	state: TestResult;
 
 	/**
 	 * Whether the node's test result is 'retired' -- from an outdated test run.
 	 */
 	readonly retired: boolean;
 
-	readonly ownState: TestRunState;
+	readonly ownState: TestResult;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
 }

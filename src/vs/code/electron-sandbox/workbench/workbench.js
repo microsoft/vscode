@@ -5,7 +5,7 @@
 
 /// <reference path="../../../../typings/require.d.ts" />
 
-// @ts-check
+//@ts-check
 (function () {
 	'use strict';
 
@@ -76,5 +76,4 @@
 	}
 
 	//#endregion
-
 }());

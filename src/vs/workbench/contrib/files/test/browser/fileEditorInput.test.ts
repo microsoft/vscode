@@ -209,7 +209,7 @@ suite('Files - FileEditorInput', () => {
 	test('resolve handles binary files', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		accessor.textFileService.setResolveTextContentErrorOnce(new TextFileOperationError('error', TextFileOperationResult.FILE_IS_BINARY));
+		accessor.textFileService.setReadStreamErrorOnce(new TextFileOperationError('error', TextFileOperationResult.FILE_IS_BINARY));
 
 		const resolved = await input.resolve();
 		assert.ok(resolved);
@@ -219,7 +219,7 @@ suite('Files - FileEditorInput', () => {
 	test('resolve handles too large files', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
+		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
 
 		const resolved = await input.resolve();
 		assert.ok(resolved);

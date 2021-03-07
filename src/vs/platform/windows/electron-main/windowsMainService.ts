@@ -14,7 +14,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow } from 'vs/platform/windows/electron-main/window';
 import { BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
-import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, UnloadReason, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
@@ -35,7 +35,7 @@ import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier, IWorkspaces
 import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -118,17 +118,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private static readonly WINDOWS: ICodeWindow[] = [];
 
-	private readonly _onWindowOpened = this._register(new Emitter<ICodeWindow>());
-	readonly onWindowOpened = this._onWindowOpened.event;
+	private readonly _onDidOpenWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onDidOpenWindow = this._onDidOpenWindow.event;
 
-	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
-	readonly onWindowReady = this._onWindowReady.event;
+	private readonly _onDidSignalReadyWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onDidSignalReadyWindow = this._onDidSignalReadyWindow.event;
 
-	private readonly _onWindowDestroyed = this._register(new Emitter<ICodeWindow>());
-	readonly onWindowDestroyed = this._onWindowDestroyed.event;
+	private readonly _onDidDestroyWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onDidDestroyWindow = this._onDidDestroyWindow.event;
 
-	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
-	readonly onWindowsCountChanged = this._onWindowsCountChanged.event;
+	private readonly _onDidChangeWindowsCount = this._register(new Emitter<IWindowsCountChangedEvent>());
+	readonly onDidChangeWindowsCount = this._onDidChangeWindowsCount.event;
 
 	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
@@ -137,7 +137,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -155,11 +155,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private registerListeners(): void {
 
 		// Signal a window is ready after having entered a workspace
-		this._register(this.workspacesManagementMainService.onWorkspaceEntered(event => this._onWindowReady.fire(event.window)));
+		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this._onDidSignalReadyWindow.fire(event.window)));
 	}
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
-		let cli = this.environmentService.args;
+		let cli = this.environmentMainService.args;
 		const remote = options?.remoteAuthority;
 		if (cli && (cli.remote !== remote)) {
 			cli = { ...cli, remote };
@@ -670,7 +670,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					buttons: [localize('ok', "OK")],
 					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
 					detail: uri.scheme === Schemas.file ?
-						localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentService)) :
+						localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentMainService)) :
 						localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString()),
 					noLink: true
 				};
@@ -1135,9 +1135,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Build `INativeWindowConfiguration` from config and options
 		const configuration = { ...options.cli } as INativeWindowConfiguration;
-		configuration.appRoot = this.environmentService.appRoot;
+		configuration.appRoot = this.environmentMainService.appRoot;
 		configuration.machineId = this.machineId;
-		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
+		configuration.nodeCachedDataDir = this.environmentMainService.nodeCachedDataDir;
 		configuration.mainPid = process.pid;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = { ...this.initialUserEnv, ...options.userEnv };
@@ -1157,7 +1157,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
 		// loading the window.
 		if (options.emptyWindowBackupInfo) {
-			configuration.backupPath = join(this.environmentService.backupHome, options.emptyWindowBackupInfo.backupFolder);
+			configuration.backupPath = join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder);
 		}
 
 		let window: ICodeWindow | undefined;
@@ -1191,20 +1191,22 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			WindowsMainService.WINDOWS.push(createdWindow);
 
 			// Indicate new window via event
-			this._onWindowOpened.fire(createdWindow);
+			this._onDidOpenWindow.fire(createdWindow);
 
 			// Indicate number change via event
-			this._onWindowsCountChanged.fire({ oldCount: this.getWindowCount() - 1, newCount: this.getWindowCount() });
+			this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() - 1, newCount: this.getWindowCount() });
 
 			// Window Events
-			once(createdWindow.onReady)(() => this._onWindowReady.fire(createdWindow));
-			once(createdWindow.onClose)(() => this.onWindowClosed(createdWindow));
-			once(createdWindow.onDestroy)(() => this._onWindowDestroyed.fire(createdWindow));
-			createdWindow.win.webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			createdWindow.win.webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+			once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
+			once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
+			once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
+
+			const webContents = assertIsDefined(createdWindow.win?.webContents);
+			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
+			webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
 
 			// Lifecycle
-			(this.lifecycleMainService as LifecycleMainService).registerWindow(createdWindow);
+			this.lifecycleMainService.registerWindow(createdWindow);
 		}
 
 		// Existing window
@@ -1264,7 +1266,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		WindowsMainService.WINDOWS.splice(index, 1);
 
 		// Emit
-		this._onWindowsCountChanged.fire({ oldCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
+		this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {

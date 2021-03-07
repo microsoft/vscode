@@ -101,6 +101,10 @@
 	margin-right: var(--last-tab-margin-right); /* when tabs wrap, we need a margin away from the absolute positioned editor actions */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.last-in-row:not(:last-child) {
+	border-right: 0 !important; /* ensure no border for every last tab in a row except last row (#115046) */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-right,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.has-icon.tab-actions-off:not(.sticky-compact) {
 	padding-left: 5px; /* reduce padding when we show icons and are in shrinking mode and tab actions is not left (unless sticky-compact) */
@@ -113,8 +117,8 @@
 	flex-shrink: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit {
-	flex-grow: 1; /* grow the tabs to fill each row for a more homogeneous look when tabs wrap */
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) {
+	flex-grow: 1; /* grow the last tab in a row for a more homogeneous look except for last row (#113801) */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink {
@@ -245,7 +249,7 @@
 	position: relative;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label > .monaco-icon-label-container::after {
 	content: ''; /* enables a linear gradient to overlay the end of the label when tabs overflow */
 	position: absolute;
 	right: 0;
@@ -258,8 +262,12 @@
 	height: calc(100% - 2px);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink:focus > .tab-label > .monaco-icon-label-container::after {
 	opacity: 0; /* when tab has the focus this shade breaks the tab border (fixes https://github.com/microsoft/vscode/issues/57819) */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container >  .tab.sizing-shrink > .tab-label.tab-label-has-badge::after {
+	padding-right: 5px; /* with tab sizing shrink and badges, we want a right-padding because the close button is hidden */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky-compact:not(.has-icon) .monaco-icon-label {

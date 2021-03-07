@@ -6,11 +6,13 @@
 import * as assert from 'assert';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
+import { IFileSystemProviderRegistrationEvent, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, FileOpenOptions, FileReadStreamOptions, IStat, FileType } from 'vs/platform/files/common/files';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { timeout } from 'vs/base/common/async';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
+import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('File Service', () => {
 
@@ -126,4 +128,82 @@ suite('File Service', () => {
 
 		service.dispose();
 	});
+
+	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060) - async', async () => {
+		testReadErrorBubbles(true);
+	});
+
+	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060)', async () => {
+		testReadErrorBubbles(false);
+	});
+
+	async function testReadErrorBubbles(async: boolean) {
+		const service = new FileService(new NullLogService());
+
+		const provider = new class extends NullFileSystemProvider {
+			async stat(resource: URI): Promise<IStat> {
+				return {
+					mtime: Date.now(),
+					ctime: Date.now(),
+					size: 100,
+					type: FileType.File
+				};
+			}
+
+			readFile(resource: URI): Promise<Uint8Array> {
+				if (async) {
+					return timeout(5).then(() => { throw new Error('failed'); });
+				}
+
+				throw new Error('failed');
+			}
+
+			open(resource: URI, opts: FileOpenOptions): Promise<number> {
+				if (async) {
+					return timeout(5).then(() => { throw new Error('failed'); });
+				}
+
+				throw new Error('failed');
+			}
+
+			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+				if (async) {
+					const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
+					timeout(5).then(() => stream.error(new Error('failed')));
+
+					return stream;
+
+				}
+
+				throw new Error('failed');
+			}
+		};
+
+		const disposable = service.registerProvider('test', provider);
+
+		for (const capabilities of [FileSystemProviderCapabilities.FileReadWrite, FileSystemProviderCapabilities.FileReadStream, FileSystemProviderCapabilities.FileOpenReadWriteClose]) {
+			provider.setCapabilities(capabilities);
+
+			let e1;
+			try {
+				await service.readFile(URI.parse('test://foo/bar'));
+			} catch (error) {
+				e1 = error;
+			}
+
+			assert.ok(e1);
+
+			let e2;
+			try {
+				const stream = await service.readFileStream(URI.parse('test://foo/bar'));
+				await consumeStream(stream.value, chunk => chunk[0]);
+			} catch (error) {
+				e2 = error;
+			}
+
+			assert.ok(e2);
+		}
+
+		disposable.dispose();
+	}
 });

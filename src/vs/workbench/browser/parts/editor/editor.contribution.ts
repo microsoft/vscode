@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
@@ -15,6 +15,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
+import { UntitledHintContribution } from 'vs/workbench/browser/parts/editor/untitledHint';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
@@ -35,7 +36,12 @@ import {
 	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction, ToggleGroupSizesAction, ShowAllEditorsByMostRecentlyUsedAction,
 	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction, ReopenResourcesAction, ToggleEditorTypeAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
-import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
+import {
+	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID,
+	CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_PINNED_EDITOR_COMMAND_ID, CLOSE_SAVED_EDITORS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, KEEP_EDITOR_COMMAND_ID,
+	PIN_EDITOR_COMMAND_ID, SHOW_EDITORS_IN_GROUP, SPLIT_EDITOR_DOWN, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup
+} from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -63,7 +69,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		TextResourceEditor,
 		TextResourceEditor.ID,
-		nls.localize('textEditor', "Text Editor"),
+		localize('textEditor', "Text Editor"),
 	),
 	[
 		new SyncDescriptor(UntitledTextEditorInput),
@@ -76,7 +82,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		TextDiffEditor,
 		TextDiffEditor.ID,
-		nls.localize('textDiffEditor', "Text Diff Editor")
+		localize('textDiffEditor', "Text Diff Editor")
 	),
 	[
 		new SyncDescriptor(DiffEditorInput)
@@ -88,7 +94,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		BinaryResourceDiffEditor,
 		BinaryResourceDiffEditor.ID,
-		nls.localize('binaryDiffEditor', "Binary Diff Editor")
+		localize('binaryDiffEditor', "Binary Diff Editor")
 	),
 	[
 		new SyncDescriptor(DiffEditorInput)
@@ -99,7 +105,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		SideBySideEditor,
 		SideBySideEditor.ID,
-		nls.localize('sideBySideEditor', "Side by Side Editor")
+		localize('sideBySideEditor', "Side by Side Editor")
 	),
 	[
 		new SyncDescriptor(SideBySideEditorInput)
@@ -276,9 +282,12 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 // Register Editor Auto Save
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
 
+// Register Untitled Hint
+registerEditorContribution(UntitledHintContribution.ID, UntitledHintContribution);
+
 // Register Status Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeModeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode');
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeModeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode', undefined, ContextKeyExpr.not('notebookEditorFocused'));
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEOLAction), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEncodingAction), 'Change File Encoding');
 
@@ -291,24 +300,24 @@ quickAccessRegistry.registerQuickAccessProvider({
 	ctor: ActiveGroupEditorsByMostRecentlyUsedQuickAccess,
 	prefix: ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX,
 	contextKey: editorPickerContextKey,
-	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: nls.localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used"), needsEditor: false }]
+	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: localize('activeGroupEditorsByMostRecentlyUsedQuickAccess', "Show Editors in Active Group by Most Recently Used"), needsEditor: false }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
 	ctor: AllEditorsByAppearanceQuickAccess,
 	prefix: AllEditorsByAppearanceQuickAccess.PREFIX,
 	contextKey: editorPickerContextKey,
-	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: nls.localize('allEditorsByAppearanceQuickAccess', "Show All Opened Editors By Appearance"), needsEditor: false }]
+	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: localize('allEditorsByAppearanceQuickAccess', "Show All Opened Editors By Appearance"), needsEditor: false }]
 });
 
 quickAccessRegistry.registerQuickAccessProvider({
 	ctor: AllEditorsByMostRecentlyUsedQuickAccess,
 	prefix: AllEditorsByMostRecentlyUsedQuickAccess.PREFIX,
 	contextKey: editorPickerContextKey,
-	placeholder: nls.localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
-	helpEntries: [{ description: nls.localize('allEditorsByMostRecentlyUsedQuickAccess', "Show All Opened Editors By Most Recently Used"), needsEditor: false }]
+	placeholder: localize('editorQuickAccessPlaceholder', "Type the name of an editor to open it."),
+	helpEntries: [{ description: localize('allEditorsByMostRecentlyUsedQuickAccess', "Show All Opened Editors By Most Recently Used"), needsEditor: false }]
 });
 
 // Register Editor Actions
@@ -326,7 +335,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenClosedEditorAct
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByAppearanceAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P), mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors By Appearance', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByMostRecentlyUsedAction), 'View: Show All Editors By Most Recently Used', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowEditorsInActiveGroupByMostRecentlyUsedAction), 'View: Show Editors in Active Group By Most Recently Used', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearRecentFilesAction), 'File: Clear Recently Opened', nls.localize('file', "File"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearRecentFilesAction), 'File: Clear Recently Opened', localize('file', "File"));
 registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_W) }), 'View: Close All Editors', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorGroupsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W) }), 'View: Close All Editor Groups', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseLeftEditorsInGroupAction), 'View: Close Editors to the Left in Group', CATEGORIES.View.value);
@@ -424,7 +433,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 // Editor Commands
-editorCommands.setup();
+setup();
 
 // Touch Bar
 if (isMacintosh) {
@@ -442,34 +451,34 @@ if (isMacintosh) {
 }
 
 // Empty Editor Group Context Menu
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: editorCommands.SPLIT_EDITOR_UP, title: nls.localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: editorCommands.SPLIT_EDITOR_DOWN, title: nls.localize('splitDown', "Split Down") }, group: '2_split', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: editorCommands.SPLIT_EDITOR_LEFT, title: nls.localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: editorCommands.SPLIT_EDITOR_RIGHT, title: nls.localize('splitRight', "Split Right") }, group: '2_split', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: editorCommands.CLOSE_EDITOR_GROUP_COMMAND_ID, title: nls.localize('close', "Close") }, group: '3_close', order: 10, when: ContextKeyExpr.has('multipleEditorGroups') });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '2_split', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '2_split', order: 40 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('close', "Close") }, group: '3_close', order: 10, when: ContextKeyExpr.has('multipleEditorGroups') });
 
 // Editor Title Context Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.CLOSE_EDITOR_COMMAND_ID, title: nls.localize('close', "Close") }, group: '1_close', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeOthers', "Close Others"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: nls.localize('closeRight', "Close to the Right"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 30, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '1_close', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '1_close', order: 50 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: localize('close', "Close") }, group: '1_close', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeOthers', "Close Others"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: localize('closeRight', "Close to the Right"), precondition: EditorGroupEditorsCountContext.notEqualsTo('1') }, group: '1_close', order: 30, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '1_close', order: 40 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeAll', "Close All") }, group: '1_close', order: 50 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: ReopenResourcesAction.ID, title: ReopenResourcesAction.LABEL }, group: '1_open', order: 10, when: ActiveEditorAvailableEditorIdsContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepOpen', "Keep Open"), precondition: ActiveEditorPinnedContext.toNegated() }, group: '3_preview', order: 10, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.PIN_EDITOR_COMMAND_ID, title: nls.localize('pin', "Pin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.UNPIN_EDITOR_COMMAND_ID, title: nls.localize('unpin', "Unpin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_UP, title: nls.localize('splitUp', "Split Up") }, group: '5_split', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_DOWN, title: nls.localize('splitDown', "Split Down") }, group: '5_split', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_LEFT, title: nls.localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_RIGHT, title: nls.localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: KEEP_EDITOR_COMMAND_ID, title: localize('keepOpen', "Keep Open"), precondition: ActiveEditorPinnedContext.toNegated() }, group: '3_preview', order: 10, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: PIN_EDITOR_COMMAND_ID, title: localize('pin', "Pin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext.toNegated() });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: UNPIN_EDITOR_COMMAND_ID, title: localize('unpin', "Unpin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '5_split', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '5_split', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
 
 // Editor Title Menu
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_DIFF_SIDE_BY_SIDE, title: nls.localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.SHOW_EDITORS_IN_GROUP, title: nls.localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.TOGGLE_KEEP_EDITORS_COMMAND_ID, title: nls.localize('toggleKeepEditors', "Keep Editors Open"), toggled: ContextKeyExpr.not('config.workbench.editor.enablePreview') }, group: '7_settings', order: 10 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun, title: { value: nls.localize('run', "Run"), original: 'Run', }, icon: Codicon.run, group: 'navigation', order: -1 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: SHOW_EDITORS_IN_GROUP, title: localize('showOpenedEditors', "Show Opened Editors") }, group: '3_open', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeAll', "Close All") }, group: '5_close', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_KEEP_EDITORS_COMMAND_ID, title: localize('toggleKeepEditors', "Keep Editors Open"), toggled: ContextKeyExpr.not('config.workbench.editor.enablePreview') }, group: '7_settings', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun, title: { value: localize('run', "Run"), original: 'Run', }, icon: Codicon.run, group: 'navigation', order: -1 });
 
 interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI; } | ThemeIcon; }
 
@@ -501,14 +510,14 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpressi
 appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
-		title: nls.localize('splitEditorRight', "Split Editor Right"),
+		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	},
 	ContextKeyExpr.not('splitEditorsVertically'),
 	100000, // towards the end
 	{
-		id: editorCommands.SPLIT_EDITOR_DOWN,
-		title: nls.localize('splitEditorDown', "Split Editor Down"),
+		id: SPLIT_EDITOR_DOWN,
+		title: localize('splitEditorDown', "Split Editor Down"),
 		icon: Codicon.splitVertical
 	}
 );
@@ -516,14 +525,14 @@ appendEditorToolItem(
 appendEditorToolItem(
 	{
 		id: SplitEditorAction.ID,
-		title: nls.localize('splitEditorDown', "Split Editor Down"),
+		title: localize('splitEditorDown', "Split Editor Down"),
 		icon: Codicon.splitVertical
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
 	100000, // towards the end
 	{
-		id: editorCommands.SPLIT_EDITOR_RIGHT,
-		title: nls.localize('splitEditorRight', "Split Editor Right"),
+		id: SPLIT_EDITOR_RIGHT,
+		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	}
 );
@@ -531,15 +540,15 @@ appendEditorToolItem(
 // Editor Title Menu: Close (tabs disabled, normal editor)
 appendEditorToolItem(
 	{
-		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize('close', "Close"),
+		id: CLOSE_EDITOR_COMMAND_ID,
+		title: localize('close', "Close"),
 		icon: Codicon.close
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
 	1000000, // towards the far end
 	{
-		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		title: nls.localize('closeAll', "Close All"),
+		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: localize('closeAll', "Close All"),
 		icon: Codicon.closeAll
 	}
 );
@@ -547,15 +556,15 @@ appendEditorToolItem(
 // Editor Title Menu: Close (tabs disabled, dirty editor)
 appendEditorToolItem(
 	{
-		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize('close', "Close"),
+		id: CLOSE_EDITOR_COMMAND_ID,
+		title: localize('close', "Close"),
 		icon: Codicon.closeDirty
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
 	1000000, // towards the far end
 	{
-		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		title: nls.localize('closeAll', "Close All"),
+		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: localize('closeAll', "Close All"),
 		icon: Codicon.closeAll
 	}
 );
@@ -563,15 +572,15 @@ appendEditorToolItem(
 // Editor Title Menu: Close (tabs disabled, sticky editor)
 appendEditorToolItem(
 	{
-		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
-		title: nls.localize('unpin', "Unpin"),
+		id: UNPIN_EDITOR_COMMAND_ID,
+		title: localize('unpin', "Unpin"),
 		icon: Codicon.pinned
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext),
 	1000000, // towards the far end
 	{
-		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize('close', "Close"),
+		id: CLOSE_EDITOR_COMMAND_ID,
+		title: localize('close', "Close"),
 		icon: Codicon.close
 	}
 );
@@ -579,29 +588,29 @@ appendEditorToolItem(
 // Editor Title Menu: Close (tabs disabled, dirty & sticky editor)
 appendEditorToolItem(
 	{
-		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
-		title: nls.localize('unpin', "Unpin"),
+		id: UNPIN_EDITOR_COMMAND_ID,
+		title: localize('unpin', "Unpin"),
 		icon: Codicon.pinnedDirty
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
 	1000000, // towards the far end
 	{
-		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize('close', "Close"),
+		id: CLOSE_EDITOR_COMMAND_ID,
+		title: localize('close', "Close"),
 		icon: Codicon.close
 	}
 );
 
-const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.arrowUp, nls.localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
-const nextChangeIcon = registerIcon('diff-editor-next-change', Codicon.arrowDown, nls.localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
-const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, nls.localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
+const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
+const nextChangeIcon = registerIcon('diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
+const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
 
 
 // Diff Editor Title Menu: Previous Change
 appendEditorToolItem(
 	{
-		id: editorCommands.GOTO_PREVIOUS_CHANGE,
-		title: nls.localize('navigate.prev.label', "Previous Change"),
+		id: GOTO_PREVIOUS_CHANGE,
+		title: localize('navigate.prev.label', "Previous Change"),
 		icon: previousChangeIcon
 	},
 	TextCompareEditorActiveContext,
@@ -611,8 +620,8 @@ appendEditorToolItem(
 // Diff Editor Title Menu: Next Change
 appendEditorToolItem(
 	{
-		id: editorCommands.GOTO_NEXT_CHANGE,
-		title: nls.localize('navigate.next.label', "Next Change"),
+		id: GOTO_NEXT_CHANGE,
+		title: localize('navigate.next.label', "Next Change"),
 		icon: nextChangeIcon
 	},
 	TextCompareEditorActiveContext,
@@ -622,8 +631,8 @@ appendEditorToolItem(
 // Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Enabled)
 appendEditorToolItem(
 	{
-		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: nls.localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
+		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: localize('ignoreTrimWhitespace.label', "Ignore Leading/Trailing Whitespace Differences"),
 		icon: toggleWhitespace
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', true)),
@@ -633,8 +642,8 @@ appendEditorToolItem(
 // Diff Editor Title Menu: Toggle Ignore Trim Whitespace (Disabled)
 appendEditorToolItem(
 	{
-		id: editorCommands.TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		title: nls.localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
+		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		title: localize('showTrimWhitespace.label', "Show Leading/Trailing Whitespace Differences"),
 		icon: ThemeIcon.modify(toggleWhitespace, 'disabled')
 	},
 	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.notEquals('config.diffEditor.ignoreTrimWhitespace', false)),
@@ -642,23 +651,23 @@ appendEditorToolItem(
 );
 
 // Editor Commands for Command Palette
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: { value: nls.localize('keepEditor', "Keep Editor"), original: 'Keep Editor' }, category: CATEGORIES.View }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.PIN_EDITOR_COMMAND_ID, title: { value: nls.localize('pinEditor', "Pin Editor"), original: 'Pin Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.UNPIN_EDITOR_COMMAND_ID, title: { value: nls.localize('unpinEditor', "Unpin Editor"), original: 'Unpin Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITOR_COMMAND_ID, title: { value: nls.localize('closeEditor', "Close Editor"), original: 'Close Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_PINNED_EDITOR_COMMAND_ID, title: { value: nls.localize('closePinnedEditor', "Close Pinned Editor"), original: 'Close Pinned Editor' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorsInGroup', "Close All Editors in Group"), original: 'Close All Editors in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: { value: nls.localize('closeSavedEditors', "Close Saved Editors in Group"), original: 'Close Saved Editors in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeOtherEditors', "Close Other Editors in Group"), original: 'Close Other Editors in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: { value: nls.localize('closeRightEditors', "Close Editors to the Right in Group"), original: 'Close Editors to the Right in Group' }, category: CATEGORIES.View } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_AND_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorGroup', "Close Editor Group"), original: 'Close Editor Group' }, category: CATEGORIES.View }, when: MultipleEditorGroupsContext });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: KEEP_EDITOR_COMMAND_ID, title: { value: localize('keepEditor', "Keep Editor"), original: 'Keep Editor' }, category: CATEGORIES.View }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: PIN_EDITOR_COMMAND_ID, title: { value: localize('pinEditor', "Pin Editor"), original: 'Pin Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: UNPIN_EDITOR_COMMAND_ID, title: { value: localize('unpinEditor', "Unpin Editor"), original: 'Unpin Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITOR_COMMAND_ID, title: { value: localize('closeEditor', "Close Editor"), original: 'Close Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_PINNED_EDITOR_COMMAND_ID, title: { value: localize('closePinnedEditor', "Close Pinned Editor"), original: 'Close Pinned Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: { value: localize('closeEditorsInGroup', "Close All Editors in Group"), original: 'Close All Editors in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: { value: localize('closeSavedEditors', "Close Saved Editors in Group"), original: 'Close Saved Editors in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: { value: localize('closeOtherEditors', "Close Other Editors in Group"), original: 'Close Other Editors in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: { value: localize('closeRightEditors', "Close Editors to the Right in Group"), original: 'Close Editors to the Right in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_AND_GROUP_COMMAND_ID, title: { value: localize('closeEditorGroup', "Close Editor Group"), original: 'Close Editor Group' }, category: CATEGORIES.View }, when: MultipleEditorGroupsContext });
 
 // File menu
 MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 	group: '1_editor',
 	command: {
 		id: ReopenClosedEditorAction.ID,
-		title: nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"),
+		title: localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"),
 		precondition: ContextKeyExpr.has('canReopenClosedEditor')
 	},
 	order: 1
@@ -668,7 +677,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 	group: 'z_clear',
 	command: {
 		id: ClearRecentFilesAction.ID,
-		title: nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
+		title: localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
 	},
 	order: 1
 });
@@ -676,7 +685,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 // Layout menu
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
-	title: nls.localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
+	title: localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
 	submenu: MenuId.MenubarLayoutMenu,
 	order: 2
 });
@@ -684,8 +693,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '1_split',
 	command: {
-		id: editorCommands.SPLIT_EDITOR_UP,
-		title: nls.localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up")
+		id: SPLIT_EDITOR_UP,
+		title: localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up")
 	},
 	order: 1
 });
@@ -693,8 +702,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '1_split',
 	command: {
-		id: editorCommands.SPLIT_EDITOR_DOWN,
-		title: nls.localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down")
+		id: SPLIT_EDITOR_DOWN,
+		title: localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down")
 	},
 	order: 2
 });
@@ -702,8 +711,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '1_split',
 	command: {
-		id: editorCommands.SPLIT_EDITOR_LEFT,
-		title: nls.localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left")
+		id: SPLIT_EDITOR_LEFT,
+		title: localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left")
 	},
 	order: 3
 });
@@ -711,8 +720,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '1_split',
 	command: {
-		id: editorCommands.SPLIT_EDITOR_RIGHT,
-		title: nls.localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right")
+		id: SPLIT_EDITOR_RIGHT,
+		title: localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right")
 	},
 	order: 4
 });
@@ -721,7 +730,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutSingleAction.ID,
-		title: nls.localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single")
+		title: localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single")
 	},
 	order: 1
 });
@@ -730,7 +739,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsAction.ID,
-		title: nls.localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns")
+		title: localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns")
 	},
 	order: 3
 });
@@ -739,7 +748,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutThreeColumnsAction.ID,
-		title: nls.localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns")
+		title: localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns")
 	},
 	order: 4
 });
@@ -748,7 +757,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutTwoRowsAction.ID,
-		title: nls.localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows")
+		title: localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows")
 	},
 	order: 5
 });
@@ -757,7 +766,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutThreeRowsAction.ID,
-		title: nls.localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows")
+		title: localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows")
 	},
 	order: 6
 });
@@ -766,7 +775,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutTwoByTwoGridAction.ID,
-		title: nls.localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
+		title: localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
 	},
 	order: 7
 });
@@ -775,7 +784,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutTwoRowsRightAction.ID,
-		title: nls.localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
+		title: localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
 	},
 	order: 8
 });
@@ -784,7 +793,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 	group: '2_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsBottomAction.ID,
-		title: nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom")
+		title: localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom")
 	},
 	order: 9
 });
@@ -796,7 +805,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '1_history_nav',
 	command: {
 		id: 'workbench.action.navigateBack',
-		title: nls.localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back"),
+		title: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back"),
 		precondition: ContextKeyExpr.has('canNavigateBack')
 	},
 	order: 1
@@ -806,7 +815,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '1_history_nav',
 	command: {
 		id: 'workbench.action.navigateForward',
-		title: nls.localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward"),
+		title: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward"),
 		precondition: ContextKeyExpr.has('canNavigateForward')
 	},
 	order: 2
@@ -816,7 +825,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '1_history_nav',
 	command: {
 		id: 'workbench.action.navigateToLastEditLocation',
-		title: nls.localize({ key: 'miLastEditLocation', comment: ['&& denotes a mnemonic'] }, "&&Last Edit Location"),
+		title: localize({ key: 'miLastEditLocation', comment: ['&& denotes a mnemonic'] }, "&&Last Edit Location"),
 		precondition: ContextKeyExpr.has('canNavigateToLastEditLocation')
 	},
 	order: 3
@@ -827,7 +836,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '1_any',
 	command: {
 		id: 'workbench.action.nextEditor',
-		title: nls.localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor")
+		title: localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor")
 	},
 	order: 1
 });
@@ -836,7 +845,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '1_any',
 	command: {
 		id: 'workbench.action.previousEditor',
-		title: nls.localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor")
+		title: localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor")
 	},
 	order: 2
 });
@@ -845,7 +854,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '2_any_used',
 	command: {
 		id: 'workbench.action.openNextRecentlyUsedEditor',
-		title: nls.localize({ key: 'miNextRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor")
+		title: localize({ key: 'miNextRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor")
 	},
 	order: 1
 });
@@ -854,7 +863,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '2_any_used',
 	command: {
 		id: 'workbench.action.openPreviousRecentlyUsedEditor',
-		title: nls.localize({ key: 'miPreviousRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor")
+		title: localize({ key: 'miPreviousRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor")
 	},
 	order: 2
 });
@@ -863,7 +872,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '3_group',
 	command: {
 		id: 'workbench.action.nextEditorInGroup',
-		title: nls.localize({ key: 'miNextEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Editor in Group")
+		title: localize({ key: 'miNextEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Editor in Group")
 	},
 	order: 1
 });
@@ -872,7 +881,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '3_group',
 	command: {
 		id: 'workbench.action.previousEditorInGroup',
-		title: nls.localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor in Group")
+		title: localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor in Group")
 	},
 	order: 2
 });
@@ -881,7 +890,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '4_group_used',
 	command: {
 		id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
-		title: nls.localize({ key: 'miNextUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor in Group")
+		title: localize({ key: 'miNextUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor in Group")
 	},
 	order: 1
 });
@@ -890,14 +899,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 	group: '4_group_used',
 	command: {
 		id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
-		title: nls.localize({ key: 'miPreviousUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor in Group")
+		title: localize({ key: 'miPreviousUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor in Group")
 	},
 	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '2_editor_nav',
-	title: nls.localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor"),
+	title: localize({ key: 'miSwitchEditor', comment: ['&& denotes a mnemonic'] }, "Switch &&Editor"),
 	submenu: MenuId.MenubarSwitchEditorMenu,
 	order: 1
 });
@@ -907,7 +916,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '1_focus_index',
 	command: {
 		id: 'workbench.action.focusFirstEditorGroup',
-		title: nls.localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "Group &&1")
+		title: localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "Group &&1")
 	},
 	order: 1
 });
@@ -916,7 +925,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '1_focus_index',
 	command: {
 		id: 'workbench.action.focusSecondEditorGroup',
-		title: nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "Group &&2")
+		title: localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "Group &&2")
 	},
 	order: 2
 });
@@ -925,7 +934,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '1_focus_index',
 	command: {
 		id: 'workbench.action.focusThirdEditorGroup',
-		title: nls.localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "Group &&3"),
+		title: localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "Group &&3"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 3
@@ -935,7 +944,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '1_focus_index',
 	command: {
 		id: 'workbench.action.focusFourthEditorGroup',
-		title: nls.localize({ key: 'miFocusFourthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&4"),
+		title: localize({ key: 'miFocusFourthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&4"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 4
@@ -945,7 +954,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '1_focus_index',
 	command: {
 		id: 'workbench.action.focusFifthEditorGroup',
-		title: nls.localize({ key: 'miFocusFifthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&5"),
+		title: localize({ key: 'miFocusFifthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&5"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 5
@@ -955,7 +964,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '2_next_prev',
 	command: {
 		id: 'workbench.action.focusNextGroup',
-		title: nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group"),
+		title: localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 1
@@ -965,7 +974,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '2_next_prev',
 	command: {
 		id: 'workbench.action.focusPreviousGroup',
-		title: nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group"),
+		title: localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 2
@@ -975,7 +984,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '3_directional',
 	command: {
 		id: 'workbench.action.focusLeftGroup',
-		title: nls.localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left"),
+		title: localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 1
@@ -985,7 +994,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '3_directional',
 	command: {
 		id: 'workbench.action.focusRightGroup',
-		title: nls.localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right"),
+		title: localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 2
@@ -995,7 +1004,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '3_directional',
 	command: {
 		id: 'workbench.action.focusAboveGroup',
-		title: nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above"),
+		title: localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 3
@@ -1005,7 +1014,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	group: '3_directional',
 	command: {
 		id: 'workbench.action.focusBelowGroup',
-		title: nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below"),
+		title: localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below"),
 		precondition: ContextKeyExpr.has('multipleEditorGroups')
 	},
 	order: 4
@@ -1013,7 +1022,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '2_editor_nav',
-	title: nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group"),
+	title: localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group"),
 	submenu: MenuId.MenubarSwitchGroupMenu,
 	order: 2
 });

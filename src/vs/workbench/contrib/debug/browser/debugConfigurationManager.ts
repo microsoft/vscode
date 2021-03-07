@@ -280,10 +280,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.selectConfiguration(undefined);
 			this.setCompoundSchemaValues();
 		}));
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('launch')) {
 				// A change happen in the launch.json. If there is already a launch configuration selected, do not change the selection.
-				this.selectConfiguration(undefined);
+				await this.selectConfiguration(undefined);
 				this.setCompoundSchemaValues();
 			}
 		}));

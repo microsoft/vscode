@@ -31,8 +31,11 @@ export class FileProtocolHandler extends Disposable {
 		// Define an initial set of roots we allow loading from
 		// - appRoot	: all files installed as part of the app
 		// - extensions : all files shipped from extensions
+		// - storage    : all files in global and workspace storage (https://github.com/microsoft/vscode/issues/116735)
 		this.validRoots.set(URI.file(environmentService.appRoot), true);
 		this.validRoots.set(URI.file(environmentService.extensionsPath), true);
+		this.validRoots.set(environmentService.globalStorageHome, true);
+		this.validRoots.set(environmentService.workspaceStorageHome, true);
 
 		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback as unknown as ProtocolCallback));
@@ -48,10 +51,10 @@ export class FileProtocolHandler extends Disposable {
 	}
 
 	injectWindowsMainService(windowsMainService: IWindowsMainService): void {
-		this._register(windowsMainService.onWindowReady(window => {
+		this._register(windowsMainService.onDidSignalReadyWindow(window => {
 			if (window.config?.extensionDevelopmentPath || window.config?.extensionTestsPath) {
 				const disposables = new DisposableStore();
-				disposables.add(Event.any(window.onClose, window.onDestroy)(() => disposables.dispose()));
+				disposables.add(Event.any(window.onDidClose, window.onDidDestroy)(() => disposables.dispose()));
 
 				// Allow access to extension development path
 				if (window.config.extensionDevelopmentPath) {

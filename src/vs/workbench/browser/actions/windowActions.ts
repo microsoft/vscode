@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -46,18 +46,18 @@ abstract class BaseOpenRecentAction extends Action {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
 		iconClass: Codicon.removeClose.classNames,
-		tooltip: nls.localize('remove', "Remove from Recently Opened")
+		tooltip: localize('remove', "Remove from Recently Opened")
 	};
 
 	private readonly dirtyRecentlyOpenedFolder: IQuickInputButton = {
 		iconClass: 'dirty-workspace ' + Codicon.closeDirty.classNames,
-		tooltip: nls.localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
+		tooltip: localize('dirtyRecentlyOpenedFolder', "Folder With Unsaved Files"),
 		alwaysVisible: true
 	};
 
 	private readonly dirtyRecentlyOpenedWorkspace: IQuickInputButton = {
 		...this.dirtyRecentlyOpenedFolder,
-		tooltip: nls.localize('dirtyRecentlyOpenedWorkspace', "Workspace With Unsaved Files"),
+		tooltip: localize('dirtyRecentlyOpenedWorkspace', "Workspace With Unsaved Files"),
 	};
 
 	constructor(
@@ -133,14 +133,14 @@ abstract class BaseOpenRecentAction extends Action {
 
 		let keyMods: IKeyMods | undefined;
 
-		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: hasWorkspaces ? nls.localize('workspacesAndFolders', "folders & workspaces") : nls.localize('folders', "folders") };
-		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: nls.localize('files', "files") };
+		const workspaceSeparator: IQuickPickSeparator = { type: 'separator', label: hasWorkspaces ? localize('workspacesAndFolders', "folders & workspaces") : localize('folders', "folders") };
+		const fileSeparator: IQuickPickSeparator = { type: 'separator', label: localize('files', "files") };
 		const picks = [workspaceSeparator, ...workspacePicks, fileSeparator, ...filePicks];
 
 		const pick = await this.quickInputService.pick(picks, {
 			contextKey: inRecentFilesPickerContextKey,
 			activeItem: [...workspacePicks, ...filePicks][autoFocusSecondEntry ? 1 : 0],
-			placeHolder: isMacintosh ? nls.localize('openRecentPlaceholderMac', "Select to open (hold Cmd-key to force new window or Alt-key for same window)") : nls.localize('openRecentPlaceholder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
+			placeHolder: isMacintosh ? localize('openRecentPlaceholderMac', "Select to open (hold Cmd-key to force new window or Alt-key for same window)") : localize('openRecentPlaceholder', "Select to open (hold Ctrl-key to force new window or Alt-key for same window)"),
 			matchOnDescription: true,
 			onKeyMods: mods => keyMods = mods,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
@@ -157,9 +157,9 @@ abstract class BaseOpenRecentAction extends Action {
 					const isDirtyWorkspace = context.button === this.dirtyRecentlyOpenedWorkspace;
 					const result = await this.dialogService.confirm({
 						type: 'question',
-						title: isDirtyWorkspace ? nls.localize('dirtyWorkspace', "Workspace with Unsaved Files") : nls.localize('dirtyFolder', "Folder with Unsaved Files"),
-						message: isDirtyWorkspace ? nls.localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the unsaved files?") : nls.localize('dirtyFolderConfirm', "Do you want to open the folder to review the unsaved files?"),
-						detail: isDirtyWorkspace ? nls.localize('dirtyWorkspaceConfirmDetail', "Workspaces with unsaved files cannot be removed until all unsaved files have been saved or reverted.") : nls.localize('dirtyFolderConfirmDetail', "Folders with unsaved files cannot be removed until all unsaved files have been saved or reverted.")
+						title: isDirtyWorkspace ? localize('dirtyWorkspace', "Workspace with Unsaved Files") : localize('dirtyFolder', "Folder with Unsaved Files"),
+						message: isDirtyWorkspace ? localize('dirtyWorkspaceConfirm', "Do you want to open the workspace to review the unsaved files?") : localize('dirtyFolderConfirm', "Do you want to open the folder to review the unsaved files?"),
+						detail: isDirtyWorkspace ? localize('dirtyWorkspaceConfirmDetail', "Workspaces with unsaved files cannot be removed until all unsaved files have been saved or reverted.") : localize('dirtyFolderConfirmDetail', "Folders with unsaved files cannot be removed until all unsaved files have been saved or reverted.")
 					});
 
 					if (result.confirmed) {
@@ -212,7 +212,7 @@ abstract class BaseOpenRecentAction extends Action {
 		return {
 			iconClasses,
 			label: name,
-			ariaLabel: isDirty ? isWorkspace ? nls.localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : nls.localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
+			ariaLabel: isDirty ? isWorkspace ? localize('recentDirtyWorkspaceAriaLabel', "{0}, workspace with unsaved changes", name) : localize('recentDirtyFolderAriaLabel', "{0}, folder with unsaved changes", name) : name,
 			description: parentPath,
 			buttons: isDirty ? [isWorkspace ? this.dirtyRecentlyOpenedWorkspace : this.dirtyRecentlyOpenedFolder] : [this.removeFromRecentlyOpened],
 			openable,
@@ -224,7 +224,7 @@ abstract class BaseOpenRecentAction extends Action {
 export class OpenRecentAction extends BaseOpenRecentAction {
 
 	static readonly ID = 'workbench.action.openRecent';
-	static readonly LABEL = nls.localize('openRecent', "Open Recent...");
+	static readonly LABEL = localize('openRecent', "Open Recent...");
 
 	constructor(
 		id: string,
@@ -250,7 +250,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 class QuickPickRecentAction extends BaseOpenRecentAction {
 
 	static readonly ID = 'workbench.action.quickOpenRecent';
-	static readonly LABEL = nls.localize('quickOpenRecent', "Quick Open Recent...");
+	static readonly LABEL = localize('quickOpenRecent', "Quick Open Recent...");
 
 	constructor(
 		id: string,
@@ -276,7 +276,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 class ToggleFullScreenAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleFullScreen';
-	static readonly LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
+	static readonly LABEL = localize('toggleFullScreen', "Toggle Full Screen");
 
 	constructor(
 		id: string,
@@ -294,7 +294,7 @@ class ToggleFullScreenAction extends Action {
 export class ReloadWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindow';
-	static readonly LABEL = nls.localize('reloadWindow', "Reload Window");
+	static readonly LABEL = localize('reloadWindow', "Reload Window");
 
 	constructor(
 		id: string,
@@ -314,7 +314,7 @@ export class ReloadWindowAction extends Action {
 class ShowAboutDialogAction extends Action {
 
 	static readonly ID = 'workbench.action.showAboutDialog';
-	static readonly LABEL = nls.localize('about', "About");
+	static readonly LABEL = localize('about', "About");
 
 	constructor(
 		id: string,
@@ -332,7 +332,7 @@ class ShowAboutDialogAction extends Action {
 export class NewWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.newWindow';
-	static readonly LABEL = nls.localize('newWindow', "New Window");
+	static readonly LABEL = localize('newWindow', "New Window");
 
 	constructor(
 		id: string,
@@ -352,7 +352,7 @@ class BlurAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.blur',
-			title: nls.localize('blur', "Remove keyboard focus from focused element")
+			title: localize('blur', "Remove keyboard focus from focused element")
 		});
 	}
 
@@ -369,7 +369,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActio
 
 // --- Actions Registration
 
-const fileCategory = nls.localize('file', "File");
+const fileCategory = localize('file', "File");
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NewWindowAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickPickRecentAction), 'File: Quick Open Recent...', fileCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenRecentAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
@@ -426,7 +426,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: 'z_ConfirmClose',
 	command: {
 		id: 'workbench.action.toggleConfirmBeforeClose',
-		title: nls.localize('miConfirmClose', "Confirm Before Close"),
+		title: localize('miConfirmClose', "Confirm Before Close"),
 		toggled: ContextKeyExpr.notEquals('config.window.confirmBeforeClose', 'never')
 	},
 	order: 1,
@@ -437,13 +437,13 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '1_new',
 	command: {
 		id: NewWindowAction.ID,
-		title: nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")
+		title: localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")
 	},
 	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	title: nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
+	title: localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent"),
 	submenu: MenuId.MenubarRecentMenu,
 	group: '2_open',
 	order: 4
@@ -453,7 +453,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 	group: 'y_more',
 	command: {
 		id: OpenRecentAction.ID,
-		title: nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More...")
+		title: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More...")
 	},
 	order: 1
 });
@@ -462,7 +462,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '1_toggle_view',
 	command: {
 		id: ToggleFullScreenAction.ID,
-		title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
+		title: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 		toggled: IsFullscreenContext
 	},
 	order: 1
@@ -472,7 +472,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: 'z_about',
 	command: {
 		id: ShowAboutDialogAction.ID,
-		title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+		title: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
 	},
 	order: 1,
 	when: IsMacNativeContext.toNegated()

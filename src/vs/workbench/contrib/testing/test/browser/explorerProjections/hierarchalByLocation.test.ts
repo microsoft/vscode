@@ -16,7 +16,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		harness = new TestTreeTestHarness(l => new HierarchicalByLocationProjection(l, {
 			onResultsChanged: () => undefined,
 			onTestChanged: () => undefined,
-			getStateByExtId: () => ({ state: { state: 0 }, computedState: 0 }),
+			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		} as any));
 	});
 
@@ -32,9 +32,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	});
 
 	test('updates render if a second folder is added', () => {
-		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.c.addRoot(testStubs.nested('id1-'), 'a');
 		harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.c.addRoot(testStubs.nested('id2-'), 'a');
 		harness.flush(folder2);
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'f1', children: [{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }] },
@@ -43,9 +43,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	});
 
 	test('updates render if second folder is removed', () => {
-		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.c.addRoot(testStubs.nested('id1-'), 'a');
 		harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.c.addRoot(testStubs.nested('id2-'), 'a');
 		harness.flush(folder2);
 		harness.onFolderChange.fire({ added: [], changed: [], removed: [folder1] });
 		assert.deepStrictEqual(harness.flush(folder1), [
@@ -56,10 +56,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	test('updates render if second test provider appears', () => {
 		harness.c.addRoot(testStubs.nested(), 'a');
 		harness.flush(folder1);
-		harness.c.addRoot({
-			...testStubs.test('root2'),
-			children: [testStubs.test('c')]
-		}, 'b');
+		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), 'b');
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'root', children: [{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }] },
 			{ e: 'root2', children: [{ e: 'c' }] },

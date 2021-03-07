@@ -232,7 +232,6 @@ import 'vs/workbench/contrib/terminal/common/environmentVariable.contribution';
 import 'vs/workbench/contrib/terminal/common/terminalExtensionPoints.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalView';
-import 'vs/workbench/contrib/terminal/browser/remoteTerminalService';
 
 // Relauncher
 import 'vs/workbench/contrib/relauncher/browser/relauncher.contribution';

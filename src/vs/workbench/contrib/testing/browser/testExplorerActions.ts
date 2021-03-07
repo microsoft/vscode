@@ -3,32 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ITestResult, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, waitForAllRoots, waitForAllTests } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 const category = localize('testing.category', 'Test');
 
@@ -43,6 +46,26 @@ const enum ActionOrder {
 	DisplayMode,
 	Sort,
 	Refresh,
+}
+
+export class HideOrShowTestAction extends Action {
+	constructor(
+		private readonly testId: string,
+		@ITestService private readonly testService: ITestService,
+	) {
+		super(
+			'testing.hideOrShowTest',
+			testService.excludeTests.value.has(testId) ? localize('unhideTest', 'Unhide Test') : localize('hideTest', 'Hide Test'),
+		);
+	}
+
+	/**
+	 * @override
+	 */
+	public run() {
+		this.testService.setTestExcluded(this.testId);
+		return Promise.resolve();
+	}
 }
 
 export class DebugAction extends Action {
@@ -127,14 +150,14 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 			for (const folder of testCollection.workspaceFolders()) {
 				for (const child of folder.getChildren()) {
 					if (this.filter(child)) {
-						tests.push({ testId: child.id, providerId: child.providerId });
+						tests.push({ testId: child.item.extId, providerId: child.providerId });
 					}
 				}
 			}
 		} else {
-			for (const item of selected) {
-				if (item?.test && this.filter(item.test)) {
-					tests.push({ testId: item.test.id, providerId: item.test.providerId });
+			for (const treeElement of selected) {
+				if (treeElement?.test && this.filter(treeElement.test)) {
+					tests.push({ testId: treeElement.test.item.extId, providerId: treeElement.test.providerId });
 				}
 			}
 		}
@@ -182,6 +205,16 @@ export class DebugSelectedAction extends RunOrDebugSelectedAction {
 	}
 }
 
+const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): Promise<R> => {
+	return progress.withProgress(
+		{
+			location: ProgressLocation.Window,
+			title: localize('discoveringTests', 'Discovering Tests'),
+		},
+		() => task,
+	);
+};
+
 abstract class RunOrDebugAllAllAction extends Action2 {
 	constructor(id: string, title: string, icon: ThemeIcon, private readonly debug: boolean, private noTestsFoundError: string) {
 		super({
@@ -196,7 +229,10 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 				group: 'navigation',
 				when: ContextKeyAndExpr.create([
 					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
-					ContextKeyEqualsExpr.create(TestingContextKeys.isRunning.serialize(), false),
+					TestingContextKeys.isRunning.isEqualTo(false),
+					debug
+						? TestingContextKeys.hasDebuggableTests.isEqualTo(true)
+						: TestingContextKeys.hasRunnableTests.isEqualTo(true),
 				])
 			}
 		});
@@ -206,23 +242,25 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 		const testService = accessor.get(ITestService);
 		const workspace = accessor.get(IWorkspaceContextService);
 		const notifications = accessor.get(INotificationService);
+		const progress = accessor.get(IProgressService);
 
 		const tests: TestIdWithProvider[] = [];
-		await Promise.all(workspace.getWorkspace().folders.map(async (folder) => {
+		const todo = workspace.getWorkspace().folders.map(async (folder) => {
 			const ref = testService.subscribeToDiffs(ExtHostTestingResource.Workspace, folder.uri);
 			try {
 				await waitForAllRoots(ref.object);
-
 				for (const root of ref.object.rootIds) {
 					const node = ref.object.getNodeById(root);
 					if (node && (this.debug ? node.item.debuggable : node.item.runnable)) {
-						tests.push({ testId: node.id, providerId: node.providerId });
+						tests.push({ testId: node.item.extId, providerId: node.providerId });
 					}
 				}
 			} finally {
 				ref.dispose();
 			}
-		}));
+		});
+
+		await showDiscoveringWhile(progress, Promise.all(todo));
 
 		if (tests.length === 0) {
 			notifications.info(this.noTestsFoundError);
@@ -480,19 +518,22 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 	}
 }
 
-export class ToggleAutoRun extends Action2 {
-	constructor() {
+abstract class ToggleAutoRun extends Action2 {
+	constructor(title: string, whenToggleIs: boolean) {
 		super({
 			id: 'testing.toggleautoRun',
-			title: localize('testing.toggleautoRun', "Toggle Auto Run"),
+			title,
 			f1: true,
-			toggled: TestingContextKeys.autoRun.isEqualTo(true),
 			icon: icons.testingAutorunIcon,
+			toggled: whenToggleIs === true ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.AutoRun,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyAndExpr.create([
+					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+					TestingContextKeys.autoRun.isEqualTo(whenToggleIs)
+				])
 			}
 		});
 	}
@@ -504,6 +545,19 @@ export class ToggleAutoRun extends Action2 {
 		accessor.get(ITestingAutoRun).toggle();
 	}
 }
+
+export class AutoRunOnAction extends ToggleAutoRun {
+	constructor() {
+		super(localize('testing.turnOnAutoRun', "Turn On Auto Run"), false);
+	}
+}
+
+export class AutoRunOffAction extends ToggleAutoRun {
+	constructor() {
+		super(localize('testing.turnOffAutoRun', "Turn Off Auto Run"), true);
+	}
+}
+
 
 abstract class RunOrDebugAtCursor extends Action2 {
 	/**
@@ -517,7 +571,6 @@ abstract class RunOrDebugAtCursor extends Action2 {
 			return;
 		}
 
-
 		const testService = accessor.get(ITestService);
 		const collection = testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, model.uri);
 
@@ -525,7 +578,8 @@ abstract class RunOrDebugAtCursor extends Action2 {
 		let bestNode: InternalTestItem | undefined;
 
 		try {
-			await waitForAllTests(collection.object);
+			await showDiscoveringWhile(accessor.get(IProgressService), waitForAllTests(collection.object));
+
 			const queue: [depth: number, nodes: Iterable<string>][] = [[0, collection.object.rootIds]];
 			while (queue.length > 0) {
 				const [depth, candidates] = queue.pop()!;
@@ -569,8 +623,11 @@ export class RunAtCursor extends RunOrDebugAtCursor {
 		return node.item.runnable;
 	}
 
-	protected runTest(service: ITestService, node: InternalTestItem): Promise<ITestResult> {
-		return service.runTests({ debug: false, tests: [{ testId: node.id, providerId: node.providerId }] });
+	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: [{ testId: internalTest.item.extId, providerId: internalTest.providerId }],
+		});
 	}
 }
 
@@ -588,11 +645,13 @@ export class DebugAtCursor extends RunOrDebugAtCursor {
 		return node.item.debuggable;
 	}
 
-	protected runTest(service: ITestService, node: InternalTestItem): Promise<ITestResult> {
-		return service.runTests({ debug: true, tests: [{ testId: node.id, providerId: node.providerId }] });
+	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: [{ testId: internalTest.item.extId, providerId: internalTest.providerId }],
+		});
 	}
 }
-
 
 abstract class RunOrDebugCurrentFile extends Action2 {
 	/**
@@ -609,16 +668,33 @@ abstract class RunOrDebugCurrentFile extends Action2 {
 		const testService = accessor.get(ITestService);
 		const collection = testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, model.uri);
 
+		// the gather function builds the first nodes in the tree who have a
+		// location in the file. Ideally we could just request to run the roots,
+		// but in the case where they're polyfilled from a workspace heirarchy,
+		// the "root" test actually refers to the workspace root.
+		const expectedUri = model.uri.toString();
+		const tests: IncrementalTestCollectionItem[] = [];
+		const gather = (testIds: Iterable<string>) => {
+			for (const id of testIds) {
+				const node = collection.object.getNodeById(id);
+				if (!node) {
+					// no-op
+				} else if (node.item.location?.uri.toString() === expectedUri) {
+					if (this.filter(node)) {
+						tests.push(node);
+					}
+				} else if (node.children) {
+					gather(node.children);
+				}
+			}
+		};
+
 		try {
-			await waitForAllTests(collection.object);
+			await showDiscoveringWhile(accessor.get(IProgressService), waitForAllTests(collection.object));
+			gather(collection.object.rootIds);
 
-			const roots = [...collection.object.rootIds]
-				.map(r => collection.object.getNodeById(r))
-				.filter(isDefined)
-				.filter(n => this.filter(n));
-
-			if (roots.length) {
-				await this.runTest(testService, roots);
+			if (tests.length) {
+				await this.runTest(testService, tests);
 			}
 		} finally {
 			collection.dispose();
@@ -644,8 +720,11 @@ export class RunCurrentFile extends RunOrDebugCurrentFile {
 		return node.item.runnable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: false, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
 	}
 }
 
@@ -663,7 +742,199 @@ export class DebugCurrentFile extends RunOrDebugCurrentFile {
 		return node.item.debuggable;
 	}
 
-	protected runTest(service: ITestService, nodes: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({ debug: true, tests: nodes.map(node => ({ testId: node.id, providerId: node.providerId })) });
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId }))
+		});
+	}
+}
+
+abstract class RunOrDebugTestResults extends Action2 {
+	/**
+	 * @override
+	 */
+	public async run(accessor: ServicesAccessor) {
+		const testService = accessor.get(ITestService);
+		const extIds = this.getTestExtIdsToRun(accessor);
+		if (extIds.size === 0) {
+			return;
+		}
+
+		const workspaceTests = accessor.get(IWorkspaceTestCollectionService).subscribeToWorkspaceTests();
+
+		try {
+			const todo = Promise.all(workspaceTests.workspaceFolderCollections.map(([, c]) => waitForAllTests(c)));
+			await showDiscoveringWhile(accessor.get(IProgressService), todo);
+
+			const toRun: InternalTestItem[] = [];
+			for (const [, collection] of workspaceTests.workspaceFolderCollections) {
+				for (const node of collection.all) {
+					if (extIds.has(node.item.extId) && this.filter(node)) {
+						toRun.push(node);
+						extIds.delete(node.item.extId);
+					}
+				}
+			}
+
+			if (toRun.length) {
+				await this.runTest(testService, toRun);
+			}
+		} finally {
+			workspaceTests.dispose();
+		}
+	}
+
+	protected abstract getTestExtIdsToRun(accessor: ServicesAccessor): Set<string>;
+
+	protected abstract filter(node: InternalTestItem): boolean;
+
+	protected abstract runTest(service: ITestService, node: InternalTestItem[]): Promise<ITestResult>;
+}
+
+abstract class RunOrDebugFailedTests extends RunOrDebugTestResults {
+	/**
+	 * @inheritdoc
+	 */
+	protected getTestExtIdsToRun(accessor: ServicesAccessor): Set<string> {
+		const { results } = accessor.get(ITestResultService);
+		const extIds = new Set<string>();
+		for (let i = results.length - 1; i >= 0; i--) {
+			for (const test of results[i].tests) {
+				if (isFailedState(test.state.state)) {
+					extIds.add(test.item.extId);
+				} else {
+					extIds.delete(test.item.extId);
+				}
+			}
+		}
+
+		return extIds;
+	}
+}
+
+abstract class RunOrDebugLastRun extends RunOrDebugTestResults {
+	/**
+	 * @inheritdoc
+	 */
+	protected getTestExtIdsToRun(accessor: ServicesAccessor): Set<string> {
+		const lastResult = accessor.get(ITestResultService).results[0];
+		const extIds = new Set<string>();
+		if (!lastResult) {
+			return extIds;
+		}
+
+		for (const test of lastResult.tests) {
+			if (test.direct) {
+				extIds.add(test.item.extId);
+			}
+		}
+
+		return extIds;
+	}
+}
+
+export class ReRunFailedTests extends RunOrDebugFailedTests {
+	constructor() {
+		super({
+			id: 'testing.reRunFailTests',
+			title: localize('testing.reRunFailTests', "Re-run Failed Tests"),
+			f1: true,
+			category,
+		});
+	}
+
+	protected filter(node: InternalTestItem): boolean {
+		return node.item.runnable;
+	}
+
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
+	}
+}
+
+export class DebugFailedTests extends RunOrDebugFailedTests {
+	constructor() {
+		super({
+			id: 'testing.debugFailTests',
+			title: localize('testing.debugFailTests', "Debug Failed Tests"),
+			f1: true,
+			category,
+		});
+	}
+
+	protected filter(node: InternalTestItem): boolean {
+		return node.item.debuggable;
+	}
+
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
+	}
+}
+
+export class ReRunLastRun extends RunOrDebugLastRun {
+	constructor() {
+		super({
+			id: 'testing.reRunLastRun',
+			title: localize('testing.reRunLastRun', "Re-run Last Run"),
+			f1: true,
+			category,
+		});
+	}
+
+	protected filter(node: InternalTestItem): boolean {
+		return node.item.runnable;
+	}
+
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: false,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
+	}
+}
+
+export class DebugLastRun extends RunOrDebugLastRun {
+	constructor() {
+		super({
+			id: 'testing.debugLastRun',
+			title: localize('testing.debugLastRun', "Debug Last Run"),
+			f1: true,
+			category,
+		});
+	}
+
+	protected filter(node: InternalTestItem): boolean {
+		return node.item.debuggable;
+	}
+
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			debug: true,
+			tests: internalTests.map(t => ({ testId: t.item.extId, providerId: t.providerId })),
+		});
+	}
+}
+
+export class SearchForTestExtension extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.searchForTestExtension',
+			title: localize('testing.searchForTestExtension', "Search for Test Extension"),
+			f1: false,
+		});
+	}
+
+	public async run(accessor: ServicesAccessor) {
+		const viewletService = accessor.get(IViewletService);
+		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		viewlet.search('tag:testing @sort:installs');
+		viewlet.focus();
 	}
 }

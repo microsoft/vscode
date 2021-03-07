@@ -62,6 +62,8 @@ import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/backup/electron-browser/backupFileService';
+import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
+
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
@@ -74,12 +76,6 @@ import 'vs/workbench/services/backup/electron-browser/backupFileService';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
-
-registerSingleton(ITunnelService, TunnelService);
 
 //#endregion
 
@@ -97,10 +93,6 @@ registerSingleton(ITunnelService, TunnelService);
 
 
 //#region --- workbench contributions
-
-// Tags
-import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
-import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';

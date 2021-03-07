@@ -177,7 +177,13 @@ class MyCompletionItem extends vscode.CompletionItem {
 			const args: Proto.CompletionDetailsRequestArgs = {
 				...typeConverters.Position.toFileLocationRequestArgs(filepath, this.position),
 				entryNames: [
-					this.tsEntry.source ? { name: this.tsEntry.name, source: this.tsEntry.source } : this.tsEntry.name
+					// @ts-expect-error until TypeScript 4.3 protocol update
+					this.tsEntry.source || this.tsEntry.data ? {
+						name: this.tsEntry.name,
+						source: this.tsEntry.source,
+						// @ts-expect-error until TypeScript 4.3 protocol update
+						data: this.tsEntry.data,
+					} : this.tsEntry.name
 				]
 			};
 			const response = await client.interruptGetErr(() => client.execute('completionEntryDetails', args, requestToken.token));

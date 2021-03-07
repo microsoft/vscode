@@ -388,6 +388,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;
+		const installAge = Date.now() - new Date(this._initData.telemetryInfo.firstSessionDate).getTime();
 
 		this._logService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.identifier.value}`);
 
@@ -412,9 +413,21 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				get storageUri() { return that._storagePath.workspaceValue(extensionDescription); },
 				get globalStorageUri() { return that._storagePath.globalValue(extensionDescription); },
 				get extensionMode() { return extensionMode; },
+				get extensionId() {
+					checkProposedApiEnabled(extensionDescription);
+					return extensionDescription.identifier.value;
+				},
+				get extensionVersion() {
+					checkProposedApiEnabled(extensionDescription);
+					return extensionDescription.version;
+				},
 				get extensionRuntime() {
 					checkProposedApiEnabled(extensionDescription);
 					return that.extensionRuntime;
+				},
+				get isNewInstall() {
+					checkProposedApiEnabled(extensionDescription);
+					return isNaN(installAge) ? false : installAge < 1000 * 60 * 60 * 24; // installAge is less than a day;
 				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
 			});

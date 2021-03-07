@@ -1107,7 +1107,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 									endColumn: setting.valueRange.endColumn
 								});
 							}
-						} else if (setting.key !== 'settings') {
+						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority') {
 							markerData.push({
 								severity: MarkerSeverity.Hint,
 								tags: [MarkerTag.Unnecessary],

@@ -6,7 +6,6 @@
 /* eslint-disable code-no-standalone-editor */
 /* eslint-disable code-import-patterns */
 
-import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -15,7 +14,6 @@ import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnectio
 import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { ITextSnapshot } from 'vs/editor/common/model';
@@ -23,7 +21,7 @@ import { IExtensionService, NullExtensionService } from 'vs/workbench/services/e
 import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { isWindows } from 'vs/base/common/platform';
-import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -53,6 +51,7 @@ import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/b
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 
 
 //#region Environment
@@ -179,19 +178,23 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 
 //#region Configuration
 
-export class SimpleStorageService extends InMemoryStorageService { }
-
-//#endregion
-
-
-//#region Configuration
-
 export class SimpleConfigurationService extends BaseSimpleConfigurationService implements IWorkbenchConfigurationService {
 	async whenRemoteConfigurationLoaded() { }
 }
 
 //#endregion
 
+
+//#region Signing
+
+export class SimpleSignService implements ISignService {
+
+	declare readonly _serviceBrand: undefined;
+
+	async sign(value: string): Promise<string> { return value; }
+}
+
+//#endregion
 
 //#region Logger
 
@@ -202,15 +205,6 @@ export class SimpleLogService extends LogService {
 	}
 
 }
-
-export class SimpleSignService implements ISignService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async sign(value: string): Promise<string> { return value; }
-}
-
-//#endregion
 
 
 //#region Files
@@ -465,7 +459,8 @@ class SimpleTelemetryService implements ITelemetryService {
 		return {
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		};
 	}
 }
@@ -493,7 +488,6 @@ class SimpleWebviewService implements IWebviewService {
 
 	createWebviewElement(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewElement { throw new Error('Method not implemented.'); }
 	createWebviewOverlay(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewOverlay { throw new Error('Method not implemented.'); }
-	setIcons(id: string, value: WebviewIcons | undefined): void { }
 }
 
 registerSingleton(IWebviewService, SimpleWebviewService);

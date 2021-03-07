@@ -15,14 +15,12 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { NativeStorageService } from 'vs/platform/storage/node/storageService';
+import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { Schemas } from 'vs/base/common/network';
-import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -51,8 +49,8 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { LoggerService } from 'vs/workbench/services/log/electron-sandbox/loggerService';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 class DesktopMain extends Disposable {
 
@@ -83,7 +81,10 @@ class DesktopMain extends Disposable {
 	private reviveUris() {
 
 		// Workspace
-		this.configuration.workspace = reviveIdentifier(this.configuration.workspace);
+		const workspace = reviveIdentifier(this.configuration.workspace);
+		if (isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace)) {
+			this.configuration.workspace = workspace;
+		}
 
 		// Files
 		const filesToWait = this.configuration.filesToWait;
@@ -133,8 +134,8 @@ class DesktopMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Workbench Lifecycle
-		this._register(workbench.onShutdown(() => this.dispose()));
 		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
+		this._register(workbench.onShutdown(() => this.dispose()));
 	}
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
@@ -159,14 +160,13 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
-		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
 		serviceCollection.set(IProductService, this.productService);
 
 		// Logger
-		const loggerService = new LoggerService(mainProcessService);
+		const loggerService = new LoggerChannelClient(mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
@@ -320,11 +320,10 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
-		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
-		const storageService = new NativeStorageService(globalStorageDatabase, logService, this.environmentService);
+		const storageService = new NativeStorageService(payload, mainProcessService, this.environmentService);
 
 		try {
-			await storageService.initialize(payload);
+			await storageService.initialize();
 
 			return storageService;
 		} catch (error) {

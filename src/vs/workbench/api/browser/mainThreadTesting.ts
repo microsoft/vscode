@@ -5,11 +5,12 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { getTestSubscriptionKey, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { getTestSubscriptionKey, ISerializedTestResults, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { HydratedTestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
@@ -29,6 +30,7 @@ const reviveDiff = (diff: TestsDiff) => {
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly testSubscriptions = new Map<string, IDisposable>();
+	private readonly testProviderRegistrations = new Map<string, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -40,17 +42,32 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		this._register(this.testService.onShouldSubscribe(args => this.proxy.$subscribeToTests(args.resource, args.uri)));
 		this._register(this.testService.onShouldUnsubscribe(args => this.proxy.$unsubscribeFromTests(args.resource, args.uri)));
 
-		// const testCompleteListener = this._register(new MutableDisposable());
-		// todo(@connor4312): reimplement, maybe
-		// this._register(resultService.onResultsChanged(results => {
-		// testCompleteListener.value = results.onComplete(() => this.proxy.$publishTestResults({ tests: [] }));
-		// }));
+
+		const prevResults = resultService.results.map(r => r.toJSON()).filter(isDefined);
+		if (prevResults.length) {
+			this.proxy.$publishTestResults(prevResults);
+		}
+
+		this._register(resultService.onResultsChanged(evt => {
+			const results = 'completed' in evt ? evt.completed : ('inserted' in evt ? evt.inserted : undefined);
+			const serialized = results?.toJSON();
+			if (serialized) {
+				this.proxy.$publishTestResults([serialized]);
+			}
+		}));
 
 		testService.updateRootProviderCount(1);
 
 		for (const { resource, uri } of this.testService.subscriptions) {
 			this.proxy.$subscribeToTests(resource, uri);
 		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
+		this.resultService.push(new HydratedTestResult(results, persist));
 	}
 
 	/**
@@ -85,17 +102,20 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $registerTestProvider(id: string) {
-		this.testService.registerTestController(id, {
+		const disposable = this.testService.registerTestController(id, {
 			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
 			lookupTest: test => this.proxy.$lookupTest(test),
 		});
+
+		this.testProviderRegistrations.set(id, disposable);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	public $unregisterTestProvider(id: string) {
-		this.testService.unregisterTestController(id);
+		this.testProviderRegistrations.get(id)?.dispose();
+		this.testProviderRegistrations.delete(id);
 	}
 
 	/**
@@ -131,6 +151,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	}
 
 	public dispose() {
+		super.dispose();
 		this.testService.updateRootProviderCount(-1);
 		for (const subscription of this.testSubscriptions.values()) {
 			subscription.dispose();

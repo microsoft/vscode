@@ -8,6 +8,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { distinct } from 'vs/base/common/objects';
+import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression, RawContextKey, ContextKeyInfo } from 'vs/platform/contextkey/common/contextkey';
@@ -576,6 +577,17 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 
 CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, contextKey: any, contextValue: any) {
 	accessor.get(IContextKeyService).createKey(String(contextKey), contextValue);
+});
+
+CommandsRegistry.registerCommand({
+	id: 'getContextKeyInfo',
+	handler() {
+		return [...RawContextKey.all()].sort((a, b) => a.key.localeCompare(b.key));
+	},
+	description: {
+		description: localize('getContextKeyInfo', "A command that returns information about context keys"),
+		args: []
+	}
 });
 
 CommandsRegistry.registerCommand('_generateContextKeyInfo', function () {
