@@ -139,9 +139,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, executableEnv: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean, workspaceId: string, workspaceName: string): Promise<number> {
-		const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
+		// const timeout = setTimeout(() => this._handleUnresponsiveCreateProcess(), HeartbeatConstants.CreateProcessTimeout);
 		const id = await this._proxy.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, shouldPersist, workspaceId, workspaceName);
-		clearTimeout(timeout);
+		// clearTimeout(timeout);
 		lastPtyId = Math.max(lastPtyId, id);
 		return id;
 	}
@@ -220,11 +220,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._onPtyHostUnresponsive.fire();
 	}
 
-	private _handleUnresponsiveCreateProcess() {
-		this._clearHeartbeatTimeouts();
-		this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
-		this._onPtyHostUnresponsive.fire();
-	}
+	// private _handleUnresponsiveCreateProcess() {
+	// 	this._clearHeartbeatTimeouts();
+	// 	this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
+	// 	this._onPtyHostUnresponsive.fire();
+	// }
 
 	private _clearHeartbeatTimeouts() {
 		if (this._heartbeatFirstTimeout) {

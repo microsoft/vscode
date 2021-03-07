@@ -208,9 +208,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				} else {
 					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
-				// if (!this._isDisposed) {
-				// 	this._setupPtyHostListeners(this._remoteTerminalService);
-				// }
+				if (!this._isDisposed) {
+					this._setupPtyHostListeners(this._remoteTerminalService);
+				}
 			} else {
 				if (!this._localTerminalService) {
 					this._logService.trace(`Tried to launch a local terminal which is not supported in this window`);
@@ -233,6 +233,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}
 
+		// If the process was disposed during its creation, shut it down and return failure
 		if (this._isDisposed) {
 			this._process.shutdown(false);
 			return undefined;
