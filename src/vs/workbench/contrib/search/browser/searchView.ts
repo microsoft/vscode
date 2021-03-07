@@ -1576,7 +1576,7 @@ export class SearchView extends ViewPane {
 
 	private onOpenSettings(e: dom.EventLike): void {
 		dom.EventHelper.stop(e, false);
-		this.openSettings('.exclude');
+		this.openSettings('@id:files.exclude,search.exclude,search.useGlobalIgnoreFiles,search.useIgnoreFiles');
 	}
 
 	private openSettings(query: string): Promise<IEditorPane | undefined> {
