@@ -41,7 +41,7 @@ export const readScripts = (document: TextDocument, buffer = document.getText())
 			level--;
 		},
 		onLiteralValue(value: unknown, offset: number, length: number) {
-			if (buildingScript && typeof value === 'string') {
+			if (buildingScript && typeof value === 'string' && value.length && value.charAt(0) !== '.') {
 				scripts.push({
 					...buildingScript,
 					value,
