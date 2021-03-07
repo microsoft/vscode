@@ -307,7 +307,8 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	) {
 		return this._webviewService.createWebviewOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
-			retainContextWhenHidden: options.retainContextWhenHidden
+			retainContextWhenHidden: options.retainContextWhenHidden,
+			tryRestoreScrollPosition: options.tryRestoreScrollPosition
 		}, options, extension);
 	}
 }
