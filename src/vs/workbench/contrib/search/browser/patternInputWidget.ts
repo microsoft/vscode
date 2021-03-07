@@ -255,6 +255,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	setUseExcludesAndIgnoreFiles(value: boolean) {
 		this.useExcludesAndIgnoreFilesBox.checked = value;
+		this._onChangeIgnoreBoxEmitter.fire();
 	}
 
 	protected getSubcontrolsWidth(): number {

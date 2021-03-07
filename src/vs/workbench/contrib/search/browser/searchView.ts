@@ -1496,14 +1496,14 @@ export class SearchView extends ViewPane {
 					}));
 				} else {
 					const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
-					this.addClickEvents(openSettingsLink, this.onOpenSettings);
+					this.addClickEvents(openSettingsLink, this.onOpenSettings.bind(this));
 				}
 
 				if (completed) {
 					dom.append(p, $('span', undefined, ' - '));
 
 					const learnMoreLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
-					this.addClickEvents(learnMoreLink, this.onLearnMore);
+					this.addClickEvents(learnMoreLink, this.onLearnMore.bind(this));
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -1574,11 +1574,10 @@ export class SearchView extends ViewPane {
 		}));
 	};
 
-	private onOpenSettings = (e: dom.EventLike): void => {
+	private onOpenSettings(e: dom.EventLike): void {
 		dom.EventHelper.stop(e, false);
-
 		this.openSettings('.exclude');
-	};
+	}
 
 	private openSettings(query: string): Promise<IEditorPane | undefined> {
 		const options: ISettingsEditorOptions = { query };
@@ -1587,11 +1586,15 @@ export class SearchView extends ViewPane {
 			this.preferencesService.openGlobalSettings(undefined, options);
 	}
 
-	private onLearnMore = (e: MouseEvent): void => {
+	private onLearnMore(e: MouseEvent): void {
 		dom.EventHelper.stop(e, false);
-
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
-	};
+	}
+
+	private onEnableExcludes(e: MouseEvent): void {
+		dom.EventHelper.stop(e, false);
+		this.searchExcludePattern.setUseExcludesAndIgnoreFiles(true);
+	}
 
 	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
@@ -1600,18 +1603,21 @@ export class SearchView extends ViewPane {
 		const msgWasHidden = this.messagesElement.style.display === 'none';
 
 		const messageEl = this.clearMessage();
-		let resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
+		const resultMsg = this.buildResultCountMessage(this.viewModel.searchResult.count(), fileCount);
 		this.tree.ariaLabel = resultMsg + nls.localize('forTerm', " - Search: {0}", this.searchResult.query?.contentPattern.pattern ?? '');
+		dom.append(messageEl, resultMsg);
 
 		if (fileCount > 0) {
 			if (disregardExcludesAndIgnores) {
-				resultMsg += nls.localize('useIgnoresAndExcludesDisabled', " - exclude settings and ignore files are disabled");
+				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
+				const enableMessage = nls.localize('excludes.enable', "enable");
+				const enableExcludesButton = $('a.pointer.prominent', { title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files") }, enableMessage);
+				this.addClickEvents(enableExcludesButton, this.onEnableExcludes.bind(this));
+				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton, ')'));
 			}
 
-			dom.append(messageEl, $('span', undefined, resultMsg + ' - '));
-			const span = dom.append(messageEl, $('span'));
-			const openInEditorLink = dom.append(span, $('a.pointer.prominent', undefined, nls.localize('openInEditor.message', "Open in editor")));
-
+			dom.append(messageEl, ' - ');
+			const openInEditorLink = dom.append(messageEl, $('a.pointer.prominent', undefined, nls.localize('openInEditor.message', "Open in editor")));
 			openInEditorLink.title = appendKeyBindingLabel(
 				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
 				this.keybindingService.lookupKeybinding(Constants.OpenInEditorCommandId), this.keybindingService);
