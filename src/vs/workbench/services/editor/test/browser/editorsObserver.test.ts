@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { EditorOptions, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -38,10 +38,8 @@ suite('EditorsObserver', function () {
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		const part = disposables.add(instantiationService.createInstance(TestEditorPart));
+		const part = createEditorPart(instantiationService, disposables);
 		disposables.add(toDisposable(() => part.clearState()));
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
 
 		await part.whenRestored;
 

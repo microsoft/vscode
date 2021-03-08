@@ -129,7 +129,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | undefined {
 
-	const userDataPrefix = 'vscode-userdata:';
+	const userDataPrefix = '(Settings) ';
 	if (path.startsWith(userDataPrefix)) {
 		return vscode.Uri.file(path.slice(userDataPrefix.length)).with({ scheme: 'vscode-userdata' });
 	}

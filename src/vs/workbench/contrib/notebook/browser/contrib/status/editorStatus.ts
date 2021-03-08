@@ -8,8 +8,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { NOTEBOOK_ACTIONS_CATEGORY, getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -64,11 +64,15 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get<IQuickInputService>(IQuickInputService);
 		const configurationService = accessor.get<IConfigurationService>(IConfigurationService);
 
-		const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-		if (!activeEditorPane?.isNotebookEditor) {
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		if (!editor) {
 			return;
 		}
-		const editor = editorService.activeEditorPane?.getControl() as INotebookEditor;
+
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		const activeKernel = editor.activeKernel;
 
 		const picker = quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
@@ -92,7 +96,7 @@ registerAction2(class extends Action2 {
 
 		if (selectedKernel) {
 			editor.activeKernel = selectedKernel;
-			return selectedKernel.resolve(editor.uri!, editor.getId(), tokenSource.token);
+			return selectedKernel.resolve(editor.viewModel.uri, editor.getId(), tokenSource.token);
 		} else {
 			picker.show();
 		}
@@ -112,11 +116,11 @@ registerAction2(class extends Action2 {
 				kernelProviderId: a.extension.value,
 				run: async () => {
 					editor.activeKernel = a;
-					a.resolve(editor.uri!, editor.getId(), tokenSource.token);
+					a.resolve(editor.viewModel.uri, editor.getId(), tokenSource.token);
 				},
 				buttons: [{
 					iconClass: ThemeIcon.asClassName(configureKernelIcon),
-					tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel!.viewType)
+					tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel.viewType)
 				}]
 			};
 		});
@@ -139,7 +143,7 @@ registerAction2(class extends Action2 {
 
 				// And persist the setting
 				if (pick && id && pick.kernelProviderId) {
-					const newAssociation: NotebookKernelProviderAssociation = { viewType: editor.viewModel!.viewType, kernelProvider: pick.kernelProviderId };
+					const newAssociation: NotebookKernelProviderAssociation = { viewType: editor.viewModel.viewType, kernelProvider: pick.kernelProviderId };
 					const currentAssociations = [...configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId)];
 
 					// First try updating existing association
@@ -179,14 +183,12 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	registerListeners() {
 		this._register(this._editorService.onDidActiveEditorChange(() => this.updateStatusbar()));
-		this._register(this._notebookService.onDidChangeActiveEditor(() => this.updateStatusbar()));
 		this._register(this._notebookService.onDidChangeKernels(() => this.updateStatusbar()));
 	}
 
 	updateStatusbar() {
 		this._editorDisposable.clear();
-
-		const activeEditor = getActiveNotebookEditor(this._editorService);
+		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 
 		if (activeEditor) {
 			this._editorDisposable.add(activeEditor.onDidChangeKernel(() => {

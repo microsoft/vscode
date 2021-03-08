@@ -53,6 +53,7 @@ import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('MainThreadEditors', () => {
 
@@ -86,6 +87,7 @@ suite('MainThreadEditors', () => {
 		services.set(ILabelService, new SyncDescriptor(LabelService));
 		services.set(ILogService, new NullLogService());
 		services.set(IWorkspaceContextService, new TestContextService());
+		services.set(IEnvironmentService, TestEnvironmentService);
 		services.set(IWorkbenchEnvironmentService, TestEnvironmentService);
 		services.set(IConfigurationService, configService);
 		services.set(IDialogService, dialogService);

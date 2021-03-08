@@ -8,10 +8,11 @@ import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { ICustomEditorModel } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
 
@@ -22,9 +23,8 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 	): Promise<CustomTextEditorModel> {
 		return instantiationService.invokeFunction(async accessor => {
 			const textModelResolverService = accessor.get(ITextModelService);
-			const textFileService = accessor.get(ITextFileService);
 			const model = await textModelResolverService.createModelReference(resource);
-			return new CustomTextEditorModel(viewType, resource, model, textFileService);
+			return instantiationService.createInstance(CustomTextEditorModel, viewType, resource, model);
 		});
 	}
 
@@ -33,11 +33,12 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
-	private constructor(
+	constructor(
 		public readonly viewType: string,
 		private readonly _resource: URI,
 		private readonly _model: IReference<IResolvedTextEditorModel>,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -60,8 +61,12 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		return this._resource;
 	}
 
-	public isReadonly(): boolean {
-		return this._model.object.isReadonly();
+	public isEditable(): boolean {
+		return !this._model.object.isReadonly();
+	}
+
+	public isOnReadonlyFileSystem(): boolean {
+		return this._fileService.hasCapability(this._resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	public get backupId() {

@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -43,6 +43,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onPtyHostStart = this._onPtyHostStart.event;
 	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
 	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
+	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
+	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
@@ -54,6 +56,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<{ id: number, event: string }>());
 	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<{ id: number, event: TerminalShellType }>());
+	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<{ id: number, event: ITerminalDimensionsOverride | undefined }>());
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
@@ -70,7 +74,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [Client, IPtyService] {
-		const client = this._register(new Client(
+		const client = new Client(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'Pty Host',
@@ -82,7 +86,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
-		));
+		);
 		this._onPtyHostStart.fire();
 
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
@@ -114,6 +118,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
 		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
+		this._register(proxy.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
@@ -186,6 +191,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	private _handleHeartbeat() {
 		this._clearHeartbeatTimeouts();
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
+		this._onPtyHostResponsive.fire();
 	}
 
 	private _handleHeartbeatFirstTimeout() {

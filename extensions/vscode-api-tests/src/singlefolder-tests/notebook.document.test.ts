@@ -11,10 +11,10 @@ suite('Notebook Document', function () {
 
 	const contentProvider = new class implements vscode.NotebookContentProvider {
 		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
-			return {
-				cells: [{ cellKind: vscode.NotebookCellKind.Code, source: uri.toString(), language: 'javascript', metadata: new vscode.NotebookCellMetadata(), outputs: [] }],
-				metadata: new vscode.NotebookDocumentMetadata()
-			};
+			return new vscode.NotebookData(
+				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
+				new vscode.NotebookDocumentMetadata()
+			);
 		}
 		async resolveNotebook(_document: vscode.NotebookDocument, _webview: vscode.NotebookCommunication) {
 			//
@@ -125,13 +125,13 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 0, [{
-				cellKind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new_markdown'
 			}, {
-				cellKind: vscode.NotebookCellKind.Code,
+				kind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -162,13 +162,13 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 1, [{
-				cellKind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new2_markdown'
 			}, {
-				cellKind: vscode.NotebookCellKind.Code,
+				kind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -198,13 +198,13 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(document.uri, 0, 0, [{
-			cellKind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
 			source: 'new_markdown'
 		}, {
-			cellKind: vscode.NotebookCellKind.Code,
+			kind: vscode.NotebookCellKind.Code,
 			language: 'fooLang',
 			metadata: undefined,
 			outputs: [],
@@ -306,13 +306,13 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(notebook.uri, 0, 0, [{
-			cellKind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
 			source: 'new_markdown'
 		}, {
-			cellKind: vscode.NotebookCellKind.Code,
+			kind: vscode.NotebookCellKind.Code,
 			language: 'fooLang',
 			metadata: undefined,
 			outputs: [],

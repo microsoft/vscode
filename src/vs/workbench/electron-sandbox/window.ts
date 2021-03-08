@@ -534,8 +534,10 @@ export class NativeWindow extends Disposable {
 						} : undefined;
 						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						if (tunnel) {
+							const addressAsUri = URI.parse(tunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 							return {
-								resolved: uri.with({ authority: tunnel.localAddress }),
+								resolved,
 								dispose: () => tunnel.dispose(),
 							};
 						}

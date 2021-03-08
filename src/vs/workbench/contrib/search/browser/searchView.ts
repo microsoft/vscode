@@ -319,7 +319,6 @@ export class SearchView extends ViewPane {
 		this.inputPatternIncludes.setValue(patternIncludes);
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(onlyOpenEditors);
 
-		this._register(this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerQueryChange({ triggeredOnType, delay: this.searchConfig.searchOnTypeDebouncePeriod })));
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));
 
@@ -1276,6 +1275,8 @@ export class SearchView extends ViewPane {
 
 	triggerQueryChange(_options?: { preserveFocus?: boolean, triggeredOnType?: boolean, delay?: number }) {
 		const options = { preserveFocus: true, triggeredOnType: false, delay: 0, ..._options };
+
+		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
 
 		if (!this.pauseSearching) {
 			this.triggerQueryDelayer.trigger(() => {

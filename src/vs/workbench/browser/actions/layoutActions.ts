@@ -678,7 +678,7 @@ export class MoveFocusedViewAction extends Action {
 			.map(viewletId => {
 				return {
 					id: viewletId,
-					label: this.viewDescriptorService.getViewContainerById(viewletId)!.title
+					label: this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerById(viewletId)!)!.title
 				};
 			}));
 
@@ -699,7 +699,7 @@ export class MoveFocusedViewAction extends Action {
 			.map(panel => {
 				return {
 					id: panel.id,
-					label: this.viewDescriptorService.getViewContainerById(panel.id)!.title
+					label: this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerById(panel.id)!)!.title
 				};
 			}));
 

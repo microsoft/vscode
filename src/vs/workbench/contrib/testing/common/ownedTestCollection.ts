@@ -8,7 +8,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { throttle } from 'vs/base/common/decorators';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
-import { RequiredTestItem, TestItem as ApiTestItem } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestDiffOpType, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
@@ -46,9 +45,9 @@ export class OwnedTestCollection {
  * @private
  */
 export interface OwnedCollectionTestItem extends InternalTestItem {
-	actual: ApiTestItem;
+	actual: TestItem.Raw;
 	previousChildren: Set<string>;
-	previousEquals: (v: ApiTestItem) => boolean;
+	previousEquals: (v: TestItem.Raw) => boolean;
 }
 
 /**
@@ -169,7 +168,7 @@ export class TestTree<T extends InternalTestItem> {
  * @private
  */
 export class SingleUseTestCollection implements IDisposable {
-	protected readonly testItemToInternal = new Map<ApiTestItem, OwnedCollectionTestItem>();
+	protected readonly testItemToInternal = new Map<TestItem.Raw, OwnedCollectionTestItem>();
 	protected diff: TestsDiff = [];
 	private disposed = false;
 
@@ -188,7 +187,7 @@ export class SingleUseTestCollection implements IDisposable {
 	/**
 	 * Adds a new root node to the collection.
 	 */
-	public addRoot(item: ApiTestItem, providerId: string) {
+	public addRoot(item: TestItem.Raw, providerId: string) {
 		this.addItem(item, providerId, null);
 		this.debounceSendDiff.schedule();
 	}
@@ -197,14 +196,14 @@ export class SingleUseTestCollection implements IDisposable {
 	 * Gets test information by its reference, if it was defined and still exists
 	 * in this extension host.
 	 */
-	public getTestByReference(item: ApiTestItem) {
+	public getTestByReference(item: TestItem.Raw) {
 		return this.testItemToInternal.get(item);
 	}
 
 	/**
 	 * Should be called when an item change is fired on the test provider.
 	 */
-	public onItemChange(item: ApiTestItem, providerId: string) {
+	public onItemChange(item: TestItem.Raw, providerId: string) {
 		const existing = this.testItemToInternal.get(item);
 		if (!existing) {
 			if (!this.disposed) {
@@ -240,7 +239,7 @@ export class SingleUseTestCollection implements IDisposable {
 		this.disposed = true;
 	}
 
-	private addItem(actual: ApiTestItem, providerId: string, parent: string | null) {
+	private addItem(actual: TestItem.Raw, providerId: string, parent: string | null) {
 		let internal = this.testItemToInternal.get(actual);
 		if (!internal) {
 			if (this.testIdToInternal.object.has(actual.id)) {
@@ -325,7 +324,7 @@ export class SingleUseTestCollection implements IDisposable {
 	}
 }
 
-const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
+const keyMap: { [K in keyof Omit<TestItem.Raw, 'children'>]: null } = {
 	id: null,
 	label: null,
 	location: null,
@@ -336,13 +335,13 @@ const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
 
 const simpleProps = Object.keys(keyMap) as ReadonlyArray<keyof typeof keyMap>;
 
-const itemEqualityComparator = (a: ApiTestItem) => {
+const itemEqualityComparator = (a: TestItem.Raw) => {
 	const values: unknown[] = [];
 	for (const prop of simpleProps) {
 		values.push(a[prop]);
 	}
 
-	return (b: ApiTestItem) => {
+	return (b: TestItem.Raw) => {
 		for (let i = 0; i < simpleProps.length; i++) {
 			if (values[i] !== b[simpleProps[i]]) {
 				return false;
