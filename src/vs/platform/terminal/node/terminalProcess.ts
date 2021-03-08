@@ -346,6 +346,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _doWrite(isBinary?: boolean): void {
+		console.trace('writing binary', isBinary);
 		const data = this._writeQueue.shift()!;
 		if (isBinary) {
 			this._logService.trace('IPty#writeBinary', `${data.length} characters`);
