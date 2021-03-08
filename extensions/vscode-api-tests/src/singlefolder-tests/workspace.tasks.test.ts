@@ -185,7 +185,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
+		test.skip('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
 			return new Promise<void>(async (resolve) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
