@@ -698,7 +698,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		const endIndex = this._getViewIndexUpperBound2(range.end);
+		const endIndex = this._getViewIndexUpperBound2(range.end - 1);
 
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
@@ -1074,18 +1074,31 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		}
 
-		// first render
-		const viewItemOffset = revealPosition === CellRevealPosition.Top ? elementTop : (elementTop - this.view.renderHeight / 2);
-		this.view.setScrollTop(viewItemOffset);
-
-		// second scroll as markdown cell is dynamic
-		const newElementTop = this.view.elementTop(viewIndex);
-		const newViewItemOffset = revealPosition === CellRevealPosition.Top ? newElementTop : (newElementTop - this.view.renderHeight / 2);
-		this.view.setScrollTop(newViewItemOffset);
+		switch (revealPosition) {
+			case CellRevealPosition.Top:
+				this.view.setScrollTop(elementTop);
+				this.view.setScrollTop(this.view.elementTop(viewIndex));
+				break;
+			case CellRevealPosition.Center:
+				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+				this.view.setScrollTop(this.view.elementTop(viewIndex) - this.view.renderHeight / 2);
+				break;
+			case CellRevealPosition.Bottom:
+				this.view.setScrollTop(elementBottom - this.view.renderHeight);
+				this.view.setScrollTop(this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.view.renderHeight);
+				break;
+			default:
+				break;
+		}
 	}
 
 	private _revealInView(viewIndex: number) {
-		this._revealInternal(viewIndex, true, CellRevealPosition.Top);
+		const firstIndex = this.view.firstVisibleIndex;
+		if (viewIndex < firstIndex) {
+			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
+		} else {
+			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom);
+		}
 	}
 
 	private _revealInCenter(viewIndex: number) {
