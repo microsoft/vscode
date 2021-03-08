@@ -12,8 +12,6 @@ import { Event } from 'vs/base/common/event';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -382,29 +380,6 @@ testRunner.configure({
 });
 
 module.exports = testRunner;`);
-
-//#endregion
-
-
-//#region Backup File
-
-class SimpleBackupFileService implements IBackupFileService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async hasBackups(): Promise<boolean> { return false; }
-	async discardResourceBackup(resource: URI): Promise<void> { }
-	async discardAllWorkspaceBackups(): Promise<void> { }
-	toBackupResource(resource: URI): URI { return resource; }
-	hasBackupSync(resource: URI, versionId?: number): boolean { return false; }
-	async getBackups(): Promise<URI[]> { return []; }
-	async resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> { return undefined; }
-	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> { }
-	async discardBackup(resource: URI): Promise<void> { }
-	async discardBackups(): Promise<void> { }
-}
-
-registerSingleton(IBackupFileService, SimpleBackupFileService);
 
 //#endregion
 
