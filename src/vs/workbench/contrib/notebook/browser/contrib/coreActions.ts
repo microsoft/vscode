@@ -1092,12 +1092,28 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const viewModel = context.notebookEditor.viewModel;
-		const primaryIndex = viewModel.getSelection().start;
+		const primaryIndex = viewModel.getFocus().start;
 		const nextIndex = Math.min(primaryIndex + 1, viewModel.length - 1);
+
+		const focus = { start: nextIndex, end: nextIndex + 1 };
+		const existingSelections = viewModel.getSelections();
+		let newSelections = [];
+
+		if (existingSelections.length && existingSelections[0].start === primaryIndex && existingSelections[0].end === primaryIndex + 1) {
+			// focus == selection
+			newSelections = [focus];
+		} else {
+			// no-op as we allow you to move focus once you are in multi select mode
+			newSelections = existingSelections;
+		}
+
 		viewModel.updateSelectionsState({
 			kind: SelectionStateType.Index,
-			selections: [{ start: nextIndex, end: nextIndex + 1 }]
+			focus: focus,
+			selections: newSelections
 		});
+
+		context.notebookEditor.revealCellRangeInView(focus);
 	}
 });
 
@@ -1118,12 +1134,86 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const viewModel = context.notebookEditor.viewModel;
-		const primaryIndex = viewModel.getSelection().start;
+		const primaryIndex = viewModel.getFocus().start;
 		const nextIndex = Math.max(primaryIndex - 1, 0);
+		const focus = { start: nextIndex, end: nextIndex + 1 };
+		const existingSelections = viewModel.getSelections();
+		let newSelections = [];
+
+		if (existingSelections.length === 1 && existingSelections[0].start === primaryIndex && existingSelections[0].end === primaryIndex + 1) {
+			// focus == selection
+			newSelections = [focus];
+		} else {
+			// no-op as we allow you to move focus once you are in multi select mode
+			newSelections = existingSelections;
+		}
+
 		viewModel.updateSelectionsState({
 			kind: SelectionStateType.Index,
-			selections: [{ start: nextIndex, end: nextIndex + 1 }]
+			focus: focus,
+			selections: newSelections
 		});
+
+		context.notebookEditor.revealCellRangeInView(focus);
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.expandSelectionDown',
+				title: localize('notebookActions.expandSelectionDown', "Notebook Cell Expand Selection Down"),
+				icon: icons.moveUpIcon,
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.DownArrow,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const viewModel = context.notebookEditor.viewModel;
+		const primaryIndex = viewModel.getFocus().start;
+		const nextIndex = Math.min(primaryIndex + 1, viewModel.length - 1);
+		const focus = { start: nextIndex, end: nextIndex + 1 };
+
+		viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: [focus, ...viewModel.getSelections()]
+		});
+		context.notebookEditor.revealCellRangeInView(focus);
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.expandSelectionUp',
+				title: localize('notebookActions.expandSelectionUp', "Notebook Expand Selection Up"),
+				icon: icons.moveDownIcon,
+				keybinding: {
+					primary: KeyMod.Shift | KeyCode.UpArrow,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const viewModel = context.notebookEditor.viewModel;
+		const primaryIndex = viewModel.getFocus().start;
+		const nextIndex = Math.max(primaryIndex - 1, 0);
+		const focus = { start: nextIndex, end: nextIndex + 1 };
+		viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: [focus, ...viewModel.getSelections()]
+		});
+		context.notebookEditor.revealCellRangeInView(focus);
 	}
 });
 
