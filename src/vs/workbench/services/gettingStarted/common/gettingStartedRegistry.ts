@@ -182,6 +182,7 @@ ExtensionsRegistry.registerExtensionPoint({
 		items: {
 			type: 'object',
 			required: ['id', 'title', 'description', 'button', 'media'],
+			defaultSnippets: [{ body: { 'id': '$1', 'title': '$2', 'description': '$3', 'button': { 'title': '$4' }, 'media': { 'path': '$5', 'altText': '$6' } } }],
 			properties: {
 				id: {
 					type: 'string',
@@ -201,6 +202,7 @@ ExtensionsRegistry.registerExtensionPoint({
 						{
 							type: 'object',
 							required: ['title', 'command'],
+							defaultSnippets: [{ 'body': { 'title': '$1', 'command': '$2' } }],
 							properties: {
 								title: {
 									type: 'string',
@@ -215,6 +217,7 @@ ExtensionsRegistry.registerExtensionPoint({
 						{
 							type: 'object',
 							required: ['title', 'link'],
+							defaultSnippets: [{ 'body': { 'title': '$1', 'link': '$2' } }],
 							properties: {
 								title: {
 									type: 'string',
@@ -232,16 +235,18 @@ ExtensionsRegistry.registerExtensionPoint({
 					type: 'object',
 					required: ['path', 'altText'],
 					description: localize('gettingStarted.media', "Image to show alongside this item."),
+					defaultSnippets: [{ 'body': { 'altText': '$1' } }],
 					properties: {
 						path: {
 							description: localize('gettingStarted.media.path', "Either a single string path to an image to be used on all color themes, or separate paths for light, dark, and high contrast themes."),
-
 							oneOf: [
 								{
 									type: 'string',
+									defaultSnippets: [{ 'body': '$1' }],
 								},
 								{
 									type: 'object',
+									defaultSnippets: [{ 'body': { 'hc': '$1', 'light': '$2', 'dark': '$3' } }],
 									required: ['hc', 'light', 'dark'],
 									properties: {
 										hc: { type: 'string' },

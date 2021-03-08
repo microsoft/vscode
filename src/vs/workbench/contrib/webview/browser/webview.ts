@@ -5,13 +5,15 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 
 /**
  * Set when the find widget in a webview is visible.
@@ -75,8 +77,18 @@ export interface WebviewContentOptions {
 	readonly allowMultipleAPIAcquire?: boolean;
 	readonly allowScripts?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMapping?: ReadonlyArray<modes.IWebviewPortMapping>;
+	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 	readonly enableCommandUris?: boolean;
+}
+
+export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
+	return (
+		a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
+		&& a.allowScripts === b.allowScripts
+		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
+		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
+		&& a.enableCommandUris === b.enableCommandUris
+	);
 }
 
 export interface WebviewExtensionDescription {

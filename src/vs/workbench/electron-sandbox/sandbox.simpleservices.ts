@@ -6,29 +6,19 @@
 /* eslint-disable code-no-standalone-editor */
 /* eslint-disable code-import-patterns */
 
-import { ISignService } from 'vs/platform/sign/common/sign';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
-import { ITextSnapshot } from 'vs/editor/common/model';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyChecker } from 'vs/platform/telemetry/common/gdprTypings';
-import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
@@ -36,18 +26,13 @@ import { LinkedMap } from 'vs/base/common/map';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { AbstractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
-import { BrowserKeyboardLayoutService } from 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -185,17 +170,6 @@ export class SimpleConfigurationService extends BaseSimpleConfigurationService i
 //#endregion
 
 
-//#region Signing
-
-export class SimpleSignService implements ISignService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async sign(value: string): Promise<string> { return value; }
-}
-
-//#endregion
-
 //#region Logger
 
 export class SimpleLogService extends LogService {
@@ -205,6 +179,8 @@ export class SimpleLogService extends LogService {
 	}
 
 }
+
+//#endregion
 
 
 //#region Files
@@ -408,73 +384,11 @@ module.exports = testRunner;`);
 //#endregion
 
 
-//#region Backup File
-
-class SimpleBackupFileService implements IBackupFileService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async hasBackups(): Promise<boolean> { return false; }
-	async discardResourceBackup(resource: URI): Promise<void> { }
-	async discardAllWorkspaceBackups(): Promise<void> { }
-	toBackupResource(resource: URI): URI { return resource; }
-	hasBackupSync(resource: URI, versionId?: number): boolean { return false; }
-	async getBackups(): Promise<URI[]> { return []; }
-	async resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> { return undefined; }
-	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> { }
-	async discardBackup(resource: URI): Promise<void> { }
-	async discardBackups(): Promise<void> { }
-}
-
-registerSingleton(IBackupFileService, SimpleBackupFileService);
-
-//#endregion
-
-
 //#region Extensions
 
 class SimpleExtensionService extends NullExtensionService { }
 
 registerSingleton(IExtensionService, SimpleExtensionService);
-
-//#endregion
-
-
-//#region Telemetry
-
-class SimpleTelemetryService implements ITelemetryService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly sendErrorTelemetry = false;
-	readonly isOptedIn = false;
-
-	async publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> { }
-	async publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyChecker<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>, anonymizeFilePaths?: boolean): Promise<void> { }
-	async publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> { }
-	async publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyChecker<E, ClassifiedEvent<T>, 'Type of classified event does not match event properties'>): Promise<void> { }
-	setEnabled(value: boolean): void { }
-	setExperimentProperty(name: string, value: string): void { }
-	async getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return {
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId',
-			firstSessionDate: 'someValue.firstSessionDate'
-		};
-	}
-}
-
-registerSingleton(ITelemetryService, SimpleTelemetryService);
-
-//#endregion
-
-
-//#region Keymap Service (borrowed from browser for now to enable keyboard access)
-
-class SimpleKeyboardLayoutService extends BrowserKeyboardLayoutService { }
-
-registerSingleton(IKeyboardLayoutService, SimpleKeyboardLayoutService);
 
 //#endregion
 
@@ -506,24 +420,6 @@ registerSingleton(ITextFileService, SimpleTextFileService);
 //#endregion
 
 
-//#region extensions management
-
-class SimpleExtensionManagementServerService implements IExtensionManagementServerService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly localExtensionManagementServer = null;
-	readonly remoteExtensionManagementServer = null;
-	readonly webExtensionManagementServer = null;
-
-	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null { return null; }
-}
-
-registerSingleton(IExtensionManagementServerService, SimpleExtensionManagementServerService);
-
-//#endregion
-
-
 //#region Tunnel
 
 class SimpleTunnelService implements ITunnelService {
@@ -547,105 +443,6 @@ registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#endregion
 
-
-//#region User Data Sync
-
-class SimpleUserDataSyncService implements IUserDataSyncService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeStatus = Event.None;
-	onDidChangeConflicts = Event.None;
-	onDidChangeLocal = Event.None;
-	onSyncErrors = Event.None;
-	onDidChangeLastSyncTime = Event.None;
-	onDidResetRemote = Event.None;
-	onDidResetLocal = Event.None;
-
-	status: SyncStatus = SyncStatus.Idle;
-	conflicts: [SyncResource, IResourcePreview[]][] = [];
-	lastSyncTime = undefined;
-
-	createSyncTask(): Promise<ISyncTask> { throw new Error('Method not implemented.'); }
-	createManualSyncTask(): Promise<IManualSyncTask> { throw new Error('Method not implemented.'); }
-
-	async replace(uri: URI): Promise<void> { }
-	async reset(): Promise<void> { }
-	async resetRemote(): Promise<void> { }
-	async resetLocal(): Promise<void> { }
-	async hasLocalData(): Promise<boolean> { return false; }
-	async hasPreviouslySynced(): Promise<boolean> { return false; }
-	async resolveContent(resource: URI): Promise<string | null> { return null; }
-	async accept(resource: SyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void> { }
-	async getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> { return []; }
-	async getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]> { return []; }
-	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI; }[]> { return []; }
-	async getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> { return undefined; }
-}
-
-registerSingleton(IUserDataSyncService, SimpleUserDataSyncService);
-
-//#endregion
-
-
-//#region User Data Sync Account
-
-class SimpleUserDataSyncAccountService implements IUserDataSyncAccountService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onTokenFailed = Event.None;
-	onDidChangeAccount = Event.None;
-
-	account: IUserDataSyncAccount | undefined = undefined;
-
-	async updateAccount(account: IUserDataSyncAccount | undefined): Promise<void> { }
-}
-
-registerSingleton(IUserDataSyncAccountService, SimpleUserDataSyncAccountService);
-
-//#endregion
-
-
-//#region User Data Auto Sync Account
-
-class SimpleUserDataAutoSyncAccountService implements IUserDataAutoSyncService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onError = Event.None;
-	onDidChangeEnablement = Event.None;
-
-	isEnabled(): boolean { return false; }
-	canToggleEnablement(): boolean { return false; }
-	async turnOn(): Promise<void> { }
-	async turnOff(everywhere: boolean): Promise<void> { }
-	async triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void> { }
-}
-
-registerSingleton(IUserDataAutoSyncService, SimpleUserDataAutoSyncAccountService);
-
-//#endregion
-
-
-//#region User Data Sync Store Management
-
-class SimpleUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeUserDataSyncStore = Event.None;
-
-	userDataSyncStore: IUserDataSyncStore | undefined = undefined;
-
-	async switch(type: UserDataSyncStoreType): Promise<void> { }
-
-	async getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined> { return undefined; }
-}
-
-registerSingleton(IUserDataSyncStoreManagementService, SimpleUserDataSyncStoreManagementService);
-
-//#endregion
 
 //#region Task
 
@@ -693,67 +490,6 @@ registerSingleton(ITaskService, SimpleTaskService);
 
 //#endregion
 
-
-//#region Extension Tips
-
-class SimpleExtensionTipsService implements IExtensionTipsService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onRecommendationChange = Event.None;
-
-	async getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> { return []; }
-	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> { return []; }
-	async getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> { return []; }
-	async getAllWorkspacesTips(): Promise<IWorkspaceTips[]> { return []; }
-}
-
-registerSingleton(IExtensionTipsService, SimpleExtensionTipsService);
-
-//#endregion
-
-
-//#region Workspace Tags
-
-class SimpleWorkspaceTagsService implements IWorkspaceTagsService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async getTags(): Promise<Tags> { return Object.create(null); }
-	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> { return undefined; }
-	async getHashedRemotesFromUri(workspaceUri: URI, stripEndingDotGit?: boolean): Promise<string[]> { return []; }
-}
-
-registerSingleton(IWorkspaceTagsService, SimpleWorkspaceTagsService);
-
-//#endregion
-
-
-//#region Output Channel
-
-class SimpleOutputChannelModelService extends AbstractOutputChannelModelService {
-	declare readonly _serviceBrand: undefined;
-}
-
-registerSingleton(IOutputChannelModelService, SimpleOutputChannelModelService);
-
-//#endregion
-
-
-//#region Integrity
-
-class SimpleIntegrityService implements IIntegrityService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async isPure(): Promise<IntegrityTestResult> {
-		return { isPure: true, proof: [] };
-	}
-}
-
-registerSingleton(IIntegrityService, SimpleIntegrityService);
-
-//#endregion
 
 //#region Terminal Instance
 

@@ -86,6 +86,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -624,6 +625,10 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Signing
+		const signChannel = ProxyChannel.fromService(accessor.get(ISignService));
+		mainProcessElectronServer.registerChannel('sign', signChannel);
 
 		// Keyboard Layout
 		const keyboardLayoutChannel = ProxyChannel.fromService(accessor.get(IKeyboardLayoutMainService));
