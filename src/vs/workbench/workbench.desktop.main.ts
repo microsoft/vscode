@@ -125,9 +125,6 @@ import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 
-// CodeEditor Contributions
-import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
-
 // External Terminal
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution';
 
