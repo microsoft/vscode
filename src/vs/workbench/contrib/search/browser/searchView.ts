@@ -17,7 +17,7 @@ import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -118,7 +118,7 @@ export class SearchView extends ViewPane {
 	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
 	private messagesElement!: HTMLElement;
-	private messageDisposables: IDisposable[] = [];
+	private readonly messageDisposables: DisposableStore = new DisposableStore();
 	private searchWidgetsContainerElement!: HTMLElement;
 	private searchWidget!: SearchWidget;
 	private size!: dom.Dimension;
@@ -680,8 +680,7 @@ export class SearchView extends ViewPane {
 		const wasHidden = this.messagesElement.style.display === 'none';
 		dom.clearNode(this.messagesElement);
 		dom.show(this.messagesElement);
-		dispose(this.messageDisposables);
-		this.messageDisposables = [];
+		this.messageDisposables.clear();
 
 		const newMessage = dom.append(this.messagesElement, $('.message'));
 		if (wasHidden) {
@@ -1478,33 +1477,22 @@ export class SearchView extends ViewPane {
 				const p = dom.append(messageEl, $('p', undefined, message));
 
 				if (!completed) {
-					const searchAgainButton = new SearchLinkButton(
+					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
 						nls.localize('rerunSearch.message', "Search again"),
-						() => this.triggerQueryChange({ preserveFocus: false }));
-					this.messageDisposables.push(searchAgainButton);
+						() => this.triggerQueryChange({ preserveFocus: false })));
 					dom.append(p, searchAgainButton.element);
 				} else if (hasIncludes || hasExcludes) {
-					const searchAgainLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('rerunSearchInAll.message', "Search again in all files")));
-					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-
-						this.inputPatternExcludes.setValue('');
-						this.inputPatternIncludes.setValue('');
-						this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
-
-						this.triggerQueryChange({ preserveFocus: false });
-					}));
+					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
+					dom.append(p, searchAgainButton.element);
 				} else {
-					const openSettingsButton = new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this));
-					this.messageDisposables.push(openSettingsButton);
+					const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
 					dom.append(p, openSettingsButton.element);
 				}
 
 				if (completed) {
 					dom.append(p, $('span', undefined, ' - '));
 
-					const learnMoreButton = new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this));
-					this.messageDisposables.push(learnMoreButton);
+					const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
 					dom.append(p, learnMoreButton.element);
 				}
 
@@ -1573,6 +1561,14 @@ export class SearchView extends ViewPane {
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
 	}
 
+	private onSearchAgain(): void {
+		this.inputPatternExcludes.setValue('');
+		this.inputPatternIncludes.setValue('');
+		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
+
+		this.triggerQueryChange({ preserveFocus: false });
+	}
+
 	private onEnableExcludes(): void {
 		this.toggleQueryDetails(false, true);
 		this.searchExcludePattern.setUseExcludesAndIgnoreFiles(true);
@@ -1592,21 +1588,20 @@ export class SearchView extends ViewPane {
 		if (fileCount > 0) {
 			if (disregardExcludesAndIgnores) {
 				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
-				const enableExcludesButton = new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"));
-				this.messageDisposables.push(enableExcludesButton);
+				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
 				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton.element, ')'));
 			}
 
 			dom.append(messageEl, ' - ');
-			const openInEditorLink = dom.append(messageEl, $('a.pointer.prominent', undefined, nls.localize('openInEditor.message', "Open in editor")));
-			openInEditorLink.title = appendKeyBindingLabel(
+
+			const openInEditorTooltip = appendKeyBindingLabel(
 				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
 				this.keybindingService.lookupKeybinding(Constants.OpenInEditorCommandId), this.keybindingService);
-
-			this.messageDisposables.push(dom.addDisposableListener(openInEditorLink, dom.EventType.CLICK, (e: MouseEvent) => {
-				dom.EventHelper.stop(e, false);
-				this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors());
-			}));
+			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
+				nls.localize('openInEditor.message', "Open in editor"),
+				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()),
+				openInEditorTooltip));
+			dom.append(messageEl, openInEditorButton.element);
 
 			this.reLayout();
 		} else if (!msgWasHidden) {
@@ -1632,24 +1627,22 @@ export class SearchView extends ViewPane {
 		const textEl = dom.append(this.searchWithoutFolderMessageElement,
 			$('p', undefined, nls.localize('searchWithoutFolder', "You have not opened or specified a folder. Only open files are currently searched - ")));
 
-		const openFolderLink = dom.append(textEl,
-			$('a.pointer.prominent', { tabindex: 0 }, nls.localize('openFolder', "Open Folder")));
+		const actionRunner = this.messageDisposables.add(new ActionRunner());
+		const openFolderButton = this.messageDisposables.add(new SearchLinkButton(
+			nls.localize('openFolder', "Open Folder"),
+			() => {
+				const action = env.isMacintosh ?
+					this.instantiationService.createInstance(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL) :
+					this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
 
-		const actionRunner = new ActionRunner();
-		this.messageDisposables.push(dom.addDisposableListener(openFolderLink, dom.EventType.CLICK, (e: MouseEvent) => {
-			dom.EventHelper.stop(e, false);
-
-			const action = env.isMacintosh ?
-				this.instantiationService.createInstance(OpenFileFolderAction, OpenFileFolderAction.ID, OpenFileFolderAction.LABEL) :
-				this.instantiationService.createInstance(OpenFolderAction, OpenFolderAction.ID, OpenFolderAction.LABEL);
-
-			actionRunner.run(action).then(() => {
-				action.dispose();
-			}, err => {
-				action.dispose();
-				errors.onUnexpectedError(err);
-			});
-		}));
+				actionRunner.run(action).then(() => {
+					action.dispose();
+				}, err => {
+					action.dispose();
+					errors.onUnexpectedError(err);
+				});
+			}));
+		dom.append(textEl, openFolderButton.element);
 	}
 
 	private showEmptyStage(forceHideMessages = false): void {
