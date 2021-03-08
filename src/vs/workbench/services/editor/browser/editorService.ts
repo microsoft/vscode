@@ -541,7 +541,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 									editor: existingEditor,
 									replacement: fileEditorInput,
 									options: options ? EditorOptions.create(options) : undefined,
-								}], group);
+								}], group, true);
 							}
 
 							return this.openEditor(fileEditorInput, textOptions, group);
@@ -983,9 +983,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region replaceEditors()
 
-	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
+	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void>;
+	async replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void>;
+	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void> {
 		const typedEditors: IEditorReplacement[] = [];
 
 		editors.forEach(replaceEditorArg => {
@@ -1010,7 +1010,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 		if (targetGroup) {
-			return targetGroup.replaceEditors(typedEditors);
+			return targetGroup.replaceEditors(typedEditors, ignoreUntitled);
 		}
 	}
 

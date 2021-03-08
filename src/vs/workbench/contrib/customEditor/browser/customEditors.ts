@@ -214,7 +214,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					editor: existing,
 					replacement: input,
 					options: options ? EditorOptions.create(options) : undefined,
-				}], targetGroup);
+				}], targetGroup, true);
 
 				if (existing instanceof CustomEditorInput) {
 					existing.dispose();

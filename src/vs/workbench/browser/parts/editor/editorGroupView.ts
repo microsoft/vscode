@@ -1616,7 +1616,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region replaceEditors()
 
-	async replaceEditors(editors: EditorReplacement[]): Promise<void> {
+	async replaceEditors(editors: EditorReplacement[], ignoreUntitled?: boolean): Promise<void> {
 
 		// Extract active vs. inactive replacements
 		let activeReplacement: EditorReplacement | undefined;
@@ -1668,7 +1668,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
-				await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
+				if (ignoreUntitled) {
+					this.doCloseEditor(activeReplacement.editor);
+				} else {
+					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
+				}
 			}
 
 			await openEditorResult;

@@ -547,11 +547,12 @@ export interface IEditorGroup {
 	 * Replaces editors in this group with the provided replacement.
 	 *
 	 * @param editors the editors to replace
+	 * @param ignoreUntitled Whether or not you want to ignore untitled files
 	 *
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IEditorReplacement[]): Promise<void>;
+	replaceEditors(editors: IEditorReplacement[], ignoreUntitled?: boolean): Promise<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced
