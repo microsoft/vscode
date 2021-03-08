@@ -232,7 +232,7 @@ class OnAutoForwardedAction extends Disposable {
 		this.doActionTunnels = tunnels;
 		const tunnel = await this.portNumberHeuristicDelay();
 		if (tunnel) {
-			switch ((await this.remoteExplorerService.tunnelModel.getAttributes(tunnel.tunnelRemotePort))?.onAutoForward) {
+			switch ((await this.remoteExplorerService.tunnelModel.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort)?.onAutoForward) {
 				case OnPortForward.OpenBrowser: {
 					const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 					await OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address);
@@ -427,7 +427,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, localUrl.host, localUrl.port)) {
 				return;
 			}
-			if ((await this.remoteExplorerService.tunnelModel.getAttributes(localUrl.port))?.onAutoForward === OnPortForward.Ignore) {
+			if ((await this.remoteExplorerService.tunnelModel.getAttributes([localUrl.port]))?.get(localUrl.port)?.onAutoForward === OnPortForward.Ignore) {
 				return;
 			}
 			if (this.privilegedOnly && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
@@ -526,6 +526,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 	}
 
 	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {
+		const attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates.map(candidate => candidate.port));
 		const allTunnels = <RemoteTunnel[]>(await Promise.all(this.remoteExplorerService.tunnelModel.candidates.map(async (value) => {
 			const address = makeAddress(value.host, value.port);
 			if (this.initialCandidates.has(address)) {
@@ -538,7 +539,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, value.host, value.port)) {
 				return undefined;
 			}
-			if ((await this.remoteExplorerService.tunnelModel.getAttributes(value.port))?.onAutoForward === OnPortForward.Ignore) {
+			if (attributes?.get(value.port)?.onAutoForward === OnPortForward.Ignore) {
 				return undefined;
 			}
 			const forwarded = await this.remoteExplorerService.forward(value, undefined, undefined, undefined, undefined, undefined, false);

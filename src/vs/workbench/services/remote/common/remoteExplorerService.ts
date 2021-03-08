@@ -406,7 +406,8 @@ export class TunnelModel extends Disposable {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
-			const attributes = await this.getAttributes(local !== undefined ? local : remote.port);
+			const port = local !== undefined ? local : remote.port;
+			const attributes = (await this.getAttributes([port]))?.get(port);
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
@@ -556,36 +557,70 @@ export class TunnelModel extends Disposable {
 	private async updateAttributes() {
 		// If the label changes in the attributes, we should update it.
 		for (let forwarded of this.forwarded.values()) {
-			const attributes = await this.getAttributes(forwarded.remotePort);
+			const attributes = (await this.getAttributes([forwarded.remotePort], false))?.get(forwarded.remotePort);
 			if (attributes && attributes.label && attributes.label !== forwarded.name) {
 				await this.name(forwarded.remoteHost, forwarded.remotePort, attributes.label);
 			}
 		}
 	}
 
-	async getAttributes(port: number): Promise<Attributes | undefined> {
-		const configAttributes = this.configPortsAttributes.getAttributes(port);
-		if (this.portAttributesProviders.length === 0) {
-			return configAttributes;
+	async getAttributes(ports: number[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
+		const configAttributes: Map<number, Attributes> = new Map();
+		ports.forEach(port => {
+			const attributes = this.configPortsAttributes.getAttributes(port);
+			if (attributes) {
+				configAttributes.set(port, attributes);
+			}
+		});
+		if ((this.portAttributesProviders.length === 0) || !checkProviders) {
+			return (configAttributes.size > 0) ? configAttributes : undefined;
 		}
 
-		const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], port);
-		const allProviderResults = await Promise.all(this.portAttributesProviders.map(provider => provider.providePortAttributes([port],
-			matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token)));
-		const allValidResults: ProvidedPortAttributes[][] = <ProvidedPortAttributes[][]>allProviderResults.filter(attributes => !!attributes);
-		const allProvidedAttributes: ProvidedPortAttributes[] = (allValidResults.length > 0) ? flatten(allValidResults) : [];
-		const providedAttributes = allProvidedAttributes.find(attributes => attributes.port === port);
+		const matchingCandidates: Map<number, CandidatePort> = new Map();
+		const pidToPortsMapping: Map<number, number[]> = new Map();
+		ports.forEach(port => {
+			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], port);
+			if (matchingCandidate) {
+				matchingCandidates.set(port, matchingCandidate);
+				if (!pidToPortsMapping.has(matchingCandidate.pid)) {
+					pidToPortsMapping.set(matchingCandidate.pid, []);
+				}
+				pidToPortsMapping.get(matchingCandidate.pid)?.push(port);
+			}
+		});
+		// Group calls to provide attributes by pid.
+		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
+			return Array.from(pidToPortsMapping.entries()).map(entry => {
+				const portGroup = entry[1];
+				const matchingCandidate = matchingCandidates.get(portGroup[1]);
+				return provider.providePortAttributes(portGroup,
+					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
+			});
+		})));
+		const providedAttributes: Map<number, ProvidedPortAttributes> = new Map();
+		allProviderResults.forEach(attributes => attributes.forEach(attribute => {
+			if (attribute) {
+				providedAttributes.set(attribute.port, attribute);
+			}
+		}));
 
 		if (!configAttributes && !providedAttributes) {
 			return undefined;
 		}
 
 		// Merge. The config wins.
-		return {
-			elevateIfNeeded: configAttributes?.elevateIfNeeded,
-			label: configAttributes?.label,
-			onAutoForward: configAttributes?.onAutoForward ?? PortsAttributes.providedActionToAction(providedAttributes?.autoForwardAction)
-		};
+		const mergedAttributes: Map<number, Attributes> = new Map();
+		ports.forEach(port => {
+			const config = configAttributes.get(port);
+			const provider = providedAttributes.get(port);
+			mergedAttributes.set(port, {
+				elevateIfNeeded: config?.elevateIfNeeded,
+				label: config?.label,
+				onAutoForward: config?.onAutoForward ?? PortsAttributes.providedActionToAction(provider?.autoForwardAction)
+			});
+		});
+
+		return mergedAttributes;
 	}
 
 	addAttributesProvider(provider: PortAttributesProvider) {
