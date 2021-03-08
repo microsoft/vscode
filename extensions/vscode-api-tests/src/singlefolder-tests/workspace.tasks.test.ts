@@ -185,8 +185,9 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		test.skip('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
+		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
 			return new Promise<void>(async (resolve) => {
+				console.log('start test');
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
 				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
@@ -233,9 +234,11 @@ import { assertNoRpc } from '../utils';
 						console.log('taskExecution', taskExecution);
 					}
 				}));
-
+				console.log('before execute');
 				taskExecution = await tasks.executeTask(task);
+				console.log('before done');
 				executeDoneEvent.fire();
+				console.log('after done');
 			});
 		});
 
