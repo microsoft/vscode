@@ -1143,6 +1143,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		return moveCell(context, 'up');
 	}
 });
 
