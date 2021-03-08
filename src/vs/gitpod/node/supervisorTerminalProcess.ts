@@ -9,8 +9,9 @@ import * as util from 'util';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITerminalChildProcess, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { IRemoteTerminalProcessEvent, IRemoteTerminalProcessReplayEvent, ReplayEntry } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { ITerminalChildProcess, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface OpenSupervisorTerminalProcessOptions {
 	shell: string
@@ -44,7 +45,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			listener(this.replay());
 		},
 		onLastListenerRemove: () => {
-			if (!this.shouldPersistTerminal) {
+			if (!this.shouldPersist) {
 				this.shutdownImmediate();
 			}
 		}
@@ -57,7 +58,8 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		private initialCwd: string,
 		private readonly workspaceId: string,
 		private readonly workspaceName: string,
-		readonly shouldPersistTerminal: boolean,
+		readonly shouldPersist: boolean,
+		private readonly logService: ILogService,
 		private readonly openOptions?: OpenSupervisorTerminalProcessOptions
 	) {
 		super();
@@ -97,7 +99,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			}
 			request.getAnnotationsMap().set('workspaceId', this.workspaceId);
 			request.getAnnotationsMap().set('workspaceName', this.workspaceName);
-			request.getAnnotationsMap().set('shouldPersistTerminal', String(this.shouldPersistTerminal));
+			request.getAnnotationsMap().set('shouldPersistTerminal', String(this.shouldPersist));
 			request.setSize(this.toSize(this.openOptions.cols, this.openOptions.rows));
 			const response = await util.promisify<OpenTerminalRequest, OpenTerminalResponse>(this.terminalServiceClient.open.bind(this.terminalServiceClient))(request);
 			this.alias = response.getTerminal()!.getAlias();
@@ -113,7 +115,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			}
 			return undefined;
 		} catch (err) {
-			console.error(`code server: ${this.id} terminal: failed to open:`, err);
+			this.logService.error(`code server: ${this.id} terminal: failed to open:`, err);
 			return { message: `A native exception occurred during launch (${err.message})` };
 		}
 	}
@@ -191,7 +193,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			} catch (e) {
 				notFound = 'code' in e && e.code === status.NOT_FOUND;
 				if (!this['_isDisposed'] && !notFound && !('code' in e && e.code === status.CANCELLED)) {
-					console.error(`code server: ${this.id}:${alias} terminal: listening failed:`, e);
+					this.logService.error(`code server: ${this.id}:${alias} terminal: listening failed:`, e);
 				}
 			} finally {
 				this.stopListen = undefined;
@@ -232,7 +234,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			if (e && e.code === status.NOT_FOUND) {
 				// Swallow, the pty has already been killed
 			} else {
-				console.error(`code server: ${this.id}:${this.alias} terminal: shutdown failed:`, e);
+				this.logService.error(`code server: ${this.id}:${this.alias} terminal: shutdown failed:`, e);
 			}
 		}
 		this._onProcessExit.fire(this.exitCode || 0);
@@ -256,7 +258,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		request.setStdin(Buffer.from(data));
 		this.terminalServiceClient.write(request, e => {
 			if (e && e.code !== status.NOT_FOUND) {
-				console.error(`code server: ${this.id}:${this.alias} terminal: write failed:`, e);
+				this.logService.error(`code server: ${this.id}:${this.alias} terminal: write failed:`, e);
 			}
 		});
 	}
@@ -275,7 +277,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		request.setForce(true);
 		this.terminalServiceClient.setSize(request, e => {
 			if (e && e.code !== status.NOT_FOUND) {
-				console.error(`code server: ${this.id}:${this.alias} terminal: resize failed:`, e);
+				this.logService.error(`code server: ${this.id}:${this.alias} terminal: resize failed:`, e);
 			}
 		});
 	}

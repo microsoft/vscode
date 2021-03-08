@@ -128,7 +128,7 @@
 		},
 		{
 			"name": "redhat.vscode-yaml",
-			"version": "0.15.0",
+			"version": "0.16.0",
 			"repo": "https://github.com/redhat-developer/vscode-yaml",
 			"metadata": {
 				"id": "2061917f-f76a-458a-8da9-f162de22b97e",

@@ -366,7 +366,7 @@ async function doStart(): Promise<IDisposable> {
 		return Disposable.None;
 	}
 
-	// see https://github.com/gitpod-io/vscode/blob/gp-code/src/vs/workbench/services/authentication/browser/authenticationService.ts#L34
+	// see src/vs/workbench/services/authentication/browser/authenticationService.ts#L84
 	type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
 	const currentSession: AuthenticationSessionInfo = {
 		// current session ID should remain stable between window reloads

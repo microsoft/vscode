@@ -2,6 +2,7 @@
  *  Copyright (c) Typefox. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as path from 'path';
 import { URI } from 'vs/base/common/uri';
 import * as assert from 'assert';
@@ -12,8 +13,8 @@ import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { IRequestContext } from 'vs/base/parts/request/common/request';
 import { asJson } from 'vs/platform/request/common/request';
 import type { OpenCommandPipeArgs } from 'vs/workbench/api/node/extHostCLIServer';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
-import { whenDeleted, lstat } from 'vs/base/node/pfs';
+import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { whenDeleted } from 'vs/base/node/pfs';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 const OPTIONS_KEYS: (keyof typeof ALL_OPTIONS)[] = [
@@ -123,7 +124,7 @@ async function main(processArgv: string[]): Promise<any> {
 				continue;
 			}
 			const filePath = path.resolve(process.cwd(), arg);
-			pendingFiles.push(lstat(filePath).then(stat => {
+			pendingFiles.push(fs.promises.stat(filePath).then(stat => {
 				const uris = stat.isFile() ? fileURIs : folderURIs;
 				uris.push(URI.parse(filePath).toString());
 			}, e => {

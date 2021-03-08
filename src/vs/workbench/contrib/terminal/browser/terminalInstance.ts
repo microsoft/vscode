@@ -1523,11 +1523,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					title = path.basename(title);
 					title = title.split('.exe')[0];
 				} else {
-					const firstSpaceIndex = title.indexOf(' ');
 					if (title.startsWith('/')) {
 						title = path.basename(title);
-					} else if (firstSpaceIndex > -1) {
-						title = title.substring(0, firstSpaceIndex);
 					}
 				}
 				break;

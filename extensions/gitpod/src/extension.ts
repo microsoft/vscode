@@ -527,16 +527,28 @@ export async function activate(context: vscode.ExtensionContext) {
 			scopes: session.scopes,
 			accessToken: session.accessToken
 		});
-		onDidChangeSessionsEmitter.fire({ added: [session.id], removed: [], changed: [] });
+		onDidChangeSessionsEmitter.fire({ added: [sessions[0]] });
 	})();
 	context.subscriptions.push(onDidChangeSessionsEmitter);
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('gitpod', 'Gitpod', {
 		onDidChangeSessions: onDidChangeSessionsEmitter.event,
-		getSessions: () => Promise.resolve(sessions),
-		login: async () => {
+		getSessions: scopes => {
+			if (!scopes) {
+				return Promise.resolve(sessions);
+			}
+			const session = sessions[0];
+			if (!session || scopes.some(scope => session.scopes.indexOf(scope) === -1)) {
+				return Promise.resolve([]);
+			}
+			return Promise.resolve([{
+				...session,
+				scopes
+			}]);
+		},
+		createSession: async () => {
 			throw new Error('not supported');
 		},
-		logout: async () => {
+		removeSession: async () => {
 			throw new Error('not supported');
 		},
 	}, { supportsMultipleAccounts: false }));
