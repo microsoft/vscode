@@ -3369,3 +3369,11 @@ export enum WorkspaceTrustState {
 	Trusted = 1,
 	Unknown = 2
 }
+
+export enum PortAutoForwardAction {
+	Notify = 1,
+	OpenBrowser = 2,
+	OpenPreview = 3,
+	Silent = 4,
+	Ignore = 5
+}

@@ -183,13 +183,10 @@ export class TerminalService implements ITerminalService {
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			this._recreateTerminalTabs(layoutInfo);
-			// now that terminals have been restored,
-			// attach listeners to update local state when terminals are changed
-			this.attachProcessLayoutListeners(false);
-		} else {
-			this.createTerminal();
-			this.attachProcessLayoutListeners(false);
 		}
+		// now that terminals have been restored,
+		// attach listeners to update local state when terminals are changed
+		this.attachProcessLayoutListeners(false);
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
 	}

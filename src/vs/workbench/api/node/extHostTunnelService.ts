@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadTunnelServiceShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import type * as vscode from 'vscode';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,14 +13,16 @@ import { exec } from 'child_process';
 import * as resources from 'vs/base/common/resources';
 import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
+import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { flatten } from 'vs/base/common/arrays';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -139,6 +141,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
 
+	private _providerHandleCounter: number = 0;
+	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider, selector: PortAttributesProviderSelector }> = new Map();
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
@@ -171,6 +176,40 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private calculateDelay(movingAverage: number) {
 		// Some local testing indicated that the moving average might be between 50-100 ms.
 		return Math.max(movingAverage * 20, 2000);
+	}
+
+	private nextPortAttributesProviderHandle(): number {
+		return this._providerHandleCounter++;
+	}
+
+	registerPortsAttributesProvider(portSelector: PortAttributesProviderSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
+		const providerHandle = this.nextPortAttributesProviderHandle();
+		this._portAttributesProviders.set(providerHandle, { selector: portSelector, provider });
+
+		this._proxy.$registerPortsAttributesProvider(portSelector, providerHandle);
+		return new types.Disposable(() => {
+			this._portAttributesProviders.delete(providerHandle);
+			this._proxy.$unregisterPortsAttributesProvider(providerHandle);
+		});
+	}
+
+	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
+		const providedAttributes = await Promise.all(handles.map(handle => {
+			const provider = this._portAttributesProviders.get(handle);
+			if (!provider) {
+				return [];
+			}
+			return provider.provider.providePortAttributes(ports, pid, commandline, cancellationToken);
+		}));
+
+		const allAttributes = <vscode.PortAttributes[][]>providedAttributes.filter(attribute => !!attribute && attribute.length > 0);
+
+		return (allAttributes.length > 0) ? flatten(allAttributes).map(attributes => {
+			return {
+				autoForwardAction: <ProvidedOnAutoForward><unknown>attributes.autoForwardAction,
+				port: attributes.port
+			};
+		}) : [];
 	}
 
 	async $registerCandidateFinder(enable: boolean): Promise<void> {

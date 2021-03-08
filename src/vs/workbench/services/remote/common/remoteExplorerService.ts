@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,6 +19,8 @@ import { isNumber, isObject, isString } from 'vs/base/common/types';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { hash } from 'vs/base/common/hash';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { flatten } from 'vs/base/common/arrays';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -241,6 +243,17 @@ export class PortsAttributes extends Disposable {
 		});
 		return attributes;
 	}
+
+	static providedActionToAction(providedAction: ProvidedOnAutoForward | undefined) {
+		switch (providedAction) {
+			case ProvidedOnAutoForward.Notify: return OnPortForward.Notify;
+			case ProvidedOnAutoForward.OpenBrowser: return OnPortForward.OpenBrowser;
+			case ProvidedOnAutoForward.OpenPreview: return OnPortForward.OpenPreview;
+			case ProvidedOnAutoForward.Silent: return OnPortForward.Silent;
+			case ProvidedOnAutoForward.Ignore: return OnPortForward.Ignore;
+			default: return undefined;
+		}
+	}
 }
 
 export class TunnelModel extends Disposable {
@@ -262,7 +275,9 @@ export class TunnelModel extends Disposable {
 	private _onEnvironmentTunnelsSet: Emitter<void> = new Emitter();
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
-	private portsAttributes: PortsAttributes;
+	private configPortsAttributes: PortsAttributes;
+
+	private portAttributesProviders: PortAttributesProvider[] = [];
 
 	constructor(
 		@ITunnelService private readonly tunnelService: ITunnelService,
@@ -274,7 +289,7 @@ export class TunnelModel extends Disposable {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this.portsAttributes = new PortsAttributes(configurationService);
+		this.configPortsAttributes = new PortsAttributes(configurationService);
 		this.tunnelRestoreValue = this.getTunnelRestoreValue();
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
@@ -328,7 +343,7 @@ export class TunnelModel extends Disposable {
 			}
 		}));
 
-		this._register(this.portsAttributes.onDidChangeAttributes(this.updateAttributes, this));
+		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 	}
 
 	private makeTunnelPrivacy(isPublic: boolean) {
@@ -391,7 +406,8 @@ export class TunnelModel extends Disposable {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
-			const attributes = this.portsAttributes.getAttributes(local !== undefined ? local : remote.port);
+			const port = local !== undefined ? local : remote.port;
+			const attributes = (await this.getAttributes([port]))?.get(port);
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
@@ -541,11 +557,74 @@ export class TunnelModel extends Disposable {
 	private async updateAttributes() {
 		// If the label changes in the attributes, we should update it.
 		for (let forwarded of this.forwarded.values()) {
-			const attributes = this.portsAttributes.getAttributes(forwarded.remotePort);
+			const attributes = (await this.getAttributes([forwarded.remotePort], false))?.get(forwarded.remotePort);
 			if (attributes && attributes.label && attributes.label !== forwarded.name) {
 				await this.name(forwarded.remoteHost, forwarded.remotePort, attributes.label);
 			}
 		}
+	}
+
+	async getAttributes(ports: number[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
+		const configAttributes: Map<number, Attributes> = new Map();
+		ports.forEach(port => {
+			const attributes = this.configPortsAttributes.getAttributes(port);
+			if (attributes) {
+				configAttributes.set(port, attributes);
+			}
+		});
+		if ((this.portAttributesProviders.length === 0) || !checkProviders) {
+			return (configAttributes.size > 0) ? configAttributes : undefined;
+		}
+
+		const matchingCandidates: Map<number, CandidatePort> = new Map();
+		const pidToPortsMapping: Map<number, number[]> = new Map();
+		ports.forEach(port => {
+			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], port);
+			if (matchingCandidate) {
+				matchingCandidates.set(port, matchingCandidate);
+				if (!pidToPortsMapping.has(matchingCandidate.pid)) {
+					pidToPortsMapping.set(matchingCandidate.pid, []);
+				}
+				pidToPortsMapping.get(matchingCandidate.pid)?.push(port);
+			}
+		});
+		// Group calls to provide attributes by pid.
+		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
+			return Array.from(pidToPortsMapping.entries()).map(entry => {
+				const portGroup = entry[1];
+				const matchingCandidate = matchingCandidates.get(portGroup[1]);
+				return provider.providePortAttributes(portGroup,
+					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
+			});
+		})));
+		const providedAttributes: Map<number, ProvidedPortAttributes> = new Map();
+		allProviderResults.forEach(attributes => attributes.forEach(attribute => {
+			if (attribute) {
+				providedAttributes.set(attribute.port, attribute);
+			}
+		}));
+
+		if (!configAttributes && !providedAttributes) {
+			return undefined;
+		}
+
+		// Merge. The config wins.
+		const mergedAttributes: Map<number, Attributes> = new Map();
+		ports.forEach(port => {
+			const config = configAttributes.get(port);
+			const provider = providedAttributes.get(port);
+			mergedAttributes.set(port, {
+				elevateIfNeeded: config?.elevateIfNeeded,
+				label: config?.label,
+				onAutoForward: config?.onAutoForward ?? PortsAttributes.providedActionToAction(provider?.autoForwardAction)
+			});
+		});
+
+		return mergedAttributes;
+	}
+
+	addAttributesProvider(provider: PortAttributesProvider) {
+		this.portAttributesProviders.push(provider);
 	}
 }
 

@@ -10,7 +10,7 @@ export function setup() {
 		it(`install and activate vscode-smoketest-check extension`, async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
+			if (app.quality === Quality.Dev || app.web /* https://github.com/microsoft/vscode/issues/118443 */) {
 				this.skip();
 				return;
 			}
