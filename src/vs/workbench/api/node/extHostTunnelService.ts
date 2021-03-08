@@ -22,6 +22,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { flatten } from 'vs/base/common/arrays';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -203,10 +204,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 		const allAttributes = <vscode.PortAttributes[][]>providedAttributes.filter(attribute => !!attribute && attribute.length > 0);
 
-
-		return (allAttributes.length > 0) ? allAttributes.reduce((prev, curr) => {
-			return prev.concat(curr);
-		}).map(attributes => {
+		return (allAttributes.length > 0) ? flatten(allAttributes).map(attributes => {
 			return {
 				autoForwardAction: <ProvidedOnAutoForward><unknown>attributes.autoForwardAction,
 				port: attributes.port

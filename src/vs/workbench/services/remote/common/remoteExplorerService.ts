@@ -20,6 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { hash } from 'vs/base/common/hash';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { flatten } from 'vs/base/common/arrays';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -572,9 +573,7 @@ export class TunnelModel extends Disposable {
 		const allProviderResults = await Promise.all(this.portAttributesProviders.map(provider => provider.providePortAttributes([port],
 			matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token)));
 		const allValidResults: ProvidedPortAttributes[][] = <ProvidedPortAttributes[][]>allProviderResults.filter(attributes => !!attributes);
-		const allProvidedAttributes: ProvidedPortAttributes[] = (allValidResults.length > 0) ? allValidResults.reduce((prev, curr) => {
-			return prev.concat(curr);
-		}) : [];
+		const allProvidedAttributes: ProvidedPortAttributes[] = (allValidResults.length > 0) ? flatten(allValidResults) : [];
 		const providedAttributes = allProvidedAttributes.find(attributes => attributes.port === port);
 
 		if (!configAttributes && !providedAttributes) {
