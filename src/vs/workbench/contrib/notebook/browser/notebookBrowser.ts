@@ -746,7 +746,8 @@ export enum CellRevealType {
 
 export enum CellRevealPosition {
 	Top,
-	Center
+	Center,
+	Bottom
 }
 
 export enum CellEditState {
