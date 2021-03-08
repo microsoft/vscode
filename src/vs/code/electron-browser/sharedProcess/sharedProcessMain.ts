@@ -84,6 +84,8 @@ import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { LocalPtyService } from 'vs/platform/terminal/electron-browser/localPtyService';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
+import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
+import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 
 class SharedProcessMain extends Disposable {
 
@@ -186,6 +188,9 @@ class SharedProcessMain extends Disposable {
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
+		// Checksum
+		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
+
 		// Native Host
 		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
 		services.set(INativeHostService, nativeHostService);
@@ -285,6 +290,10 @@ class SharedProcessMain extends Disposable {
 		// Extension Tips
 		const extensionTipsChannel = new ExtensionTipsChannel(accessor.get(IExtensionTipsService));
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
+
+		// Checksum
+		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
+		this.server.registerChannel('checksum', checksumChannel);
 
 		// Settings Sync
 		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));

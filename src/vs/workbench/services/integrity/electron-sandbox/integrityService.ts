@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as crypto from 'crypto';
-import * as fs from 'fs';
+import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
@@ -16,6 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { FileAccess } from 'vs/base/common/network';
+import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
 
 interface IStorageData {
 	dontShowPrompt: boolean;
@@ -67,7 +66,8 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IChecksumService private readonly checksumService: IChecksumService
 	) {
 		this._storage = new IntegrityStorage(storageService);
 
@@ -89,18 +89,18 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		}
 
 		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
-		const message = nls.localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort);
+		const message = localize('integrity.prompt', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort);
 		if (checksumFailMoreInfoUrl) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				message,
 				[
 					{
-						label: nls.localize('integrity.moreInformation', "More Information"),
+						label: localize('integrity.moreInformation', "More Information"),
 						run: () => this.openerService.open(URI.parse(checksumFailMoreInfoUrl))
 					},
 					{
-						label: nls.localize('integrity.dontShowAgain', "Don't Show Again"),
+						label: localize('integrity.dontShowAgain', "Don't Show Again"),
 						isSecondary: true,
 						run: () => this._storage.set({ dontShowPrompt: true, commit: this.productService.commit })
 					}
@@ -141,26 +141,16 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		};
 	}
 
-	private _resolve(filename: string, expected: string): Promise<ChecksumPair> {
+	private async _resolve(filename: string, expected: string): Promise<ChecksumPair> {
 		const fileUri = FileAccess.asFileUri(filename, require);
-		return new Promise<ChecksumPair>((resolve, reject) => {
-			fs.readFile(fileUri.fsPath, (err, buff) => {
-				if (err) {
-					return resolve(IntegrityServiceImpl._createChecksumPair(fileUri, '', expected));
-				}
-				resolve(IntegrityServiceImpl._createChecksumPair(fileUri, this._computeChecksum(buff), expected));
-			});
-		});
-	}
 
-	private _computeChecksum(buff: Buffer): string {
-		let hash = crypto
-			.createHash('md5')
-			.update(buff)
-			.digest('base64')
-			.replace(/=+$/, '');
+		try {
+			const checksum = await this.checksumService.checksum(fileUri);
 
-		return hash;
+			return IntegrityServiceImpl._createChecksumPair(fileUri, checksum, expected);
+		} catch (error) {
+			return IntegrityServiceImpl._createChecksumPair(fileUri, '', expected);
+		}
 	}
 
 	private static _createChecksumPair(uri: URI, actual: string, expected: string): ChecksumPair {
