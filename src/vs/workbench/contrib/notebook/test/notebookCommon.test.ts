@@ -8,6 +8,7 @@ import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri, cellRan
 import { TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 suite('NotebookCommon', () => {
 	const instantiationService = setupInstantiationService();
@@ -313,5 +314,12 @@ suite('CellRange', function () {
 		assert.deepStrictEqual(cellIndexesToRanges([0, 1]), [{ start: 0, end: 2 }]);
 		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 2]), [{ start: 0, end: 3 }]);
 		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 3]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
+	});
+
+	test('Reduce ranges', function () {
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 1 }, { start: 1, end: 2 }]), [{ start: 0, end: 2 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 1, end: 3 }]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 1, end: 3 }, { start: 0, end: 2 }]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 4, end: 5 }]), [{ start: 0, end: 2 }, { start: 4, end: 5 }]);
 	});
 });

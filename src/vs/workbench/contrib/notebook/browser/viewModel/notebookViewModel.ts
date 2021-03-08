@@ -24,7 +24,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState, cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState, cellIndexesToRanges, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -396,13 +396,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				const selections = cellIndexesToRanges(state.selections.map(sel => this.getCellIndexByHandle(sel)))
 					.map(range => this.validateRange(range))
 					.filter(range => range !== null) as ICellRange[];
-				this._selectionCollection.setState(primarySelection, selections, true, source);
+				this._selectionCollection.setState(primarySelection, reduceRanges(selections), true, source);
 			} else {
-				const primarySelection = this.validateRange(state.selections[0]);
+				const primarySelection = this.validateRange(state.focus);
 				const selections = state.selections
 					.map(range => this.validateRange(range))
 					.filter(range => range !== null) as ICellRange[];
-				this._selectionCollection.setState(primarySelection, selections, true, source);
+				this._selectionCollection.setState(primarySelection, reduceRanges(selections), true, source);
 			}
 		}
 	}

@@ -821,3 +821,22 @@ export function cellRangesToIndexes(ranges: ICellRange[]) {
 
 	return indexes;
 }
+
+export function reduceRanges(ranges: ICellRange[]) {
+	const sorted = ranges.sort((a, b) => a.start - b.start);
+	const first = sorted[0];
+
+	if (!first) {
+		return [];
+	}
+
+	return sorted.reduce((prev: ICellRange[], curr) => {
+		const last = prev[prev.length - 1];
+		if (last.end >= curr.start) {
+			last.end = Math.max(last.end, curr.end);
+		} else {
+			prev.push(curr);
+		}
+		return prev;
+	}, [first] as ICellRange[]);
+}
