@@ -117,9 +117,9 @@ import { assertNoRpc } from '../utils';
 			});
 
 			// Wait for end of task process
-			// await new Promise<void>(r => {
-			// 	disposables.push(tasks.onDidEndTaskProcess(() => r));
-			// });
+			await new Promise<void>(r => {
+				disposables.push(tasks.onDidEndTaskProcess(() => r));
+			});
 		});
 
 		test('sync CustomExecution task should flush all data on close', async () => {

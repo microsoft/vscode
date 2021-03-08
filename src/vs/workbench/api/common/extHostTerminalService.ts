@@ -412,7 +412,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public $acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfigDto: IShellLaunchConfigDto): void {
-		console.log('$acceptTerminalOpened', id, extHostTerminalId, name, shellLaunchConfigDto);
 		if (extHostTerminalId) {
 			// Resolve with the renderer generated id
 			const index = this._getTerminalObjectIndexById(this._terminals, extHostTerminalId);
