@@ -280,7 +280,12 @@
           "tags": [
             "usesOnlineServices"
           ]
-        }
+        },
+				"npm.excludeScripts": {
+					"type": "string",
+					"description": "%config.npm.excludeScripts%",
+					"default": "^\\..*"
+				}
       }
     },
     "jsonValidation": [
