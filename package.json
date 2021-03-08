@@ -94,7 +94,7 @@
   },
   "devDependencies": {
     "7zip": "0.0.6",
-    "@gitpod/gitpod-protocol": "ak-code-user-data-sync",
+    "@gitpod/gitpod-protocol": "master",
     "@types/applicationinsights": "0.20.0",
     "@types/chokidar": "2.1.3",
     "@types/cookie": "^0.3.3",
