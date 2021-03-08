@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { dirname } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { dirname } from 'vs/base/common/resources';
-import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ErrorTransform } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 function getStringValue(data: unknown): string {
 	return isArray(data) ? data.join('') : String(data);
@@ -71,7 +72,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -97,8 +98,7 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: scriptVal,
-			hasDynamicHeight: false
+			htmlContent: scriptVal
 		};
 	}
 }
@@ -146,7 +146,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -160,20 +160,23 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		public notebookEditor: ICommonNotebookEditor,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+
 		items.forEach(item => {
 			const text = getStringValue(item.value);
 			const contentNode = DOM.$('span.output-stream');
-			truncatedArrayOfString(contentNode, [text], this.openerService, this.textFileService, this.themeService);
+			truncatedArrayOfString(contentNode, [text], linkDetector, this.openerService, this.textFileService, this.themeService);
 			container.appendChild(contentNode);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -185,19 +188,42 @@ class ErrorRendererContrib extends Disposable implements IOutputRendererContribu
 
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+
 	) {
 		super();
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 		items.forEach(item => {
-			const data = item.value;
+			const data: any = item.value;
+			const header = document.createElement('div');
+			const headerMessage = data.ename && data.evalue
+				? `${data.ename}: ${data.evalue}`
+				: data.ename || data.evalue;
+			if (headerMessage) {
+				header.innerText = headerMessage;
+				container.appendChild(header);
+			}
+			const traceback = document.createElement('pre');
+			traceback.classList.add('traceback');
+			if (data.traceback) {
+				for (let j = 0; j < data.traceback.length; j++) {
+					traceback.appendChild(handleANSIOutput(data.traceback[j], linkDetector, this.themeService, undefined));
+				}
+			}
+			container.appendChild(traceback);
+			container.classList.add('error');
+			return { type: RenderOutputType.Mainframe };
 
-			ErrorTransform.render(data, container, this.themeService);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe };
+	}
+
+	_render() {
 	}
 }
 
@@ -211,18 +237,21 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		public notebookEditor: ICommonNotebookEditor,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
 
 	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+
 		const str = items.map(item => getStringValue(item.value));
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(contentNode, str, this.openerService, this.textFileService, this.themeService);
+		truncatedArrayOfString(contentNode, str, linkDetector, this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false, supportAppend: true };
+		return { type: RenderOutputType.Mainframe, supportAppend: true };
 	}
 }
 
@@ -245,8 +274,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: str,
-			hasDynamicHeight: false
+			htmlContent: str
 		};
 	}
 }
@@ -268,8 +296,7 @@ class SVGRendererContrib extends Disposable implements IOutputRendererContributi
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: str,
-			hasDynamicHeight: false
+			htmlContent: str
 		};
 	}
 }
@@ -297,7 +324,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 			container.appendChild(mdOutput);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -323,7 +350,7 @@ class PNGRendererContrib extends Disposable implements IOutputRendererContributi
 			display.appendChild(image);
 			container.appendChild(display);
 		});
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 
@@ -350,7 +377,7 @@ class JPEGRendererContrib extends Disposable implements IOutputRendererContribut
 			container.appendChild(display);
 		});
 
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: true };
+		return { type: RenderOutputType.Mainframe };
 	}
 }
 

@@ -26,7 +26,7 @@ import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/se
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IBorrowValue, INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
+import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -57,7 +57,7 @@ export class NotebookEditor extends EditorPane {
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
+		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);

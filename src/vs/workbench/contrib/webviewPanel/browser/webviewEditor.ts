@@ -74,10 +74,8 @@ export class WebviewEditor extends EditorPane {
 	public dispose(): void {
 		this._isDisposed = true;
 
-		if (this._element) {
-			this._element.remove();
-			this._element = undefined;
-		}
+		this._element?.remove();
+		this._element = undefined;
 
 		super.dispose();
 	}

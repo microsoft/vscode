@@ -47,6 +47,7 @@ import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { Readable, Writable } from 'stream';
 import { StringDecoder } from 'string_decoder';
+import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -104,7 +105,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IHostService private readonly _hostService: IHostService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -157,9 +159,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._tryListenOnPipe(),
-				this._tryFindDebugPort()
-			]).then(([pipeName, portNumber]) => {
-				const env = objects.mixin(objects.deepClone(process.env), {
+				this._tryFindDebugPort(),
+				this._shellEnvironmentService.getShellEnv()
+			]).then(([pipeName, portNumber, processEnv]) => {
+				const env = objects.mixin(processEnv, {
 					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: true,

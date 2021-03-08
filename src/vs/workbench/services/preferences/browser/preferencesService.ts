@@ -221,7 +221,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			focusSearch: true
 		};
-		return this.editorService.openEditor(input, options ? { ...SettingsEditorOptions.create(options), override: EditorOverride.DISABLED } : { override: EditorOverride.DISABLED })
+		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : { override: EditorOverride.DISABLED })
 			.then(() => this.editorGroupService.activeGroup.activeEditorPane!);
 	}
 
@@ -364,7 +364,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true, override: EditorOverride.DISABLED }, sideEditorGroup.id)
 					]).then(([defaultEditor, editor]) => withNullAsUndefined(editor));
 				} else {
-					return this.editorService.openEditor(editableSettingsEditorInput, { ...SettingsEditorOptions.create(options), override: EditorOverride.DISABLED }, group);
+					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
 				}
 			});
 	}
@@ -381,7 +381,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 				const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 				this.lastOpenedSettingsInput = preferencesEditorInput;
-				return this.editorService.openEditor(preferencesEditorInput, { ...SettingsEditorOptions.create(options), override: EditorOverride.DISABLED }, group);
+				return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
 			});
 	}
 

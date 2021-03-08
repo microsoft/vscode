@@ -872,6 +872,7 @@
               "type": "string",
               "description": "%configuration.tsserver.watchOptions.watchFile%",
               "enum": [
+                "fixedChunkSizePolling",
                 "fixedPollingInterval",
                 "priorityPollingInterval",
                 "dynamicPriorityPolling",
@@ -879,6 +880,7 @@
                 "useFsEventsOnParentDirectory"
               ],
               "enumDescriptions": [
+                "%configuration.tsserver.watchOptions.watchFile.fixedChunkSizePolling%",
                 "%configuration.tsserver.watchOptions.watchFile.fixedPollingInterval%",
                 "%configuration.tsserver.watchOptions.watchFile.priorityPollingInterval%",
                 "%configuration.tsserver.watchOptions.watchFile.dynamicPriorityPolling%",
@@ -891,11 +893,13 @@
               "type": "string",
               "description": "%configuration.tsserver.watchOptions.watchDirectory%",
               "enum": [
+                "fixedChunkSizePolling",
                 "fixedPollingInterval",
                 "dynamicPriorityPolling",
                 "useFsEvents"
               ],
               "enumDescriptions": [
+                "%configuration.tsserver.watchOptions.watchDirectory.fixedChunkSizePolling%",
                 "%configuration.tsserver.watchOptions.watchDirectory.fixedPollingInterval%",
                 "%configuration.tsserver.watchOptions.watchDirectory.dynamicPriorityPolling%",
                 "%configuration.tsserver.watchOptions.watchDirectory.useFsEvents%"

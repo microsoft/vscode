@@ -204,9 +204,13 @@ abstract class AbstractCellRenderer {
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
+		const updateActions = () => {
+			const actions = this.getCellToolbarActions(menu, false);
+			toolbar.setActions(actions.primary, actions.secondary);
+		};
 
-		const actions = this.getCellToolbarActions(menu, false);
-		toolbar.setActions(actions.primary, actions.secondary);
+		disposables.add(menu.onDidChange(() => updateActions()));
+		updateActions();
 
 		return toolbar;
 	}
@@ -424,7 +428,10 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
+		const useRenderer = !!(this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer'));
+
 		const templateData: MarkdownCellRenderTemplate = {
+			useRenderer,
 			rootContainer,
 			collapsedPart,
 			expandButton,
@@ -448,7 +455,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			statusBar,
 			toJSON: () => { return {}; }
 		};
-		this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
+
+		if (!useRenderer) {
+			this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
+		}
+
 		this.commonRenderTemplate(templateData);
 
 		return templateData;
@@ -561,7 +572,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
-		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors);
+		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors, { useRenderer: templateData.useRenderer });
 		const cellEditorOptions = new CellEditorOptions(this.configurationService, 'markdown');
 		elementDisposables.add(cellEditorOptions);
 		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
@@ -571,7 +582,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		// templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP - CELL_BOTTOM_MARGIN}px`;
 
 		const focusSideHeight = element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP;
@@ -1122,22 +1132,24 @@ export class RunStateRenderer {
 
 export class ListTopCellToolbar extends Disposable {
 	private topCellToolbar: HTMLElement;
+	private menu: IMenu;
+	private toolbar: ToolBar;
 	private _modelDisposables = new DisposableStore();
 	constructor(
 		protected readonly notebookEditor: INotebookEditor,
 
+		contextKeyService: IContextKeyService,
 		insertionIndicatorContainer: HTMLElement,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
 		this.topCellToolbar = DOM.append(insertionIndicatorContainer, $('.cell-list-top-cell-toolbar-container'));
 
-		const toolbar = new ToolBar(this.topCellToolbar, this.contextMenuService, {
+		this.toolbar = this._register(new ToolBar(this.topCellToolbar, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
 					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
@@ -1146,16 +1158,16 @@ export class ListTopCellToolbar extends Disposable {
 
 				return undefined;
 			}
-		});
+		}));
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		const menu = this._register(cellMenu.getCellTopInsertionMenu(contextKeyService));
+		this.menu = this._register(cellMenu.getCellTopInsertionMenu(contextKeyService));
+		this._register(this.menu.onDidChange(() => {
+			this.updateActions();
+		}));
+		this.updateActions();
 
-		const actions = this.getCellToolbarActions(menu, false);
-		toolbar.setActions(actions.primary, actions.secondary);
-
-		this._register(toolbar);
-
+		// update toolbar container css based on cell list length
 		this._register(this.notebookEditor.onDidChangeModel(() => {
 			this._modelDisposables.clear();
 
@@ -1169,6 +1181,11 @@ export class ListTopCellToolbar extends Disposable {
 		}));
 
 		this.updateClass();
+	}
+
+	private updateActions() {
+		const actions = this.getCellToolbarActions(this.menu, false);
+		this.toolbar.setActions(actions.primary, actions.secondary);
 	}
 
 	private updateClass() {

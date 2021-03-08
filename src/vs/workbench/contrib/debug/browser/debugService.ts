@@ -153,7 +153,7 @@ export class DebugService implements IDebugService {
 			this.onStateChange();
 		}));
 		this.toDispose.push(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
-			const debugUxValue = !!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.adapterManager.hasDebuggers())) ? 'default' : 'simple';
+			const debugUxValue = (this.state !== State.Inactive || (this.configurationManager.getAllConfigurations().length > 0 && this.adapterManager.hasDebuggers())) ? 'default' : 'simple';
 			this.debugUx.set(debugUxValue);
 			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));

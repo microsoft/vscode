@@ -30,6 +30,9 @@ import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/wor
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -46,7 +49,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
 	) {
 		super();
 
@@ -68,6 +74,24 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this._register(this.requestModel.onDidInitiateRequest(async () => {
 			if (this.requestModel.trustRequest) {
 				this.toggleRequestBadge(true);
+
+				type WorkspaceTrustRequestedEventClassification = {
+					modal: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					extensions: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				};
+
+				type WorkspaceTrustRequestedEvent = {
+					modal: boolean,
+					workspaceId: string,
+					extensions: string[]
+				};
+
+				this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
+					modal: this.requestModel.trustRequest.modal,
+					workspaceId: this.workspaceContextService.getWorkspace().id,
+					extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.requiresWorkspaceTrust).map(ext => ext.identifier.value)
+				});
 
 				if (this.requestModel.trustRequest.modal) {
 					const result = await this.dialogService.show(
@@ -114,6 +138,24 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
 				this.toggleRequestBadge(false);
 			}
+
+			type WorkspaceTrustStateChangedEventClassification = {
+				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				previousState: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+				newState: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			};
+
+			type WorkspaceTrustStateChangedEvent = {
+				workspaceId: string,
+				previousState: WorkspaceTrustState,
+				newState: WorkspaceTrustState
+			};
+
+			this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
+				workspaceId: this.workspaceContextService.getWorkspace().id,
+				previousState: trustState.previousTrustState,
+				newState: trustState.currentTrustState
+			});
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

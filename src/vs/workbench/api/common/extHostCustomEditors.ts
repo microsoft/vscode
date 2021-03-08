@@ -9,7 +9,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
@@ -251,9 +250,12 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		resource: UriComponents,
 		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
-		title: string,
+		initData: {
+			title: string;
+			webviewOptions: extHostProtocol.IWebviewOptions;
+			panelOptions: extHostProtocol.IWebviewPanelOptions;
+		},
 		position: EditorGroupColumn,
-		options: modes.IWebviewOptions & modes.IWebviewPanelOptions,
 		cancellation: CancellationToken,
 	): Promise<void> {
 		const entry = this._editorProviders.get(viewType);
@@ -263,8 +265,8 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 
 		const viewColumn = typeConverters.ViewColumn.to(position);
 
-		const webview = this._extHostWebview.createNewWebview(handle, options, entry.extension);
-		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, title, viewColumn, options, webview);
+		const webview = this._extHostWebview.createNewWebview(handle, initData.webviewOptions, entry.extension);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.panelOptions, webview);
 
 		const revivedResource = URI.revive(resource);
 

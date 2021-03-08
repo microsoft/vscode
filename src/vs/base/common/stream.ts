@@ -101,19 +101,19 @@ export interface WriteableStream<T> extends ReadableStream<T> {
 	/**
 	 * Signals an error to the consumer of the stream via the
 	 * on('error') handler if the stream is flowing.
+	 *
+	 * NOTE: call `end` to signal that the stream has ended,
+	 * this DOES NOT happen automatically from `error`.
 	 */
 	error(error: Error): void;
 
 	/**
 	 * Signals the end of the stream to the consumer. If the
-	 * result is not an error, will trigger the on('data') event
+	 * result is provided, will trigger the on('data') event
 	 * listener if the stream is flowing and buffer the data
 	 * otherwise until the stream is flowing.
-	 *
-	 * In case of an error, the on('error') event will be used
-	 * if the stream is flowing.
 	 */
-	end(result?: T | Error): void;
+	end(result?: T): void;
 }
 
 /**
@@ -267,15 +267,13 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		}
 	}
 
-	end(result?: T | Error): void {
+	end(result?: T): void {
 		if (this.state.destroyed) {
 			return;
 		}
 
-		// end with data or error if provided
-		if (result instanceof Error) {
-			this.error(result);
-		} else if (typeof result !== 'undefined') {
+		// end with data if provided
+		if (typeof result !== 'undefined') {
 			this.write(result);
 		}
 

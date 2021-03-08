@@ -45,7 +45,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -706,7 +706,7 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 			case TestExplorerStateFilter.All:
 				return FilterResult.Include;
 			case TestExplorerStateFilter.OnlyExecuted:
-				return element.ownState !== TestRunState.Unset ? FilterResult.Include : FilterResult.Inherit;
+				return element.ownState !== TestResult.Unset ? FilterResult.Include : FilterResult.Inherit;
 			case TestExplorerStateFilter.OnlyFailed:
 				return isFailedState(element.ownState) ? FilterResult.Include : FilterResult.Inherit;
 		}
@@ -946,7 +946,7 @@ const getTestItemActions = (
 
 	try {
 		const primary: IAction[] = [];
-		const running = element.state === TestRunState.Running;
+		const running = element.state === TestResult.Running;
 		if (!Iterable.isEmpty(element.runnable)) {
 			primary.push(instantionService.createInstance(RunAction, element.runnable, running));
 		}
@@ -975,15 +975,15 @@ const getTestItemActions = (
 type CountSummary = ReturnType<typeof collectCounts>;
 
 const collectCounts = (count: TestStateCount) => {
-	const failed = count[TestRunState.Errored] + count[TestRunState.Failed];
-	const passed = count[TestRunState.Passed];
-	const skipped = count[TestRunState.Skipped];
+	const failed = count[TestResult.Errored] + count[TestResult.Failed];
+	const passed = count[TestResult.Passed];
+	const skipped = count[TestResult.Skipped];
 
 	return {
 		passed,
 		failed,
 		runSoFar: passed + failed,
-		totalWillBeRun: passed + failed + count[TestRunState.Queued] + count[TestRunState.Running],
+		totalWillBeRun: passed + failed + count[TestResult.Queued] + count[TestResult.Running],
 		skipped,
 	};
 };
@@ -1098,7 +1098,7 @@ class TestRunProgress {
 			return;
 		}
 
-		const failures = result.counts[TestRunState.Failed] + result.counts[TestRunState.Errored];
+		const failures = result.counts[TestResult.Failed] + result.counts[TestResult.Errored];
 		if (failures === 0) {
 			return;
 		}

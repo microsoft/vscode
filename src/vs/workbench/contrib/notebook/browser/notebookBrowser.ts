@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -82,7 +82,6 @@ export const enum RenderOutputType {
 
 export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
-	hasDynamicHeight: boolean;
 	supportAppend?: boolean;
 }
 
@@ -90,7 +89,6 @@ export interface IRenderPlainHtmlOutput {
 	type: RenderOutputType.Html;
 	source: IDisplayOutputViewModel;
 	htmlContent: string;
-	hasDynamicHeight: boolean;
 }
 
 export interface IRenderOutputViaExtension {
@@ -102,9 +100,6 @@ export interface IRenderOutputViaExtension {
 
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
 export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
-
-export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
-
 
 export interface ICellOutputViewModel {
 	cellViewModel: IGenericCellViewModel;
@@ -331,7 +326,18 @@ export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 
-export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
+export interface INotebookEditor extends ICommonNotebookEditor {
+
+	// from the old IEditor
+	readonly onDidChangeVisibleRanges: Event<void>;
+	readonly onDidChangeSelection: Event<void>;
+	getSelection(): ICellRange | undefined;
+	getSelections(): ICellRange[];
+	visibleRanges: ICellRange[];
+	textModel?: NotebookTextModel;
+	getId(): string;
+	hasFocus(): boolean;
+
 	isEmbedded: boolean;
 
 	cursorNavigationMode: boolean;
@@ -468,6 +474,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	unhideMarkdownPreview(cell: ICellViewModel): Promise<void>;
 	hideMarkdownPreview(cell: ICellViewModel): Promise<void>;
 	removeMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
@@ -691,6 +698,7 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	foldingIndicator: HTMLElement;
 	focusIndicatorBottom: HTMLElement;
 	currentEditor?: ICodeEditor;
+	readonly useRenderer: boolean;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {

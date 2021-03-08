@@ -15,7 +15,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -52,7 +51,6 @@ import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class DesktopMain extends Disposable {
 
@@ -162,9 +160,6 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
-		serviceCollection.set(IEnvironmentService, this.environmentService);
-		serviceCollection.set(INativeEnvironmentService, this.environmentService);
-		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product

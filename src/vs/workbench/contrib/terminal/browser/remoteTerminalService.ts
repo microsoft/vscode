@@ -16,7 +16,7 @@ import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/c
 import { IRemoteTerminalProcessExecCommandEvent, IShellLaunchConfigDto, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 
 export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
 	public _serviceBrand: undefined;
@@ -101,6 +101,8 @@ export class RemoteTerminalProcess extends Disposable implements ITerminalChildP
 	public readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined> = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessResolvedShellLaunchConfig.event; }
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	private _startBarrier: Barrier;
 	private _persistentProcessId: number;
