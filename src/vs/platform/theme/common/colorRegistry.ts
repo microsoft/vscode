@@ -390,7 +390,7 @@ export const listDeemphasizedForeground = registerColor('list.deemphasizedForegr
 /**
  * Quick pick widget (dependent on List and tree colors)
  */
-export const _deprecatedQuickInputListFocusBackground = registerColor('quickInput.list.focusBackground', { dark: null, light: null, hc: null }, nls.localize('quickInput.listFocusBackground', "Quick picker background color for the focused item."), undefined, nls.localize('depre', "Please use quickInputList.focusBackground instead"));
+export const _deprecatedQuickInputListFocusBackground = registerColor('quickInput.list.focusBackground', { dark: null, light: null, hc: null }, '', undefined, nls.localize('quickInput.list.focusBackground deprecation', "Please use quickInputList.focusBackground instead"));
 export const quickInputListFocusBackground = registerColor('quickInputList.focusBackground', { dark: oneOf(_deprecatedQuickInputListFocusBackground, listFocusBackground, '#062F4A'), light: oneOf(_deprecatedQuickInputListFocusBackground, listFocusBackground, '#D6EBFF'), hc: null }, nls.localize('quickInput.listFocusBackground', "Quick picker background color for the focused item."));
 
 /**
