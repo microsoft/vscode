@@ -412,8 +412,12 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 	for (const contributed of contributions.terminalTypes) {
 		items.push({ text: contributed.title });
 	}
-
 	items.push({ text: selectDefaultShellTitle });
 	items.push({ text: configureTerminalSettingsTitle });
+	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
+	const shells = terminalService.configHelper.config.shells;
+	const shellsForPlatform = platform.isWindows ? shells.windows : platform.isIOS ? shells.osx : shells.linux;
+	const labels = shellsForPlatform.map(shell => ({ text: shell.label } as ISelectOptionItem));
+	items.push(...labels);
 	return items;
 }

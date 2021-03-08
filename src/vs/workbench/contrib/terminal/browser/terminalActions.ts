@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
+import { isIOS, isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -1263,13 +1263,41 @@ export function registerTerminalActions() {
 			await terminalService.showPanel(true);
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.NEW,
-			title: localize('workbench.action.terminal.new.short', "New Terminal")
-		},
-		group: ContextMenuGroup.Create
+	const createTerminalTitle: ICommandActionTitle = { value: localize('workbench.action.terminal.createTerminalWithDropdown', "Create Terminal"), original: 'Create Terminal' };
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.NEW,
+				title: createTerminalTitle,
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+				icon: Codicon.arrowDown,
+				menu: {
+					id: MenuId.ViewTitle,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor, item: string) {
+			const terminalService = accessor.get(ITerminalService);
+
+			if (terminalService.isProcessSupportRegistered) {
+				const shells = terminalService.configHelper.config.shells;
+				const shellsForPlatform = isWindows ? shells.windows : isIOS ? shells.osx : shells.linux;
+				const launchConfig = shellsForPlatform.find(shell => shell.label === item);
+				const instance = terminalService.createTerminal(launchConfig);
+				if (!instance) {
+					return;
+				}
+				terminalService.setActiveInstance(instance);
+			}
+			return terminalService.showPanel(true);
+		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1463,13 +1491,19 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-
-			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
-			if (customType) {
-				return commandService.executeCommand(customType.command);
+			const shells = terminalService.configHelper.config.shells;
+			const shellsForPlatform = isWindows ? shells.windows : isIOS ? shells.osx : shells.linux;
+			const launchConfig = shellsForPlatform.find(shell => shell.label === item);
+			if (launchConfig) {
+				const instance = terminalService.createTerminal({ executable: launchConfig.shell, name: launchConfig.label, args: launchConfig?.args, cwd: launchConfig.cwd, env: launchConfig.env });
+				terminalService.setActiveInstance(instance);
+			} else {
+				const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
+				if (customType) {
+					return commandService.executeCommand(customType.command);
+				}
+				console.warn(`Unmatched terminal item: "${item}"`);
 			}
-
-			console.warn(`Unmatched terminal item: "${item}"`);
 			return Promise.resolve();
 		}
 	});

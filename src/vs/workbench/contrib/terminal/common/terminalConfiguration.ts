@@ -80,6 +80,84 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: []
 		},
+		'terminal.integrated.shells.osx': {
+			description: localize('terminal.integrated.shells.osx', "The shell profiles to select from when creating a new terminal on osx."),
+			'type': 'array',
+			'default': [
+				{
+					'shell': '/bin/bash',
+					'label': 'bash'
+				},
+				{
+					'shell': '/bin/zsh',
+					'label': 'zsh'
+				},
+				{
+					'shell': 'zsh',
+					'args': [
+						'-l'
+					],
+					'label': 'zsh login shell'
+				},
+				{
+					'shell': 'bash',
+					'args': [
+						'-l'
+					],
+					'label': 'bash login shell'
+				}
+			]
+		},
+		'terminal.integrated.shells.linux': {
+			description: localize('terminal.integrated.shells.linux', "The shell profiles to select from when creating a new terminal on linux."),
+			'type': 'array',
+			'default': [
+				{
+					'shell': '/bin/bash',
+					'label': 'bash'
+				},
+				{
+					'shell': '/bin/zsh',
+					'label': 'zsh'
+				},
+				{
+					'shell': 'zsh',
+					'args': [
+						'-l'
+					],
+					'label': 'zsh login shell'
+				},
+				{
+					'shell': 'bash',
+					'args': [
+						'-l'
+					],
+					'label': 'bash login shell'
+				}
+			]
+		},
+		'terminal.integrated.shells.windows': {
+			description: localize('terminal.integrated.shells.windows', 'The shell profiles to select from when creating a new terminal on windows.'),
+			'type': 'array',
+			'default': [
+				{
+					'shell': 'C:\\Windows\\System32\\cmd.exe',
+					'label': 'cmd'
+				},
+				{
+					'shell': 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+					'label': 'PowerShell'
+				},
+				{
+					'shell': 'C:\\Program Files\\Git\\bin\\bash.exe',
+					'label': 'Git bash'
+				},
+				{
+					'shell': 'C:\\Windows\\System32\\bash.exe',
+					'label': 'WSL Bash'
+				}
+			]
+		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',

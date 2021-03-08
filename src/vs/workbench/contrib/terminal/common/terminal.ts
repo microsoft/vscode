@@ -95,6 +95,11 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
+	shells: {
+		linux: IShellConfig[];
+		osx: IShellConfig[];
+		windows: IShellConfig[];
+	};
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -176,6 +181,15 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
+}
+
+interface IShellConfig {
+	shell: string;
+	args?: string[];
+	label?: string;
+	launchName?: string;
+	cwd?: string;
+	env?: { [key: string]: string | null; };
 }
 
 /**
