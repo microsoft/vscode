@@ -10,7 +10,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Throttler } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
-import * as browser from 'vs/base/browser/browser';
 import { joinPath } from 'vs/base/common/resources';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
@@ -48,9 +47,6 @@ export class IndexedDB {
 	}
 
 	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
-		if (browser.isEdgeLegacy) {
-			return Promise.resolve(null);
-		}
 		return new Promise((c, e) => {
 			const request = window.indexedDB.open(name, version);
 			request.onerror = (err) => e(request.error);

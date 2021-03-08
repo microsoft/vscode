@@ -44,7 +44,7 @@ const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the edi
 export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
 
 	private readonly messages = new ResourceMap<INotificationHandle>();
-	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(this.contextKeyService);
+	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false, true).bindTo(this.contextKeyService);
 	private activeConflictResolutionResource: URI | undefined = undefined;
 
 	constructor(
@@ -315,8 +315,8 @@ class SaveModelAsAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		private editorService: IEditorService,
-		private editorGroupService: IEditorGroupsService
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
 	}

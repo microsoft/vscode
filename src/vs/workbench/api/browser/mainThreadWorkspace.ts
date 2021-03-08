@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustRequest, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -208,8 +208,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- trust ---
 
-	$requireWorkspaceTrust(message?: string): Promise<WorkspaceTrustState> {
-		return this._workspaceTrustService.requireWorkspaceTrust({ immediate: true, message });
+	$requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState> {
+		return this._workspaceTrustService.requireWorkspaceTrust(request);
 	}
 
 	private getWorkspaceTrustState(): WorkspaceTrustState {

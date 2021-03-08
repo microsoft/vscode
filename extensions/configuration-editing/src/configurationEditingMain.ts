@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLocation, parse, visit } from 'jsonc-parser';
+import { getLocation, JSONPath, parse, visit } from 'jsonc-parser';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SettingsDocument } from './settingsDocumentHelper';
@@ -142,8 +142,22 @@ vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', lan
 
 function registerContextKeyCompletions(): vscode.Disposable {
 	type ContextKeyInfo = { key: string, type?: string, description?: string };
+
+	const paths = new Map<vscode.DocumentFilter, JSONPath[]>([
+		[{ language: 'jsonc', pattern: '**/keybindings.json' }, [
+			['*', 'when']
+		]],
+		[{ language: 'json', pattern: '**/package.json' }, [
+			['contributes', 'menus', '*', '*', 'when'],
+			['contributes', 'views', '*', '*', 'when'],
+			['contributes', 'viewsWelcome', '*', 'when'],
+			['contributes', 'keybindings', '*', 'when'],
+			['contributes', 'keybindings', 'when'],
+		]]
+	]);
+
 	return vscode.languages.registerCompletionItemProvider(
-		[{ language: 'json', pattern: '**/package.json' }, { language: 'jsonc', pattern: '**/keybindings.json' }],
+		[...paths.keys()],
 		{
 			async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) {
 
@@ -153,11 +167,35 @@ function registerContextKeyCompletions(): vscode.Disposable {
 					return;
 				}
 
-				if (!location.matches(['*', 'when']) && !location.matches(['contributes', 'menus', '*', '*', 'when'])) {
+				let isValidLocation = false;
+				for (const [key, value] of paths) {
+					if (vscode.languages.match(key, document)) {
+						if (value.some(location.matches.bind(location))) {
+							isValidLocation = true;
+							break;
+						}
+					}
+				}
+
+				if (!isValidLocation) {
 					return;
 				}
 
-				const replacing = document.getWordRangeAtPosition(position, /[^"\s]+/);
+				// for JSON everything with quotes is a word
+				const jsonWord = document.getWordRangeAtPosition(position);
+				if (!jsonWord || jsonWord.start.isEqual(position) || jsonWord.end.isEqual(position)) {
+					// we aren't inside a "JSON word" or on its quotes
+					return;
+				}
+
+				let replacing: vscode.Range | undefined;
+				if (jsonWord.end.character - jsonWord.start.character === 2 || document.getWordRangeAtPosition(position, /\s+/)) {
+					// empty json word or on whitespace
+					replacing = new vscode.Range(position, position);
+				} else {
+					replacing = document.getWordRangeAtPosition(position, /[a-zA-Z.]+/);
+				}
+
 				if (!replacing) {
 					return;
 				}

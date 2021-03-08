@@ -35,7 +35,7 @@ import { ITestItem, ITestMessage, ITestState, TestResultItem } from 'vs/workbenc
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResult, ITestResultService, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult, ITestResultService, ResultChangeEvent, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface ITestDto {
@@ -151,6 +151,11 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	private readonly peek = this._register(new MutableDisposable<TestingOutputPeek>());
 
 	/**
+	 * URI of the currently-visible peek, if any.
+	 */
+	private currentPeekUri: URI | undefined;
+
+	/**
 	 * Context key updated when the peek is visible/hidden.
 	 */
 	private readonly visible: IContextKey<boolean>;
@@ -171,14 +176,26 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
 		this._register(editor.onDidChangeModel(() => this.peek.clear()));
-		this._register(testResults.onTestChanged((evt) => this.closePeekOnTestChange(evt)));
+		this._register(testResults.onResultsChanged(this.closePeekOnRunStart, this));
+		this._register(testResults.onTestChanged(this.closePeekOnTestChange, this));
+	}
+
+	/**
+	 * Toggles peek visibility for the URI.
+	 */
+	public toggle(uri: URI) {
+		if (this.currentPeekUri?.toString() === uri.toString()) {
+			this.peek.clear();
+		} else {
+			this.show(uri);
+		}
 	}
 
 	/**
 	 * Shows a peek for the message in th editor.
 	 */
 	public async show(uri: URI) {
-		const dto = await this.retrieveTest(uri);
+		const dto = this.retrieveTest(uri);
 		if (!dto) {
 			return;
 		}
@@ -195,6 +212,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.value = this.instantiationService.createInstance(ctor, this.editor);
 			this.peek.value.onDidClose(() => {
 				this.visible.set(false);
+				this.currentPeekUri = undefined;
 				this.peek.value = undefined;
 			});
 		}
@@ -206,6 +224,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 		alert(message.message.toString());
 		this.peek.value!.setModel(dto);
+		this.currentPeekUri = uri;
 	}
 
 	/**
@@ -230,13 +249,19 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 	}
 
+	private closePeekOnRunStart(evt: ResultChangeEvent) {
+		if ('started' in evt) {
+			this.peek.clear();
+		}
+	}
+
 	private retrieveTest(uri: URI): ITestDto | undefined {
 		const parts = parseTestUri(uri);
 		if (!parts) {
 			return undefined;
 		}
 
-		const test = this.testResults.getResult(parts.resultId)?.getStateByExtId(parts.testExtId);
+		const test = this.testResults.getResult(parts.resultId)?.getStateById(parts.testExtId);
 		return test && {
 			test: test.item,
 			state: test.state,
@@ -354,7 +379,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 
 		this.test = test;
 		this.show(message.location.range, hintDiffPeekHeight(message));
-		this.setTitle(message.message.toString(), test.label);
+		this.setTitle(message.message.toString().split('\n')[0], test.label);
 
 		const [original, modified] = await Promise.all([
 			this.modelService.createModelReference(expectedUri),

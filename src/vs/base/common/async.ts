@@ -8,6 +8,7 @@ import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event, Listener } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
@@ -367,6 +368,25 @@ export class Barrier {
 	}
 }
 
+/**
+ * A barrier that is initially closed and then becomes opened permanently after a certain period of
+ * time or when open is called explicitly
+ */
+export class AutoOpenBarrier extends Barrier {
+
+	private readonly _timeout: any;
+
+	constructor(autoOpenTimeMs: number) {
+		super();
+		this._timeout = setTimeout(() => this.open(), autoOpenTimeMs);
+	}
+
+	open(): void {
+		clearTimeout(this._timeout);
+		super.open();
+	}
+}
+
 export function timeout(millis: number): CancelablePromise<void>;
 export function timeout(millis: number, token: CancellationToken): Promise<void>;
 export function timeout(millis: number, token?: CancellationToken): CancelablePromise<void> | Promise<void> {
@@ -573,19 +593,21 @@ export class ResourceQueue implements IDisposable {
 
 	private readonly queues = new Map<string, Queue<void>>();
 
-	queueFor(resource: URI): Queue<void> {
-		const key = resource.toString();
-		if (!this.queues.has(key)) {
-			const queue = new Queue<void>();
-			queue.onFinished(() => {
-				queue.dispose();
+	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): Queue<void> {
+		const key = extUri.getComparisonKey(resource);
+
+		let queue = this.queues.get(key);
+		if (!queue) {
+			queue = new Queue<void>();
+			Event.once(queue.onFinished)(() => {
+				queue?.dispose();
 				this.queues.delete(key);
 			});
 
 			this.queues.set(key, queue);
 		}
 
-		return this.queues.get(key)!;
+		return queue;
 	}
 
 	dispose(): void {

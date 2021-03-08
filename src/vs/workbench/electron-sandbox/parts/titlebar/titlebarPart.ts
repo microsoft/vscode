@@ -64,7 +64,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
 	}
 
-	private onUpdateAppIconDragBehavior() {
+	private onUpdateAppIconDragBehavior(): void {
 		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
 		if (setting && this.appIcon) {
 			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
@@ -73,7 +73,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	private onDidChangeMaximized(maximized: boolean) {
+	private onDidChangeWindowMaximized(maximized: boolean): void {
 		if (this.maxRestoreControl) {
 			if (maximized) {
 				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
@@ -95,7 +95,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.adjustTitleMarginToCenter();
 	}
 
-	private onMenubarFocusChanged(focused: boolean) {
+	private onMenubarFocusChanged(focused: boolean): void {
 		if ((isWindows || isLinux) && this.currentMenubarVisibility !== 'compact' && this.dragRegion) {
 			if (focused) {
 				hide(this.dragRegion);
@@ -105,7 +105,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 
-	protected onMenubarVisibilityChanged(visible: boolean) {
+	protected onMenubarVisibilityChanged(visible: boolean): void {
 		// Hide title when toggling menu bar
 		if ((isWindows || isLinux) && this.currentMenubarVisibility === 'toggle' && visible) {
 			// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
@@ -211,8 +211,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			// Resizer
 			this.resizer = append(this.element, $('div.resizer'));
 
-			this._register(this.layoutService.onMaximizeChange(maximized => this.onDidChangeMaximized(maximized)));
-			this.onDidChangeMaximized(this.layoutService.isWindowMaximized());
+			this._register(this.layoutService.onDidChangeWindowMaximized(maximized => this.onDidChangeWindowMaximized(maximized)));
+			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
 		}
 
 		return ret;

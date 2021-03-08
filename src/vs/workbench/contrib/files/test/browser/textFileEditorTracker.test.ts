@@ -8,14 +8,13 @@ import { Event } from 'vs/base/common/event';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel, snapshotToString, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { timeout } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { isEqual } from 'vs/base/common/resources';
@@ -54,9 +53,7 @@ suite('Files - TextFileEditorTracker', () => {
 			));
 		}
 
-		const part = disposables.add(instantiationService.createInstance(EditorPart));
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+		const part = createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -96,27 +93,48 @@ suite('Files - TextFileEditorTracker', () => {
 	test('dirty text file model opens as editor', async function () {
 		const resource = toResource.call(this, '/path/index.txt');
 
-		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, false);
+		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, false, false);
 	});
 
 	test('dirty text file model does not open as editor if autosave is ON', async function () {
 		const resource = toResource.call(this, '/path/index.txt');
 
-		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, true);
+		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, true, false);
 	});
 
-	async function testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource: URI, autoSave: boolean): Promise<void> {
+	test('dirty text file model opens as editor when save fails', async function () {
+		const resource = toResource.call(this, '/path/index.txt');
+
+		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, false, true);
+	});
+
+	test('dirty text file model opens as editor when save fails if autosave is ON', async function () {
+		const resource = toResource.call(this, '/path/index.txt');
+
+		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, true, true);
+	});
+
+	async function testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource: URI, autoSave: boolean, error: boolean): Promise<void> {
 		const accessor = await createTracker(autoSave);
 
 		assert.ok(!accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+
+		if (error) {
+			accessor.textFileService.setWriteErrorOnce(new FileOperationError('fail to write', FileOperationResult.FILE_OTHER_ERROR));
+		}
 
 		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 
 		model.textEditorModel.setValue('Super Good');
 
 		if (autoSave) {
+			await model.save();
 			await timeout(100);
-			assert.ok(!accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+			if (error) {
+				assert.ok(accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+			} else {
+				assert.ok(!accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));
+			}
 		} else {
 			await awaitEditorOpening(accessor.editorService);
 			assert.ok(accessor.editorService.isOpen(accessor.editorService.createEditorInput({ resource, forceFile: true })));

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ConfigKeysIterator, IndexedSet, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
+import { ConfigKeysIterator, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -1019,31 +1019,5 @@ suite('Map', () => {
 
 		assert.strictEqual(map.get(windowsFile), 'true');
 		assert.strictEqual(map.get(uncFile), 'true');
-	});
-
-	test('IndexedSet - add', () => {
-		const i = new IndexedSet<number>();
-		i.add(2);
-		const map = i.index(v => v ** 2);
-		assert.deepStrictEqual(map, new Map([[4, 2]]));
-
-		i.add(3);
-		assert.deepStrictEqual(map, new Map([[9, 3], [4, 2]]));
-	});
-
-	test('IndexedSet - delete', () => {
-		const i = new IndexedSet<number>();
-		const map = i.index(v => v ** 2);
-		i.add(2);
-		i.delete(2);
-		assert.deepStrictEqual(map, new Map([]));
-	});
-
-	test('IndexedSet - clear', () => {
-		const i = new IndexedSet<number>();
-		const map = i.index(v => v ** 2);
-		i.add(2);
-		i.clear();
-		assert.deepStrictEqual(map, new Map([]));
 	});
 });

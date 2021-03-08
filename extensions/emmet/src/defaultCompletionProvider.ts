@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Node, Stylesheet } from 'EmmetFlatNode';
 import { isValidLocationForEmmetAbbreviation, getSyntaxFromArgs } from './abbreviationActions';
-import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, toLSTextDocument, getHtmlFlatNode } from './util';
+import { getEmmetHelper, getMappingForIncludedLanguages, parsePartialStylesheet, getEmmetConfiguration, getEmmetMode, isStyleSheet, getFlatNode, allowedMimeTypesInScriptTag, toLSTextDocument, getHtmlFlatNode, getEmbeddedCssNodeIfAny } from './util';
 import { Range as LSRange } from 'vscode-languageserver-textdocument';
 import { getRootNode } from './parseDocument';
 
@@ -135,6 +135,20 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				return;
 			}
 			currentNode = getFlatNode(rootNode, offset, true);
+		}
+
+		// Fix for https://github.com/microsoft/vscode/issues/107578
+		// Validate location if syntax is of styleSheet type to ensure that location is valid for emmet abbreviation.
+		// For an html document containing a <style> node, compute the embeddedCssNode and fetch the flattened node as currentNode.
+		if (!isStyleSheet(document.languageId) && isStyleSheet(syntax) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
+			validateLocation = true;
+			rootNode = getRootNode(document, true);
+			if (!rootNode) {
+				return;
+			}
+			let flatNode = getFlatNode(rootNode, offset, true);
+			let embeddedCssNode = getEmbeddedCssNodeIfAny(document, flatNode, position);
+			currentNode = getFlatNode(embeddedCssNode, offset, true);
 		}
 
 		if (validateLocation && !isValidLocationForEmmetAbbreviation(document, rootNode, currentNode, syntax, offset, toRange(extractAbbreviationResults.abbreviationRange))) {

@@ -32,8 +32,8 @@ export interface IOpenCallbacks {
  */
 export abstract class BaseBinaryResourceEditor extends EditorPane {
 
-	private readonly _onMetadataChanged = this._register(new Emitter<void>());
-	readonly onMetadataChanged = this._onMetadataChanged.event;
+	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
+	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
 
 	private readonly _onDidOpenInPlace = this._register(new Emitter<void>());
 	readonly onDidOpenInPlace = this._onDidOpenInPlace.event;
@@ -111,7 +111,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 	private handleMetadataChanged(meta: string | undefined): void {
 		this.metadata = meta;
 
-		this._onMetadataChanged.fire();
+		this._onDidChangeMetadata.fire();
 	}
 
 	getMetadata(): string | undefined {

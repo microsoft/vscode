@@ -87,7 +87,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		controller.layout(host.dimension, host.offset?.top ?? 0);
 
 		// Layout changes
-		this._register(host.onLayout(dimension => controller.layout(dimension, host.offset?.top ?? 0)));
+		this._register(host.onDidLayout(dimension => controller.layout(dimension, host.offset?.top ?? 0)));
 
 		// Context keys
 		this._register(controller.onShow(() => this.resetContextKeys()));

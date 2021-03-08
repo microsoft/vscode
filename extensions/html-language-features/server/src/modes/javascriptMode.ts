@@ -65,9 +65,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 			return compilerOptions;
 		},
 		dispose() {
-			if (jsLanguageService) {
-				jsLanguageService.then(s => s.dispose());
-			}
+			jsLanguageService.then(s => s.dispose());
 		}
 	};
 }

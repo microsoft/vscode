@@ -22,12 +22,11 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
@@ -83,7 +82,6 @@ export const enum RenderOutputType {
 
 export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
-	hasDynamicHeight: boolean;
 	supportAppend?: boolean;
 }
 
@@ -91,7 +89,6 @@ export interface IRenderPlainHtmlOutput {
 	type: RenderOutputType.Html;
 	source: IDisplayOutputViewModel;
 	htmlContent: string;
-	hasDynamicHeight: boolean;
 }
 
 export interface IRenderOutputViaExtension {
@@ -103,9 +100,6 @@ export interface IRenderOutputViaExtension {
 
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
 export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
-
-export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
-
 
 export interface ICellOutputViewModel {
 	cellViewModel: IGenericCellViewModel;
@@ -158,12 +152,16 @@ export interface INotebookCellOutputLayoutInfo {
 	fontInfo: BareFontInfo;
 }
 
+export interface IFocusNotebookCellOptions {
+	readonly skipReveal?: boolean;
+}
+
 export interface ICommonNotebookEditor {
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
@@ -293,6 +291,7 @@ export interface INotebookDeltaDecoration {
 export class NotebookEditorOptions extends EditorOptions {
 
 	readonly cellOptions?: IResourceEditorInput;
+	readonly cellSelections?: ICellRange[];
 
 	constructor(options: Partial<NotebookEditorOptions>) {
 		super();
@@ -319,10 +318,26 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
-	uri: URI;
+	// selection is never undefined when the editor is attached to a document.
+	getSelection(): ICellRange;
 }
 
-export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
+export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
+
+export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+
+export interface INotebookEditor extends ICommonNotebookEditor {
+
+	// from the old IEditor
+	readonly onDidChangeVisibleRanges: Event<void>;
+	readonly onDidChangeSelection: Event<void>;
+	getSelection(): ICellRange | undefined;
+	getSelections(): ICellRange[];
+	visibleRanges: ICellRange[];
+	textModel?: NotebookTextModel;
+	getId(): string;
+	hasFocus(): boolean;
+
 	isEmbedded: boolean;
 
 	cursorNavigationMode: boolean;
@@ -339,22 +354,17 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	readonly isNotebookEditor: boolean;
 	activeKernel: INotebookKernel | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
-	readonly onDidScroll: Event<ScrollEvent>;
-	readonly onWillDispose: Event<void>;
-
 	isDisposed: boolean;
 
 	getId(): string;
 	getDomNode(): HTMLElement;
 	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
-	getSelectionHandles(): number[];
 	getSelectionViewModels(): ICellViewModel[];
 
 	/**
@@ -371,7 +381,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	/**
 	 * Select & focus cell
 	 */
-	selectElement(cell: ICellViewModel): void;
+	focusElement(cell: ICellViewModel): void;
 
 	/**
 	 * Layout info for the notebook editor
@@ -419,12 +429,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null>;
 
 	/**
-	 * @deprecated Note that this method doesn't support batch operations, use #moveCellToIdx instead.
-	 * Move a cell above or below another cell
-	 */
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null>;
-
-	/**
 	 * Move a cell to a specific position
 	 */
 	moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null>;
@@ -467,8 +471,10 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
 	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	unhideMarkdownPreview(cell: ICellViewModel): Promise<void>;
 	hideMarkdownPreview(cell: ICellViewModel): Promise<void>;
 	removeMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
@@ -489,11 +495,6 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	 * Send message to the webview for outputs.
 	 */
 	postMessage(forRendererId: string | undefined, message: any): void;
-
-	/**
-	 * Toggle class name on the notebook editor root DOM node.
-	 */
-	toggleClassName(className: string): void;
 
 	/**
 	 * Remove class name on the notebook editor root DOM node.
@@ -572,7 +573,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	 */
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
 
-	setCellSelection(cell: ICellViewModel, selection: Range): void;
+	setCellEditorSelection(cell: ICellViewModel, selection: Range): void;
 
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[];
 
@@ -612,6 +613,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 export interface INotebookCellList {
 	isDisposed: boolean;
 	readonly contextKeyService: IContextKeyService;
+	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
 	onWillScroll: Event<ScrollEvent>;
@@ -627,6 +629,7 @@ export interface INotebookCellList {
 	rowsContainer: HTMLElement;
 	readonly onDidRemoveOutput: Event<ICellOutputViewModel>;
 	readonly onDidHideOutput: Event<ICellOutputViewModel>;
+	readonly onDidRemoveCellFromView: Event<ICellViewModel>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
@@ -637,6 +640,7 @@ export interface INotebookCellList {
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];
+	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInViewAtTop(element: ICellViewModel): void;
@@ -664,8 +668,6 @@ export interface INotebookCellList {
 
 	// TODO@roblourens resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
 	getFocus(): number[];
-	setFocus(indexes: number[]): void;
-	setSelection(indexes: number[]): void;
 }
 
 export interface BaseCellRenderTemplate {
@@ -696,6 +698,7 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	foldingIndicator: HTMLElement;
 	focusIndicatorBottom: HTMLElement;
 	currentEditor?: ICodeEditor;
+	readonly useRenderer: boolean;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
@@ -858,10 +861,8 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 	return result;
 }
 
-export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
-	// TODO@rebornix can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
-	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
+export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
+	return editorPane?.getId() === NOTEBOOK_EDITOR_ID ? editorPane.getControl() as INotebookEditor | undefined : undefined;
 }
 
 let EDITOR_TOP_PADDING = 12;

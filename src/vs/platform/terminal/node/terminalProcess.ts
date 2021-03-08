@@ -10,12 +10,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -24,7 +25,29 @@ import { localize } from 'vs/nls';
 const WRITE_MAX_CHUNK_SIZE = 50;
 const WRITE_INTERVAL_MS = 5;
 
+const enum ShutdownConstants {
+	/**
+	 * The amount of ms that must pass between data events after exit is queued before the actual
+	 * kill call is triggered. This data flush mechanism works around an [issue in node-pty][1]
+	 * where not all data is flushed which causes problems for task problem matchers. Additionally
+	 * on Windows under conpty, killing a process while data is being output will cause the [conhost
+	 * flush to hang the pty host][2] because [conhost should be hosted on another thread][3].
+	 *
+	 * [1]: https://github.com/Tyriar/node-pty/issues/72
+	 * [2]: https://github.com/microsoft/vscode/issues/71966
+	 * [3]: https://github.com/microsoft/node-pty/pull/415
+	 */
+	DataFlushTimeout = 250,
+	/**
+	 * The maximum ms to allow after dispose is called because forcefully killing the process.
+	 */
+	MaximumShutdownTime = 5000
+}
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
+	readonly id = 0;
+	readonly shouldPersist = false;
+
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;
@@ -32,6 +55,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
+	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
 	private _writeQueue: string[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
@@ -41,8 +65,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
-
 	public get exitMessage(): string | undefined { return this._exitMessage; }
+
+	public get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
+	public get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -52,6 +78,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -88,15 +116,23 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
-		if (platform.isWindows && useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-			this._delayedResizer = new DelayedResizer();
-			this._register(this._delayedResizer.onTrigger(dimensions => {
-				this._delayedResizer?.dispose();
-				this._delayedResizer = undefined;
-				if (dimensions.cols && dimensions.rows) {
-					this.resize(dimensions.cols, dimensions.rows);
-				}
-			}));
+		if (platform.isWindows) {
+			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+				this._delayedResizer = new DelayedResizer();
+				this._register(this._delayedResizer.onTrigger(dimensions => {
+					this._delayedResizer?.dispose();
+					this._delayedResizer = undefined;
+					if (dimensions.cols && dimensions.rows) {
+						this.resize(dimensions.cols, dimensions.rows);
+					}
+				}));
+			}
+			// WindowsShellHelper is used to fetch the process title and shell type
+			this.onProcessReady(e => {
+				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
+				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
+				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
+			});
 		}
 	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
@@ -165,19 +201,22 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this.onProcessReady(() => c());
 		});
 		ptyProcess.onData(data => {
-			if (this._shellLaunchConfig.flowControl) {
-				this._unacknowledgedCharCount += data.length;
-				if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
-					this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
-					this._isPtyPaused = true;
-					ptyProcess.pause();
-				}
+			// Handle flow control
+			this._unacknowledgedCharCount += data.length;
+			if (!this._isPtyPaused && this._unacknowledgedCharCount > FlowControlConstants.HighWatermarkChars) {
+				this._logService.trace(`Flow control: Pause (${this._unacknowledgedCharCount} > ${FlowControlConstants.HighWatermarkChars})`);
+				this._isPtyPaused = true;
+				ptyProcess.pause();
 			}
+
+
+			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
 				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
+			this._windowsShellHelper?.checkShell();
 		});
 		ptyProcess.onExit(e => {
 			this._exitCode = e.exitCode;
@@ -193,18 +232,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			clearInterval(this._titleInterval);
 		}
 		this._titleInterval = null;
-		this._onProcessData.dispose();
-		this._onProcessExit.dispose();
-		this._onProcessReady.dispose();
-		this._onProcessTitleChanged.dispose();
 		super.dispose();
 	}
 
 	private _setupTitlePolling(ptyProcess: pty.IPty) {
 		// Send initial timeout async to give event listeners a chance to init
-		setTimeout(() => {
-			this._sendProcessTitle(ptyProcess);
-		}, 0);
+		setTimeout(() => this._sendProcessTitle(ptyProcess), 0);
 		// Setup polling for non-Windows, for Windows `process` doesn't change
 		if (!platform.isWindows) {
 			this._titleInterval = setInterval(() => {
@@ -221,7 +254,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._closeTimeout) {
 			clearTimeout(this._closeTimeout);
 		}
-		this._closeTimeout = setTimeout(() => this._kill(), 250);
+		this._closeTimeout = setTimeout(() => {
+			this._closeTimeout = undefined;
+			this._kill();
+		}, ShutdownConstants.DataFlushTimeout);
 	}
 
 	private async _kill(): Promise<void> {
@@ -261,7 +297,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (immediate) {
 			this._kill();
 		} else {
-			this._queueProcessExit();
+			if (!this._closeTimeout && !this._isDisposed) {
+				this._queueProcessExit();
+				// Allow a maximum amount of time for the process to exit, otherwise force kill it
+				setTimeout(() => {
+					if (this._closeTimeout && !this._isDisposed) {
+						this._closeTimeout = undefined;
+						this._kill();
+					}
+				}, ShutdownConstants.MaximumShutdownTime);
+			}
 		}
 	}
 
@@ -336,9 +381,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public acknowledgeDataEvent(charCount: number): void {
-		if (!this._shellLaunchConfig.flowControl) {
-			return;
-		}
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);
 		this._logService.trace(`Flow control: Ack ${charCount} chars (unacknowledged: ${this._unacknowledgedCharCount})`);
@@ -350,10 +392,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public clearUnacknowledgedChars(): void {
-		if (!this._shellLaunchConfig.flowControl) {
-			return;
-		}
-
 		this._unacknowledgedCharCount = 0;
 		this._logService.trace(`Flow control: Cleared all unacknowledged chars, forcing resume`);
 		if (this._isPtyPaused) {

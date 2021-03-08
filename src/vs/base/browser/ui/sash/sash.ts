@@ -399,7 +399,12 @@ export class Sash extends Disposable {
 	}
 
 	private static onMouseEnter(sash: Sash, fromLinkedSash: boolean = false): void {
-		sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'));
+		if (sash.el.classList.contains('active')) {
+			sash.hoverDelayer.cancel();
+			sash.el.classList.add('hover');
+		} else {
+			sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'));
+		}
 
 		if (!fromLinkedSash && sash.linkedSash) {
 			Sash.onMouseEnter(sash.linkedSash, true);

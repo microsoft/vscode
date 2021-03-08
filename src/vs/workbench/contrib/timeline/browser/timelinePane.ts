@@ -908,7 +908,6 @@ export class TimelinePane extends ViewPane {
 				item = selection[0];
 			}
 
-			// const item = e.element;
 			if (item === null) {
 				return;
 			}
@@ -923,8 +922,6 @@ export class TimelinePane extends ViewPane {
 					}
 
 					this.commandService.executeCommand(item.command.id, ...args);
-
-					// this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
 				}
 			}
 			else if (isLoadMoreCommand(item)) {
@@ -1249,7 +1246,7 @@ class TimelinePaneCommands extends Disposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
 
 		menu.dispose();
 

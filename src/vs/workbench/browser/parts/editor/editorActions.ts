@@ -22,8 +22,7 @@ import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/commo
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/services/editor/common/editorOpenWith';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 export class ExecuteCommandAction extends Action {
 
@@ -696,7 +695,9 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 	protected async doCloseAll(): Promise<void> {
 		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors()));
 
-		this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
+		for (const groupToClose of this.groupsToClose) {
+			this.editorGroupService.removeGroup(groupToClose);
+		}
 	}
 }
 
@@ -1894,8 +1895,7 @@ export class ReopenResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -1913,7 +1913,7 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		await this.instantiationService.invokeFunction(openEditorWith, activeInput, undefined, options, group);
+		await this.editorService.openEditor(activeInput, { ...options, override: EditorOverride.PICK }, group);
 	}
 }
 
@@ -1944,7 +1944,7 @@ export class ToggleEditorTypeAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(activeEditorResource, undefined, options, group, this.editorService);
+		const overrides = this.editorService.getEditorOverrides(activeEditorResource, options, group);
 		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
 		if (!firstNonActiveOverride) {
 			return;

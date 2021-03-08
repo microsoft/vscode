@@ -78,7 +78,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	protected registerListeners(): void {
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(this.dispose, this);
+		this.lifecycleService.onShutdown(() => this.dispose());
 	}
 
 	//#region text file read / write / create

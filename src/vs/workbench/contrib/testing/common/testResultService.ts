@@ -15,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { IncrementalTestCollectionItem, ISerializedTestResults, ITestState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -26,7 +26,7 @@ import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/t
 /**
  * Count of the number of tests in each run state.
  */
-export type TestStateCount = { [K in TestRunState]: number };
+export type TestStateCount = { [K in TestResult]: number };
 
 export const enum TestResultItemChangeReason {
 	Retired,
@@ -70,7 +70,7 @@ export interface ITestResult {
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
 	 */
-	getStateByExtId(testExtId: string): TestResultItem | undefined;
+	getStateById(testExtId: string): TestResultItem | undefined;
 
 	/**
 	 * Serializes the test result. Used to save and restore results
@@ -102,31 +102,29 @@ export const sumCounts = (counts: Iterable<TestStateCount>) => {
 const queuedState: ITestState = {
 	duration: undefined,
 	messages: [],
-	state: TestRunState.Queued
+	state: TestResult.Queued
 };
 
 const unsetState: ITestState = {
 	duration: undefined,
 	messages: [],
-	state: TestRunState.Unset
+	state: TestResult.Unset
 };
 
 const itemToNode = (
 	item: IncrementalTestCollectionItem,
 	byExtId: Map<string, TestResultItem>,
-	byInternalId: Map<string, TestResultItem>,
 ): TestResultItem => {
 	const n: TestResultItem = {
 		...item,
 		// shallow-clone the test to take a 'snapshot' of it at the point in time where tests run
 		item: { ...item.item },
 		state: unsetState,
-		computedState: TestRunState.Unset,
+		computedState: TestResult.Unset,
 		retired: false,
 	};
 
 	byExtId.set(n.item.extId, n);
-	byInternalId.set(n.id, n);
 
 	return n;
 };
@@ -135,45 +133,44 @@ const makeParents = (
 	collection: IMainThreadTestCollection,
 	child: IncrementalTestCollectionItem,
 	byExtId: Map<string, TestResultItem>,
-	byInternalId: Map<string, TestResultItem>,
 ) => {
 	const parent = child.parent && collection.getNodeById(child.parent);
 	if (!parent) {
 		return;
 	}
 
-	let parentResultItem = byInternalId.get(parent.id);
+	let parentResultItem = byExtId.get(parent.item.extId);
 	if (parentResultItem) {
-		parentResultItem.children.add(child.id);
+		parentResultItem.children.add(child.item.extId);
 		return; // no need to recurse, all parents already in result
 	}
 
-	parentResultItem = itemToNode(parent, byExtId, byInternalId);
-	parentResultItem.children = new Set([child.id]);
-	makeParents(collection, parent, byExtId, byInternalId);
+	parentResultItem = itemToNode(parent, byExtId);
+	parentResultItem.children = new Set([child.item.extId]);
+	makeParents(collection, parent, byExtId);
 };
 
 const makeNodeAndChildren = (
 	collection: IMainThreadTestCollection,
 	test: IncrementalTestCollectionItem,
+	excluded: ReadonlySet<string>,
 	byExtId: Map<string, TestResultItem>,
-	byInternalId: Map<string, TestResultItem>,
 	isExecutedDirectly = true,
 ): TestResultItem => {
-	const existing = byInternalId.get(test.id);
+	const existing = byExtId.get(test.item.extId);
 	if (existing) {
 		return existing;
 	}
 
-	const mapped = itemToNode(test, byExtId, byInternalId);
+	const mapped = itemToNode(test, byExtId);
 	if (isExecutedDirectly) {
 		mapped.direct = true;
 	}
 
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
-		if (child) {
-			makeNodeAndChildren(collection, child, byExtId, byInternalId, false);
+		if (child && !excluded.has(childId)) {
+			makeNodeAndChildren(collection, child, excluded, byExtId, false);
 		}
 	}
 
@@ -194,7 +191,7 @@ export class LiveTestResult implements ITestResult {
 		req: RunTestsRequest,
 	) {
 		const testByExtId = new Map<string, TestResultItem>();
-		const testByInternalId = new Map<string, TestResultItem>();
+		const excludeSet = new Set<string>(req.exclude);
 		for (const test of req.tests) {
 			for (const collection of collections) {
 				const node = collection.getNodeById(test.testId);
@@ -202,12 +199,12 @@ export class LiveTestResult implements ITestResult {
 					continue;
 				}
 
-				makeNodeAndChildren(collection, node, testByExtId, testByInternalId);
-				makeParents(collection, node, testByExtId, testByInternalId);
+				makeNodeAndChildren(collection, node, excludeSet, testByExtId);
+				makeParents(collection, node, testByExtId);
 			}
 		}
 
-		return new LiveTestResult(collections, testByExtId, testByInternalId, !!req.isAutoRun);
+		return new LiveTestResult(collections, testByExtId, excludeSet, !!req.isAutoRun);
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
@@ -232,13 +229,13 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts: { [K in TestRunState]: number } = makeEmptyCounts();
+	public readonly counts: { [K in TestResult]: number } = makeEmptyCounts();
 
 	/**
 	 * @inheritdoc
 	 */
 	public get tests() {
-		return this.testByInternalId.values();
+		return this.testById.values();
 	}
 
 	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItem> = {
@@ -246,10 +243,10 @@ export class LiveTestResult implements ITestResult {
 		getCurrentComputedState: i => i.computedState,
 		setComputedState: (i, s) => i.computedState = s,
 		getChildren: i => {
-			const { testByInternalId } = this;
+			const { testById: testByExtId } = this;
 			return (function* () {
 				for (const childId of i.children) {
-					const child = testByInternalId.get(childId);
+					const child = testByExtId.get(childId);
 					if (child) {
 						yield child;
 					}
@@ -257,10 +254,10 @@ export class LiveTestResult implements ITestResult {
 			})();
 		},
 		getParents: i => {
-			const { testByInternalId } = this;
+			const { testById: testByExtId } = this;
 			return (function* () {
 				for (let parentId = i.parent; parentId;) {
-					const parent = testByInternalId.get(parentId);
+					const parent = testByExtId.get(parentId);
 					if (!parent) {
 						break;
 					}
@@ -274,25 +271,25 @@ export class LiveTestResult implements ITestResult {
 
 	constructor(
 		private readonly collections: ReadonlyArray<IMainThreadTestCollection>,
-		private readonly testByExtId: Map<string, TestResultItem>,
-		private readonly testByInternalId: Map<string, TestResultItem>,
+		private readonly testById: Map<string, TestResultItem>,
+		private readonly excluded: ReadonlySet<string>,
 		public readonly isAutoRun: boolean,
 	) {
-		this.counts[TestRunState.Unset] = testByInternalId.size;
+		this.counts[TestResult.Unset] = testById.size;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public getStateByExtId(extTestId: string) {
-		return this.testByExtId.get(extTestId);
+	public getStateById(extTestId: string) {
+		return this.testById.get(extTestId);
 	}
 
 	/**
 	 * Updates all tests in the collection to the given state.
 	 */
 	public setAllToState(state: ITestState, when: (_t: TestResultItem) => boolean) {
-		for (const test of this.testByInternalId.values()) {
+		for (const test of this.testById.values()) {
 			if (when(test)) {
 				this.fireUpdateAndRefresh(test, state);
 			}
@@ -303,7 +300,7 @@ export class LiveTestResult implements ITestResult {
 	 * Updates the state of the test by its internal ID.
 	 */
 	public updateState(testId: string, state: ITestState) {
-		let entry = this.testByInternalId.get(testId);
+		let entry = this.testById.get(testId);
 		if (!entry) {
 			entry = this.addTestToRun(testId);
 		}
@@ -332,16 +329,16 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * Marks a test as retired. This can trigger it to be re-run in live mode.
 	 */
-	public retire(extId: string) {
-		const root = this.testByExtId.get(extId);
+	public retire(testId: string) {
+		const root = this.testById.get(testId);
 		if (!root || root.retired) {
 			return;
 		}
 
-		const queue: Iterable<string>[] = [[root.id]];
+		const queue: Iterable<string>[] = [[root.item.extId]];
 		while (queue.length) {
 			for (const id of queue.pop()!) {
-				const entry = this.testByInternalId.get(id);
+				const entry = this.testById.get(id);
 				if (entry && !entry.retired) {
 					entry.retired = true;
 					queue.push(entry.children);
@@ -366,10 +363,10 @@ export class LiveTestResult implements ITestResult {
 		for (const collection of this.collections) {
 			let test = collection.getNodeById(testId);
 			if (test) {
-				const originalSize = this.testByExtId.size;
-				makeParents(collection, test, this.testByExtId, this.testByInternalId);
-				const node = makeNodeAndChildren(collection, test, this.testByExtId, this.testByInternalId);
-				this.counts[TestRunState.Unset] += this.testByExtId.size - originalSize;
+				const originalSize = this.testById.size;
+				makeParents(collection, test, this.testById);
+				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById);
+				this.counts[TestResult.Unset] += this.testById.size - originalSize;
 				return node;
 			}
 		}
@@ -386,7 +383,7 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		// un-queue any tests that weren't explicitly updated
-		this.setAllToState(unsetState, t => t.state.state === TestRunState.Queued);
+		this.setAllToState(unsetState, t => t.state.state === TestResult.Queued);
 		this._completedAt = Date.now();
 		this.completeEmitter.fire();
 	}
@@ -401,7 +398,7 @@ export class LiveTestResult implements ITestResult {
 	private readonly doSerialize = new Lazy((): ISerializedTestResults => ({
 		id: this.id,
 		completedAt: this.completedAt!,
-		items: [...this.testByExtId.values()].map(entry => ({
+		items: [...this.testById.values()].map(entry => ({
 			...entry,
 			retired: undefined,
 			children: [...entry.children],
@@ -432,10 +429,10 @@ export class HydratedTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public get tests() {
-		return this.byExtId.values();
+		return this.testById.values();
 	}
 
-	private readonly byExtId = new Map<string, TestResultItem>();
+	private readonly testById = new Map<string, TestResultItem>();
 
 	constructor(private readonly serialized: ISerializedTestResults, private readonly persist = true) {
 		this.id = serialized.id;
@@ -456,15 +453,15 @@ export class HydratedTestResult implements ITestResult {
 			}
 
 			this.counts[item.state.state]++;
-			this.byExtId.set(item.item.extId, cast);
+			this.testById.set(item.item.extId, cast);
 		}
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public getStateByExtId(extTestId: string) {
-		return this.byExtId.get(extTestId);
+	public getStateById(extTestId: string) {
+		return this.testById.get(extTestId);
 	}
 
 	/**
@@ -516,7 +513,7 @@ export interface ITestResultService {
 	/**
 	 * Looks up a test's most recent state, by its extension-assigned ID.
 	 */
-	getStateByExtId(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
+	getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
 }
 
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
@@ -577,10 +574,10 @@ export class TestResultService implements ITestResultService {
 	/**
 	 * @inheritdoc
 	 */
-	public getStateByExtId(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
+	public getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
 		for (const result of this.results) {
-			const lookup = result.getStateByExtId(extId);
-			if (lookup && lookup.computedState !== TestRunState.Unset) {
+			const lookup = result.getStateById(extId);
+			if (lookup && lookup.computedState !== TestResult.Unset) {
 				return [result, lookup];
 			}
 		}
@@ -625,7 +622,7 @@ export class TestResultService implements ITestResultService {
 					if (otherResult === result) {
 						this.testChangeEmitter.fire({ item, result, reason: TestResultItemChangeReason.ComputedStateChange });
 						break;
-					} else if (otherResult.getStateByExtId(item.item.extId) !== undefined) {
+					} else if (otherResult.getStateById(item.item.extId) !== undefined) {
 						break;
 					}
 				}

@@ -38,10 +38,16 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.entrypoint]: string;
 }
 
+enum NotebookMarkdownRendererContribution {
+	id = 'id',
+	displayName = 'displayName',
+	entrypoint = 'entrypoint',
+}
+
 export interface INotebookMarkdownRendererContribution {
-	readonly [NotebookRendererContribution.id]?: string;
-	readonly [NotebookRendererContribution.viewType]?: string;
-	readonly [NotebookRendererContribution.entrypoint]: string;
+	readonly [NotebookMarkdownRendererContribution.id]?: string;
+	readonly [NotebookMarkdownRendererContribution.displayName]: string;
+	readonly [NotebookMarkdownRendererContribution.entrypoint]: string;
 }
 
 const notebookProviderContribution: IJSONSchema = {
@@ -138,6 +144,33 @@ const notebookRendererContribution: IJSONSchema = {
 		}
 	}
 };
+const notebookMarkdownRendererContribution: IJSONSchema = {
+	description: nls.localize('contributes.notebook.markdownRenderer', 'Contributes a renderer for markdown cells in notebooks.'),
+	type: 'array',
+	defaultSnippets: [{ body: [{ id: '', displayName: '', entrypoint: '' }] }],
+	items: {
+		type: 'object',
+		required: [
+			NotebookMarkdownRendererContribution.id,
+			NotebookMarkdownRendererContribution.displayName,
+			NotebookMarkdownRendererContribution.entrypoint,
+		],
+		properties: {
+			[NotebookMarkdownRendererContribution.id]: {
+				type: 'string',
+				description: nls.localize('contributes.notebook.markdownRenderer.id', 'Unique identifier of the notebook markdown renderer.'),
+			},
+			[NotebookMarkdownRendererContribution.displayName]: {
+				type: 'string',
+				description: nls.localize('contributes.notebook.markdownRenderer.displayName', 'Human readable name of the notebook markdown renderer.'),
+			},
+			[NotebookMarkdownRendererContribution.entrypoint]: {
+				type: 'string',
+				description: nls.localize('contributes.notebook.markdownRenderer.entrypoint', 'File to load in the webview to render the extension.'),
+			},
+		}
+	}
+};
 
 export const notebookProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
 	{
@@ -154,5 +187,5 @@ export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensi
 export const notebookMarkdownRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookMarkdownRendererContribution[]>(
 	{
 		extensionPoint: 'notebookMarkdownRenderer',
-		jsonSchema: notebookRendererContribution //
+		jsonSchema: notebookMarkdownRendererContribution
 	});

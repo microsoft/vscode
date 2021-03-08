@@ -23,6 +23,7 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -127,7 +128,7 @@ export class CursorWordLeft extends WordLeftCommand {
 			id: 'cursorWordLeft',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -166,7 +167,7 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 			id: 'cursorWordLeftSelect',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -182,12 +183,7 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityLeft',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				win: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib + 1
-			}
+			precondition: undefined
 		});
 	}
 
@@ -202,12 +198,7 @@ export class CursorWordAccessibilityLeftSelect extends WordLeftCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityLeftSelect',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib + 1
-			}
+			precondition: undefined
 		});
 	}
 
@@ -235,7 +226,7 @@ export class CursorWordEndRight extends WordRightCommand {
 			id: 'cursorWordEndRight',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
 				primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -274,7 +265,7 @@ export class CursorWordEndRightSelect extends WordRightCommand {
 			id: 'cursorWordEndRightSelect',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext)?.negate()),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
 				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow },
 				weight: KeybindingWeight.EditorContrib
@@ -300,12 +291,7 @@ export class CursorWordAccessibilityRight extends WordRightCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityRight',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				win: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow },
-				weight: KeybindingWeight.EditorContrib + 1
-			}
+			precondition: undefined
 		});
 	}
 
@@ -320,12 +306,7 @@ export class CursorWordAccessibilityRightSelect extends WordRightCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordAccessibility,
 			id: 'cursorWordAccessibilityRightSelect',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-				win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
-				weight: KeybindingWeight.EditorContrib + 1
-			}
+			precondition: undefined
 		});
 	}
 

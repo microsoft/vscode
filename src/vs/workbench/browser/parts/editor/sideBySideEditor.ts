@@ -55,8 +55,8 @@ export class SideBySideEditor extends EditorPane {
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 
-	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
+	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = Event.any(this.onDidCreateEditors.event, this._onDidChangeSizeConstraints.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -205,9 +205,9 @@ export class SideBySideEditor extends EditorPane {
 		this.secondaryEditorPane = secondary;
 		this.primaryEditorPane = primary;
 
-		this._onDidSizeConstraintsChange.input = Event.any(
-			Event.map(secondary.onDidSizeConstraintsChange, () => undefined),
-			Event.map(primary.onDidSizeConstraintsChange, () => undefined)
+		this._onDidChangeSizeConstraints.input = Event.any(
+			Event.map(secondary.onDidChangeSizeConstraints, () => undefined),
+			Event.map(primary.onDidChangeSizeConstraints, () => undefined)
 		);
 
 		this.onDidCreateEditors.fire(undefined);

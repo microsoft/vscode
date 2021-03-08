@@ -25,7 +25,7 @@ export class DebugStorage {
 	) { }
 
 	loadDebugUxState(): 'simple' | 'default' {
-		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'simple') as 'simple' | 'default';
+		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'default') as 'simple' | 'default';
 	}
 
 	storeDebugUxState(value: 'simple' | 'default'): void {

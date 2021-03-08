@@ -82,7 +82,6 @@ class FileServiceBasedConfiguration extends Disposable {
 	private _standAloneConfigurations: ConfigurationModel[];
 	private _cache: ConfigurationModel;
 
-	private readonly changeEventTriggerScheduler: RunOnceScheduler;
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
@@ -102,15 +101,14 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._standAloneConfigurations = [];
 		this._cache = new ConfigurationModel();
 
-		this.changeEventTriggerScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
-		this._register(this.fileService.onDidFilesChange((e) => this.handleFileEvents(e)));
+		this._register(Event.debounce(Event.filter(this.fileService.onDidFilesChange, e => this.handleFileEvents(e)), () => undefined, 100)(() => this._onDidChange.fire()));
 	}
 
 	async loadConfiguration(): Promise<ConfigurationModel> {
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
 				try {
-					const content = (await this.fileService.readFile(resource)).value.toString();
+					const content = (await this.fileService.readFile(resource, { atomic: true })).value.toString();
 					if (!content) {
 						this.logService.debug(`Configuration file '${resource.toString()}' is empty`);
 					}
@@ -167,21 +165,16 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
 	}
 
-	protected async handleFileEvents(event: FileChangesEvent): Promise<void> {
-		const isAffectedByChanges = (): boolean => {
-			// One of the resources has changed
-			if (this.allResources.some(resource => event.contains(resource))) {
-				return true;
-			}
-			// One of the resource's parent got deleted
-			if (this.allResources.some(resource => event.contains(this.uriIdentityService.extUri.dirname(resource), FileChangeType.DELETED))) {
-				return true;
-			}
-			return false;
-		};
-		if (isAffectedByChanges()) {
-			this.changeEventTriggerScheduler.schedule();
+	private handleFileEvents(event: FileChangesEvent): boolean {
+		// One of the resources has changed
+		if (this.allResources.some(resource => event.contains(resource))) {
+			return true;
 		}
+		// One of the resource's parent got deleted
+		if (this.allResources.some(resource => event.contains(this.uriIdentityService.extUri.dirname(resource), FileChangeType.DELETED))) {
+			return true;
+		}
+		return false;
 	}
 
 }

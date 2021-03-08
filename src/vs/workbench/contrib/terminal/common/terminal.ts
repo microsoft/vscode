@@ -7,11 +7,10 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -55,6 +54,8 @@ export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWor
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
+
+export const SUGGESTED_RENDERER_TYPE = 'terminal.integrated.suggestedRendererType';
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -140,9 +141,7 @@ export interface ITerminalConfiguration {
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
-	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
-	flowControl: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -179,30 +178,6 @@ export interface IRemoteTerminalAttachTarget {
 	isOrphan: boolean;
 }
 
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
-}
-
-export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
-export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IRemoteTerminalAttachTarget>;
-
-export interface IRawTerminalTabLayoutInfo<T> {
-	isActive: boolean;
-	activeTerminalProcessId: number;
-	terminals: IRawTerminalInstanceLayoutInfo<T>[];
-}
-
-export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
-export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
-
-export interface IRawTerminalsLayoutInfo<T> {
-	tabs: IRawTerminalTabLayoutInfo<T>[];
-}
-
-export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IRemoteTerminalAttachTarget | null>;
-export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
-
 /**
  * Provides access to native Windows calls that can be injected into non-native layers.
  */
@@ -216,11 +191,6 @@ export interface ITerminalNativeWindowsDelegate {
 	 * @param path The Windows path.
 	 */
 	getWslPath(path: string): Promise<string>;
-}
-
-export interface IShellDefinition {
-	label: string;
-	path: string;
 }
 
 export interface ICommandTracker {
@@ -246,6 +216,21 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
+export interface IShellDefinition {
+	label: string;
+	path: string;
+}
+
+export interface IAvailableShellsRequest {
+	callback: (shells: IShellDefinition[]) => void;
+}
+
+
+export interface IDefaultShellAndArgsRequest {
+	useAutomationShell: boolean;
+	callback: (shell: string, args: string[] | string | undefined) => void;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
@@ -254,21 +239,27 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-	readonly remoteTerminalId: number | undefined;
+	readonly persistentProcessId: number | undefined;
+	readonly shouldPersist: boolean;
+	readonly isDisconnected: boolean;
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
 
 	readonly onPtyDisconnect: Event<void>;
+	readonly onPtyReconnect: Event<void>;
+
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessTitle: Event<string>;
+	readonly onProcessShellTypeChanged: Event<TerminalShellType>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
+	detachFromProcess(): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
@@ -299,7 +290,7 @@ export const enum ProcessState {
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
-	readonly terminalId: number;
+	readonly instanceId: number;
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;
@@ -318,16 +309,6 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
 	onRequestLatency: Event<void>;
-}
-
-export interface ISpawnExtHostProcessRequest {
-	proxy: ITerminalProcessExtHostProxy;
-	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI | undefined;
-	cols: number;
-	rows: number;
-	isWorkspaceShellAllowed: boolean;
-	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IStartExtensionTerminalRequest {
@@ -359,12 +340,6 @@ export enum TitleEventSource {
 	Process,
 	/** From the VT sequence */
 	Sequence
-}
-
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChange: Event<string>;
-
-	getShellName(): Promise<string>;
 }
 
 export const enum TERMINAL_COMMAND_ID {

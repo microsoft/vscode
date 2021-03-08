@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
 import { coalesce } from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
@@ -130,6 +131,7 @@ export default class VersionStatus extends Disposable {
 	constructor(
 		private readonly _client: ITypeScriptServiceClient,
 		commandManager: CommandManager,
+		private readonly _activeTextEditorManager: ActiveJsTsEditorTracker,
 	) {
 		super();
 
@@ -144,7 +146,7 @@ export default class VersionStatus extends Disposable {
 		commandManager.register(command);
 		this._statusBarEntry.command = command.id;
 
-		vscode.window.onDidChangeActiveTextEditor(this.updateStatus, this, this._disposables);
+		_activeTextEditorManager.onDidChangeActiveJsTsEditor(this.updateStatus, this, this._disposables);
 
 		this._client.onReady(() => {
 			this._ready = true;
@@ -161,12 +163,13 @@ export default class VersionStatus extends Disposable {
 	}
 
 	private async updateStatus() {
-		if (!vscode.window.activeTextEditor) {
+		const editor = this._activeTextEditorManager.activeJsTsEditor;
+		if (!editor) {
 			this.hide();
 			return;
 		}
 
-		const doc = vscode.window.activeTextEditor.document;
+		const doc = editor.document;
 		if (isTypeScriptDocument(doc)) {
 			const file = this._client.toOpenedFilePath(doc, { suppressAlertOnFailure: true });
 			if (file) {
@@ -188,12 +191,6 @@ export default class VersionStatus extends Disposable {
 
 				return;
 			}
-		}
-
-		if (!vscode.window.activeTextEditor.viewColumn) {
-			// viewColumn is undefined for the debug/output panel, but we still want
-			// to show the version info in the existing editor
-			return;
 		}
 
 		this.hide();

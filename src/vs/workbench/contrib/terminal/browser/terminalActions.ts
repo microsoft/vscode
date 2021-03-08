@@ -687,7 +687,7 @@ export function registerTerminalActions() {
 			});
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
-				const instance = terminalService.createTerminal({ remoteAttach: selected.term });
+				const instance = terminalService.createTerminal({ attachPersistentProcess: selected.term });
 				terminalService.setActiveInstance(instance);
 				terminalService.showPanel(true);
 			}

@@ -51,7 +51,6 @@ import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/err
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { sep, posix, join, isAbsolute } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
@@ -81,13 +80,13 @@ import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encry
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -496,7 +495,7 @@ export class CodeApplication extends Disposable {
 	}
 
 	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>, sharedProcessClient: Promise<MessagePortClient> } {
-		const sharedProcess = this.mainInstantiationService.createInstance(SharedProcess, machineId, this.userEnv);
+		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, this.userEnv));
 
 		const sharedProcessClient = (async () => {
 			this.logService.trace('Main->SharedProcess#connect');
@@ -513,13 +512,6 @@ export class CodeApplication extends Disposable {
 
 			return sharedProcessClient;
 		})();
-
-		// Spawn shared process after the first window has opened and 3s have passed
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
-			this._register(new RunOnceScheduler(async () => {
-				sharedProcess.spawn(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env));
-			}, 3000)).schedule();
-		});
 
 		return { sharedProcess, sharedProcessReady, sharedProcessClient };
 	}
@@ -566,9 +558,6 @@ export class CodeApplication extends Disposable {
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
-
-		// Display
-		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
 
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
@@ -637,13 +626,13 @@ export class CodeApplication extends Disposable {
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
+		// Signing
+		const signChannel = ProxyChannel.fromService(accessor.get(ISignService));
+		mainProcessElectronServer.registerChannel('sign', signChannel);
+
 		// Keyboard Layout
 		const keyboardLayoutChannel = ProxyChannel.fromService(accessor.get(IKeyboardLayoutMainService));
 		mainProcessElectronServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
-
-		// Display
-		const displayChannel = ProxyChannel.fromService(accessor.get(IDisplayMainService));
-		mainProcessElectronServer.registerChannel('display', displayChannel);
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);
@@ -941,19 +930,27 @@ export class CodeApplication extends Disposable {
 
 		// Observe shared process for errors
 		const telemetryService = accessor.get(ITelemetryService);
-		this._register(sharedProcess.onDidError(e => {
+		this._register(sharedProcess.onDidError(({ type, details }) => {
 
 			// Logging
-			onUnexpectedError(new Error(e.message));
+			let message: string;
+			if (typeof details === 'string') {
+				message = details;
+			} else {
+				message = `SharedProcess: crashed (detail: ${details.reason})`;
+			}
+			onUnexpectedError(new Error(message));
 
 			// Telemetry
 			type SharedProcessErrorClassification = {
 				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;
+				reason: string | undefined;
 			};
-			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type: e.type });
+			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type, reason: typeof details !== 'string' ? details.reason : undefined });
 		}));
 
 		// Windows: install mutex

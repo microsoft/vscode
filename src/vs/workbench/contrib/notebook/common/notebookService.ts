@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, IEditor, INotebookKernelProvider, INotebookKernel, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, INotebookKernelProvider, INotebookKernel, TransientMetadata, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -40,10 +40,7 @@ export interface INotebookRawData {
 export interface INotebookService {
 	readonly _serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
-	onDidChangeActiveEditor: Event<string | null>;
-	onDidChangeVisibleEditors: Event<string[]>;
-	onNotebookEditorAdd: Event<IEditor>;
-	onNotebookEditorsRemove: Event<IEditor[]>;
+
 	onDidRemoveNotebookDocument: Event<URI>;
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
 	onNotebookDocumentSaved: Event<URI>;
@@ -63,12 +60,12 @@ export interface INotebookService {
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
+	listNotebookDocuments(): readonly NotebookTextModel[];
+
 	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
-	updateActiveNotebookEditor(editor: IEditor | null): void;
-	updateVisibleNotebookEditor(editors: string[]): void;
 
 	fetchNotebookRawData(viewType: string, uri: URI, backupId?: string, untitledDocumentData?: VSBuffer): Promise<INotebookRawData>;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
@@ -80,14 +77,6 @@ export interface INotebookService {
 	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
 
 	// editor events
+
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
-	addNotebookEditor(editor: IEditor): void;
-	removeNotebookEditor(editor: IEditor): void;
-	getNotebookEditor(editorId: string): IEditor | undefined;
-	listNotebookEditors(): readonly IEditor[];
-	listVisibleNotebookEditors(): readonly IEditor[];
-	listNotebookDocuments(): readonly NotebookTextModel[];
-	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
-	removeEditorDecorationType(key: string): void;
-	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;
 }
