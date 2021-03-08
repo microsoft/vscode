@@ -94,10 +94,6 @@ import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
 
 //#region --- workbench contributions
 
-// Tags
-import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
-import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
-
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
 
@@ -128,9 +124,6 @@ import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution
 
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
-
-// CodeEditor Contributions
-import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
 // External Terminal
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution';

@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { WorkspaceTags } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
+import { WorkspaceTags } from 'vs/workbench/contrib/tags/electron-sandbox/workspaceTags';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 // Register Workspace Tags Contribution

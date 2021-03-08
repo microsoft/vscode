@@ -14,6 +14,10 @@
 	align-items: center;
 }
 
+.monaco-text-button:focus {
+	outline-offset: 2px !important;
+}
+
 .monaco-text-button:hover {
 	text-decoration: none !important;
 }

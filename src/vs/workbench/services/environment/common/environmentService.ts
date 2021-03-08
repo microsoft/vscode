@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { URI } from 'vs/base/common/uri';
 
-export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('workbenchEnvironmentService');
+export const IWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IWorkbenchEnvironmentService>(IEnvironmentService);
 
 export interface IWorkbenchConfiguration extends IWindowConfiguration { }
 

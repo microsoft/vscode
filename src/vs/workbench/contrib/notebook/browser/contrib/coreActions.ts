@@ -31,7 +31,7 @@ import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { EditorsOrder } from 'vs/workbench/common/editor';
-import { INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 
@@ -136,7 +136,7 @@ function getContextFromActiveEditor(editorService: IEditorService) {
 
 function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
 	const editorService = accessor.get(IEditorService);
-	const notebookWidgetService = accessor.get(INotebookEditorWidgetService);
+	const notebookEditorService = accessor.get(INotebookEditorService);
 	const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
 	if (!editorId) {
 		return undefined;
@@ -147,7 +147,7 @@ function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
 		return undefined;
 	}
 
-	const widget = notebookWidgetService.widgets.find(widget => widget.textModel?.viewType === notebookEditorInput.viewType && widget.textModel?.uri.toString() === notebookEditorInput.resource.toString());
+	const widget = notebookEditorService.listNotebookEditors().find(widget => widget.textModel?.viewType === notebookEditorInput.viewType && widget.textModel?.uri.toString() === notebookEditorInput.resource.toString());
 
 	if (widget && widget.hasModel()) {
 		return widget;

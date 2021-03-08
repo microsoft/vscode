@@ -283,7 +283,7 @@ export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
 	const target = editorGroupService.activeGroup;
 	for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 		if (group === target) {
-			return; // keep target
+			continue; // keep target
 		}
 
 		editorGroupService.mergeGroup(group, target);

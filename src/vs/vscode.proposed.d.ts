@@ -695,18 +695,20 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A value-object that contains additional information when requesting inline values from a InlineValuesProvider.
-	 * A minimal context containes just the document location where the debugger has stopped.
-	 * Additional optional information might be scope information or variables and their values.
+	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
 	 */
 	export interface InlineValueContext {
+
+		/**
+		 * Debug Adapter Protocol ID of the the stack frame.
+		 */
+		readonly frameId: number;
+
 		/**
 		 * The document range where execution has stopped.
 		 * Typically the end position of the range denotes the line where the inline values are shown.
 		 */
-		stoppedLocation: Range;
-
-		// ... more to come, e.g. Scope information or variable/value candidate information
+		readonly stoppedLocation: Range;
 	}
 
 	/**
@@ -1166,9 +1168,6 @@ declare module 'vscode' {
 		 */
 		readonly trusted: boolean;
 
-		// todo@API how does glob apply to mime times?
-		readonly displayOrder: GlobPattern[];
-
 		// todo@API is this a kernel property?
 		readonly cellHasExecutionOrder: boolean;
 
@@ -1179,9 +1178,9 @@ declare module 'vscode' {
 		readonly cellRunnable: boolean;
 		readonly runState: NotebookRunState;
 
-		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, displayOrder?: GlobPattern[], custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
+		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellRunnable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
 
-		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, displayOrder?: GlobPattern[] | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellRunnable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1228,6 +1227,8 @@ declare module 'vscode' {
 		 * exclusive
 		 */
 		readonly end: number;
+
+		isEmpty: boolean;
 
 		constructor(start: number, end: number);
 	}
@@ -1285,8 +1286,7 @@ declare module 'vscode' {
 		 * The column in which this editor shows.
 		 */
 		// @jrieken
-		// todo@API maybe never undefined because notebooks always show in the editor area (unlike text editors)
-		// maybe for notebook diff editor
+		// this is not implemented...
 		readonly viewColumn?: ViewColumn;
 
 		/**
@@ -1343,9 +1343,7 @@ declare module 'vscode' {
 
 	export interface NotebookEditorSelectionChangeEvent {
 		readonly notebookEditor: NotebookEditor;
-		// @rebornix
-		// todo@API show NotebookCellRange[] instead
-		readonly selection?: NotebookCell;
+		readonly selections: ReadonlyArray<NotebookCellRange>
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
@@ -1354,20 +1352,22 @@ declare module 'vscode' {
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
-	export interface NotebookCellData {
-		readonly cellKind: NotebookCellKind;
-		readonly source: string;
-		readonly language: string;
-		// todo@API maybe use a separate data type?
-		readonly outputs: NotebookCellOutput[];
-		readonly metadata: NotebookCellMetadata | undefined;
+	export class NotebookCellData {
+		kind: NotebookCellKind;
+		// todo@API better names: value? text?
+		source: string;
+		// todo@API how does language and MD relate?
+		language: string;
+		outputs?: NotebookCellOutput[];
+		metadata?: NotebookCellMetadata;
+		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata)
 	}
 
-	export interface NotebookData {
-		readonly cells: NotebookCellData[];
-		readonly metadata: NotebookDocumentMetadata;
+	export class NotebookData {
+		cells: NotebookCellData[];
+		metadata?: NotebookDocumentMetadata;
+		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
-
 
 	/**
 	 * Communication object passed to the {@link NotebookContentProvider} and
@@ -1422,7 +1422,6 @@ declare module 'vscode' {
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 
-		// todo@API really needed?
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
 
 		/**
@@ -1446,7 +1445,8 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
-		// TODO@API add overload for just a URI
+
+		export function showNotebookDocument(uri: Uri, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 
@@ -1472,6 +1472,7 @@ declare module 'vscode' {
 	}
 
 	// @jrieken
+	// todo@API think about readonly...
 	//TODO@API add execution count to cell output?
 	export class NotebookCellOutput {
 		readonly id: string;
@@ -1621,20 +1622,28 @@ declare module 'vscode' {
 	// export const onDidStopNotebookCellExecution: Event<any>;
 
 	export interface NotebookKernel {
+
+		// todo@API make this mandatory?
 		readonly id?: string;
+
 		label: string;
 		description?: string;
 		detail?: string;
 		isPreferred?: boolean;
+
+		// todo@API is this maybe an output property?
 		preloads?: Uri[];
 
-		// TODO@API control runnable state of cell
 		/**
 		 * languages supported by kernel
 		 * - first is preferred
 		 * - `undefined` means all languages available in the editor
 		 */
 		supportedLanguages?: string[];
+
+		// todo@API kernel updating itself
+		// fired when properties like the supported languages etc change
+		// onDidChangeProperties?: Event<void>
 
 		// @roblourens
 		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
@@ -2187,7 +2196,7 @@ declare module 'vscode' {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<RequiredTestItem>;
+		readonly tests: ReadonlyArray<TestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -2217,23 +2226,17 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<RequiredTestItem>;
+		readonly added: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<RequiredTestItem>;
+		readonly updated: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<RequiredTestItem>;
-
-		/**
-		 * Highest node in the test tree under which changes were made. This can
-		 * be easily plugged into events like the TreeDataProvider update event.
-		 */
-		readonly commonChangeAncestor: RequiredTestItem | null;
+		readonly removed: ReadonlyArray<TestItem>;
 	}
 
 	/**
@@ -2370,7 +2373,7 @@ declare module 'vscode' {
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export interface TestItem {
+	export class TestItem {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2389,22 +2392,20 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Whether this test item can be run individually, defaults to `true`
-		 * if not provided.
+		 * Whether this test item can be run individually, defaults to `true`.
 		 *
 		 * In some cases, like Go's tests, test can have children but these
 		 * children cannot be run independently.
 		 */
-		runnable?: boolean;
+		runnable: boolean;
 
 		/**
-		 * Whether this test item can be debugged individually, defaults to `false`
-		 * if not provided.
+		 * Whether this test item can be debugged individually, defaults to `false`.
 		 *
 		 * In some cases, like Go's tests, test can have children but these
 		 * children cannot be run independently.
 		 */
-		debuggable?: boolean;
+		debuggable: boolean;
 
 		/**
 		 * Location of the test in the workspace. This is used to show line
@@ -2415,22 +2416,20 @@ declare module 'vscode' {
 		/**
 		 * Optional list of nested tests for this item.
 		 */
-		children?: TestItem[];
-	}
+		children: TestItem[];
 
-	/**
-	 * A {@link TestItem} with its defaults filled in.
-	 */
-	export type RequiredTestItem = {
-		[K in keyof Required<TestItem>]: K extends 'children'
-		? RequiredTestItem[]
-		: (K extends 'description' | 'location' ? TestItem[K] : Required<TestItem>[K])
-	};
+		/**
+		 * Creates a new TestItem instance.
+		 * @param id Value of the "id" property
+		 * @param label Value of the "label" property.
+		 */
+		constructor(id: string, label: string);
+	}
 
 	/**
 	 * Possible states of tests in a test run.
 	 */
-	export enum TestRunState {
+	export enum TestResult {
 		// Initial state
 		Unset = 0,
 		// Test will be run, but is not currently running.
@@ -2450,22 +2449,27 @@ declare module 'vscode' {
 	/**
 	 * TestState associated with a test in its results.
 	 */
-	export interface TestState {
+	export class TestState {
 		/**
 		 * Current state of the test.
 		 */
-		readonly state: TestRunState;
+		readonly state: TestResult;
 
 		/**
 		 * Optional duration of the test run, in milliseconds.
 		 */
-		readonly duration?: number;
+		duration?: number;
 
 		/**
 		 * Associated test run message. Can, for example, contain assertion
 		 * failure information if the test fails.
 		 */
-		readonly messages?: ReadonlyArray<Readonly<TestMessage>>;
+		messages: TestMessage[];
+
+		/**
+		 * Creates a new TestState instance.
+		 */
+		constructor(state: TestResult);
 	}
 
 	/**
@@ -2482,16 +2486,16 @@ declare module 'vscode' {
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
 	 */
-	export interface TestMessage {
+	export class TestMessage {
 		/**
 		 * Human-readable message text to display.
 		 */
 		message: string | MarkdownString;
 
 		/**
-		 * Message severity. Defaults to "Error", if not provided.
+		 * Message severity. Defaults to "Error".
 		 */
-		severity?: TestMessageSeverity;
+		severity: TestMessageSeverity;
 
 		/**
 		 * Expected test output. If given with `actualOutput`, a diff view will be shown.
@@ -2507,6 +2511,20 @@ declare module 'vscode' {
 		 * Associated file location.
 		 */
 		location?: Location;
+
+		/**
+		 * Creates a new TestMessage that will present as a diff in the editor.
+		 * @param message Message to display to the user.
+		 * @param expected Expected output.
+		 * @param actual Actual output.
+		 */
+		static diff(message: string | MarkdownString, expected: string, actual: string): TestMessage;
+
+		/**
+		 * Creates a new TestMessage instance.
+		 * @param message The message to show to the user.
+		 */
+		constructor(message: string | MarkdownString);
 	}
 
 	/**
@@ -2545,7 +2563,7 @@ declare module 'vscode' {
 		/**
 		 * Optional list of nested tests for this item.
 		 */
-		children?: Readonly<TestItemWithResults>[];
+		children: Readonly<TestItemWithResults>[];
 	}
 
 	//#endregion

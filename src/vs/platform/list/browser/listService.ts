@@ -427,7 +427,7 @@ export interface IWorkbenchTableOptionsUpdate extends ITableOptionsUpdate {
 	readonly overrideStyles?: IColorMapping;
 }
 
-export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate, ITableOptions<T> { }
+export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate, IResourceNavigatorOptions, ITableOptions<T> { }
 
 export class WorkbenchTable<TRow> extends Table<TRow> {
 

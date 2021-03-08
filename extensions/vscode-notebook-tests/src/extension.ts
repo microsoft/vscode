@@ -28,14 +28,14 @@ export function activate(context: vscode.ExtensionContext): any {
 					{
 						source: 'code()',
 						language: 'typescript',
-						cellKind: vscode.NotebookCellKind.Code,
+						kind: vscode.NotebookCellKind.Code,
 						outputs: [],
 						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					},
 					{
 						source: 'Markdown Cell',
 						language: 'markdown',
-						cellKind: vscode.NotebookCellKind.Markdown,
+						kind: vscode.NotebookCellKind.Markdown,
 						outputs: [],
 						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					}

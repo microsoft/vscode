@@ -9,9 +9,8 @@ import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IAvailableShellsRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, IWindowsShellHelper, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IAvailableShellsRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -29,14 +28,6 @@ export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('r
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
 
-	/** Fired when the ptyHost process goes down, losing all connections to the service's ptys. */
-	onPtyHostExit: Event<void>;
-	/**
-	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
-	 * terminals using this pty host connection and mark them as disconnected.
-	 */
-	onPtyHostUnresponsive: Event<void>;
-
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
 
@@ -44,14 +35,8 @@ export interface ITerminalInstanceService {
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
 	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
-	createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper;
-	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
-	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
-	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -240,14 +225,6 @@ export interface ISearchOptions {
 	incremental?: boolean;
 }
 
-export enum WindowsShellType {
-	CommandPrompt = 'cmd',
-	PowerShell = 'pwsh',
-	Wsl = 'wsl',
-	GitBash = 'gitbash'
-}
-export type TerminalShellType = WindowsShellType | undefined;
-
 export interface ITerminalBeforeHandleLinkEvent {
 	terminal?: ITerminalInstance;
 	/** The text of the link */
@@ -284,6 +261,11 @@ export interface ITerminalInstance {
 	 * Whether the process should be persisted across reloads.
 	 */
 	readonly shouldPersist: boolean;
+
+	/**
+	 * Whether the process communication channel has been disconnected.
+	 */
+	readonly isDisconnected: boolean;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
@@ -544,11 +526,6 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventSource: TitleEventSource): void;
-
-	/**
-	 * Sets the shell type of the terminal instance.
-	 */
-	setShellType(shellType: TerminalShellType): void;
 
 	waitForTitle(): Promise<string>;
 

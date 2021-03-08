@@ -32,7 +32,7 @@ import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ISerializedTestResults, ITestItem, ITestState, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -790,8 +790,8 @@ export namespace location {
 		};
 	}
 
-	export function to(value: modes.Location): types.Location {
-		return new types.Location(value.uri, Range.to(value.range));
+	export function to(value: extHostProtocol.ILocationDto): types.Location {
+		return new types.Location(URI.revive(value.uri), Range.to(value.range));
 	}
 }
 
@@ -810,9 +810,9 @@ export namespace DefinitionLink {
 				: undefined,
 		};
 	}
-	export function to(value: modes.LocationLink): vscode.LocationLink {
+	export function to(value: extHostProtocol.IDefinitionLinkDto): vscode.LocationLink {
 		return {
-			targetUri: value.uri,
+			targetUri: URI.revive(value.uri),
 			targetRange: Range.to(value.range),
 			targetSelectionRange: value.targetSelectionRange
 				? Range.to(value.targetSelectionRange)
@@ -901,12 +901,13 @@ export namespace InlineValue {
 export namespace InlineValueContext {
 	export function from(inlineValueContext: vscode.InlineValueContext): extHostProtocol.IInlineValueContextDto {
 		return <extHostProtocol.IInlineValueContextDto>{
+			frameId: inlineValueContext.frameId,
 			stoppedLocation: Range.from(inlineValueContext.stoppedLocation)
 		};
 	}
 
 	export function to(inlineValueContext: extHostProtocol.IInlineValueContextDto): types.InlineValueContext {
-		return new types.InlineValueContext(Range.to(inlineValueContext.stoppedLocation));
+		return new types.InlineValueContext(inlineValueContext.frameId, Range.to(inlineValueContext.stoppedLocation));
 	}
 }
 
@@ -1430,7 +1431,7 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.runnable, data.cellEditable, data.cellRunnable, data.cellHasExecutionOrder, data.displayOrder, data.custom, data.runState, data.trusted);
+		return new types.NotebookDocumentMetadata(data.editable, data.runnable, data.cellEditable, data.cellRunnable, data.cellHasExecutionOrder, data.custom, data.runState, data.trusted);
 	}
 
 }
@@ -1461,19 +1462,11 @@ export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
 		return {
-			cellKind: NotebookCellKind.from(data.cellKind),
+			cellKind: NotebookCellKind.from(data.kind),
 			language: data.language,
 			source: data.source,
 			metadata: data.metadata,
-			outputs: data.outputs.map(output => ({
-				outputId: output.id,
-				metadata: output.metadata,
-				outputs: (output.outputs || []).map(op => ({
-					mime: op.mime,
-					value: op.value,
-					metadata: op.metadata
-				}))
-			}))
+			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
 	}
 }
@@ -1596,35 +1589,41 @@ export namespace TestState {
 		return {
 			state: item.state,
 			duration: item.duration,
-			messages: item.messages?.map(message => ({
-				message: MarkdownString.fromStrict(message.message) || '',
-				severity: message.severity,
-				expectedOutput: message.expectedOutput,
-				actualOutput: message.actualOutput,
-				location: message.location ? location.from(message.location) as any : undefined,
-			})) ?? [],
+			messages: item.messages.map(TestMessage.from),
 		};
 	}
 
 	export function to(item: ITestState): vscode.TestState {
+		const ts = new types.TestState(item.state);
+		ts.duration = item.duration;
+		ts.messages = item.messages.map(TestMessage.to);
+		return ts;
+	}
+}
+
+export namespace TestMessage {
+	export function from(message: vscode.TestMessage): ITestMessage {
 		return {
-			state: item.state,
-			messages: item.messages.map(message => ({
-				message: typeof message.message === 'string' ? message.message : MarkdownString.to(message.message),
-				severity: message.severity,
-				expectedOutput: message.expectedOutput,
-				actualOutput: message.actualOutput,
-				location: message.location && location.to({
-					range: message.location.range,
-					uri: URI.revive(message.location.uri)
-				}),
-			})),
-			duration: item.duration,
+			message: MarkdownString.fromStrict(message.message) || '',
+			severity: message.severity,
+			expectedOutput: message.expectedOutput,
+			actualOutput: message.actualOutput,
+			location: message.location ? location.from(message.location) as any : undefined,
 		};
+	}
+
+	export function to(item: ITestMessage): vscode.TestMessage {
+		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
+		message.severity = item.severity;
+		message.actualOutput = item.actualOutput;
+		message.expectedOutput = item.expectedOutput;
+		return message;
 	}
 }
 
 export namespace TestItem {
+	export type Raw = vscode.TestItem;
+
 	export function from(item: vscode.TestItem): ITestItem {
 		return {
 			extId: item.id,
@@ -1636,7 +1635,7 @@ export namespace TestItem {
 		};
 	}
 
-	export function toShallow(item: ITestItem): Omit<vscode.RequiredTestItem, 'children'> {
+	export function toPlainShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
 		return {
 			id: item.extId,
 			label: item.label,
@@ -1648,6 +1647,21 @@ export namespace TestItem {
 			description: item.description,
 			runnable: item.runnable,
 		};
+	}
+
+	export function toShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
+		const testItem = new types.TestItem(item.extId, item.label);
+		if (item.location) {
+			testItem.location = location.to({
+				range: item.location.range,
+				uri: URI.revive(item.location.uri)
+			});
+		}
+
+		testItem.debuggable = item.debuggable;
+		testItem.description = item.description;
+		testItem.runnable = item.runnable;
+		return testItem;
 	}
 }
 
@@ -1688,7 +1702,7 @@ export namespace TestResults {
 	}
 
 	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestItemWithResults => ({
-		...TestItem.toShallow(item.item),
+		...TestItem.toPlainShallow(item.item),
 		result: TestState.to(item.state),
 		children: item.children
 			.map(c => byInternalId.get(c))
