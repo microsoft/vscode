@@ -57,11 +57,9 @@ import 'vs/workbench/electron-browser/desktop.main';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/backup/electron-browser/backupFileService';
 import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
 
 
