@@ -265,7 +265,8 @@ export class CodeApplication extends Disposable {
 					cli: this.environmentMainService.args,
 					urisToOpen: macOpenFileURIs,
 					gotoLineMode: false,
-					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
+					preferNewWindow: true, /* dropping on the dock or opening from finder prefers to open in a new window */
+					remoteAuthority: undefined /* always local */
 				});
 
 				macOpenFileURIs = [];
@@ -744,6 +745,7 @@ export class CodeApplication extends Disposable {
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
 						gotoLineMode: true
+						/* remoteAuthority will be determined based on windowOpenableFromProtocolLink */
 					});
 
 					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
@@ -806,6 +808,7 @@ export class CodeApplication extends Disposable {
 				urisToOpen: pendingWindowOpenablesFromProtocolLinks,
 				gotoLineMode: true,
 				initialStartup: true
+				/* remoteAuthority will be determined based on pendingWindowOpenablesFromProtocolLinks */
 			});
 		}
 
@@ -831,7 +834,8 @@ export class CodeApplication extends Disposable {
 				urisToOpen: macOpenFiles.map(file => this.getWindowOpenableFromPathSync(file)),
 				noRecentEntry,
 				waitMarkerFileURI,
-				initialStartup: true
+				initialStartup: true,
+				remoteAuthority: undefined /* always local */
 			});
 		}
 

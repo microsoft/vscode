@@ -98,7 +98,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						f1: true
 					});
 				}
-				run = () => that.remoteAuthority && that.hostService.openWindow({ forceReuseWindow: true });
+				run = () => that.remoteAuthority && that.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: undefined });
 			});
 
 			MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

@@ -103,9 +103,6 @@ export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpe
 
 			return openable;
 		});
-		if (environmentService.remoteAuthority) {
-			options = { ...(options || {}), remoteAuthority: environmentService.remoteAuthority };
-		}
 
 		hostService.openWindow(toOpen, options);
 	}
