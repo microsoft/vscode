@@ -41,7 +41,7 @@ export interface IssueReporterStyles extends WindowStyles {
 
 export interface IssueReporterExtensionData {
 	name: string;
-	publisher: string;
+	publisher: string | undefined;
 	version: string;
 	id: string;
 	isTheme: boolean;

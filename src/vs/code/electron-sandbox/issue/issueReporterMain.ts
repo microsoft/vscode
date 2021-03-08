@@ -1181,7 +1181,7 @@ export class IssueReporter extends Disposable {
 			),
 			...extensions.map(extension => $('tr', undefined,
 				$('td', undefined, extension.name),
-				$('td', undefined, extension.publisher.substr(0, 3)),
+				$('td', undefined, extension.publisher?.substr(0, 3) ?? 'N/A'),
 				$('td', undefined, extension.version),
 			))
 		);
