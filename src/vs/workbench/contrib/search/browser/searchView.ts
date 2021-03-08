@@ -17,7 +17,7 @@ import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -1478,11 +1478,11 @@ export class SearchView extends ViewPane {
 				const p = dom.append(messageEl, $('p', undefined, message));
 
 				if (!completed) {
-					const searchAgainLink = dom.append(p, $('a.pointer.prominent', undefined, nls.localize('rerunSearch.message', "Search again")));
-					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
-						dom.EventHelper.stop(e, false);
-						this.triggerQueryChange({ preserveFocus: false });
-					}));
+					const searchAgainButton = new SearchLinkButton(
+						nls.localize('rerunSearch.message', "Search again"),
+						() => this.triggerQueryChange({ preserveFocus: false }));
+					this.messageDisposables.push(searchAgainButton);
+					dom.append(p, searchAgainButton.element);
 				} else if (hasIncludes || hasExcludes) {
 					const searchAgainLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('rerunSearchInAll.message', "Search again in all files")));
 					this.messageDisposables.push(dom.addDisposableListener(searchAgainLink, dom.EventType.CLICK, (e: MouseEvent) => {
@@ -1495,15 +1495,17 @@ export class SearchView extends ViewPane {
 						this.triggerQueryChange({ preserveFocus: false });
 					}));
 				} else {
-					const openSettingsLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.message', "Open Settings")));
-					this.addClickEvents(openSettingsLink, this.onOpenSettings.bind(this));
+					const openSettingsButton = new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this));
+					this.messageDisposables.push(openSettingsButton);
+					dom.append(p, openSettingsButton.element);
 				}
 
 				if (completed) {
 					dom.append(p, $('span', undefined, ' - '));
 
-					const learnMoreLink = dom.append(p, $('a.pointer.prominent', { tabindex: 0 }, nls.localize('openSettings.learnMore', "Learn More")));
-					this.addClickEvents(learnMoreLink, this.onLearnMore.bind(this));
+					const learnMoreButton = new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this));
+					this.messageDisposables.push(learnMoreButton);
+					dom.append(p, learnMoreButton.element);
 				}
 
 				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
@@ -1555,25 +1557,6 @@ export class SearchView extends ViewPane {
 			.then(onComplete, onError);
 	}
 
-	private addClickEvents = (element: HTMLElement, handler: (event: any) => void): void => {
-		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.CLICK, handler));
-		this.messageDisposables.push(dom.addDisposableListener(element, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			let eventHandled = true;
-
-			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
-				handler(e);
-			} else {
-				eventHandled = false;
-			}
-
-			if (eventHandled) {
-				event.preventDefault();
-				event.stopPropagation();
-			}
-		}));
-	};
-
 	private onOpenSettings(e: dom.EventLike): void {
 		dom.EventHelper.stop(e, false);
 		this.openSettings('@id:files.exclude,search.exclude,search.useGlobalIgnoreFiles,search.useIgnoreFiles');
@@ -1586,13 +1569,12 @@ export class SearchView extends ViewPane {
 			this.preferencesService.openGlobalSettings(undefined, options);
 	}
 
-	private onLearnMore(e: MouseEvent): void {
-		dom.EventHelper.stop(e, false);
+	private onLearnMore(): void {
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=853977'));
 	}
 
-	private onEnableExcludes(e: MouseEvent): void {
-		dom.EventHelper.stop(e, false);
+	private onEnableExcludes(): void {
+		this.toggleQueryDetails(false, true);
 		this.searchExcludePattern.setUseExcludesAndIgnoreFiles(true);
 	}
 
@@ -1610,10 +1592,9 @@ export class SearchView extends ViewPane {
 		if (fileCount > 0) {
 			if (disregardExcludesAndIgnores) {
 				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
-				const enableMessage = nls.localize('excludes.enable', "enable");
-				const enableExcludesButton = $('a.pointer.prominent', { title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files") }, enableMessage);
-				this.addClickEvents(enableExcludesButton, this.onEnableExcludes.bind(this));
-				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton, ')'));
+				const enableExcludesButton = new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"));
+				this.messageDisposables.push(enableExcludesButton);
+				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton.element, ')'));
 			}
 
 			dom.append(messageEl, ' - ');
@@ -1937,3 +1918,30 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		}
 	}
 });
+
+class SearchLinkButton extends Disposable {
+	public readonly element: HTMLElement;
+
+	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
+		super();
+		this.element = $('a.pointer.prominent', { tabindex: 0, title: tooltip }, label);
+		this.addEventHandlers(handler);
+	}
+
+	private addEventHandlers(handler: (e: dom.EventLike) => unknown): void {
+		const wrappedHandler = (e: dom.EventLike) => {
+			dom.EventHelper.stop(e, false);
+			handler(e);
+		};
+
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, wrappedHandler));
+		this._register(dom.addDisposableListener(this.element, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+				wrappedHandler(e);
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		}));
+	}
+}
