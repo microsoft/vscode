@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -34,6 +33,6 @@ suite('Checksum Service', () => {
 		const checksumService = new ChecksumService(fileService);
 
 		const checksum = await checksumService.checksum(URI.file(getPathFromAmdModule(require, './fixtures/lorem.txt')));
-		assert.strictEqual(checksum, isWindows ? '8mi5KF8kcb817zmlal1kZA' : 'DnUKbJ1bHPPNZoHgHV25sg');
+		assert.ok(checksum === '8mi5KF8kcb817zmlal1kZA' || checksum === 'DnUKbJ1bHPPNZoHgHV25sg'); // depends on line endings git config
 	});
 });
