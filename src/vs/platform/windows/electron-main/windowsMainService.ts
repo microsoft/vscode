@@ -294,11 +294,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const recents: IRecent[] = [];
 			for (const pathToOpen of pathsToOpen) {
 				if (isWorkspacePathToOpen(pathToOpen)) {
-					recents.push({ label: pathToOpen.label, workspace: pathToOpen.workspace });
+					recents.push({ label: pathToOpen.label, workspace: pathToOpen.workspace, remoteAuthority: pathToOpen.remoteAuthority });
 				} else if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
-					recents.push({ label: pathToOpen.label, folderUri: pathToOpen.workspace.uri });
+					recents.push({ label: pathToOpen.label, folderUri: pathToOpen.workspace.uri, remoteAuthority: pathToOpen.remoteAuthority });
 				} else if (pathToOpen.fileUri) {
-					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri });
+					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri, remoteAuthority: pathToOpen.remoteAuthority });
 				}
 			}
 

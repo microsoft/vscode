@@ -95,6 +95,7 @@ interface RecentEntry {
 	uri: URI;
 	type: 'workspace' | 'folder' | 'file';
 	label?: string;
+	remoteAuthority?: string;
 }
 
 CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
@@ -102,13 +103,14 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	let recent: IRecent | undefined = undefined;
 	const uri = recentEntry.uri;
 	const label = recentEntry.label;
+	const remoteAuthority = recentEntry.remoteAuthority;
 	if (recentEntry.type === 'workspace') {
 		const workspace = await workspacesService.getWorkspaceIdentifier(uri);
-		recent = { workspace, label };
+		recent = { workspace, label, remoteAuthority };
 	} else if (recentEntry.type === 'folder') {
-		recent = { folderUri: uri, label };
+		recent = { folderUri: uri, label, remoteAuthority };
 	} else {
-		recent = { fileUri: uri, label };
+		recent = { fileUri: uri, label, remoteAuthority };
 	}
 	return workspacesService.addRecentlyOpened([recent]);
 });
