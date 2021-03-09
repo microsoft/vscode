@@ -297,6 +297,7 @@ export class NotebookEditorOptions extends EditorOptions {
 		super();
 		this.overwrite(options);
 		this.cellOptions = options.cellOptions;
+		this.cellSelections = options.cellSelections;
 	}
 
 	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
