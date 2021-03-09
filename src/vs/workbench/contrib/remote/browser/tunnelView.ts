@@ -43,7 +43,7 @@ import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProc
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
-import { ITableColumn, ITableContextMenuEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 
@@ -418,35 +418,37 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		inputBox.focus();
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = once(async (success: boolean, finishEditing: boolean) => {
+			dispose(toDispose);
 			container.parentElement!.style.paddingLeft = oldPadding;
 			if (this.inputDone) {
 				this.inputDone = undefined;
 			}
 			inputBox.element.style.display = 'none';
 			const inputValue = inputBox.value;
-			dispose(toDispose);
 			if (finishEditing) {
-				editableData.onFinish(inputValue, success);
+				return editableData.onFinish(inputValue, success);
 			}
 		});
 		this.inputDone = done;
 
 		const toDispose = [
 			inputBox,
-			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, async (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate() !== MessageType.ERROR) {
-						done(true, true);
+						return done(true, true);
 					} else {
-						done(false, true);
+						return done(false, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
+					e.preventDefault();
+					e.stopPropagation();
+					return done(false, true);
 				}
 			}),
 			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
-				done(inputBox.validate() !== MessageType.ERROR, true);
+				return done(inputBox.validate() !== MessageType.ERROR, true);
 			}),
 			styler
 		];
@@ -605,6 +607,7 @@ export class TunnelPanel extends ViewPane {
 	private portChangableContextKey: IContextKey<boolean>;
 	private isEditing: boolean = false;
 	private titleActions: IAction[] = [];
+	private lastFocus: number[] = [];
 	private readonly titleActionsDisposable = this._register(new MutableDisposable());
 
 	constructor(
@@ -697,7 +700,7 @@ export class TunnelPanel extends ViewPane {
 
 		this._register(this.table.onContextMenu(e => this.onContextMenu(e, actionRunner)));
 		this._register(this.table.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.table.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this._register(this.table.onDidChangeFocus(e => this.onFocusChanged(e)));
 		this._register(this.table.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
 		this._register(this.table.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
 
@@ -733,7 +736,8 @@ export class TunnelPanel extends ViewPane {
 					this.table.reveal(this.table.indexOf(this.viewModel.input));
 				}
 			} else {
-				this.table.domFocus();
+				this.table.setFocus(this.lastFocus);
+				this.focus();
 			}
 		}));
 	}
@@ -747,7 +751,11 @@ export class TunnelPanel extends ViewPane {
 		this.table.domFocus();
 	}
 
-	private onFocusChanged(elements: ITunnelItem[]) {
+	private onFocusChanged(event: ITableEvent<ITunnelItem>) {
+		if (event.indexes.length > 0 && event.elements.length > 0) {
+			this.lastFocus = event.indexes;
+		}
+		const elements = event.elements;
 		const item = elements && elements.length ? elements[0] : undefined;
 		if (item) {
 			this.tunnelViewSelectionContext.set(item);
