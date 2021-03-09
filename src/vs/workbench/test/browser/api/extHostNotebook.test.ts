@@ -54,7 +54,7 @@ suite('NotebookCell#Document', function () {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
@@ -388,5 +388,29 @@ suite('NotebookCell#Document', function () {
 
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: null });
 		assert.ok(extHostNotebooks.activeNotebookEditor === undefined);
+	});
+
+	test('change cell language triggers onDidChange events', async function () {
+
+		const [first] = notebook.notebookDocument.cells;
+
+		assert.strictEqual(first.language, 'markdown');
+
+		const removed = Event.toPromise(extHostDocuments.onDidRemoveDocument);
+		const added = Event.toPromise(extHostDocuments.onDidAddDocument);
+
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			versionId: 12, rawEvents: [{
+				kind: NotebookCellsChangeType.ChangeLanguage,
+				index: 0,
+				language: 'fooLang'
+			}]
+		}, false);
+
+		const removedDoc = await removed;
+		const addedDoc = await added;
+
+		assert.strictEqual(first.language, 'fooLang');
+		assert.ok(removedDoc === addedDoc);
 	});
 });
