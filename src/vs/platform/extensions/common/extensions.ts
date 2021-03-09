@@ -113,6 +113,15 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
+export interface IGettingStartedContent {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly button: { title: string } & ({ command?: never, link: string } | { command: string, link?: never }),
+	readonly media: { path: string | { hc: string, light: string, dark: string }, altText: string },
+	readonly when?: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -132,6 +141,7 @@ export interface IExtensionContributions {
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
+	gettingStarted?: IGettingStartedContent[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
@@ -175,7 +185,7 @@ export interface IExtensionManifest {
 	readonly displayName?: string;
 	readonly publisher: string;
 	readonly version: string;
-	readonly engines: { vscode: string };
+	readonly engines: { readonly vscode: string };
 	readonly description?: string;
 	readonly main?: string;
 	readonly browser?: string;

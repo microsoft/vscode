@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
+import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

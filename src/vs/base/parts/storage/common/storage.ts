@@ -84,10 +84,12 @@ export class Storage extends Disposable implements IStorage {
 
 	private cache = new Map<string, string>();
 
-	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY));
+	private readonly flushDelayer = new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY);
 
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
+
+	private pendingClose: Promise<void> | undefined = undefined;
 
 	private readonly whenFlushedCallbacks: Function[] = [];
 
@@ -256,9 +258,14 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	async close(): Promise<void> {
-		if (this.state === StorageState.Closed) {
-			return; // return if already closed
+		if (!this.pendingClose) {
+			this.pendingClose = this.doClose();
 		}
+
+		return this.pendingClose;
+	}
+
+	private async doClose(): Promise<void> {
 
 		// Update state
 		this.state = StorageState.Closed;
@@ -311,6 +318,13 @@ export class Storage extends Disposable implements IStorage {
 		}
 
 		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
+	}
+
+	dispose(): void {
+		this.flushDelayer.cancel(); // workaround https://github.com/microsoft/vscode/issues/116777
+		this.flushDelayer.dispose();
+
+		super.dispose();
 	}
 }
 

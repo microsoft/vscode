@@ -28,6 +28,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { flatten } from 'vs/base/common/arrays';
 import { UserDataSyncMergesViewPane } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncMergesView';
 import { basename } from 'vs/base/common/resources';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class UserDataSyncDataViews extends Disposable {
 
@@ -216,33 +217,6 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 		});
 
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.sync.compareWithLocal`,
-					title: localize({ key: 'workbench.actions.sync.compareWithLocal', comment: ['This is an action title to show the changes between local and remote version of resources'] }, "Open Changes"),
-				});
-			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const { resource, comparableResource } = <{ resource: string, comparableResource: string }>JSON.parse(handle.$treeItemHandle);
-				const leftResource = URI.parse(resource);
-				const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(leftResource));
-				const rightResource = URI.parse(comparableResource);
-				const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
-				await editorService.openEditor({
-					leftResource,
-					rightResource,
-					label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
-					description: localize('sideBySideDescription', "Settings Sync"),
-					options: {
-						preserveFocus: true,
-						revealIfVisible: true,
-						pinned: true
-					},
-				});
-			}
-		});
 	}
 
 }
@@ -319,11 +293,13 @@ abstract class UserDataSyncActivityViewDataProvider implements ITreeViewDataProv
 		const associatedResources = await this.userDataSyncService.getAssociatedResources((<SyncResourceHandleTreeItem>element).syncResourceHandle.syncResource, (<SyncResourceHandleTreeItem>element).syncResourceHandle);
 		return associatedResources.map(({ resource, comparableResource }) => {
 			const handle = JSON.stringify({ resource: resource.toString(), comparableResource: comparableResource.toString() });
+			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(resource));
+			const rightResourceName = localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(comparableResource));
 			return {
 				handle,
 				collapsibleState: TreeItemCollapsibleState.None,
 				resourceUri: resource,
-				command: { id: `workbench.actions.sync.compareWithLocal`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
+				command: { id: API_OPEN_DIFF_EDITOR_COMMAND_ID, title: '', arguments: [resource, comparableResource, localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName), undefined] },
 				contextValue: `sync-associatedResource-${(<SyncResourceHandleTreeItem>element).syncResourceHandle.syncResource}`
 			};
 		});

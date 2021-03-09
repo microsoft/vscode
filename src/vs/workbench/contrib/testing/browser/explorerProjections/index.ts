@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
@@ -27,10 +27,20 @@ export interface ITestTreeProjection extends IDisposable {
 	onUpdate: Event<void>;
 
 	/**
+	 * Gets an element by its extension-assigned ID.
+	 */
+	getElementByTestId(testId: string): ITestTreeElement | undefined;
+
+	/**
 	 * Gets the test at the given position in th editor. Should be fast,
 	 * since it is called on each cursor move.
 	 */
 	getTestAtPosition(uri: URI, position: Position): ITestTreeElement | undefined;
+
+	/**
+	 * Gets whether any test is defined in the given URI.
+	 */
+	hasTestInDocument(uri: URI): boolean;
 
 	/**
 	 * Applies pending update to the tree.
@@ -40,13 +50,6 @@ export interface ITestTreeProjection extends IDisposable {
 
 
 export interface ITestTreeElement {
-	/**
-	 * Computed element state. Will be set automatically if not initially provided.
-	 * The projection is responsible for clearing (or updating) this if it
-	 * becomes invalid.
-	 */
-	computedState: TestRunState | undefined;
-
 	readonly children: Set<ITestTreeElement>;
 
 	/**
@@ -85,9 +88,16 @@ export interface ITestTreeElement {
 	readonly debuggable: Iterable<TestIdWithProvider>;
 
 	/**
-	 * State of of the tree item. Mostly used for deriving the computed state.
+	 * Element state to display.
 	 */
-	readonly state?: TestRunState;
+	state: TestResult;
+
+	/**
+	 * Whether the node's test result is 'retired' -- from an outdated test run.
+	 */
+	readonly retired: boolean;
+
+	readonly ownState: TestResult;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
 }

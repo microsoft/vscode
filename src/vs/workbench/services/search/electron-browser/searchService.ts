@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FileAccess } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -36,9 +37,10 @@ export class LocalSearchService extends SearchService {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IInstantiationService readonly instantiationService: IInstantiationService
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 
 		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
 	}
@@ -61,10 +63,7 @@ export class DiskSearch implements ISearchResultProvider {
 			serverName: 'Search',
 			timeout,
 			args: ['--type=searchService'],
-			// See https://github.com/microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
-			// e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
-			// results in the forked process inheriting `--inspect-brk=xxx`.
 			freshExecArgv: true,
 			env: {
 				VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',

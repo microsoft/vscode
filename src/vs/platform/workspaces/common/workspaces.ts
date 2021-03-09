@@ -45,7 +45,7 @@ export interface IWorkspacesService {
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 
 	// Workspaces History
-	readonly onRecentlyOpenedChange: Event<void>;
+	readonly onDidChangeRecentlyOpened: Event<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	removeRecentlyOpened(workspaces: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
@@ -116,6 +116,10 @@ export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifi
 	uri: URI;
 }
 
+export interface ISerializedSingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+	uri: UriComponents;
+}
+
 export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
 	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
 
@@ -131,6 +135,10 @@ export interface IWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
 	 * Workspace config file path as `URI`.
 	 */
 	configPath: URI;
+}
+
+export interface ISerializedWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+	configPath: UriComponents;
 }
 
 export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
@@ -161,13 +169,28 @@ export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier
 	return typeof workspaceIdentifier?.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
 }
 
-export function reviveIdentifier(identifier: { id: string, uri?: UriComponents, configPath?: UriComponents } | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
-	if (identifier?.uri) {
-		return { id: identifier.id, uri: URI.revive(identifier.uri) };
+export function reviveIdentifier(identifier: undefined): undefined;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier): IWorkspaceIdentifier;
+export function reviveIdentifier(identifier: ISerializedSingleFolderWorkspaceIdentifier): ISingleFolderWorkspaceIdentifier;
+export function reviveIdentifier(identifier: IEmptyWorkspaceIdentifier): IEmptyWorkspaceIdentifier;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined {
+
+	// Single Folder
+	const singleFolderIdentifierCandidate = identifier as ISerializedSingleFolderWorkspaceIdentifier | undefined;
+	if (singleFolderIdentifierCandidate?.uri) {
+		return { id: singleFolderIdentifierCandidate.id, uri: URI.revive(singleFolderIdentifierCandidate.uri) };
 	}
 
-	if (identifier?.configPath) {
-		return { id: identifier.id, configPath: URI.revive(identifier.configPath) };
+	// Multi folder
+	const workspaceIdentifierCandidate = identifier as ISerializedWorkspaceIdentifier | undefined;
+	if (workspaceIdentifierCandidate?.configPath) {
+		return { id: workspaceIdentifierCandidate.id, configPath: URI.revive(workspaceIdentifierCandidate.configPath) };
+	}
+
+	// Empty
+	if (identifier?.id) {
+		return { id: identifier.id };
 	}
 
 	return undefined;
@@ -177,9 +200,9 @@ export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentS
 	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
-export interface IEmptyWorkspaceInitializationPayload extends IBaseWorkspaceIdentifier { }
+export interface IEmptyWorkspaceIdentifier extends IBaseWorkspaceIdentifier { }
 
-export type IWorkspaceInitializationPayload = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceInitializationPayload;
+export type IWorkspaceInitializationPayload = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier;
 
 //#endregion
 

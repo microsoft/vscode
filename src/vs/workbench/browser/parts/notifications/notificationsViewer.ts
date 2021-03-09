@@ -12,7 +12,7 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionRunner, ActionWithMenuAction, IAction, IActionRunner } from 'vs/base/common/actions';
+import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { dispose, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -457,8 +457,7 @@ export class NotificationTemplateRenderer extends Disposable {
 			const buttonToolbar = this.inputDisposables.add(new ButtonBar(this.template.buttonsContainer));
 			for (const action of primaryActions) {
 				const buttonOptions = { title: true, /* assign titles to buttons in case they overflow */ };
-				const dropdownActions = action instanceof ChoiceAction ? action.menu
-					: action instanceof ActionWithMenuAction ? action.actions : undefined;
+				const dropdownActions = action instanceof ChoiceAction ? action.menu : undefined;
 				const button = this.inputDisposables.add(
 					dropdownActions
 						? buttonToolbar.addButtonWithDropdown({

@@ -365,19 +365,8 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 }
 
 export async function hasPackageJson(): Promise<boolean> {
-	let folders = workspace.workspaceFolders;
-	if (!folders) {
-		return false;
-	}
-	for (const folder of folders) {
-		if (folder.uri.scheme === 'file') {
-			let packageJson = path.join(folder.uri.fsPath, 'package.json');
-			if (await exists(packageJson)) {
-				return true;
-			}
-		}
-	}
-	return false;
+	const files = await workspace.findFiles('**/package.json', undefined, 1);
+	return files.length > 0;
 }
 
 async function exists(file: string): Promise<boolean> {

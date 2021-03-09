@@ -7,7 +7,7 @@ import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
 	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, UninstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -25,8 +25,9 @@ import Severity from 'vs/base/common/severity';
 import { canceled } from 'vs/base/common/errors';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
+import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
-export class ExtensionManagementService extends Disposable implements IWorkbenchExtensioManagementService {
+export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -46,6 +47,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
@@ -128,9 +130,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	}
 
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> {
+	async reinstallFromGallery(extension: ILocalExtension): Promise<void> {
 		const server = this.getServer(extension);
 		if (server) {
+			await this.checkForWorkspaceTrust(extension.manifest);
 			return server.extensionManagementService.reinstallFromGallery(extension);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
@@ -191,8 +194,13 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject('No Servers to Install');
 	}
 
-	protected installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
-		return server.extensionManagementService.install(vsix);
+	protected async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
+		const manifest = await this.getManifest(vsix);
+		if (manifest) {
+			await this.checkForWorkspaceTrust(manifest);
+			return server.extensionManagementService.install(vsix);
+		}
+		return Promise.reject('Unable to get the extension manifest.');
 	}
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
@@ -222,9 +230,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const servers: IExtensionManagementServer[] = [];
 
-		// Update Language pack on all servers
+		// Update Language pack on local and remote servers
 		if (isLanguagePackExtension(extension.manifest)) {
-			servers.push(...this.servers);
+			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
 		} else {
 			servers.push(server);
 		}
@@ -249,9 +257,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const servers: IExtensionManagementServer[] = [];
 
-		// Install Language pack on all servers
+		// Install Language pack on local and remote servers
 		if (isLanguagePackExtension(manifest)) {
-			servers.push(...this.servers);
+			servers.push(...this.servers.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer));
 		} else {
 			const server = this.getExtensionManagementServerToInstall(manifest);
 			if (server) {
@@ -269,6 +277,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 				}
 			}
+			await this.checkForWorkspaceTrust(manifest);
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
@@ -345,5 +354,13 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	private getServer(extension: ILocalExtension): IExtensionManagementServer | null {
 		return this.extensionManagementServerService.getExtensionManagementServer(extension);
+	}
+
+	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
+		if (manifest.requiresWorkspaceTrust === 'onStart') {
+			const trustState = await this.workspaceTrustService.requireWorkspaceTrust();
+			return trustState === WorkspaceTrustState.Trusted ? Promise.resolve() : Promise.reject(canceled());
+		}
+		return Promise.resolve();
 	}
 }

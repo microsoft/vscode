@@ -11,7 +11,6 @@ import * as errors from 'vs/base/common/errors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -465,9 +464,7 @@ export class RawDebugSession implements IDisposable {
 	async stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('stepBack', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('stepBack not supported'));
@@ -476,9 +473,7 @@ export class RawDebugSession implements IDisposable {
 	async reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('reverseContinue', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('reverseContinue not supported'));
@@ -690,7 +685,7 @@ export class RawDebugSession implements IDisposable {
 		const url = error?.url;
 		if (error && url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-			return createErrorWithActions(userMessage, {
+			return errors.createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
 					this.openerService.open(URI.parse(url));
 					return Promise.resolve(null);

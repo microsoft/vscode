@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWindowsShellHelper, ITerminalChildProcess, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -12,17 +12,24 @@ import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
+import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
 let Unicode11Addon: typeof XTermUnicode11Addon;
 let WebglAddon: typeof XTermWebglAddon;
 
-export class TerminalInstanceService implements ITerminalInstanceService {
+export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
 
-	private readonly _onRequestDefaultShellAndArgs = new Emitter<IDefaultShellAndArgsRequest>();
-	public get onRequestDefaultShellAndArgs(): Event<IDefaultShellAndArgsRequest> { return this._onRequestDefaultShellAndArgs.event; }
+	readonly onPtyHostExit = Event.None;
+	readonly onPtyHostUnresponsive = Event.None;
+	readonly onPtyHostResponsive = Event.None;
+	readonly onPtyHostRestart = Event.None;
+	private readonly _onRequestDefaultShellAndArgs = this._register(new Emitter<IDefaultShellAndArgsRequest>());
+	readonly onRequestDefaultShellAndArgs = this._onRequestDefaultShellAndArgs.event;
 
 	public async getXtermConstructor(): Promise<typeof XTermTerminal> {
 		if (!Terminal) {
@@ -52,11 +59,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return WebglAddon;
 	}
 
-	public createWindowsShellHelper(): IWindowsShellHelper {
-		throw new Error('Not implemented');
-	}
-
-	public createTerminalProcess(): ITerminalChildProcess {
+	public createTerminalProcess(): Promise<ITerminalChildProcess> {
 		throw new Error('Not implemented');
 	}
 
@@ -69,6 +72,22 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return {};
+	}
+
+	getWorkspaceId(): string {
+		return '';
+	}
+	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById, id?: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getTerminalLayouts(): Map<string, ITerminalsLayoutInfo> {
+		return new Map<string, ITerminalsLayoutInfo>();
+	}
+	attachToProcess(id: number): Promise<ITerminalChildProcess> {
+		throw new Error('Method not implemented.');
 	}
 }
 

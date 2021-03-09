@@ -13,8 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -158,7 +157,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			// Electron: workaround for https://github.com/electron/electron/issues/14258
 			// We have to detect keyboard events in the <webview> and dispatch them to our
 			// keybinding service because these events do not bubble to the parent window anymore.
-			this.handleKeyDown(data);
+			this.handleKeyEvent('keydown', data);
+		}));
+
+		this._register(this.on('did-keyup', (data: KeyboardEvent) => {
+			this.handleKeyEvent('keyup', data);
 		}));
 
 		this.style();
@@ -271,7 +274,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	public set contentOptions(options: WebviewContentOptions) {
 		this._logService.debug(`Webview(${this.id}): will update content options`);
 
-		if (areWebviewInputOptionsEqual(options, this.content.options)) {
+		if (areWebviewContentOptionsEqual(options, this.content.options)) {
 			this._logService.debug(`Webview(${this.id}): skipping content options update`);
 			return;
 		}
@@ -330,9 +333,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}
 	}
 
-	private handleKeyDown(event: IKeydownEvent) {
+	private handleKeyEvent(type: 'keydown' | 'keyup', event: IKeydownEvent) {
 		// Create a fake KeyboardEvent from the data provided
-		const emulatedKeyboardEvent = new KeyboardEvent('keydown', event);
+		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target
 		Object.defineProperty(emulatedKeyboardEvent, 'target', {
 			get: () => this.element,

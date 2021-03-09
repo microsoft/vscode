@@ -22,11 +22,12 @@ import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService, ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Codicon } from 'vs/base/common/codicons';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -52,6 +53,7 @@ export interface IssueReporterConfiguration extends IWindowConfiguration {
 		commit: string | undefined;
 		date: string | undefined;
 		reportIssueUrl: string | undefined;
+		reportMarketplaceIssueUrl: string | undefined;
 	}
 }
 
@@ -82,6 +84,7 @@ export class IssueReporter extends Disposable {
 		super();
 
 		this.initServices(configuration);
+		console.log(configuration);
 
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
@@ -352,7 +355,8 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('issue-title', 'input', (e: Event) => {
 			const title = (<HTMLInputElement>e.target).value;
 			const lengthValidationMessage = this.getElementById('issue-title-length-validation-error');
-			if (title && this.getIssueUrlWithTitle(title).length > MAX_URL_LENGTH) {
+			const issueUrl = this.getIssueUrl();
+			if (title && this.getIssueUrlWithTitle(title, issueUrl).length > MAX_URL_LENGTH) {
 				show(lengthValidationMessage);
 			} else {
 				hide(lengthValidationMessage);
@@ -464,6 +468,10 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (issueType === IssueType.FeatureRequest) {
+			return true;
+		}
+
+		if (issueType === IssueType.Marketplace) {
 			return true;
 		}
 
@@ -632,11 +640,18 @@ export class IssueReporter extends Disposable {
 
 		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
 		const { issueType } = this.issueReporterModel.getData();
-		reset(typeSelect,
-			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
-		);
+		this.configuration.product.reportMarketplaceIssueUrl
+			? reset(typeSelect,
+				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
+				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
+				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
+				makeOption(IssueType.Marketplace, localize('marketplaceIssue', "Extensions Marketplace Issue"))
+			)
+			: reset(typeSelect,
+				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
+				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
+				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
+			);
 
 		typeSelect.value = issueType.toString();
 
@@ -750,6 +765,9 @@ export class IssueReporter extends Disposable {
 			if (fileOnExtension) {
 				show(extensionSelector);
 			}
+		} else if (issueType === IssueType.Marketplace) {
+			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('marketplaceDescription', "Please describe the feature you would like added to the marketplace, or steps to reliably reproduce the problem if you are reporting a bug. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		}
 	}
 
@@ -769,9 +787,13 @@ export class IssueReporter extends Disposable {
 
 	private validateInputs(): boolean {
 		let isValid = true;
-		['issue-title', 'description', 'issue-source'].forEach(elementId => {
+		['issue-title', 'description'].forEach(elementId => {
 			isValid = this.validateInput(elementId) && isValid;
 		});
+
+		if (this.issueReporterModel.getData().issueType !== IssueType.Marketplace) {
+			isValid = this.validateInput('issue-source') && isValid;
+		}
 
 		if (this.issueReporterModel.fileOnExtension()) {
 			isValid = this.validateInput('extension-selector') && isValid;
@@ -844,13 +866,13 @@ export class IssueReporter extends Disposable {
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		const issueUrl = this.issueReporterModel.fileOnExtension() ? this.getExtensionGitHubUrl() : this.configuration.product.reportIssueUrl!;
+		const issueUrl = this.getIssueUrl();
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
 		if (this.configuration.data.githubAccessToken && gitHubDetails) {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
-		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
+		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
@@ -878,6 +900,14 @@ export class IssueReporter extends Disposable {
 
 			ipcRenderer.send('vscode:issueReporterClipboard');
 		});
+	}
+
+	private getIssueUrl(): string {
+		return this.issueReporterModel.fileOnExtension()
+			? this.getExtensionGitHubUrl()
+			: this.issueReporterModel.getData().issueType === IssueType.Marketplace
+				? this.configuration.product.reportMarketplaceIssueUrl!
+				: this.configuration.product.reportIssueUrl!;
 	}
 
 	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
@@ -908,16 +938,12 @@ export class IssueReporter extends Disposable {
 		return repositoryUrl;
 	}
 
-	private getIssueUrlWithTitle(issueTitle: string): string {
-		let repositoryUrl = this.configuration.product.reportIssueUrl;
+	private getIssueUrlWithTitle(issueTitle: string, repositoryUrl: string): string {
 		if (this.issueReporterModel.fileOnExtension()) {
-			const extensionGitHubUrl = this.getExtensionGitHubUrl();
-			if (extensionGitHubUrl) {
-				repositoryUrl = extensionGitHubUrl + '/issues/new';
-			}
+			repositoryUrl = repositoryUrl + '/issues/new';
 		}
 
-		const queryStringPrefix = this.configuration.product.reportIssueUrl && this.configuration.product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const queryStringPrefix = repositoryUrl.indexOf('?') === -1 ? '?' : '&';
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
@@ -1155,7 +1181,7 @@ export class IssueReporter extends Disposable {
 			),
 			...extensions.map(extension => $('tr', undefined,
 				$('td', undefined, extension.name),
-				$('td', undefined, extension.publisher.substr(0, 3)),
+				$('td', undefined, extension.publisher?.substr(0, 3) ?? 'N/A'),
 				$('td', undefined, extension.version),
 			))
 		);

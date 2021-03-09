@@ -91,7 +91,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.altClickMovesCursor': {
-			description: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when `#editor.multiCursorModifier#` is set to `'alt'` (the default value). This may not work reliably depending on your shell."),
+			markdownDescription: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when `#editor.multiCursorModifier#` is set to `'alt'` (the default value). This may not work reliably depending on your shell."),
 			type: 'boolean',
 			default: true
 		},
@@ -393,18 +393,8 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			]
 		},
-		'terminal.integrated.serverSpawn': {
-			description: localize('terminal.integrated.serverSpawn', "Experimental: spawn remote terminals from the remote agent process instead of the remote extension host"),
-			type: 'boolean',
-			default: true
-		},
 		'terminal.integrated.enablePersistentSessions': {
-			description: localize('terminal.integrated.enablePersistentSessions', "Experimental: persist terminal sessions for the workspace across window reloads. Currently only supported in VS Code Remote workspaces."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.flowControl': {
-			description: localize('terminal.integrated.flowControl', "Experimental: whether to enable flow control which will slow the program on the remote side to avoid flooding remote connections with terminal output. This setting has no effect for local terminals and terminals where the output/input is controlled by an extension. Changing this will only affect new terminals."),
+			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
 			type: 'boolean',
 			default: true
 		}

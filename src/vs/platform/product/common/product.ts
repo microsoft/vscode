@@ -20,7 +20,7 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.54.0-dev',
+			version: '1.55.0-dev',
 			nameShort: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
 			nameLong: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
 			applicationName: 'code-oss',
@@ -28,7 +28,7 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 			urlProtocol: 'code-oss',
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/master/LICENSE.txt',
+			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',

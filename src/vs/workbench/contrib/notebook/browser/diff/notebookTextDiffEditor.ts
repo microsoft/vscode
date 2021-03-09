@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -47,7 +47,7 @@ import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } fro
 const $ = DOM.$;
 
 export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
-	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
+	static readonly ID: string = NOTEBOOK_DIFF_EDITOR_ID;
 
 	private _rootElement!: HTMLElement;
 	private _overflowContainer!: HTMLElement;
@@ -74,7 +74,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _revealFirst: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
-	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: IDisplayOutputViewModel }>();
+	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>();
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
 	private _localStore: DisposableStore = this._register(new DisposableStore());
@@ -113,7 +113,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
-	updateOutputHeight(cellInfo: IDiffCellInfo, output: IDisplayOutputViewModel, outputHeight: number, isInit: boolean): void {
+	updateOutputHeight(cellInfo: IDiffCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean): void {
 		const diffElement = cellInfo.diffElement;
 		const cell = this.getCellByInfo(cellInfo);
 		const outputIndex = cell.outputsViewModels.indexOf(output);
@@ -132,6 +132,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		if (isInit) {
 			this._onDidDynamicOutputRendered.fire({ cell, output });
 		}
+	}
+
+	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDragStart(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDrag(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
+		// throw new Error('Method not implemented.');
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -231,7 +244,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		if (activeWebview.insetMapping) {
 			const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-			const removedItems: IDisplayOutputViewModel[] = [];
+			const removedItems: ICellOutputViewModel[] = [];
 			activeWebview.insetMapping.forEach((value, key) => {
 				const cell = getActiveNestedCell(value.cellInfo.diffElement);
 				if (!cell) {
@@ -376,8 +389,16 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 	}
 
+	private readonly webviewOptions = {
+		outputNodePadding: CELL_OUTPUT_PADDING,
+		outputNodeLeftPadding: 32,
+		leftMargin: 0,
+		cellMargin: 0,
+		runGutter: 0
+	};
+
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 32 }) as BackLayerWebView<IDiffCellInfo>;
+		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this.webviewOptions) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		await this._modifiedWebview.createWebview();
@@ -386,7 +407,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, { outputNodePadding: CELL_OUTPUT_PADDING, outputNodeLeftPadding: 32 }) as BackLayerWebView<IDiffCellInfo>;
+		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this.webviewOptions) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		await this._originalWebview.createWebview();
@@ -569,7 +590,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._list.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void {
+	createOutput(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
 			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 			if (!activeWebview) {
@@ -578,7 +599,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 			if (!activeWebview.insetMapping.has(output.source)) {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-				await activeWebview.createInset({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
+				await activeWebview.createOutput({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 				const scrollTop = this._list.scrollTop;
@@ -589,11 +610,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		});
 	}
 
+	updateMarkdownCellHeight() {
+		// TODO
+	}
+
 	getCellByInfo(cellInfo: IDiffCellInfo): IGenericCellViewModel {
 		return cellInfo.diffElement.getCellByUri(cellInfo.cellUri);
 	}
 
-	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: IDisplayOutputViewModel, diffSide: DiffSide) {
+	getCellById(cellId: string): IGenericCellViewModel | undefined {
+		throw new Error('Not implemented');
+	}
+
+	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide) {
 		this._insetModifyQueueByOutputId.queue(displayOutput.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
 			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 			if (!activeWebview) {
@@ -608,7 +637,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		});
 	}
 
-	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: IDisplayOutputViewModel, diffSide: DiffSide) {
+	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide) {
 		this._insetModifyQueueByOutputId.queue(displayOutput.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
 			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 			if (!activeWebview) {
@@ -627,7 +656,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		});
 	}
 
-	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IDisplayOutputViewModel) {
+	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: ICellOutputViewModel) {
 		this._modifiedWebview?.hideInset(output);
 		this._originalWebview?.hideInset(output);
 	}

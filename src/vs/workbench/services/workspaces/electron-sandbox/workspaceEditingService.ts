@@ -65,9 +65,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	private registerListeners(): void {
 		this.lifecycleService.onBeforeShutdown(e => {
 			const saveOperation = this.saveUntitledBeforeShutdown(e.reason);
-			if (saveOperation) {
-				e.veto(saveOperation, 'veto.untitledWorkspace');
-			}
+			e.veto(saveOperation, 'veto.untitledWorkspace');
 		});
 	}
 

@@ -169,7 +169,7 @@ export interface IPathData {
 	readonly openOnlyIfExists?: boolean;
 
 	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
-	readonly overrideId?: string;
+	readonly editorOverrideId?: string;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {

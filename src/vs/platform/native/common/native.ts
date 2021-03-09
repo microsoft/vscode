@@ -45,6 +45,8 @@ export interface ICommonNativeHostService {
 	readonly onDidFocusWindow: Event<number>;
 	readonly onDidBlurWindow: Event<number>;
 
+	readonly onDidChangeDisplay: Event<void>;
+
 	readonly onDidResumeOS: Event<unknown>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;

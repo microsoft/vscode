@@ -6,7 +6,7 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';

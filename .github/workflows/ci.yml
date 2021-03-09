@@ -3,11 +3,11 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
       - release/*
   pull_request:
     branches:
-      - master
+      - main
       - release/*
 
 jobs:
@@ -246,6 +246,9 @@ jobs:
 
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
+
+      - name: Run Trusted Types Checks
+        run: yarn tsec-compile-check
 
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle

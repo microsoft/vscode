@@ -961,7 +961,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly filterOnType?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
-	readonly expandOnlyOnDoubleClick?: boolean;
+	readonly expandOnDoubleClick?: boolean;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
 }
 
@@ -1121,7 +1121,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			return super.onViewPointer(e);
 		}
 
-		if (this.tree.expandOnlyOnDoubleClick && e.browserEvent.detail !== 2 && !onTwistie) {
+		if (!this.tree.expandOnDoubleClick && e.browserEvent.detail === 2) {
 			return super.onViewPointer(e);
 		}
 
@@ -1129,6 +1129,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
 			const location = model.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
+			this.tree.setFocus([location]);
 			model.setCollapsed(location, undefined, recursive);
 
 			if (expandOnlyOnTwistieClick && onTwistie) {
@@ -1142,7 +1143,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	protected onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
 
-		if (onTwistie) {
+		if (onTwistie || !this.tree.expandOnDoubleClick) {
 			return;
 		}
 
@@ -1262,8 +1263,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	get filterOnType(): boolean { return !!this._options.filterOnType; }
 	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
 
-	get expandOnlyOnDoubleClick(): boolean { return this._options.expandOnlyOnDoubleClick ?? false; }
-	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? false : this._options.expandOnlyOnTwistieClick; }
+	get expandOnDoubleClick(): boolean { return typeof this._options.expandOnDoubleClick === 'undefined' ? true : this._options.expandOnDoubleClick; }
+	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? true : this._options.expandOnlyOnTwistieClick; }
 
 	private readonly _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
 	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;

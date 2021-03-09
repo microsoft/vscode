@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
@@ -146,6 +147,19 @@ class TestSubscription extends Disposable {
 
 	public get workspaceFolderCollections() {
 		return [...this.collectionsForWorkspaces.values()].map(v => [v.folder, v.collection] as const);
+	}
+
+	/**
+	 * Returns whether there are any subscriptions with non-empty providers.
+	 */
+	public get isEmpty() {
+		for (const { collection } of this.collectionsForWorkspaces.values()) {
+			if (Iterable.some(collection.all, t => !!t.parent)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	constructor(

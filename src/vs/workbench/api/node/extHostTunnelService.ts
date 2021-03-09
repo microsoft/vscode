@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadTunnelServiceShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import type * as vscode from 'vscode';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,14 +13,16 @@ import { exec } from 'child_process';
 import * as resources from 'vs/base/common/resources';
 import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
+import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TunnelOptions, TunnelCreationOptions } from 'vs/platform/remote/common/tunnel';
+import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { flatten } from 'vs/base/common/arrays';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -139,6 +141,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
 
+	private _providerHandleCounter: number = 0;
+	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider, selector: PortAttributesProviderSelector }> = new Map();
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
@@ -152,6 +157,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
+		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) ${extension.identifier} called openTunnel API for ${forward.remoteAddress.port}.`);
 		const tunnel = await this._proxy.$openTunnel(forward, extension.displayName);
 		if (tunnel) {
 			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remoteAddress, tunnel.localAddress, () => {
@@ -172,6 +178,40 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return Math.max(movingAverage * 20, 2000);
 	}
 
+	private nextPortAttributesProviderHandle(): number {
+		return this._providerHandleCounter++;
+	}
+
+	registerPortsAttributesProvider(portSelector: PortAttributesProviderSelector, provider: vscode.PortAttributesProvider): vscode.Disposable {
+		const providerHandle = this.nextPortAttributesProviderHandle();
+		this._portAttributesProviders.set(providerHandle, { selector: portSelector, provider });
+
+		this._proxy.$registerPortsAttributesProvider(portSelector, providerHandle);
+		return new types.Disposable(() => {
+			this._portAttributesProviders.delete(providerHandle);
+			this._proxy.$unregisterPortsAttributesProvider(providerHandle);
+		});
+	}
+
+	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
+		const providedAttributes = await Promise.all(handles.map(handle => {
+			const provider = this._portAttributesProviders.get(handle);
+			if (!provider) {
+				return [];
+			}
+			return provider.provider.providePortAttributes(ports, pid, commandline, cancellationToken);
+		}));
+
+		const allAttributes = <vscode.PortAttributes[][]>providedAttributes.filter(attribute => !!attribute && attribute.length > 0);
+
+		return (allAttributes.length > 0) ? flatten(allAttributes).map(attributes => {
+			return {
+				autoForwardAction: <ProvidedOnAutoForward><unknown>attributes.autoForwardAction,
+				port: attributes.port
+			};
+		}) : [];
+	}
+
 	async $registerCandidateFinder(enable: boolean): Promise<void> {
 		if (enable && this._candidateFindingEnabled) {
 			// already enabled
@@ -184,6 +224,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
 			const newPorts = await this.findCandidatePorts();
+			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) found candidate ports ${newPorts.map(port => port.port).join(', ')}`);
 			const timeTaken = new Date().getTime() - startTime;
 			movingAverage.update(timeTaken);
 			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
@@ -196,6 +237,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
 		if (provider) {
+			if (provider.candidatePortSource !== undefined) {
+				await this._proxy.$setCandidatePortSource(provider.candidatePortSource);
+			}
 			if (provider.showCandidatePort) {
 				this._showCandidatePort = provider.showCandidatePort;
 				await this._proxy.$setCandidateFilter();
@@ -235,23 +279,26 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	async $forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined> {
 		if (this._forwardPortProvider) {
 			try {
-				this.logService.trace('$forwardPort: Getting tunnel from provider.');
+				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Getting tunnel from provider.');
 				const providedPort = this._forwardPortProvider(tunnelOptions, tunnelCreationOptions);
-				this.logService.trace('$forwardPort: Got tunnel promise from provider.');
+				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Got tunnel promise from provider.');
 				if (providedPort !== undefined) {
 					const tunnel = await providedPort;
-					this.logService.trace('$forwardPort: Successfully awaited tunnel from provider.');
+					this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Successfully awaited tunnel from provider.');
 					if (!this._extensionTunnels.has(tunnelOptions.remoteAddress.host)) {
 						this._extensionTunnels.set(tunnelOptions.remoteAddress.host, new Map());
 					}
-					const disposeListener = this._register(tunnel.onDidDispose(() => this._proxy.$closeTunnel(tunnel.remoteAddress)));
+					const disposeListener = this._register(tunnel.onDidDispose(() => {
+						this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Extension fired tunnel\'s onDidDispose.');
+						return this._proxy.$closeTunnel(tunnel.remoteAddress);
+					}));
 					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
 					return TunnelDto.fromApiTunnel(tunnel);
 				} else {
-					this.logService.trace('$forwardPort: Tunnel is undefined');
+					this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Tunnel is undefined');
 				}
 			} catch (e) {
-				this.logService.trace('$forwardPort: tunnel provider error');
+				this.logService.trace('ForwardedPorts: (ExtHostTunnelService) tunnel provider error');
 			}
 		}
 		return undefined;
@@ -259,7 +306,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 
 	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
 		const filter = await Promise.all(candidates.map(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
-		return candidates.filter((candidate, index) => filter[index]);
+		const result = candidates.filter((candidate, index) => filter[index]);
+		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) filtered from ${candidates.map(port => port.port).join(', ')} to ${result.map(port => port.port).join(', ')}`);
+		return result;
 	}
 
 	async findCandidatePorts(): Promise<CandidatePort[]> {

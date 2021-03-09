@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/statusbarpart';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
@@ -58,7 +58,7 @@ interface IStatusbarViewModelEntry {
 	labelContainer: HTMLElement;
 }
 
-const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false);
+const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false, localize('statusBarFocused', "Whether the status bar has keyboard focus"));
 
 class StatusbarViewModel extends Disposable {
 
@@ -364,7 +364,7 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 class HideStatusbarEntryAction extends Action {
 
 	constructor(id: string, name: string, private model: StatusbarViewModel) {
-		super(id, nls.localize('hide', "Hide '{0}'", name), undefined, true);
+		super(id, localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
 	async run(): Promise<void> {
@@ -613,7 +613,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const actions: IAction[] = [];
 
 		// Provide an action to hide the status bar at last
-		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, nls.localize('hideStatusBar', "Hide Status Bar")));
+		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, localize('hideStatusBar', "Hide Status Bar")));
 		actions.push(new Separator());
 
 		// Show an entry per known status entry
@@ -868,12 +868,8 @@ class StatusbarEntryItem extends Disposable {
 
 		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
-			if (entry.backgroundColor) {
-				this.applyColor(this.container, entry.backgroundColor, true);
-				this.container.classList.add('has-background-color');
-			} else {
-				this.container.classList.remove('has-background-color');
-			}
+			this.container.classList.toggle('has-background-color', !!entry.backgroundColor);
+			this.applyColor(this.container, entry.backgroundColor, true);
 		}
 
 		// Remember for next round

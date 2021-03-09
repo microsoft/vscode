@@ -149,8 +149,12 @@ export class CellDragAndDropController extends Disposable {
 			return;
 		}
 
-		const dropDirection = this.getDropInsertDirection(event);
+		const dropDirection = this.getDropInsertDirection(event.dragPosRatio);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? event.cellTop : event.cellTop + event.cellHeight;
+		this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
+	}
+
+	private updateInsertIndicator(dropDirection: string, insertionIndicatorAbsolutePos: number) {
 		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_GAP / 2;
 		if (insertionIndicatorTop >= 0) {
 			this.listInsertionIndicator.style.top = `${insertionIndicatorTop}px`;
@@ -160,8 +164,8 @@ export class CellDragAndDropController extends Disposable {
 		}
 	}
 
-	private getDropInsertDirection(event: CellDragEvent): 'above' | 'below' {
-		return event.dragPosRatio < 0.5 ? 'above' : 'below';
+	private getDropInsertDirection(dragPosRatio: number): 'above' | 'below' {
+		return dragPosRatio < 0.5 ? 'above' : 'below';
 	}
 
 	private onCellDrop(event: CellDragEvent): void {
@@ -189,7 +193,7 @@ export class CellDragAndDropController extends Disposable {
 
 		const isCopy = (event.browserEvent.ctrlKey && !platform.isMacintosh) || (event.browserEvent.altKey && platform.isMacintosh);
 
-		const dropDirection = this.getDropInsertDirection(event);
+		const dropDirection = this.getDropInsertDirection(event.dragPosRatio);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? event.cellTop : event.cellTop + event.cellHeight;
 		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_GAP / 2;
 		const editorHeight = this.notebookEditor.getDomNode().getBoundingClientRect().height;
@@ -274,5 +278,62 @@ export class CellDragAndDropController extends Disposable {
 		}
 
 		this.notebookEditor.textModel!.pushStackElement('Copy Cells', undefined, undefined);
+	}
+
+	public startExplicitDrag(cell: ICellViewModel, position: { clientY: number }) {
+		this.currentDraggedCell = cell;
+		this.setInsertIndicatorVisibility(true);
+	}
+
+	public explicitDrag(cell: ICellViewModel, position: { clientY: number }) {
+		const target = this.list.elementAt(position.clientY);
+		if (target && target !== cell) {
+			const cellTop = this.list.getAbsoluteTopOfElement(target);
+			const cellHeight = this.list.elementHeight(target);
+
+			const dropDirection = this.getExplicitDragDropDirection(position.clientY, cellTop, cellHeight);
+			console.log(position.clientY);
+			const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
+			this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
+		}
+	}
+
+	public endExplicitDrag(cell: ICellViewModel, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }) {
+		this.currentDraggedCell = undefined;
+		this.setInsertIndicatorVisibility(false);
+
+		const target = this.list.elementAt(ctx.clientY);
+		if (!target || target === cell) {
+			return;
+		}
+
+		const cellTop = this.list.getAbsoluteTopOfElement(target);
+		const cellHeight = this.list.elementHeight(target);
+
+		const dropDirection = this.getExplicitDragDropDirection(ctx.clientY, cellTop, cellHeight);
+
+		const isCopy = (ctx.ctrlKey && !platform.isMacintosh) || (ctx.altKey && platform.isMacintosh);
+		if (isCopy) {
+			this.copyCells([cell], target, dropDirection);
+		} else {
+			const viewModel = this.notebookEditor.viewModel!;
+			let originalToIdx = viewModel.getCellIndex(target);
+			if (dropDirection === 'below') {
+				const relativeToIndex = viewModel.getCellIndex(target);
+				const newIdx = viewModel.getNextVisibleCellIndex(relativeToIndex);
+				originalToIdx = newIdx;
+			}
+
+			const draggedCellRange = [this.notebookEditor.viewModel!.getCellIndex(cell), 1];
+			this.notebookEditor.moveCellsToIdx(draggedCellRange[0], draggedCellRange[1], originalToIdx);
+		}
+	}
+
+	private getExplicitDragDropDirection(clientY: number, cellTop: number, cellHeight: number) {
+		const dragOffset = this.list.scrollTop + clientY;
+		const dragPosInElement = dragOffset - cellTop;
+		const dragPosRatio = dragPosInElement / cellHeight;
+
+		return this.getDropInsertDirection(dragPosRatio);
 	}
 }

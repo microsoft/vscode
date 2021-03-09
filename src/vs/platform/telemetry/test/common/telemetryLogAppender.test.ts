@@ -66,7 +66,7 @@ class TestTelemetryLoggerService implements ILoggerService {
 		this.logger = new TestTelemetryLogger(logLevel);
 	}
 
-	getLogger(): ILogger {
+	createLogger(): ILogger {
 		return this.logger;
 	}
 }

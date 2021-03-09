@@ -33,7 +33,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 		const res = await octokit.repos.createFork({ owner, repo });
 		const ghRepository = res.data;
 
-		progress.report({ message: localize('pushing', "Pushing changes..."), increment: 33 });
+		progress.report({ message: localize('forking_pushing', "Pushing changes..."), increment: 33 });
 
 		// Issue: what if there's already an `upstream` repo?
 		await repository.renameRemote(remote.name, 'upstream');
@@ -55,11 +55,11 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 
 	// yield
 	(async () => {
-		const openInGitHub = localize('openingithub', "Open In GitHub");
+		const openOnGitHub = localize('openingithub', "Open on GitHub");
 		const createPR = localize('createpr', "Create PR");
-		const action = await window.showInformationMessage(localize('done', "The fork '{0}' was successfully created on GitHub.", ghRepository.full_name), openInGitHub, createPR);
+		const action = await window.showInformationMessage(localize('forking_done', "The fork '{0}' was successfully created on GitHub.", ghRepository.full_name), openOnGitHub, createPR);
 
-		if (action === openInGitHub) {
+		if (action === openOnGitHub) {
 			await commands.executeCommand('vscode.open', Uri.parse(ghRepository.html_url));
 		} else if (action === createPR) {
 			const pr = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: localize('createghpr', "Creating GitHub Pull Request...") }, async _ => {

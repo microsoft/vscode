@@ -280,15 +280,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
+			provideDefinition(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
 			provideDefinition(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -309,7 +315,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -338,15 +344,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
 			provideDeclaration(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
 			provideDeclaration(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -367,7 +379,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideDeclaration(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -407,15 +419,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
 			provideTypeDefinition(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -436,7 +454,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideTypeDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -476,15 +494,21 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
 			provideImplementation(doc: any): any {
-				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(doc: any): any {
+				// duplicate result will get removed
+				return new types.Location(doc.uri, new types.Range(1, 0, 0, 0));
 			}
 		}));
 		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
 			provideImplementation(doc: any): any {
 				return [
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(2, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(3, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(4, 0, 0, 0)),
 				];
 			}
 		}));
@@ -505,7 +529,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			provideImplementation(doc: any): (vscode.Location | vscode.LocationLink)[] {
 				return [
 					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
-					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+					{ targetUri: doc.uri, targetRange: new types.Range(1, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
 				];
 			}
 		}));
@@ -1147,7 +1171,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inline Hints, back and forth', async function () {
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), undefined, true, false)];
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
 			}
 		}));
 
@@ -1167,13 +1191,15 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inline Hints, merge', async function () {
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Bar', new types.Range(10, 11, 12, 13), undefined, true, false)];
+				return [new types.InlineHint('Bar', new types.Range(10, 11, 12, 13))];
 			}
 		}));
 
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), new types.MarkdownString('**Hello**'), true, false)];
+				const hint = new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), types.InlineHintKind.Parameter);
+				hint.description = new types.MarkdownString('**Hello**');
+				return [hint];
 			}
 		}));
 
@@ -1201,7 +1227,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inline Hints, bad provider', async function () {
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{
 			provideInlineHints() {
-				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3), undefined, true, false)];
+				return [new types.InlineHint('Foo', new types.Range(0, 1, 2, 3))];
 			}
 		}));
 		disposables.push(extHost.registerInlineHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlineHintsProvider>{

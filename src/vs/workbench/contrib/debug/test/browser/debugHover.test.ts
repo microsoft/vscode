@@ -34,7 +34,7 @@ suite('Debug - Hover', () => {
 			getScopes(): Promise<IScope[]> {
 				return Promise.resolve([scope]);
 			}
-		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 
 		let variableA: Variable;
@@ -52,16 +52,16 @@ suite('Debug - Hover', () => {
 		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, {}, 'string');
 		variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, {}, 'string');
 
-		assert.equal(await findExpressionInStackFrame(stackFrame, []), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A']), variableA);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['doesNotExist', 'no']), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['a']), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['B']), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A', 'B']), variableB);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A', 'C']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, []), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), variableA);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['doesNotExist', 'no']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['a']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['B']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A', 'B']), variableB);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A', 'C']), undefined);
 
 		// We do not search in expensive scopes
 		scope.expensive = true;
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), undefined);
 	});
 });

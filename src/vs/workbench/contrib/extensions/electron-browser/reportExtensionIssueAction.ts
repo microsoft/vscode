@@ -76,7 +76,7 @@ export class ReportExtensionIssueAction extends Action {
 - Extension Name: \`${extension.description.name}\`
 - Extension Version: \`${extension.description.version}\`
 - OS Version: \`${osVersion}\`
-- VSCode version: \`${this.productService.version}\`\n\n${message}`
+- VS Code version: \`${this.productService.version}\`\n\n${message}`
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`;

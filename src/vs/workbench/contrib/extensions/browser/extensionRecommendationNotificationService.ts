@@ -23,7 +23,7 @@ import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { EnablementState, IWorkbenchExtensioManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
 type ExtensionRecommendationsNotificationClassification = {
@@ -132,7 +132,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchExtensioManagementService private readonly extensionManagementService: IWorkbenchExtensioManagementService,
+		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
@@ -221,6 +221,8 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		if (source === RecommendationSource.EXE && (this.recommendationSources.includes(RecommendationSource.EXE) || this.recommendationSources.length >= 2)) {
 			return RecommendationsNotificationResult.TooMany;
 		}
+
+		this.recommendationSources.push(source);
 
 		// Ignore exe recommendation if recommendations are already shown
 		if (source === RecommendationSource.EXE && extensionIds.every(id => this.recommendedExtensions.includes(id))) {
@@ -328,7 +330,6 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	private async doShowRecommendationsNotification(severity: Severity, message: string, choices: IPromptChoice[], source: RecommendationSource, token: CancellationToken): Promise<boolean> {
 		const disposables = new DisposableStore();
 		try {
-			this.recommendationSources.push(source);
 			const recommendationsNotification = new RecommendationsNotification(severity, message, choices, this.notificationService);
 			Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
 			if (this.visibleNotification) {

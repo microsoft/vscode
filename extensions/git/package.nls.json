@@ -90,6 +90,8 @@
 	"command.timelineOpenDiff": "Open Changes",
 	"command.timelineCopyCommitId": "Copy Commit ID",
 	"command.timelineCopyCommitMessage": "Copy Commit Message",
+	"command.timelineSelectForCompare": "Select for Compare",
+	"command.timelineCompareWithSelected": "Compare with Selected",
 	"config.enabled": "Whether git is enabled.",
 	"config.path": "Path and filename of the git executable, e.g. `C:\\Program Files\\Git\\bin\\git.exe` (Windows). This can also be an array of string values containing multiple paths to look up.",
 	"config.autoRepositoryDetection": "Configures when repositories should be automatically detected.",
@@ -209,5 +211,6 @@
 	"view.workbench.scm.folder": "The folder currently open doesn't have a git repository. You can initialize a repository which will enable source control features powered by git.\n[Initialize Repository](command:git.init?%5Btrue%5D)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 	"view.workbench.scm.workspace": "The workspace currently open doesn't have any folders containing git repositories. You can initialize a repository on a folder which will enable source control features powered by git.\n[Initialize Repository](command:git.init)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
 	"view.workbench.scm.emptyWorkspace": "The workspace currently open doesn't have any folders containing git repositories.\n[Add Folder to Workspace](command:workbench.action.addRootFolder)\nTo learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).",
-	"view.workbench.cloneRepository": "You can also clone a repository from a URL. To learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm).\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')"
+	"view.workbench.cloneRepository": "You can clone a repository locally.\n[Clone Repository](command:git.clone 'Clone a repository once the git extension has activated')",
+	"view.workbench.learnMore": "To learn more about how to use git and source control in VS Code [read our docs](https://aka.ms/vscode-scm)."
 }
