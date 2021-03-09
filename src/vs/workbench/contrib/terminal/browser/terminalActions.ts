@@ -24,9 +24,9 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
@@ -35,6 +35,7 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const switchTerminalActionViewItemSeparator = '─────────';
 export const selectDefaultShellTitle = localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell");
@@ -662,19 +663,16 @@ export function registerTerminalActions() {
 				id: TERMINAL_COMMAND_ID.ATTACH_TO_REMOTE_TERMINAL,
 				title: { value: localize('workbench.action.terminal.attachToRemote', "Attach to Session"), original: 'Attach to Session' },
 				f1: true,
-				category,
-				keybinding: {
-					when: RemoteNameContext.notEqualsTo(''),
-					weight: KeybindingWeight.WorkbenchContrib
-				}
+				category
 			});
 		}
 		async run(accessor: ServicesAccessor) {
 			const quickInputService = accessor.get(IQuickInputService);
-			const remoteTerminalService = accessor.get(IRemoteTerminalService);
 			const terminalService = accessor.get(ITerminalService);
 			const labelService = accessor.get(ILabelService);
-			const remoteTerms = await remoteTerminalService.listTerminals();
+			const remoteAgentService = accessor.get(IRemoteAgentService);
+			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
+			const remoteTerms = await offProcTerminalService.listProcesses();
 			const unattachedTerms = remoteTerms.filter(term => !terminalService.isAttachedToTerminal(term));
 			const items = unattachedTerms.map(term => {
 				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
