@@ -197,7 +197,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
-	readonly remoteAuthority?: string;
+	readonly remoteAuthority?: string; /* used when no inputs are provided or inputs are neither file nor vscode-remote */
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
