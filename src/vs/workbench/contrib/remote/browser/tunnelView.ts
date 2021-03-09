@@ -150,6 +150,10 @@ export class TunnelViewModel implements ITunnelViewModel {
 	}
 }
 
+function emptyCell(item: ITunnelItem): ActionBarCell {
+	return { label: '', tunnel: item, editId: TunnelEditId.None, tooltip: '' };
+}
+
 class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly label: string = '';
 	readonly tooltip: string = '';
@@ -158,10 +162,13 @@ class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly maximumWidth = 40;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
-		const isAdd = row.tunnelType === TunnelType.Add;
-		const icon = isAdd ? undefined : (row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon);
+		if (row.tunnelType === TunnelType.Add) {
+			return emptyCell(row);
+		}
+
+		const icon = row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon;
 		let tooltip: string = '';
-		if (row instanceof TunnelItem && !isAdd) {
+		if (row instanceof TunnelItem) {
 			tooltip = `${row.iconTooltip} ${row.tooltipPostfix}`;
 		}
 		return {
@@ -197,12 +204,14 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
+		if (row.tunnelType === TunnelType.Add) {
+			return emptyCell(row);
+		}
+
 		const label = row.localAddress ?? '';
-		let tooltip: string;
+		let tooltip: string = label;
 		if (row instanceof TunnelItem) {
 			tooltip = row.tooltipPostfix;
-		} else {
-			tooltip = label;
 		}
 		return { label, menuId: MenuId.TunnelLocalAddressInline, tunnel: row, editId: TunnelEditId.LocalPort, tooltip };
 	}
@@ -214,6 +223,10 @@ class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly weight: number = 2;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
+		if (row.tunnelType === TunnelType.Add) {
+			return emptyCell(row);
+		}
+
 		const label = row.processDescription ?? '';
 		return { label, tunnel: row, editId: TunnelEditId.None, tooltip: row instanceof TunnelItem ? row.processTooltip : '' };
 	}
@@ -225,6 +238,10 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
+		if (row.tunnelType === TunnelType.Add) {
+			return emptyCell(row);
+		}
+
 		const label = row.source;
 		const tooltip = `${row instanceof TunnelItem ? row.originTooltip : ''}. ${row instanceof TunnelItem ? row.tooltipPostfix : ''}`;
 		return { label, menuId: MenuId.TunnelOriginInline, tunnel: row, editId: TunnelEditId.None, tooltip };
@@ -237,35 +254,16 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
 	project(row: ITunnelItem): ActionBarCell {
-		let label: string = '';
-		if (row.privacy === TunnelPrivacy.Public) {
-			label = nls.localize('tunnel.privacyPublic', "Public");
-		} else if (row.tunnelType !== TunnelType.Add) {
-			label = nls.localize('tunnel.privacyPrivate', "Private");
+		if (row.tunnelType === TunnelType.Add) {
+			return emptyCell(row);
 		}
 
+		const label = row.privacy === TunnelPrivacy.Public ? nls.localize('tunnel.privacyPublic', "Public") : nls.localize('tunnel.privacyPrivate', "Private");
 		let tooltip: string = '';
-		if (row instanceof TunnelItem && row.tunnelType !== TunnelType.Add) {
+		if (row instanceof TunnelItem) {
 			tooltip = `${row.privacyTooltip} ${row.tooltipPostfix}`;
 		}
 		return { label, tunnel: row, icon: row.icon, editId: TunnelEditId.None, tooltip };
-	}
-}
-
-class StringRenderer implements ITableRenderer<string, HTMLElement> {
-
-	readonly templateId = 'string';
-
-	renderTemplate(container: HTMLElement): HTMLElement {
-		return container;
-	}
-
-	renderElement(element: string, index: number, container: HTMLElement): void {
-		container.textContent = element;
-	}
-
-	disposeTemplate(templateData: HTMLElement): void {
-		// noop
 	}
 }
 
@@ -681,7 +679,7 @@ export class TunnelPanel extends ViewPane {
 			widgetContainer,
 			new TunnelTreeVirtualDelegate(this.remoteExplorerService),
 			columns,
-			[new StringRenderer(), actionBarRenderer],
+			[actionBarRenderer],
 			{
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (item: ITunnelItem) => {
