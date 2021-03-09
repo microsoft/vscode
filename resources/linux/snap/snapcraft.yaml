@@ -9,7 +9,6 @@ description: |
 architectures:
   - build-on: amd64
     run-on: @@ARCHITECTURE@@
-compression: lzo
 
 grade: stable
 confinement: classic

@@ -7,7 +7,8 @@ import * as cp from 'child_process';
 import { Application } from '../../../../automation';
 
 export function setup() {
-	describe('Search', () => {
+	// https://github.com/microsoft/vscode/issues/115244
+	describe.skip('Search', () => {
 		after(function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
@@ -34,8 +35,7 @@ export function setup() {
 			await app.workbench.search.hideQueryDetails();
 		});
 
-		// https://github.com/microsoft/vscode/issues/115244
-		it('dismisses result & checks for correct result number', async function () {
+		it.skip('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch('app.js');

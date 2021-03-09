@@ -142,7 +142,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, initData.environment, extHostLogService, extensionStoragePaths));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, initData.environment, extHostLogService, extensionStoragePaths));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.environment));
@@ -296,12 +296,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
 			get isTelemetryEnabled() {
-				checkProposedApiEnabled(extension);
 				return extHostTelemetry.getTelemetryEnabled();
 			},
 			get onDidChangeTelemetryEnabled(): Event<boolean> {
-				checkProposedApiEnabled(extension);
 				return extHostTelemetry.onDidChangeTelemetryEnabled;
+			},
+			get isNewAppInstall() {
+				const installAge = Date.now() - new Date(initData.telemetryInfo.firstSessionDate).getTime();
+				return isNaN(installAge) ? false : installAge < 1000 * 60 * 60 * 24; // install age is less than a day
 			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string; }) {
 				return extHostWindow.openUri(uri, {
@@ -1078,10 +1080,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeCellOutputs(listener, thisArgs, disposables);
-			},
-			onDidChangeCellLanguage(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeCellLanguage(listener, thisArgs, disposables);
 			},
 			onDidChangeCellMetadata(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);

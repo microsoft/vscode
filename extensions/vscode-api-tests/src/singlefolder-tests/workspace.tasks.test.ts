@@ -4,12 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
 ((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - tasks', () => {
+
+	suiteSetup(async () => {
+		const config = workspace.getConfiguration('terminal.integrated');
+		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
+		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
+		// Disable exit alerts as tests may trigger then and we're not testing the notifications
+		await config.update('showExitAlert', false, ConfigurationTarget.Global);
+		// Canvas may cause problems when running in a container
+		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
+		// Disable env var relaunch for tests to prevent terminals relaunching themselves
+		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+	});
 
 	suite('Tasks', () => {
 		let disposables: Disposable[] = [];
@@ -206,7 +218,6 @@ import { assertNoRpc } from '../utils';
 						progressMade.fire();
 					}
 				}));
-
 				taskExecution = await tasks.executeTask(task);
 				executeDoneEvent.fire();
 			});

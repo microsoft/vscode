@@ -135,6 +135,7 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
+	environmentChangesRelaunch: boolean;
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;

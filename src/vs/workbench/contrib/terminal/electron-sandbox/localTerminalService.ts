@@ -13,7 +13,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
@@ -24,8 +24,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	private readonly _ptys: Map<number, LocalPty> = new Map();
 	private _isPtyHostUnresponsive: boolean = false;
 
-	private readonly _onPtyHostExit = this._register(new Emitter<void>());
-	readonly onPtyHostExit = this._onPtyHostExit.event;
 	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
 	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
 	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
@@ -61,7 +59,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
 			this._register(this._localPtyService.onPtyHostExit(() => {
-				this._onPtyHostExit.fire();
 				notificationService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
 			}));
 		}
@@ -100,7 +97,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 	}
 
-	public async createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	public async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, processEnv as IProcessEnvironment, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 		this._ptys.set(id, pty);
@@ -119,12 +116,16 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return undefined;
 	}
 
-	public setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): void {
+	public async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
+		return this._localPtyService.listProcesses(reduceGraceTime);
+	}
+
+	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
-		this._localPtyService.setTerminalLayoutInfo(args);
+		await this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
 	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {

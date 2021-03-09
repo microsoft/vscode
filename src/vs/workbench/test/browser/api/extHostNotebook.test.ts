@@ -54,7 +54,7 @@ suite('NotebookCell#Document', function () {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
@@ -80,7 +80,6 @@ suite('NotebookCell#Document', function () {
 					cellKind: CellKind.Code,
 					outputs: [],
 				}],
-				contentOptions: { transientMetadata: {}, transientOutputs: false }
 			}],
 			addedEditors: [{
 				documentUri: notebookUri,
@@ -352,5 +351,65 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(event.changes[0].items.length, 2);
 		assert.strictEqual(event.changes[0].items[0].document.isClosed, false);
 		assert.strictEqual(event.changes[0].items[1].document.isClosed, false);
+	});
+
+
+	test('Opening a notebook results in VS Code firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
+		let count = 0;
+		extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			addedEditors: [{
+				documentUri: notebookUri,
+				id: '_notebook_editor_2',
+				selections: [{ start: 0, end: 1 }],
+				visibleRanges: []
+			}]
+		});
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			newActiveEditor: '_notebook_editor_2'
+		});
+
+		assert.strictEqual(count, 1);
+	});
+
+	test('unset active notebook editor', function () {
+
+		const editor = extHostNotebooks.activeNotebookEditor;
+		assert.ok(editor !== undefined);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: undefined });
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({});
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: null });
+		assert.ok(extHostNotebooks.activeNotebookEditor === undefined);
+	});
+
+	test('change cell language triggers onDidChange events', async function () {
+
+		const [first] = notebook.notebookDocument.cells;
+
+		assert.strictEqual(first.language, 'markdown');
+
+		const removed = Event.toPromise(extHostDocuments.onDidRemoveDocument);
+		const added = Event.toPromise(extHostDocuments.onDidAddDocument);
+
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			versionId: 12, rawEvents: [{
+				kind: NotebookCellsChangeType.ChangeLanguage,
+				index: 0,
+				language: 'fooLang'
+			}]
+		}, false);
+
+		const removedDoc = await removed;
+		const addedDoc = await added;
+
+		assert.strictEqual(first.language, 'fooLang');
+		assert.ok(removedDoc === addedDoc);
 	});
 });

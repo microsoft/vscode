@@ -7907,6 +7907,24 @@ declare module 'vscode' {
 		export const sessionId: string;
 
 		/**
+		 * Indicates that this is a fresh install of the application.
+		 * `true` if within the first day of installation otherwise `false`.
+		 */
+		export const isNewAppInstall: boolean;
+
+		/**
+		 * Indicates whether the users has telemetry enabled.
+		 * Can be observed to determine if the extension should send telemetry.
+		 */
+		export const isTelemetryEnabled: boolean;
+
+		/**
+		 * An [event](#Event) which fires when the user enabled or disables telemetry.
+		 * `true` if the user has enabled telemetry or `false` if the user has disabled telemetry.
+		 */
+		export const onDidChangeTelemetryEnabled: Event<boolean>;
+
+		/**
 		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
 		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
 		 *

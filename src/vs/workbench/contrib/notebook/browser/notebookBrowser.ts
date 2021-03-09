@@ -297,6 +297,7 @@ export class NotebookEditorOptions extends EditorOptions {
 		super();
 		this.overwrite(options);
 		this.cellOptions = options.cellOptions;
+		this.cellSelections = options.cellSelections;
 	}
 
 	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
@@ -479,7 +480,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	/**
 	 * Render the output in webview layer
 	 */
-	createInset(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
+	createOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
 	/**
 	 * Remove the output from the webview layer
@@ -748,7 +749,8 @@ export enum CellRevealType {
 
 export enum CellRevealPosition {
 	Top,
-	Center
+	Center,
+	Bottom
 }
 
 export enum CellEditState {
