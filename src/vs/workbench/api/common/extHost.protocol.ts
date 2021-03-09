@@ -459,6 +459,7 @@ export interface TerminalLaunchConfig {
 	hideFromUser?: boolean;
 	isExtensionTerminal?: boolean;
 	isFeatureTerminal?: boolean;
+	isExtensionOwnedTerminal?: boolean;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {

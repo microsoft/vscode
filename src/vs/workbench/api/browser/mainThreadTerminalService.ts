@@ -131,6 +131,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
 			isExtensionTerminal: launchConfig.isExtensionTerminal,
+			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			extHostTerminalId: extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal
 		};
