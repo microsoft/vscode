@@ -45,7 +45,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -1910,6 +1910,17 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			collector.addRule(`.search-view .message { color: ${fgWithOpacity}; }`);
 		}
 	}
+
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-workbench .search-view .message a { color: ${link}; }`);
+	}
+
+	const activeLink = theme.getColor(textLinkActiveForeground);
+	if (activeLink) {
+		collector.addRule(`.monaco-workbench .search-view .message a:hover,
+			.monaco-workbench .search-view .message a:active { color: ${activeLink}; }`);
+	}
 });
 
 class SearchLinkButton extends Disposable {
@@ -1917,7 +1928,7 @@ class SearchLinkButton extends Disposable {
 
 	constructor(label: string, handler: (e: dom.EventLike) => unknown, tooltip?: string) {
 		super();
-		this.element = $('a.pointer.prominent', { tabindex: 0, title: tooltip }, label);
+		this.element = $('a.pointer', { tabindex: 0, title: tooltip }, label);
 		this.addEventHandlers(handler);
 	}
 
