@@ -185,8 +185,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		// This fails in remote for the same reason as other terminal integration tests https://github.com/microsoft/vscode/issues/96057
-		((typeof env.remoteName !== 'undefined') ? suite.skip : suite)('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
+		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
 			return new Promise<void>(async (resolve) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;

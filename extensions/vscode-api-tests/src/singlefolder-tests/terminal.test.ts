@@ -10,7 +10,7 @@ import { assertNoRpc } from '../utils';
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
 // - Remote https://github.com/microsoft/vscode/issues/96057
-((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
+(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - terminal', () => {
 	let extensionContext: ExtensionContext;
 
 	suiteSetup(async () => {
