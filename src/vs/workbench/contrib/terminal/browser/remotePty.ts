@@ -6,6 +6,7 @@
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
@@ -62,32 +63,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			throw new Error('Could not fetch remote environment');
 		}
 
-		// if (!this._shellLaunchConfig.attachPersistentProcess) {
-
-		// const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions(env.os);
-
-		// const shellLaunchConfigDto: IShellLaunchConfigDto = {
-		// 	name: this._shellLaunchConfig.name,
-		// 	executable: this._shellLaunchConfig.executable,
-		// 	args: this._shellLaunchConfig.args,
-		// 	cwd: this._shellLaunchConfig.cwd,
-		// 	env: this._shellLaunchConfig.env
-		// };
-
 		this._logService.trace('Spawning remote agent process', { terminalId: this._id });
-
-		// const result = await this._remoteTerminalChannel.createTerminalProcess(
-		// 	shellLaunchConfigDto,
-		// 	this._activeWorkspaceRootUri,
-		// 	this.shouldPersist,
-		// 	this._cols,
-		// 	this._rows,
-		// 	isWorkspaceShellAllowed,
-		// );
-
-		// this._id = result.terminalId;
-		// TODO: Does this get fired?
-		// this._onProcessResolvedShellLaunchConfig.fire(reviveIShellLaunchConfig(result.resolvedShellLaunchConfig));
 
 		const startResult = await this._remoteTerminalChannel.start(this._id);
 
@@ -95,16 +71,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			// An error occurred
 			return startResult;
 		}
-
-		// } else {
-		// 	this._id = this._shellLaunchConfig.attachPersistentProcess.id;
-		// 	this._onProcessReady.fire({ pid: this._shellLaunchConfig.attachPersistentProcess.pid, cwd: this._shellLaunchConfig.attachPersistentProcess.cwd });
-		// 	this.setupTerminalEventListener();
-
-		// 	setTimeout(() => {
-		// 		this._onProcessTitleChanged.fire(this._shellLaunchConfig.attachPersistentProcess!.title);
-		// 	}, 0);
-		// }
 
 		this._startBarrier.open();
 		return undefined;
@@ -176,6 +142,10 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._onProcessOverrideDimensions.fire(e);
 	}
 	handleResolvedShellLaunchConfig(e: IShellLaunchConfig) {
+		// Revive the cwd URI
+		if (e.cwd && typeof e.cwd !== 'string') {
+			e.cwd = URI.revive(e.cwd);
+		}
 		this._onProcessResolvedShellLaunchConfig.fire(e);
 	}
 
@@ -201,26 +171,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._remoteTerminalChannel.orphanQuestionReply(this._id);
 	}
 
-	/**
-	 * TODO@roblourens I don't think this does anything useful in the EH and the value isn't used
-	 */
 	public async getLatency(): Promise<number> {
 		return 0;
 	}
 }
-
-// TODO: Revive?
-// function reviveIShellLaunchConfig(dto: IShellLaunchConfigDto): IShellLaunchConfig {
-// 	return {
-// 		name: dto.name,
-// 		executable: dto.executable,
-// 		args: dto.args,
-// 		cwd: (
-// 			(typeof dto.cwd === 'string' || typeof dto.cwd === 'undefined')
-// 				? dto.cwd
-// 				: URI.revive(dto.cwd)
-// 		),
-// 		env: dto.env,
-// 		hideFromUser: dto.hideFromUser
-// 	};
-// }
