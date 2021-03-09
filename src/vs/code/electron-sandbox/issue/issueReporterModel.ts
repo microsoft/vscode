@@ -238,7 +238,7 @@ ${this._data.experimentInfo}
 		const tableHeader = `Extension|Author (truncated)|Version
 ---|---|---`;
 		const table = this._data.enabledNonThemeExtesions.map(e => {
-			return `${e.name}|${e.publisher.substr(0, 3)}|${e.version}`;
+			return `${e.name}|${e.publisher?.substr(0, 3) ?? 'N/A'}|${e.version}`;
 		}).join('\n');
 
 		return `<details><summary>Extensions (${this._data.enabledNonThemeExtesions.length})</summary>

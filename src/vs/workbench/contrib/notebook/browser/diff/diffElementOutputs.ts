@@ -109,7 +109,7 @@ export class OutputElement extends Disposable {
 
 		if (result.type !== RenderOutputType.Mainframe) {
 			// this.viewCell.selfSizeMonitoring = true;
-			this._notebookEditor.createInset(
+			this._notebookEditor.createOutput(
 				this._diffElementViewModel,
 				this._nestedCell,
 				result,

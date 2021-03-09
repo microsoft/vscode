@@ -364,6 +364,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private _setupPtyHostListeners(offProcessTerminalService: IOffProcessTerminalService) {
+		// Mark the process as disconnected is the pty host is unresponsive, the responsive event
+		// will fire only when the pty host was already unresponsive
 		this._register(offProcessTerminalService.onPtyHostUnresponsive(() => {
 			this.isDisconnected = true;
 			this._onPtyDisconnect.fire();
@@ -373,6 +375,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._onPtyReconnect.fire();
 		});
 		this._register(toDisposable(() => this._ptyResponsiveListener?.dispose()));
+
+		// When the pty host restarts, reconnect is no longer possible so dispose the responsive
+		// listener
 		this._register(offProcessTerminalService.onPtyHostRestart(() => {
 			// When the pty host restarts, reconnect is no longer possible
 			if (!this.isDisconnected) {

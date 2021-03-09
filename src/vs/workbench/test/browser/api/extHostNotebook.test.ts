@@ -353,4 +353,40 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(event.changes[0].items[0].document.isClosed, false);
 		assert.strictEqual(event.changes[0].items[1].document.isClosed, false);
 	});
+
+
+	test('Opening a notebook results in VS Code firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
+		let count = 0;
+		extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			addedEditors: [{
+				documentUri: notebookUri,
+				id: '_notebook_editor_2',
+				selections: [{ start: 0, end: 1 }],
+				visibleRanges: []
+			}]
+		});
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			newActiveEditor: '_notebook_editor_2'
+		});
+
+		assert.strictEqual(count, 1);
+	});
+
+	test('unset active notebook editor', function () {
+
+		const editor = extHostNotebooks.activeNotebookEditor;
+		assert.ok(editor !== undefined);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: undefined });
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({});
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: null });
+		assert.ok(extHostNotebooks.activeNotebookEditor === undefined);
+	});
 });

@@ -403,8 +403,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
-			openNotebook: async (viewType: string, uri: URI, backupId?: string) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId);
+			openNotebook: async (viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId, token);
 				return {
 					data,
 					transientOptions: contentOptions
