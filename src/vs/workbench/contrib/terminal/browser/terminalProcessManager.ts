@@ -52,6 +52,7 @@ enum ProcessType {
  */
 export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
+	// TODO: This will cause problems when the process manager is reused
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number | undefined;
 	public remoteAuthority: string | undefined;
@@ -99,10 +100,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
 	public get persistentProcessId(): number | undefined { return this._process?.id; }
 	public get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
-
-	public get hasWrittenData(): boolean {
-		return this._hasWrittenData;
-	}
+	public get hasWrittenData(): boolean { return this._hasWrittenData; }
 
 	private readonly _localTerminalService?: ILocalTerminalService;
 
@@ -133,7 +131,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				c(undefined);
 			});
 		});
-		this.ptyProcessReady.then(async () => await this.getLatency());
+		this.getLatency();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
 	}
 
@@ -209,6 +207,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
 				if (!this._isDisposed) {
+					// TODO: Prevent double attach
 					this._setupPtyHostListeners(this._remoteTerminalService);
 				}
 			} else {
@@ -228,6 +227,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
 				if (!this._isDisposed) {
+					// TODO: Prevent double attach
 					this._setupPtyHostListeners(this._localTerminalService);
 				}
 			}
@@ -254,6 +254,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
 			this.shellProcessId = e.pid;
 			this._initialCwd = e.cwd;
+			console.log('fire ready!');
 			this._onProcessReady.fire();
 
 			if (this._preLaunchInputQueue.length > 0 && this._process) {
@@ -286,6 +287,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		return undefined;
+	}
+
+	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined> {
+		console.log('relaunch!', shellLaunchConfig);
+		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+		// return undefined;
 	}
 
 	// Fetch any extension environment additions and apply them
@@ -389,14 +396,25 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}));
 	}
 
-	public setDimensions(cols: number, rows: number): void {
+	public setDimensions(cols: number, rows: number, sync: boolean | undefined): Promise<void>;
+	public setDimensions(cols: number, rows: number, sync: true): void;
+	public setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
 		if (!this._process) {
 			return;
 		}
 
+		if (sync) {
+			this._resize(cols, rows);
+			return;
+		}
+
+		return this.ptyProcessReady.then(() => this._resize(cols, rows));
+	}
+
+	private _resize(cols: number, rows: number) {
 		// The child process could already be terminated
 		try {
-			this._process.resize(cols, rows);
+			this._process!.resize(cols, rows);
 		} catch (error) {
 			// We tried to write to a closed pipe / channel.
 			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
@@ -405,7 +423,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 	}
 
-	public write(data: string): void {
+	public async write(data: string): Promise<void> {
+		await this.ptyProcessReady;
 		this._hasWrittenData = true;
 		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
 			if (this._process) {

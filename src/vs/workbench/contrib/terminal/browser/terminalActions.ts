@@ -357,9 +357,6 @@ export function registerTerminalActions() {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const notificationService = accessor.get(INotificationService);
 
-			const instance = terminalService.getActiveOrCreateInstance();
-			await instance.processReady;
-
 			const editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
@@ -372,6 +369,7 @@ export function registerTerminalActions() {
 			}
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
+			const instance = terminalService.getActiveOrCreateInstance();
 			const path = await terminalService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType);
 			instance.sendText(path, true);
 			return terminalService.showPanel();
