@@ -891,10 +891,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.resolve();
 		}
 
-		let toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
-		if (!this.isAutoUpdateDisabledExtensionsEnabled()) {
-			toUpdate = toUpdate.filter(e => e.local && this.extensionEnablementService.isEnabled(e.local));
-		}
+		const toUpdate = this.outdated.filter(e =>
+			!this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)) &&
+			(this.isAutoUpdateDisabledExtensionsEnabled() || e.enablementState !== EnablementState.DisabledGlobally)
+		);
 
 		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}

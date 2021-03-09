@@ -132,8 +132,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.autoUpdateDisabledExtensions': {
 				type: 'boolean',
-				description: localize('autoUpdateDisabledExtensions', "When enabled, automatically installs updates for disabled extensions. The updates are fetched from a Microsoft online service."),
-				default: false,
+				description: localize('autoUpdateDisabledExtensions', "When enabled, automatically downloads and installs updates for disabled extensions. When disabled, extensions disabled by the user are not automatically updated. The updates are fetched from a Microsoft online service."),
+				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
 			},
