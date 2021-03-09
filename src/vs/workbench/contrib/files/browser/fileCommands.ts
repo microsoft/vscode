@@ -44,6 +44,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // Commands
 
@@ -58,6 +59,7 @@ export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
+export const COPY_RELATIVE_PATH_AND_LINE_COMMAND_ID = 'copyRelativeFilePathAndLine';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
@@ -281,6 +283,12 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 	}
 }
 
+async function resourceToClipboardWithFragment(resource: URI, relative: boolean, clipboardService: IClipboardService, labelService: ILabelService): Promise<void> {
+	const label = labelService.getUriLabel(resource, { relative, noPrefix: true });
+	const text = `${label}#${resource.fragment}`;
+	await clipboardService.writeText(text);
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: EditorContextKeys.focus.toNegated(),
@@ -320,6 +328,29 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
 		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: COPY_RELATIVE_PATH_AND_LINE_COMMAND_ID,
+	handler: async (accessor) => {
+		const editorService = accessor.get(IEditorService);
+		const notificationService = accessor.get(INotificationService);
+		const activeEditor = editorService.activeTextEditorControl;
+		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!resource || !isCodeEditor(activeEditor)) {
+			notificationService.info(nls.localize('openCodeToCopy', "Open a code editor first to copy its path"));
+			return;
+		}
+
+		const position = activeEditor.getPosition();
+		if (!position) {
+			notificationService.info(nls.localize('selectLineToCopy', "Select the line to copy"));
+			return;
+		}
+
+		const resourceWithLineNumber = resource.with({ fragment: position.lineNumber.toString() });
+		await resourceToClipboardWithFragment(resourceWithLineNumber, false, accessor.get(IClipboardService), accessor.get(ILabelService));
 	}
 });
 
