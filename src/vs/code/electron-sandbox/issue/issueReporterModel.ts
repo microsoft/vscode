@@ -26,6 +26,7 @@ export interface IssueReporterData {
 	enabledNonThemeExtesions?: IssueReporterExtensionData[];
 	extensionsDisabled?: boolean;
 	fileOnExtension?: boolean;
+	fileOnMarketplace?: boolean;
 	selectedExtension?: IssueReporterExtensionData;
 	actualSearchResults?: ISettingSearchResult[];
 	query?: string;
@@ -110,30 +111,30 @@ ${this.getInfos()}
 		let info = '';
 
 		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (this._data.includeSystemInfo && this._data.systemInfo) {
+			if (!this._data.fileOnMarketplace && this._data.includeSystemInfo && this._data.systemInfo) {
 				info += this.generateSystemInfoMd();
 			}
 		}
 
 		if (this._data.issueType === IssueType.PerformanceIssue) {
 
-			if (this._data.includeProcessInfo) {
+			if (!this._data.fileOnMarketplace && this._data.includeProcessInfo) {
 				info += this.generateProcessInfoMd();
 			}
 
-			if (this._data.includeWorkspaceInfo) {
+			if (!this._data.fileOnMarketplace && this._data.includeWorkspaceInfo) {
 				info += this.generateWorkspaceInfoMd();
 			}
 		}
 
 		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (!this._data.fileOnExtension && this._data.includeExtensions) {
+			if (!this._data.fileOnMarketplace && !this._data.fileOnExtension && this._data.includeExtensions) {
 				info += this.generateExtensionsMd();
 			}
 		}
 
 		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (this._data.includeExperiments && this._data.experimentInfo) {
+			if (!this._data.fileOnMarketplace && this._data.includeExperiments && this._data.experimentInfo) {
 				info += this.generateExperimentsInfoMd();
 			}
 		}
