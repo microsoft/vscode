@@ -71,6 +71,7 @@ export interface IPtyService {
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
+	readonly onPtyHostResponsive?: Event<void>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;

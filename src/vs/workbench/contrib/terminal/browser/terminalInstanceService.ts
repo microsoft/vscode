@@ -10,7 +10,7 @@ import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
@@ -24,10 +24,10 @@ let WebglAddon: typeof XTermWebglAddon;
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	public _serviceBrand: undefined;
 
-	private readonly _onPtyHostExit = this._register(new Emitter<void>());
-	readonly onPtyHostExit = this._onPtyHostExit.event;
-	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
-	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
+	readonly onPtyHostExit = Event.None;
+	readonly onPtyHostUnresponsive = Event.None;
+	readonly onPtyHostResponsive = Event.None;
+	readonly onPtyHostRestart = Event.None;
 	private readonly _onRequestDefaultShellAndArgs = this._register(new Emitter<IDefaultShellAndArgsRequest>());
 	readonly onRequestDefaultShellAndArgs = this._onRequestDefaultShellAndArgs.event;
 
