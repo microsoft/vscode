@@ -162,7 +162,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
-				remoteAuthority: options.remoteAuthority
+				remoteAuthority: options.remoteAuthority || undefined
 			});
 		}
 	}

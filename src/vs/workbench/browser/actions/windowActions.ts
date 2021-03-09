@@ -343,7 +343,7 @@ export class NewWindowAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.hostService.openWindow();
+		return this.hostService.openWindow({ remoteAuthority: null });
 	}
 }
 

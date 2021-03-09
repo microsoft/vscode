@@ -32,7 +32,7 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 
 interface INewWindowAPICommandOptions {
 	reuseWindow?: boolean;
-	remoteAuthority?: string;
+	remoteAuthority?: string | null; /* allow null to force a local window */
 }
 
 export class NewWindowAPICommand {

@@ -160,7 +160,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
 		let cli = this.environmentMainService.args;
-		const remoteAuthority = options?.remoteAuthority;
+		const remoteAuthority = options?.remoteAuthority || undefined;
 		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;

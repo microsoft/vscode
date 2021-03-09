@@ -19,7 +19,7 @@ export const WindowMinimumSize = {
 
 export interface IBaseOpenWindowsOptions {
 	readonly forceReuseWindow?: boolean;
-	readonly remoteAuthority?: string;  /* used when no inputs are provided or inputs are neither file nor vscode-remote */
+	readonly remoteAuthority?: string | null;  /* used when no inputs are provided or inputs are neither file nor vscode-remote. Null forces a local window */
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
