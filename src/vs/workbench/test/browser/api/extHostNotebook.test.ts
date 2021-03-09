@@ -374,4 +374,19 @@ suite('NotebookCell#Document', function () {
 
 		assert.strictEqual(count, 1);
 	});
+
+	test('unset active notebook editor', function () {
+
+		const editor = extHostNotebooks.activeNotebookEditor;
+		assert.ok(editor !== undefined);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: undefined });
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({});
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: null });
+		assert.ok(extHostNotebooks.activeNotebookEditor === undefined);
+	});
 });
