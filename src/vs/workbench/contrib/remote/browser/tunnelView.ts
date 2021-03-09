@@ -328,6 +328,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			templateData.button.element.style.display = 'none';
 			templateData.button.dispose();
 		}
+		templateData.elementDisposable.dispose();
 
 		let editableData: IEditableData | undefined;
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
@@ -458,9 +459,15 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		});
 	}
 
+	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData, height: number | undefined) {
+		templateData.elementDisposable.dispose();
+	}
+
 	disposeTemplate(templateData: IActionBarTemplateData): void {
+		templateData.label.dispose();
 		templateData.actionBar.dispose();
 		templateData.elementDisposable.dispose();
+		templateData.button?.dispose();
 	}
 }
 
