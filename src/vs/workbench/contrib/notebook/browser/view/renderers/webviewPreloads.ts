@@ -759,7 +759,7 @@ function webviewPreloads() {
 				id: `${cellId}_preview`,
 				init: true,
 				data: {
-					height: previewContainerNode.clientHeight,
+					height: previewContainerNode.clientHeight + __previewNodePadding__ * 2,
 				},
 				isOutput: false
 			});
@@ -791,7 +791,7 @@ function webviewPreloads() {
 			postNotebookMessage<IDimensionMessage>('dimension', {
 				id: `${cellId}_preview`,
 				data: {
-					height: previewContainerNode.clientHeight,
+					height: previewContainerNode.clientHeight + __previewNodePadding__ * 2,
 				},
 				isOutput: false
 			});

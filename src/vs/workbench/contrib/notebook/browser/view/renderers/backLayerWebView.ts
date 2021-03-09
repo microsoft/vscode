@@ -363,6 +363,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public options: {
 			outputNodePadding: number,
 			outputNodeLeftPadding: number,
+			previewNodePadding: number,
 			leftMargin: number,
 			cellMargin: number,
 			runGutter: number,
@@ -485,7 +486,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					/* makes all markdown cells consistent */
 					#container > div > div.preview div {
-						min-height: 24px;
+						min-height: ${this.options.previewNodePadding * 2}px;
 					}
 
 					#container > div > div.preview table {
@@ -620,7 +621,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<script>${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
-			previewNodePadding: 8,
+			previewNodePadding: this.options.previewNodePadding,
 			leftMargin: this.options.leftMargin
 		})}</script>
 				${markdownRenderersSrc}
