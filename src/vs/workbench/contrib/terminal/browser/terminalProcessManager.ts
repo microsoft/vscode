@@ -59,6 +59,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public os: platform.OperatingSystem | undefined;
 	public userHome: string | undefined;
 	public isDisconnected: boolean = false;
+	public environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 
 	private _isDisposed: boolean = false;
 	private _process: ITerminalChildProcess | null = null;
@@ -68,7 +69,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _latencyLastMeasured: number = 0;
 	private _initialCwd: string | undefined;
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
-	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
 	private _ptyResponsiveListener: IDisposable | undefined;
@@ -97,7 +97,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
 
-	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
 	public get persistentProcessId(): number | undefined { return this._process?.id; }
 	public get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
 	public get hasWrittenData(): boolean { return this._hasWrittenData; }
@@ -317,8 +316,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
 			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
-				this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
-				this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
+				this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
+				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 			}
 		}
 		return env;
@@ -490,8 +489,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (diff === undefined) {
 			return;
 		}
-		this._environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId);
-		this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
+		this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId);
+		this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 	}
 }
 
