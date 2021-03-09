@@ -1223,7 +1223,7 @@ suite('Notebook API tests', function () {
 		await vscode.notebook.openNotebookDocument(resource);
 		assert.ok(await openedEditor);
 	});
-	test.only('Select a cell', async function () {
+	test('Select a cell', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
