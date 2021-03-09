@@ -1164,7 +1164,7 @@ var requirejs = (function() {
 		await p;
 	}
 
-	async createInset(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}
