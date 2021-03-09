@@ -303,6 +303,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTelemetry.onDidChangeTelemetryEnabled;
 			},
+			get isNewAppInstall() {
+				const installAge = Date.now() - new Date(initData.telemetryInfo.firstSessionDate).getTime();
+				return isNaN(installAge) ? false : installAge < 1000 * 60 * 60 * 24; // install age is less than a day
+			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string; }) {
 				return extHostWindow.openUri(uri, {
 					allowTunneling: !!initData.remote.authority,

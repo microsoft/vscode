@@ -7907,6 +7907,12 @@ declare module 'vscode' {
 		export const sessionId: string;
 
 		/**
+		 * Indicates that this is a fresh install of the application.
+		 * `true` if within the first day of installation otherwise `false`.
+		 */
+		export const isNewAppInstall: boolean;
+
+		/**
 		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
 		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
 		 *
