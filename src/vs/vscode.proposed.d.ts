@@ -1170,15 +1170,12 @@ declare module 'vscode' {
 		// todo@API is this a kernel property?
 		readonly cellHasExecutionOrder: boolean;
 
-		// run related, remove infer from kernel, exec
-		// todo@API infer from kernel
 		// todo@API remove
-		readonly runnable: boolean;
 		readonly runState: NotebookRunState;
 
-		constructor(editable?: boolean, runnable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
+		constructor(editable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
 
-		with(change: { editable?: boolean | null, runnable?: boolean | null, cellEditable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, cellEditable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {

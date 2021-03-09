@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Memento } from 'vs/workbench/common/memento';
-import { ICellViewModel, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { configureKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -46,7 +46,6 @@ export class NotebookEditorKernelManager extends Disposable {
 	private _contributedKernelsComputePromise: CancelablePromise<INotebookKernel[]> | null = null;
 	private _initialKernelComputationDone: boolean = false;
 
-	private readonly _editorRunnable: IContextKey<boolean>;
 	private readonly _notebookExecuting: IContextKey<boolean>;
 	private readonly _notebookHasMultipleKernels: IContextKey<boolean>;
 	private readonly _notebookKernelCount: IContextKey<number>;
@@ -105,7 +104,6 @@ export class NotebookEditorKernelManager extends Disposable {
 
 		this._activeKernelMemento = new Memento(NotebookEditorActiveKernelCache, storageService);
 
-		this._editorRunnable = NOTEBOOK_EDITOR_RUNNABLE.bindTo(contextKeyService);
 		this._notebookExecuting = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(contextKeyService);
 		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(contextKeyService);
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
@@ -175,7 +173,6 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		const notebookMetadata = this._delegate.viewModel.metadata;
-		this._editorRunnable.set(this._delegate.viewModel.runnable);
 		this._notebookExecuting.set(notebookMetadata.runState === NotebookRunState.Running);
 	}
 
@@ -382,11 +379,11 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
-		if (!this._delegate.viewModel.runnable) {
+		await this._ensureActiveKernel();
+		if (!this.canExecuteNotebook()) {
 			return;
 		}
 
-		await this._ensureActiveKernel();
 		this._activeKernelExecuted = true;
 		await this._activeKernel?.executeNotebookCell!(this._delegate.viewModel.uri, undefined);
 	}
@@ -414,13 +411,25 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
+		await this._ensureActiveKernel();
 		if (!this.canExecuteCell(cell)) {
 			throw new Error('Cell is not executable: ' + cell.uri);
 		}
 
-		await this._ensureActiveKernel();
 		this._activeKernelExecuted = true;
 		await this._activeKernel?.executeNotebookCell!(this._delegate.viewModel.uri, cell.handle);
+	}
+
+	private canExecuteNotebook(): boolean {
+		if (!this.activeKernel) {
+			return false;
+		}
+
+		if (!this._delegate.viewModel?.trusted) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private canExecuteCell(cell: ICellViewModel): boolean {

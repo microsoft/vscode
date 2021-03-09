@@ -60,7 +60,6 @@ export enum NotebookRunState {
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
-	runnable: true,
 	cellEditable: true,
 	cellHasExecutionOrder: true,
 	custom: {},
@@ -70,7 +69,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 
 export interface NotebookDocumentMetadata {
 	editable: boolean;
-	runnable: boolean;
 	cellEditable: boolean;
 	cellHasExecutionOrder: boolean;
 	custom?: { [key: string]: unknown };

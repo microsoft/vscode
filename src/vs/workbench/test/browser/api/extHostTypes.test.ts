@@ -656,7 +656,6 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
 		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
 		assert.strictEqual(obj.runState, notebookDocumentMetadataDefaults.runState);
-		assert.strictEqual(obj.runnable, notebookDocumentMetadataDefaults.runnable);
 		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
 	});
 
