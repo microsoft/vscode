@@ -281,6 +281,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._updateForNotebookConfiguration();
+
+		if (this._debugFlag) {
+			this._domFrameLog();
+		}
+	}
+
+	private _debugFlag: boolean = false;
+	private _frameId = 0;
+	private _domFrameLog() {
+		DOM.scheduleAtNextAnimationFrame(() => {
+			this._frameId++;
+
+			this._domFrameLog();
+		});
+	}
+
+	private _debug(...args: any[]) {
+		if (!this._debugFlag) {
+			return;
+		}
+
+		console.log(`frame #${this._frameId}: `, ...args);
 	}
 
 	/**
@@ -864,6 +886,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					removedItems.forEach(output => this._webview?.removeInset(output));
 
 					if (updateItems.length) {
+						this._debug('list height change outputs', updateItems);
 						this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
 					}
 				}
@@ -877,7 +900,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							updateItems.push({ id: cellId, top: cellTop });
 						}
 					});
-					this._webview?.updateMarkdownScrollTop(updateItems);
+
+					if (updateItems.length) {
+						this._debug('list height change mds', updateItems);
+						this._webview?.updateMarkdownScrollTop(updateItems);
+					}
+
 				}
 			});
 		}));
@@ -1317,6 +1345,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		let r: () => void;
 		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+			this._debug('layoutNotebookCell cell:', cell.handle, ' height', height);
 			if (this._isDisposed) {
 				return;
 			}
@@ -1782,12 +1811,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
+			this._debug('updateOutputHeight', cell.handle, outputHeight, isInit);
 			cell.updateOutputHeight(outputIndex, outputHeight);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 		}
 	}
 
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
+		this._debug('updateMarkdownCellHeight', cellId, height);
+
 		const cell = this.getCellById(cellId);
 		if (cell && cell instanceof MarkdownCellViewModel) {
 			cell.renderedMarkdownHeight = height;

@@ -789,7 +789,6 @@ var requirejs = (function() {
 							}
 						} else {
 							const cellId = data.id.substr(0, data.id.length - '_preview'.length);
-							console.log('markdown preview', data.data.height);
 							this.notebookEditor.updateMarkdownCellHeight(cellId, data.data.height, !!data.init);
 						}
 						break;
