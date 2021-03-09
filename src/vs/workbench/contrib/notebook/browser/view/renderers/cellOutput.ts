@@ -150,7 +150,7 @@ export class CellOutputElement extends Disposable {
 		}
 
 		if (renderResult.type !== RenderOutputType.Mainframe) {
-			this.notebookEditor.createInset(this.viewCell, renderResult, this.viewCell.getOutputOffset(index));
+			this.notebookEditor.createOutput(this.viewCell, renderResult, this.viewCell.getOutputOffset(index));
 			this.domNode.classList.add('background');
 		} else {
 			this.domNode.classList.add('foreground', 'output-element');
@@ -388,7 +388,7 @@ export class CellOutputContainer extends Disposable {
 			const renderedOutput = this.outputEntries.get(currOutput);
 			if (renderedOutput && renderedOutput.renderResult) {
 				if (renderedOutput.renderResult.type !== RenderOutputType.Mainframe) {
-					this.notebookEditor.createInset(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
+					this.notebookEditor.createOutput(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
 				} else {
 					this.viewCell.updateOutputHeight(index, renderedOutput.domClientHeight);
 				}
