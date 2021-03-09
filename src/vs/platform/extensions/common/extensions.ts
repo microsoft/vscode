@@ -185,7 +185,7 @@ export interface IExtensionManifest {
 	readonly displayName?: string;
 	readonly publisher: string;
 	readonly version: string;
-	readonly engines: { vscode: string };
+	readonly engines: { readonly vscode: string };
 	readonly description?: string;
 	readonly main?: string;
 	readonly browser?: string;

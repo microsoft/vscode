@@ -497,9 +497,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
+	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, token: CancellationToken): Promise<NotebookDataDto> {
 		const { provider } = this._getProviderData(viewType);
-		const data = await provider.openNotebook(URI.revive(uri), { backupId });
+		const data = await provider.openNotebook(URI.revive(uri), { backupId }, token);
 		return {
 			metadata: {
 				...notebookDocumentMetadataDefaults,
@@ -776,7 +776,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		} else if (delta.newActiveEditor) {
 			this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
 		}
-		this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
+		if (delta.newActiveEditor !== undefined) {
+			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
+		}
 	}
 
 	createNotebookCellStatusBarItemInternal(cell: vscode.NotebookCell, alignment: extHostTypes.NotebookCellStatusBarAlignment | undefined, priority: number | undefined) {

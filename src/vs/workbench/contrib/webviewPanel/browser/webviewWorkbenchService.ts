@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -27,23 +25,6 @@ export interface ICreateWebViewShowOptions {
 	preserveFocus: boolean;
 }
 
-export interface WebviewInputOptions extends WebviewOptions, WebviewContentOptions {
-	readonly tryRestoreScrollPosition?: boolean;
-	readonly retainContextWhenHidden?: boolean;
-	readonly enableCommandUris?: boolean;
-}
-
-export function areWebviewInputOptionsEqual(a: WebviewInputOptions, b: WebviewInputOptions): boolean {
-	return a.enableCommandUris === b.enableCommandUris
-		&& a.enableFindWidget === b.enableFindWidget
-		&& a.allowScripts === b.allowScripts
-		&& a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
-		&& a.retainContextWhenHidden === b.retainContextWhenHidden
-		&& a.tryRestoreScrollPosition === b.tryRestoreScrollPosition
-		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
-		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort);
-}
-
 export interface IWebviewWorkbenchService {
 	readonly _serviceBrand: undefined;
 
@@ -54,7 +35,8 @@ export interface IWebviewWorkbenchService {
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		options: WebviewInputOptions,
+		webviewOptions: WebviewOptions,
+		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput;
 
@@ -64,7 +46,8 @@ export interface IWebviewWorkbenchService {
 		title: string,
 		iconPath: WebviewIcons | undefined,
 		state: any,
-		options: WebviewInputOptions,
+		webviewOptions: WebviewOptions,
+		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined
 	}): WebviewInput;
@@ -199,10 +182,11 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		viewType: string,
 		title: string,
 		showOptions: ICreateWebViewShowOptions,
-		options: WebviewInputOptions,
+		webviewOptions: WebviewOptions,
+		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewInput {
-		const webview = this.createWebviewElement(id, extension, options);
+		const webview = this._webviewService.createWebviewOverlay(id, webviewOptions, contentOptions, extension);
 		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview, this.iconManager);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
@@ -240,11 +224,12 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		title: string,
 		iconPath: WebviewIcons | undefined,
 		state: any,
-		options: WebviewInputOptions,
+		webviewOptions: WebviewOptions,
+		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		group: number | undefined,
 	}): WebviewInput {
-		const webview = this.createWebviewElement(options.id, options.extension, options.options);
+		const webview = this._webviewService.createWebviewOverlay(options.id, options.webviewOptions, options.contentOptions, options.extension);
 		webview.state = options.state;
 
 		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.id, options.viewType, options.title, webview);
@@ -312,16 +297,5 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 
 	public setIcons(id: string, iconPath: WebviewIcons | undefined): void {
 		this._iconManager.setIcons(id, iconPath);
-	}
-
-	private createWebviewElement(
-		id: string,
-		extension: WebviewExtensionDescription | undefined,
-		options: WebviewInputOptions,
-	) {
-		return this._webviewService.createWebviewOverlay(id, {
-			enableFindWidget: options.enableFindWidget,
-			retainContextWhenHidden: options.retainContextWhenHidden
-		}, options, extension);
 	}
 }

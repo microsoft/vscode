@@ -700,7 +700,7 @@ declare module 'vscode' {
 	export interface InlineValueContext {
 
 		/**
-		 * Debug Adapter Protocol ID of the the stack frame.
+		 * The stack frame (as a DAP Id) where the execution has stopped.
 		 */
 		readonly frameId: number;
 
@@ -1555,27 +1555,27 @@ declare module 'vscode' {
 		readonly backupId?: string;
 	}
 
+	// todo@API use openNotebookDOCUMENT to align with openCustomDocument etc?
 	export interface NotebookContentProvider {
+
 		readonly options?: NotebookDocumentContentOptions;
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
+
+		// todo@API remove! against separation of data provider and renderer
+		// eslint-disable-next-line vscode-dts-cancellation
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
+
 		/**
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Thenable<NotebookData>;
-		// eslint-disable-next-line vscode-dts-provider-naming
-		// eslint-disable-next-line vscode-dts-cancellation
-		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
-		// eslint-disable-next-line vscode-dts-provider-naming
-		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
-		// eslint-disable-next-line vscode-dts-provider-naming
-		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
-		// eslint-disable-next-line vscode-dts-provider-naming
-		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Thenable<NotebookDocumentBackup>;
+		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext, token: CancellationToken): NotebookData | Thenable<NotebookData>;
 
-		// ???
-		// provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
+		saveNotebook(document: NotebookDocument, token: CancellationToken): Thenable<void>;
+
+		saveNotebookAs(targetResource: Uri, document: NotebookDocument, token: CancellationToken): Thenable<void>;
+
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
 	export namespace notebook {
@@ -2844,6 +2844,39 @@ declare module 'vscode' {
 		 * The reason why code actions were requested.
 		 */
 		readonly triggerKind: CodeActionTriggerKind;
+	}
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/115616 @alexr00
+	export enum PortAutoForwardAction {
+		Notify = 1,
+		OpenBrowser = 2,
+		OpenPreview = 3,
+		Silent = 4,
+		Ignore = 5
+	}
+
+	export interface PortAttributes {
+		port: number;
+		autoForwardAction: PortAutoForwardAction
+	}
+
+	export interface PortAttributesProvider {
+		providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes[]>;
+	}
+
+	export namespace workspace {
+		/**
+		 * If your extension listens on ports, consider registering a PortAttributesProvider to provide information
+		 * about the ports. For example, a debug extension may know about debug ports in it's debuggee. By providing
+		 * this information with a PortAttributesProvider the extension can tell VS Code that these ports should be
+		 * ignored, since they don't need to be user facing.
+		 *
+		 * @param portSelector If registerPortAttributesProvider is called after you start your process then you may already
+		 * know the range of ports or the pid of your process.
+		 * @param provider The PortAttributesProvider
+		 */
+		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: PortAttributesProvider): Disposable;
 	}
 	//#endregion
 }

@@ -9,8 +9,8 @@ import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { IAvailableShellsRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, IWindowsShellHelper, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IAvailableShellsRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -35,7 +35,6 @@ export interface ITerminalInstanceService {
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
 	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
-	createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper;
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
 	getMainProcessParentEnv(): Promise<IProcessEnvironment>;
 }
@@ -225,14 +224,6 @@ export interface ISearchOptions {
 	/** Whether the search should start at the current search position (not the next row). */
 	incremental?: boolean;
 }
-
-export enum WindowsShellType {
-	CommandPrompt = 'cmd',
-	PowerShell = 'pwsh',
-	Wsl = 'wsl',
-	GitBash = 'gitbash'
-}
-export type TerminalShellType = WindowsShellType | undefined;
 
 export interface ITerminalBeforeHandleLinkEvent {
 	terminal?: ITerminalInstance;
@@ -535,11 +526,6 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventSource: TitleEventSource): void;
-
-	/**
-	 * Sets the shell type of the terminal instance.
-	 */
-	setShellType(shellType: TerminalShellType): void;
 
 	waitForTitle(): Promise<string>;
 

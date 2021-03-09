@@ -9,6 +9,13 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
+export enum WindowsShellType {
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
+}
+export type TerminalShellType = WindowsShellType | undefined;
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
 	terminal: T;
@@ -109,6 +116,7 @@ export interface IPtyService {
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
+	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
@@ -296,6 +304,7 @@ export interface ITerminalChildProcess {
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
+	onProcessShellTypeChanged: Event<TerminalShellType>;
 
 	/**
 	 * Starts the process.

@@ -1683,33 +1683,6 @@ export interface CommentThreadChangedEvent {
 	readonly changed: CommentThread[];
 }
 
-/**
- * @internal
- */
-export interface IWebviewPortMapping {
-	webviewPort: number;
-	extensionHostPort: number;
-}
-
-/**
- * @internal
- */
-export interface IWebviewOptions {
-	readonly enableScripts?: boolean;
-	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
-}
-
-/**
- * @internal
- */
-export interface IWebviewPanelOptions {
-	readonly enableFindWidget?: boolean;
-	readonly retainContextWhenHidden?: boolean;
-}
-
-
 export interface CodeLens {
 	range: IRange;
 	id?: string;

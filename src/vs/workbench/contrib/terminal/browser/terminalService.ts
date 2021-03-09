@@ -17,9 +17,9 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalConnectionState, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
@@ -183,13 +183,10 @@ export class TerminalService implements ITerminalService {
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			this._recreateTerminalTabs(layoutInfo);
-			// now that terminals have been restored,
-			// attach listeners to update local state when terminals are changed
-			this.attachProcessLayoutListeners(false);
-		} else {
-			this.createTerminal();
-			this.attachProcessLayoutListeners(false);
 		}
+		// now that terminals have been restored,
+		// attach listeners to update local state when terminals are changed
+		this.attachProcessLayoutListeners(false);
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
 	}

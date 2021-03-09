@@ -5,49 +5,42 @@
 
 import * as nls from 'vs/nls';
 import { Range } from 'vs/editor/common/core/range';
-import { Action } from 'vs/base/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
-import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITextModel } from 'vs/editor/common/model';
 import { Constants } from 'vs/base/common/uint';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { join } from 'vs/base/common/path';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { ILoggerService } from 'vs/platform/log/common/log';
+import { joinPath } from 'vs/base/common/resources';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-class StartDebugTextMate extends Action {
+class StartDebugTextMate extends Action2 {
 
 	private static resource = URI.parse(`inmemory:///tm-log.txt`);
 
-	public static readonly ID = 'editor.action.startDebugTextMate';
-	public static readonly LABEL = nls.localize('startDebugTextMate', "Start Text Mate Syntax Grammar Logging");
-
-	constructor(
-		id: string,
-		label: string,
-		@ITextMateService private readonly _textMateService: ITextMateService,
-		@IModelService private readonly _modelService: IModelService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IHostService private readonly _hostService: IHostService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'editor.action.startDebugTextMate',
+			title: { value: nls.localize('startDebugTextMate', "Start Text Mate Syntax Grammar Logging"), original: 'Start Text Mate Syntax Grammar Logging' },
+			category: CATEGORIES.Developer.value,
+			f1: true
+		});
 	}
 
-	private _getOrCreateModel(): ITextModel {
-		const model = this._modelService.getModel(StartDebugTextMate.resource);
+	private _getOrCreateModel(modelService: IModelService): ITextModel {
+		const model = modelService.getModel(StartDebugTextMate.resource);
 		if (model) {
 			return model;
 		}
-		return this._modelService.createModel('', null, StartDebugTextMate.resource);
+		return modelService.createModel('', null, StartDebugTextMate.resource);
 	}
 
 	private _append(model: ITextModel, str: string) {
@@ -58,18 +51,28 @@ class StartDebugTextMate extends Action {
 		}]);
 	}
 
-	public async run(): Promise<any> {
-		const pathInTemp = join(this._environmentService.tmpDir.fsPath, `vcode-tm-log-${generateUuid()}.txt`);
-		const logger = createRotatingLogger(`tm-log`, pathInTemp, 1024 * 1024 * 30, 1);
-		const model = this._getOrCreateModel();
+	async run(accessor: ServicesAccessor) {
+		const textMateService = accessor.get(ITextMateService);
+		const modelService = accessor.get(IModelService);
+		const editorService = accessor.get(IEditorService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const hostService = accessor.get(IHostService);
+		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
+		const loggerService = accessor.get(ILoggerService);
+		const fileService = accessor.get(IFileService);
+
+		const pathInTemp = joinPath(environmentService.tmpDir, `vcode-tm-log-${generateUuid()}.txt`);
+		await fileService.createFile(pathInTemp);
+		const logger = loggerService.createLogger(pathInTemp, { name: 'debug textmate' });
+		const model = this._getOrCreateModel(modelService);
 		const append = (str: string) => {
 			this._append(model, str + '\n');
 			scrollEditor();
 			logger.info(str);
 			logger.flush();
 		};
-		await this._hostService.openWindow([{ fileUri: URI.file(pathInTemp) }], { forceNewWindow: true });
-		const textEditorPane = await this._editorService.openEditor({
+		await hostService.openWindow([{ fileUri: pathInTemp }], { forceNewWindow: true });
+		const textEditorPane = await editorService.openEditor({
 			resource: model.uri,
 			options: { pinned: true }
 		});
@@ -77,7 +80,7 @@ class StartDebugTextMate extends Action {
 			return;
 		}
 		const scrollEditor = () => {
-			const editors = this._codeEditorService.listCodeEditors();
+			const editors = codeEditorService.listCodeEditors();
 			for (const editor of editors) {
 				if (editor.hasModel()) {
 					if (editor.getModel().uri.toString() === StartDebugTextMate.resource.toString()) {
@@ -90,7 +93,7 @@ class StartDebugTextMate extends Action {
 		append(`// Open the file you want to test to the side and watch here`);
 		append(`// Output mirrored at ${pathInTemp}`);
 
-		this._textMateService.startDebugMode(
+		textMateService.startDebugMode(
 			(str) => {
 				this._append(model, str + '\n');
 				scrollEditor();
@@ -104,5 +107,4 @@ class StartDebugTextMate extends Action {
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(StartDebugTextMate), 'Start Text Mate Syntax Grammar Logging', CATEGORIES.Developer.value);
+registerAction2(StartDebugTextMate);

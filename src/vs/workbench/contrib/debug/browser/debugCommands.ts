@@ -384,12 +384,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.F5,
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
-	handler: async (accessor: ServicesAccessor, debugStartOptions?: { noDebug: boolean }) => {
+	handler: async (accessor: ServicesAccessor, debugStartOptions: { config?: Partial<IConfig>; noDebug?: boolean } = {}) => {
 		const debugService = accessor.get(IDebugService);
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
-		const clonedConfig = deepClone(config);
-		await debugService.startDebugging(launch, clonedConfig || name, { noDebug: debugStartOptions && debugStartOptions.noDebug });
+		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions.config) : name;
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions.noDebug });
 	}
 });
 

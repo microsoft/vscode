@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWindowsShellHelper, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -57,10 +57,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}
 		return WebglAddon;
-	}
-
-	public createWindowsShellHelper(): IWindowsShellHelper {
-		throw new Error('Not implemented');
 	}
 
 	public createTerminalProcess(): Promise<ITerminalChildProcess> {

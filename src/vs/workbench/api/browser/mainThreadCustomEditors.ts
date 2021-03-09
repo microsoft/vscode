@@ -13,7 +13,6 @@ import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
@@ -99,11 +98,11 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		this._editorProviders.clear();
 	}
 
-	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities): void {
+	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities): void {
 		this.registerEditorProvider(CustomEditorModelType.Text, reviveWebviewExtension(extensionData), viewType, options, capabilities, true);
 	}
 
-	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean): void {
+	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean): void {
 		this.registerEditorProvider(CustomEditorModelType.Custom, reviveWebviewExtension(extensionData), viewType, options, {}, supportsMultipleEditorsPerDocument);
 	}
 
@@ -111,7 +110,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		modelType: CustomEditorModelType,
 		extension: WebviewExtensionDescription,
 		viewType: string,
-		options: modes.IWebviewPanelOptions,
+		options: extHostProtocol.IWebviewPanelOptions,
 		capabilities: extHostProtocol.CustomTextEditorCapabilities,
 		supportsMultipleEditorsPerDocument: boolean,
 	): void {
@@ -176,7 +175,11 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, webviewInput.getTitle(), editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options, cancellation);
+					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, {
+						title: webviewInput.getTitle(),
+						webviewOptions: webviewInput.webview.contentOptions,
+						panelOptions: webviewInput.webview.options,
+					}, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);

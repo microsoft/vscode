@@ -17,7 +17,8 @@ export interface WindowData {
 export const enum IssueType {
 	Bug,
 	PerformanceIssue,
-	FeatureRequest
+	FeatureRequest,
+	Marketplace
 }
 
 export interface IssueReporterStyles extends WindowStyles {
@@ -40,7 +41,7 @@ export interface IssueReporterStyles extends WindowStyles {
 
 export interface IssueReporterExtensionData {
 	name: string;
-	publisher: string;
+	publisher: string | undefined;
 	version: string;
 	id: string;
 	isTheme: boolean;
