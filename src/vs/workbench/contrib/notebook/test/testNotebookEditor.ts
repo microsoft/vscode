@@ -451,7 +451,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => R): R {
+export async function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => Promise<R> | R): Promise<R> {
 
 	const instantiationService = accessor.get(IInstantiationService);
 	const undoRedoService = accessor.get(IUndoRedoService);
@@ -473,7 +473,7 @@ export function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [so
 	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
 	const editor = new TestNotebookEditor(viewModel);
 
-	const res = callback(editor, viewModel, notebook);
+	const res = await callback(editor, viewModel, notebook);
 	if (res instanceof Promise) {
 		res.finally(() => viewModel.dispose());
 	} else {
