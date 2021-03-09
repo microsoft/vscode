@@ -2110,8 +2110,7 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/116906
 
 	export interface ExtensionContext {
-		readonly extensionId: string;
-		readonly extensionVersion: string;
+		readonly extension: Extension<any>;
 	}
 
 	//#endregion
