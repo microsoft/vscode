@@ -776,7 +776,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		} else if (delta.newActiveEditor) {
 			this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
 		}
-		this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
+		if (delta.newActiveEditor !== undefined) {
+			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
+		}
 	}
 
 	createNotebookCellStatusBarItemInternal(cell: vscode.NotebookCell, alignment: extHostTypes.NotebookCellStatusBarAlignment | undefined, priority: number | undefined) {
