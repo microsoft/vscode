@@ -269,14 +269,13 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 				['tunnelCloseable', row.closeable]
 			];
 		let label: string = '';
-		if (row.privacy === TunnelPrivacy.Public) {
-			label = nls.localize('tunnel.privacyPublic', "Public");
-		} else if (row.tunnelType !== TunnelType.Add) {
-			label = nls.localize('tunnel.privacyPrivate', "Private");
+		let tooltip: string = '';
+		if (row.tunnelType === TunnelType.Add) {
+			return { label, context, tunnel: row, icon: row.icon, editId: TunnelEditId.None, tooltip };
 		}
 
-		let tooltip: string = '';
-		if (row instanceof TunnelItem && row.tunnelType !== TunnelType.Add) {
+		label = row.privacy === TunnelPrivacy.Public ? nls.localize('tunnel.privacyPublic', "Public") : nls.localize('tunnel.privacyPrivate', "Private");
+		if (row instanceof TunnelItem) {
 			tooltip = `${row.privacyTooltip} ${row.tooltipPostfix}`;
 		}
 		return { label, context, tunnel: row, icon: row.icon, editId: TunnelEditId.None, tooltip };
@@ -550,15 +549,12 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	get icon(): ThemeIcon | undefined {
+		if (this.tunnelType === TunnelType.Add) {
+			return undefined;
+		}
 		switch (this.privacy) {
 			case TunnelPrivacy.Public: return publicPortIcon;
-			default: {
-				if (this.tunnelType !== TunnelType.Add) {
-					return privatePortIcon;
-				} else {
-					return undefined;
-				}
-			}
+			default: return privatePortIcon;
 		}
 	}
 
