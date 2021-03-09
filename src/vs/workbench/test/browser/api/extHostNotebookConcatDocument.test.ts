@@ -68,7 +68,6 @@ suite('NotebookConcatDocument', function () {
 					cellKind: CellKind.Markdown,
 					outputs: [],
 				}],
-				contentOptions: { transientOutputs: false, transientMetadata: {} },
 				versionId: 0
 			}],
 			addedEditors: [

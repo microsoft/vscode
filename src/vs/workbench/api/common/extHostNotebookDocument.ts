@@ -142,7 +142,6 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _textDocuments: ExtHostDocuments,
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
-		private readonly _contentOptions: vscode.NotebookDocumentContentOptions,
 		private _metadata: extHostTypes.NotebookDocumentMetadata,
 		readonly uri: URI,
 	) {
@@ -169,7 +168,6 @@ export class ExtHostNotebookDocument extends Disposable {
 				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
 				get metadata() { return that._metadata; },
 				set metadata(_value: Required<vscode.NotebookDocumentMetadata>) { throw new Error('Use WorkspaceEdit to update metadata.'); },
-				get contentOptions() { return that._contentOptions; },
 				save() { return that._save(); }
 			});
 		}

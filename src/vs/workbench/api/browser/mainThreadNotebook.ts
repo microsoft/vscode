@@ -84,8 +84,7 @@ class NotebookAndEditorState {
 				cellKind: cell.cellKind,
 				outputs: cell.outputs,
 				metadata: cell.metadata
-			})),
-			contentOptions: e.transientOptions,
+			}))
 		};
 	}
 

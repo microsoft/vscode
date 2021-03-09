@@ -1212,8 +1212,6 @@ declare module 'vscode' {
 
 		// todo@API should we really expose this?
 		readonly viewType: string;
-		// todo@API should we really expose this?
-		readonly contentOptions: NotebookDocumentContentOptions;
 
 		/**
 		 * Save the document. The saving will be handled by the corresponding content provider

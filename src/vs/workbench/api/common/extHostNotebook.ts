@@ -689,7 +689,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						}
 					},
 					viewType,
-					modelData.contentOptions,
 					modelData.metadata ? typeConverters.NotebookDocumentMetadata.to(modelData.metadata) : new extHostTypes.NotebookDocumentMetadata(),
 					uri,
 				);
