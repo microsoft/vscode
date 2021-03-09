@@ -7,7 +7,6 @@ import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
@@ -40,19 +39,12 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	constructor(
 		private _id: number,
 		readonly shouldPersist: boolean,
-		private readonly _isPreconnectionTerminal: boolean,
 		private readonly _remoteTerminalChannel: RemoteTerminalChannelClient,
 		private readonly _remoteAgentService: IRemoteAgentService,
 		private readonly _logService: ILogService
 	) {
 		super();
 		this._startBarrier = new Barrier();
-
-		if (this._isPreconnectionTerminal) {
-			// Add a loading title only if this terminal is
-			// instantiated before a connection is up and running
-			setTimeout(() => this._onProcessTitleChanged.fire(nls.localize('terminal.integrated.starting', "Starting...")), 0);
-		}
 	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {

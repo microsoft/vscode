@@ -23,6 +23,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	public _serviceBrand: undefined;
 
 	private readonly _ptys: Map<number, RemotePty> = new Map();
+	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
 	private _isPtyHostUnresponsive: boolean = false;
 
 	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
@@ -31,9 +32,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
-
-	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
-	private _hasConnectedToRemote = false;
 
 	constructor(
 		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
@@ -126,14 +124,12 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
 
-		let isPreconnectionTerminal = false;
-		if (!this._hasConnectedToRemote) {
-			isPreconnectionTerminal = true;
-			this._remoteAgentService.getEnvironment().then(() => {
-				this._hasConnectedToRemote = true;
-			});
+		// Fetch the environment to check shell permissions
+		const remoteEnv = await this._remoteAgentService.getEnvironment();
+		if (!remoteEnv) {
+			// Extension host processes are only allowed in remote extension hosts currently
+			throw new Error('Could not fetch remote environment');
 		}
-
 
 		const shellLaunchConfigDto: IShellLaunchConfigDto = {
 			name: shellLaunchConfig.name,
@@ -142,8 +138,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env
 		};
-		// TODO: Fix workspace shell permissions
-		const isWorkspaceShellAllowed = false;//this._configHelper.checkWorkspaceShellPermissions(env.os);
+		const isWorkspaceShellAllowed = configHelper.checkWorkspaceShellPermissions(remoteEnv.os);
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
 			activeWorkspaceRootUri,
@@ -152,8 +147,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			rows,
 			isWorkspaceShellAllowed,
 		);
-		// const id = await this._remoteTerminalChannel.createTerminalProcess(shellLaunchConfig, cwd, cols, rows, env, processEnv as IProcessEnvironment, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
+		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 		this._ptys.set(result.persistentTerminalId, pty);
 		return pty;
 	}
@@ -163,18 +157,9 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
 
-		// TODO: Only do this once
-		let isPreconnectionTerminal = false;
-		if (!this._hasConnectedToRemote) {
-			isPreconnectionTerminal = true;
-			this._remoteAgentService.getEnvironment().then(() => {
-				this._hasConnectedToRemote = true;
-			});
-		}
-
 		try {
 			await this._remoteTerminalChannel.attachToProcess(id);
-			const pty = new RemotePty(id, true, isPreconnectionTerminal, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
+			const pty = new RemotePty(id, true, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
