@@ -1495,7 +1495,9 @@ class SCMInputWidget extends Disposable {
 			query
 		});
 
-		this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== false) {
+			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+		}
 
 		const mode = this.modeService.create('scminput');
 		const textModel = this.modelService.getModel(uri) || this.modelService.createModel('', mode, uri);
