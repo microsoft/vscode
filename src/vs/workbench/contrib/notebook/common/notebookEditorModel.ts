@@ -198,7 +198,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
 
-		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId, (await this.getUntitledDocumentData(this.resource)));
+		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId, CancellationToken.None, (await this.getUntitledDocumentData(this.resource)));
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
 		if (this.isDisposed()) {

@@ -13,6 +13,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
@@ -34,7 +35,8 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IHistoryService private readonly _historyService: IHistoryService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
 	) {
 		super();
 	}
@@ -76,10 +78,11 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 		let lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
 		lastActiveWorkspace = lastActiveWorkspace === null ? undefined : lastActiveWorkspace;
+
 		const shell = getDefaultShell(
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
-			await getSystemShell(platformOverride),
+			await getSystemShell(platformOverride, await this._shellEnvironmentService.getShellEnv()),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
 			createVariableResolver(lastActiveWorkspace, this._configurationResolverService),
@@ -87,6 +90,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			useAutomationShell,
 			platformOverride
 		);
+
 		const args = getDefaultShellArgs(
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
@@ -95,6 +99,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			this._logService,
 			platformOverride
 		);
+
 		return Promise.resolve({ shell, args });
 	}
 

@@ -85,8 +85,7 @@ class NotebookAndEditorState {
 				cellKind: cell.cellKind,
 				outputs: cell.outputs,
 				metadata: cell.metadata
-			})),
-			contentOptions: e.transientOptions,
+			}))
 		};
 	}
 
@@ -404,8 +403,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
-			openNotebook: async (viewType: string, uri: URI, backupId?: string, untitledDocumentData?: VSBuffer) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId, untitledDocumentData);
+			openNotebook: async (viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId, token, untitledDocumentData);
 				return {
 					data,
 					transientOptions: contentOptions

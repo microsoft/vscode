@@ -24,6 +24,7 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, cellRangesToIndexes, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
+import { ISplice } from 'vs/base/common/sequence';
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;
@@ -313,53 +314,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			});
 
 			if (e.synchronous) {
-				viewDiffs.reverse().forEach((diff) => {
-					// remove output in the webview
-					const hideOutputs: ICellOutputViewModel[] = [];
-					const deletedOutputs: ICellOutputViewModel[] = [];
-
-					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
-						const cell = this.element(i);
-						if (cell.cellKind === CellKind.Code) {
-							if (this._viewModel!.hasCell(cell.handle)) {
-								hideOutputs.push(...cell?.outputsViewModels);
-							} else {
-								deletedOutputs.push(...cell?.outputsViewModels);
-							}
-						}
-					}
-
-					this.splice2(diff.start, diff.deleteCount, diff.toInsert);
-
-					hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
-					deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
-				});
+				this._updateElementsInWebview(viewDiffs);
 			} else {
 				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(() => {
 					if (this._isDisposed) {
 						return;
 					}
 
-					viewDiffs.reverse().forEach((diff) => {
-						const hideOutputs: ICellOutputViewModel[] = [];
-						const deletedOutputs: ICellOutputViewModel[] = [];
-
-						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
-							const cell = this.element(i);
-							if (cell.cellKind === CellKind.Code) {
-								if (this._viewModel!.hasCell(cell.handle)) {
-									hideOutputs.push(...cell?.outputsViewModels);
-								} else {
-									deletedOutputs.push(...cell?.outputsViewModels);
-								}
-							}
-						}
-
-						this.splice2(diff.start, diff.deleteCount, diff.toInsert);
-
-						hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
-						deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
-					});
+					this._updateElementsInWebview(viewDiffs);
 				}));
 			}
 		}));
@@ -391,6 +353,33 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		});
 
 		this.splice2(0, 0, viewCells);
+	}
+
+	private _updateElementsInWebview(viewDiffs: ISplice<CellViewModel>[]) {
+		viewDiffs.reverse().forEach((diff) => {
+			const hideOutputs: ICellOutputViewModel[] = [];
+			const deletedOutputs: ICellOutputViewModel[] = [];
+			const removedMarkdownCells: ICellViewModel[] = [];
+
+			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
+				const cell = this.element(i);
+				if (cell.cellKind === CellKind.Code) {
+					if (this._viewModel!.hasCell(cell.handle)) {
+						hideOutputs.push(...cell?.outputsViewModels);
+					} else {
+						deletedOutputs.push(...cell?.outputsViewModels);
+					}
+				} else {
+					removedMarkdownCells.push(cell);
+				}
+			}
+
+			this.splice2(diff.start, diff.deleteCount, diff.toInsert);
+
+			hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
+			deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
+			removedMarkdownCells.forEach(cell => this._onDidRemoveCellFromView.fire(cell));
+		});
 	}
 
 	clear() {
@@ -473,31 +462,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return oldViewCellMapping.has(a.uri.toString());
 		});
 
-		viewDiffs.reverse().forEach((diff) => {
-			// remove output in the webview
-			const hideOutputs: ICellOutputViewModel[] = [];
-			const deletedOutputs: ICellOutputViewModel[] = [];
-			const removedMarkdownCells: ICellViewModel[] = [];
-
-			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
-				const cell = this.element(i);
-				if (cell.cellKind === CellKind.Code) {
-					if (this._viewModel!.hasCell(cell.handle)) {
-						hideOutputs.push(...cell?.outputsViewModels);
-					} else {
-						deletedOutputs.push(...cell?.outputsViewModels);
-					}
-				} else {
-					removedMarkdownCells.push(cell);
-				}
-			}
-
-			this.splice2(diff.start, diff.deleteCount, diff.toInsert);
-
-			hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
-			deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
-			removedMarkdownCells.forEach(cell => this._onDidRemoveCellFromView.fire(cell));
-		});
+		this._updateElementsInWebview(viewDiffs);
 	}
 
 	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
@@ -698,7 +663,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		const endIndex = this._getViewIndexUpperBound2(range.end);
+		const endIndex = this._getViewIndexUpperBound2(range.end - 1);
 
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
@@ -1074,18 +1039,31 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		}
 
-		// first render
-		const viewItemOffset = revealPosition === CellRevealPosition.Top ? elementTop : (elementTop - this.view.renderHeight / 2);
-		this.view.setScrollTop(viewItemOffset);
-
-		// second scroll as markdown cell is dynamic
-		const newElementTop = this.view.elementTop(viewIndex);
-		const newViewItemOffset = revealPosition === CellRevealPosition.Top ? newElementTop : (newElementTop - this.view.renderHeight / 2);
-		this.view.setScrollTop(newViewItemOffset);
+		switch (revealPosition) {
+			case CellRevealPosition.Top:
+				this.view.setScrollTop(elementTop);
+				this.view.setScrollTop(this.view.elementTop(viewIndex));
+				break;
+			case CellRevealPosition.Center:
+				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+				this.view.setScrollTop(this.view.elementTop(viewIndex) - this.view.renderHeight / 2);
+				break;
+			case CellRevealPosition.Bottom:
+				this.view.setScrollTop(elementBottom - this.view.renderHeight);
+				this.view.setScrollTop(this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.view.renderHeight);
+				break;
+			default:
+				break;
+		}
 	}
 
 	private _revealInView(viewIndex: number) {
-		this._revealInternal(viewIndex, true, CellRevealPosition.Top);
+		const firstIndex = this.view.firstVisibleIndex;
+		if (viewIndex < firstIndex) {
+			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
+		} else {
+			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom);
+		}
 	}
 
 	private _revealInCenter(viewIndex: number) {

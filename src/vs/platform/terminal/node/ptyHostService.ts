@@ -12,7 +12,7 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 enum Constants {
 	MaxRestarts = 5
@@ -24,7 +24,11 @@ enum Constants {
  */
 let lastPtyId = 0;
 
-export class LocalPtyService extends Disposable implements IPtyService {
+/**
+ * This service implements IPtyService by launching a pty host process, forwarding messages to and
+ * from the pty host process and manages the connection.
+ */
+export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
 	private _client: Client;
@@ -62,6 +66,8 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
+	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService
@@ -122,6 +128,7 @@ export class LocalPtyService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
+		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
 
 		return [client, proxy];
 	}
@@ -143,6 +150,9 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	}
 	detachFromProcess(id: number): Promise<void> {
 		return this._proxy.detachFromProcess(id);
+	}
+	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
+		return this._proxy.listProcesses(reduceGraceTime);
 	}
 
 	start(id: number): Promise<ITerminalLaunchError | undefined> {
@@ -169,7 +179,11 @@ export class LocalPtyService extends Disposable implements IPtyService {
 	getLatency(id: number): Promise<number> {
 		return this._proxy.getLatency(id);
 	}
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void {
+	orphanQuestionReply(id: number): Promise<void> {
+		return this._proxy.orphanQuestionReply(id);
+	}
+
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {

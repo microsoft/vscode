@@ -421,29 +421,6 @@ suite('Notebook API tests', function () {
 		await saveFileAndCloseAll(resource);
 	});
 
-	test.skip('change cell language', async function () {
-		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-
-		assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].language, 'typescript');
-		assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].cellKind, vscode.NotebookCellKind.Code);
-		await withEvent(vscode.notebook.onDidChangeCellLanguage, async event => {
-			await vscode.commands.executeCommand('notebook.cell.changeLanguage', { start: 0, end: 1 }, 'javascript');
-			await event;
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].language, 'javascript');
-		});
-
-		// switch to markdown will change the cell kind
-		await withEvent(vscode.notebook.onDidChangeNotebookCells, async event => {
-			await vscode.commands.executeCommand('notebook.cell.changeLanguage', { start: 0, end: 1 }, 'markdown');
-			await event;
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].language, 'markdown');
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].cellKind, vscode.NotebookCellKind.Markdown);
-		});
-
-		await saveAllFilesAndCloseAll(resource);
-	});
-
 	test('edit API (replaceMetadata)', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -1239,6 +1216,12 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
+	});
+	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+		const openedEditor = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.notebook.openNotebookDocument(resource);
+		assert.ok(await openedEditor);
 	});
 
 	// });

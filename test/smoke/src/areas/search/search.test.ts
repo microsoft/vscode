@@ -35,7 +35,7 @@ export function setup() {
 		});
 
 		// https://github.com/microsoft/vscode/issues/115244
-		it('dismisses result & checks for correct result number', async function () {
+		it.skip('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch('app.js');
