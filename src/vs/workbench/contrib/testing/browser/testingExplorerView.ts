@@ -45,7 +45,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -53,7 +53,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
@@ -376,8 +376,8 @@ export class TestingExplorerViewModel extends Disposable {
 	/**
 	 * Re-layout the tree.
 	 */
-	public layout(height: number, width: number): void {
-		this.tree.layout(height, width);
+	public layout(_height: number, _width: number): void {
+		this.tree.layout(); // The tree will measure its container
 	}
 
 	/**
@@ -706,7 +706,7 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 			case TestExplorerStateFilter.All:
 				return FilterResult.Include;
 			case TestExplorerStateFilter.OnlyExecuted:
-				return element.ownState !== TestRunState.Unset ? FilterResult.Include : FilterResult.Inherit;
+				return element.ownState !== TestResult.Unset ? FilterResult.Include : FilterResult.Inherit;
 			case TestExplorerStateFilter.OnlyFailed:
 				return isFailedState(element.ownState) ? FilterResult.Include : FilterResult.Inherit;
 		}
@@ -858,6 +858,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const name = dom.append(wrapper, dom.$('.name'));
 		const label = this.labels.create(name, { supportHighlights: true });
 
+		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(testingHiddenIcon)));
 		const actionBar = new ActionBar(wrapper, {
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
@@ -899,10 +900,6 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 			options.title = title;
 			options.fileKind = FileKind.FILE;
 			label.description = element.description;
-			if (testHidden) {
-				const hidden = localize('testHidden', 'hidden');
-				label.description = label.description ? `${label.description} (${hidden})` : hidden;
-			}
 		} else {
 			options.fileKind = FileKind.ROOT_FOLDER;
 		}
@@ -949,7 +946,7 @@ const getTestItemActions = (
 
 	try {
 		const primary: IAction[] = [];
-		const running = element.state === TestRunState.Running;
+		const running = element.state === TestResult.Running;
 		if (!Iterable.isEmpty(element.runnable)) {
 			primary.push(instantionService.createInstance(RunAction, element.runnable, running));
 		}
@@ -978,15 +975,15 @@ const getTestItemActions = (
 type CountSummary = ReturnType<typeof collectCounts>;
 
 const collectCounts = (count: TestStateCount) => {
-	const failed = count[TestRunState.Errored] + count[TestRunState.Failed];
-	const passed = count[TestRunState.Passed];
-	const skipped = count[TestRunState.Skipped];
+	const failed = count[TestResult.Errored] + count[TestResult.Failed];
+	const passed = count[TestResult.Passed];
+	const skipped = count[TestResult.Skipped];
 
 	return {
 		passed,
 		failed,
 		runSoFar: passed + failed,
-		totalWillBeRun: passed + failed + count[TestRunState.Queued] + count[TestRunState.Running],
+		totalWillBeRun: passed + failed + count[TestResult.Queued] + count[TestResult.Running],
 		skipped,
 	};
 };
@@ -996,6 +993,8 @@ const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) =>
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
 		percent = Math.min(percent, 99.9);
+	} else if (runSoFar === 0) {
+		percent = 0;
 	}
 
 	if (skipped === 0) {
@@ -1099,7 +1098,7 @@ class TestRunProgress {
 			return;
 		}
 
-		const failures = result.counts[TestRunState.Failed] + result.counts[TestRunState.Errored];
+		const failures = result.counts[TestResult.Failed] + result.counts[TestResult.Errored];
 		if (failures === 0) {
 			return;
 		}

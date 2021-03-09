@@ -151,6 +151,10 @@ export class CellDragAndDropController extends Disposable {
 
 		const dropDirection = this.getDropInsertDirection(event.dragPosRatio);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? event.cellTop : event.cellTop + event.cellHeight;
+		this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
+	}
+
+	private updateInsertIndicator(dropDirection: string, insertionIndicatorAbsolutePos: number) {
 		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_GAP / 2;
 		if (insertionIndicatorTop >= 0) {
 			this.listInsertionIndicator.style.top = `${insertionIndicatorTop}px`;
@@ -287,17 +291,10 @@ export class CellDragAndDropController extends Disposable {
 			const cellTop = this.list.getAbsoluteTopOfElement(target);
 			const cellHeight = this.list.elementHeight(target);
 
-			const dragOffset = this.list.scrollTop + position.clientY - cellTop;
-
-			const dragPosInElement = dragOffset - cellTop;
-			const dragPosRatio = dragPosInElement / cellHeight;
-
-			const dropDirection = this.getDropInsertDirection(dragPosRatio);
+			const dropDirection = this.getExplicitDragDropDirection(position.clientY, cellTop, cellHeight);
+			console.log(position.clientY);
 			const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
-			const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_GAP / 2;
-			if (insertionIndicatorTop >= 0) {
-				this.listInsertionIndicator.style.top = `${insertionIndicatorTop}px`;
-			}
+			this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
 		}
 	}
 
@@ -313,12 +310,7 @@ export class CellDragAndDropController extends Disposable {
 		const cellTop = this.list.getAbsoluteTopOfElement(target);
 		const cellHeight = this.list.elementHeight(target);
 
-		const dragOffset = this.list.scrollTop + ctx.clientY - cellTop;
-
-		const dragPosInElement = dragOffset - cellTop;
-		const dragPosRatio = dragPosInElement / cellHeight;
-
-		const dropDirection = this.getDropInsertDirection(dragPosRatio);
+		const dropDirection = this.getExplicitDragDropDirection(ctx.clientY, cellTop, cellHeight);
 
 		const isCopy = (ctx.ctrlKey && !platform.isMacintosh) || (ctx.altKey && platform.isMacintosh);
 		if (isCopy) {
@@ -335,5 +327,13 @@ export class CellDragAndDropController extends Disposable {
 			const draggedCellRange = [this.notebookEditor.viewModel!.getCellIndex(cell), 1];
 			this.notebookEditor.moveCellsToIdx(draggedCellRange[0], draggedCellRange[1], originalToIdx);
 		}
+	}
+
+	private getExplicitDragDropDirection(clientY: number, cellTop: number, cellHeight: number) {
+		const dragOffset = this.list.scrollTop + clientY;
+		const dragPosInElement = dragOffset - cellTop;
+		const dragPosRatio = dragPosInElement / cellHeight;
+
+		return this.getDropInsertDirection(dragPosRatio);
 	}
 }

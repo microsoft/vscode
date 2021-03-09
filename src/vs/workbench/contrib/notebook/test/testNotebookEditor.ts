@@ -38,7 +38,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -112,6 +111,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
 		throw new Error('Method not implemented.');
 	}
+	updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	async beginComputeContributedKernels(): Promise<INotebookKernel[]> {
 		return [];
 	}
@@ -132,12 +134,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	multipleKernelsAvailable: boolean = false;
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
-	onDidScroll = new Emitter<ScrollEvent>().event;
-	onWillDispose = new Emitter<void>().event;
 	onDidChangeVisibleRanges: Event<void> = new Emitter<void>().event;
 	onDidChangeSelection: Event<void> = new Emitter<void>().event;
 	visibleRanges: ICellRange[] = [];
-	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
 
 	hasModel(): this is IActiveNotebookEditor {
@@ -210,13 +209,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	isNotebookEditor = true;
-
 	postMessage(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	toggleClassName(className: string): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -228,7 +221,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	setCellSelection(cell: CellViewModel, selection: Range): void {
+	setCellEditorSelection(cell: CellViewModel, selection: Range): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -245,10 +238,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	async moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null> {
-		throw new Error('Method not implemented.');
-	}
-
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -320,7 +309,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	createInset(cell: CellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
+	createOutput(cell: CellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		return Promise.resolve();
 	}
 	createMarkdownPreview(cell: ICellViewModel): Promise<void> {

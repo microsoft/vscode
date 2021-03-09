@@ -126,7 +126,6 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		return {
 			meta: {
 				mtime: stats?.mtime ?? Date.now(),
-				name: this._name,
 				viewType: this.notebook.viewType,
 				backupId: backupId
 			}
@@ -171,7 +170,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
 
-		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId);
+		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId, CancellationToken.None);
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
 		if (this.isDisposed()) {

@@ -46,7 +46,11 @@ export async function readFileIntoStream<T>(
 			error = options.errorTransformer(error);
 		}
 
-		target.end(error);
+		if (typeof error !== 'undefined') {
+			target.error(error);
+		}
+
+		target.end();
 	}
 }
 

@@ -13,7 +13,7 @@ import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocume
 import { getRootNode } from './parseDocument';
 
 let _emmetHelper: typeof EmmetHelper;
-let _currentExtensionsPath: string | undefined = undefined;
+let _currentExtensionsPath: string[] | undefined;
 
 let _homeDir: vscode.Uri | undefined;
 
@@ -36,7 +36,10 @@ export function getEmmetHelper() {
  */
 export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	const helper = getEmmetHelper();
-	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
+	let extensionsPath = vscode.workspace.getConfiguration('emmet').get<string[]>('extensionsPath');
+	if (!extensionsPath) {
+		extensionsPath = [];
+	}
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
 		if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
@@ -44,8 +47,40 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 		} else {
 			const rootPath = vscode.workspace.workspaceFolders[0].uri;
 			const fileSystem = vscode.workspace.fs;
-			helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => vscode.window.showErrorMessage(err.message));
+			helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => {
+				if (Array.isArray(extensionsPath) && extensionsPath.length) {
+					vscode.window.showErrorMessage(err.message);
+				}
+			});
 		}
+	}
+}
+
+/**
+ * Migrate old configuration(string) for extensionsPath to new type(string[])
+ * https://github.com/microsoft/vscode/issues/117517
+ */
+export function migrateEmmetExtensionsPath() {
+	// Get the detail info of emmet.extensionsPath setting
+	let config = vscode.workspace.getConfiguration().inspect('emmet.extensionsPath');
+
+	// Update Global setting if the value type is string or the value is null
+	if (typeof config?.globalValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.globalValue], true);
+	} else if (config?.globalValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], true);
+	}
+	// Update Workspace setting if the value type is string or the value is null
+	if (typeof config?.workspaceValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceValue], false);
+	} else if (config?.workspaceValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [], false);
+	}
+	// Update WorkspaceFolder setting if the value type is string or the value is null
+	if (typeof config?.workspaceFolderValue === 'string') {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', [config.workspaceFolderValue]);
+	} else if (config?.workspaceFolderValue === null) {
+		vscode.workspace.getConfiguration().update('emmet.extensionsPath', []);
 	}
 }
 

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/swift.tmbundle/commit/d31bae2e0d6a4d977187dc7f06f538d6ba56b89b",
+	"version": "https://github.com/textmate/swift.tmbundle/commit/2ee3d7c63f7dd2c769167278b48e3716d1b60b26",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -14,6 +14,20 @@
 		}
 	],
 	"repository": {
+		"async-throws": {
+			"captures": {
+				"1": {
+					"name": "invalid.illegal.await-must-precede-throws.swift"
+				},
+				"2": {
+					"name": "keyword.control.exception.swift"
+				},
+				"3": {
+					"name": "keyword.control.async.swift"
+				}
+			},
+			"match": "\\b(?:(throws\\s+async|rethrows\\s+async)|(throws|rethrows)|(async))\\b"
+		},
 		"attributes": {
 			"patterns": [
 				{
@@ -792,6 +806,10 @@
 							"include": "#attributes"
 						},
 						{
+							"match": "\\basync\\b",
+							"name": "keyword.control.async.swift"
+						},
+						{
 							"match": "\\b(?:throws|rethrows)\\b",
 							"name": "keyword.control.exception.swift"
 						},
@@ -999,8 +1017,7 @@
 							"include": "#function-result"
 						},
 						{
-							"match": "\\b(?:throws|rethrows)\\b",
-							"name": "keyword.control.exception.swift"
+							"include": "#async-throws"
 						},
 						{
 							"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -1054,8 +1071,7 @@
 							"include": "#parameter-clause"
 						},
 						{
-							"match": "\\b(?:throws|rethrows)\\b",
-							"name": "keyword.control.exception.swift"
+							"include": "#async-throws"
 						},
 						{
 							"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -1508,10 +1524,13 @@
 							"name": "punctuation.definition.parameters.begin.swift"
 						}
 					},
-					"end": "(\\))",
+					"end": "(\\))(?:\\s*(async)\\b)?",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.parameters.end.swift"
+						},
+						"2": {
+							"name": "keyword.control.async.swift"
 						}
 					},
 					"name": "meta.parameter-clause.swift",
@@ -1796,8 +1815,7 @@
 									"include": "#parameter-clause"
 								},
 								{
-									"match": "\\b(?:throws|rethrows)\\b",
-									"name": "keyword.control.exception.swift"
+									"include": "#async-throws"
 								},
 								{
 									"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -1857,8 +1875,7 @@
 									"include": "#function-result"
 								},
 								{
-									"match": "\\b(?:throws|rethrows)\\b",
-									"name": "keyword.control.exception.swift"
+									"include": "#async-throws"
 								},
 								{
 									"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -2520,10 +2537,22 @@
 							"name": "punctuation.section.tuple.begin.swift"
 						}
 					},
-					"end": "\\)",
+					"comment": "correctly matching closure expressions is too hard (depends on trailing \"in\") so we just tack on some basics to the end of parenthesized-expression",
+					"end": "(\\))\\s*((?:\\b(?:async|throws|rethrows)\\s)*)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "punctuation.section.tuple.end.swift"
+						},
+						"2": {
+							"patterns": [
+								{
+									"match": "\\brethrows\\b",
+									"name": "invalid.illegal.rethrows-only-allowed-on-function-declarations.swift"
+								},
+								{
+									"include": "#async-throws"
+								}
+							]
 						}
 					},
 					"patterns": [
@@ -2585,6 +2614,17 @@
 					"name": "keyword.control.defer.swift"
 				},
 				{
+					"captures": {
+						"1": {
+							"name": "invalid.illegal.try-must-precede-await.swift"
+						},
+						"2": {
+							"name": "keyword.control.await.swift"
+						}
+					},
+					"match": "(?<!\\.)\\b(?:(await\\s+try)|(await)\\b)"
+				},
+				{
 					"match": "(?<!\\.)\\b(?:catch|throws?|rethrows|try)\\b|\\btry[?!]\\B",
 					"name": "keyword.control.exception.swift"
 				},
@@ -2622,7 +2662,7 @@
 				},
 				{
 					"comment": "matches weak, unowned, unowned(safe), unowned(unsafe)",
-					"match": "(?<!\\.)\\b(?:weak|unowned)\\b|\\bunowned\\((?:safe|unsafe)\\)",
+					"match": "(?<!\\.)\\bunowned\\((?:safe|unsafe)\\)|(?<!\\.)\\b(?:weak|unowned)\\b",
 					"name": "keyword.other.capture-specifier.swift"
 				},
 				{

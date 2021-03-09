@@ -18,6 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 const $ = dom.$;
 
 const untitledHintSetting = 'workbench.editor.untitled.hint';
@@ -34,7 +35,8 @@ export class UntitledHintContribution implements IEditorContribution {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ITASExperimentService private readonly experimentService: ITASExperimentService
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
@@ -47,10 +49,12 @@ export class UntitledHintContribution implements IEditorContribution {
 		this.update();
 	}
 
-	private update(): void {
+	private async update(): Promise<void> {
 		this.untitledHintContentWidget?.dispose();
 		this.button?.dispose();
-		const untitledHintMode = this.configurationService.getValue(untitledHintSetting);
+		const experimentService = await this.experimentService.getTreatment<'text' | 'button'>('untitledhint');
+		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden'>(untitledHintSetting);
+		const untitledHintMode = configValue === 'hidden' ? configValue : (experimentService || configValue);
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {

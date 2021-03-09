@@ -37,6 +37,12 @@ interface SearchResult {
 	state?: string;
 }
 
+enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
+}
+
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	windowId: number;
 	disableExtensions: boolean;
@@ -53,6 +59,7 @@ export interface IssueReporterConfiguration extends IWindowConfiguration {
 		commit: string | undefined;
 		date: string | undefined;
 		reportIssueUrl: string | undefined;
+		reportMarketplaceIssueUrl: string | undefined;
 	}
 }
 
@@ -326,17 +333,18 @@ export class IssueReporter extends Disposable {
 				hide(problemSourceHelpText);
 			}
 
-			const fileOnExtension = JSON.parse(value);
-			this.issueReporterModel.update({ fileOnExtension: fileOnExtension });
+			let fileOnExtension, fileOnMarketplace = false;
+			if (value === IssueSource.Extension) {
+				fileOnExtension = true;
+			} else if (value === IssueSource.Marketplace) {
+				fileOnMarketplace = true;
+			}
+
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-			if (fileOnExtension) {
-				this.searchExtensionIssues(title);
-			} else {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchVSCodeIssues(title, description);
-			}
+			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
 		this.addEventListener('description', 'input', (e: Event) => {
@@ -353,23 +361,19 @@ export class IssueReporter extends Disposable {
 		this.addEventListener('issue-title', 'input', (e: Event) => {
 			const title = (<HTMLInputElement>e.target).value;
 			const lengthValidationMessage = this.getElementById('issue-title-length-validation-error');
-			if (title && this.getIssueUrlWithTitle(title).length > MAX_URL_LENGTH) {
+			const issueUrl = this.getIssueUrl();
+			if (title && this.getIssueUrlWithTitle(title, issueUrl).length > MAX_URL_LENGTH) {
 				show(lengthValidationMessage);
 			} else {
 				hide(lengthValidationMessage);
 			}
-
-			const fileOnExtension = this.issueReporterModel.fileOnExtension();
-			if (fileOnExtension === undefined) {
+			const issueSource = this.getElementById<HTMLSelectElement>('issue-source');
+			if (!issueSource || issueSource.value === '') {
 				return;
 			}
 
-			if (fileOnExtension) {
-				this.searchExtensionIssues(title);
-			} else {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchVSCodeIssues(title, description);
-			}
+			const { fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
+			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
 		this.previewButton.onDidClick(() => this.createIssue());
@@ -489,6 +493,19 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private searchIssues(title: string, fileOnExtension: boolean | undefined, fileOnMarketplace: boolean | undefined): void {
+		if (fileOnExtension) {
+			return this.searchExtensionIssues(title);
+		}
+
+		if (fileOnMarketplace) {
+			return this.searchMarketplaceIssues(title);
+		}
+
+		const description = this.issueReporterModel.getData().issueDescription;
+		this.searchVSCodeIssues(title, description);
+	}
+
 	private searchExtensionIssues(title: string): void {
 		const url = this.getExtensionGitHubUrl();
 		if (title) {
@@ -507,6 +524,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		this.clearSearchResults();
+	}
+
+	private searchMarketplaceIssues(title: string): void {
+		if (title) {
+			const gitHubInfo = this.parseGitHubUrl(this.configuration.product.reportMarketplaceIssueUrl!);
+			if (gitHubInfo) {
+				return this.searchGitHub(`${gitHubInfo.owner}/${gitHubInfo.repositoryName}`, title);
+			}
+		}
 	}
 
 	private clearSearchResults(): void {
@@ -636,7 +662,7 @@ export class IssueReporter extends Disposable {
 		reset(typeSelect,
 			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
 			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
+			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
 		);
 
 		typeSelect.value = issueType.toString();
@@ -666,19 +692,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		sourceSelect.innerText = '';
-		if (issueType === IssueType.FeatureRequest) {
-			sourceSelect.append(...[
-				this.makeOption('', localize('selectSource', "Select source"), true),
-				this.makeOption('false', localize('vscode', "Visual Studio Code"), false),
-				this.makeOption('true', localize('extension', "An extension"), false)
-			]);
-		} else {
-			sourceSelect.append(...[
-				this.makeOption('', localize('selectSource', "Select source"), true),
-				this.makeOption('false', localize('vscode', "Visual Studio Code"), false),
-				this.makeOption('true', localize('extension', "An extension"), false),
-				this.makeOption('', localize('unknown', "Don't Know"), false)
-			]);
+		sourceSelect.append(this.makeOption('', localize('selectSource', "Select source"), true));
+		sourceSelect.append(this.makeOption('vscode', localize('vscode', "Visual Studio Code"), false));
+		sourceSelect.append(this.makeOption('extension', localize('extension', "An extension"), false));
+		if (this.configuration.product.reportMarketplaceIssueUrl) {
+			sourceSelect.append(this.makeOption('marketplace', localize('marketplace', "Extensions marketplace"), false));
+		}
+
+		if (issueType !== IssueType.FeatureRequest) {
+			sourceSelect.append(this.makeOption('', localize('unknown', "Don't know"), false));
 		}
 
 		if (selected !== -1 && selected < sourceSelect.options.length) {
@@ -691,7 +713,7 @@ export class IssueReporter extends Disposable {
 
 	private renderBlocks(): void {
 		// Depending on Issue Type, we render different blocks and text
-		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
 		const blockContainer = this.getElementById('block-container');
 		const systemBlock = document.querySelector('.block-system');
 		const processBlock = document.querySelector('.block-process');
@@ -715,29 +737,35 @@ export class IssueReporter extends Disposable {
 		hide(extensionSelector);
 
 		if (issueType === IssueType.Bug) {
-			show(blockContainer);
-			show(systemBlock);
 			show(problemSource);
-			show(experimentsBlock);
+
+			if (!fileOnMarketplace) {
+				show(blockContainer);
+				show(systemBlock);
+				show(experimentsBlock);
+			}
 
 			if (fileOnExtension) {
 				show(extensionSelector);
-			} else {
+			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
-			show(blockContainer);
-			show(systemBlock);
-			show(processBlock);
-			show(workspaceBlock);
 			show(problemSource);
-			show(experimentsBlock);
+
+			if (!fileOnMarketplace) {
+				show(blockContainer);
+				show(systemBlock);
+				show(processBlock);
+				show(workspaceBlock);
+				show(experimentsBlock);
+			}
 
 			if (fileOnExtension) {
 				show(extensionSelector);
-			} else {
+			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
 
@@ -845,13 +873,13 @@ export class IssueReporter extends Disposable {
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		const issueUrl = this.issueReporterModel.fileOnExtension() ? this.getExtensionGitHubUrl() : this.configuration.product.reportIssueUrl!;
+		const issueUrl = this.getIssueUrl();
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
 		if (this.configuration.data.githubAccessToken && gitHubDetails) {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
-		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value);
+		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
 		if (url.length > MAX_URL_LENGTH) {
@@ -879,6 +907,14 @@ export class IssueReporter extends Disposable {
 
 			ipcRenderer.send('vscode:issueReporterClipboard');
 		});
+	}
+
+	private getIssueUrl(): string {
+		return this.issueReporterModel.fileOnExtension()
+			? this.getExtensionGitHubUrl()
+			: this.issueReporterModel.getData().fileOnMarketplace
+				? this.configuration.product.reportMarketplaceIssueUrl!
+				: this.configuration.product.reportIssueUrl!;
 	}
 
 	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
@@ -909,16 +945,12 @@ export class IssueReporter extends Disposable {
 		return repositoryUrl;
 	}
 
-	private getIssueUrlWithTitle(issueTitle: string): string {
-		let repositoryUrl = this.configuration.product.reportIssueUrl;
+	private getIssueUrlWithTitle(issueTitle: string, repositoryUrl: string): string {
 		if (this.issueReporterModel.fileOnExtension()) {
-			const extensionGitHubUrl = this.getExtensionGitHubUrl();
-			if (extensionGitHubUrl) {
-				repositoryUrl = extensionGitHubUrl + '/issues/new';
-			}
+			repositoryUrl = repositoryUrl + '/issues/new';
 		}
 
-		const queryStringPrefix = this.configuration.product.reportIssueUrl && this.configuration.product.reportIssueUrl.indexOf('?') === -1 ? '?' : '&';
+		const queryStringPrefix = repositoryUrl.indexOf('?') === -1 ? '?' : '&';
 		return `${repositoryUrl}${queryStringPrefix}title=${encodeURIComponent(issueTitle)}`;
 	}
 
@@ -1156,7 +1188,7 @@ export class IssueReporter extends Disposable {
 			),
 			...extensions.map(extension => $('tr', undefined,
 				$('td', undefined, extension.name),
-				$('td', undefined, extension.publisher.substr(0, 3)),
+				$('td', undefined, extension.publisher?.substr(0, 3) ?? 'N/A'),
 				$('td', undefined, extension.version),
 			))
 		);

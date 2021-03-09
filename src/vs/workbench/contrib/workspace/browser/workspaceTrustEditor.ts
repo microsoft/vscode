@@ -10,15 +10,17 @@ import { Iterable } from 'vs/base/common/iterator';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
@@ -29,16 +31,19 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private headerTitle!: HTMLElement;
 	private headerDescription!: HTMLElement;
 	private headerButtons!: HTMLElement;
+	private extensionsListEntriesContainer!: HTMLElement;
 	private configurationContainer!: HTMLElement;
 	private trustSettingsTree!: WorkspaceTrustTree;
 	private workspaceTrustSettingsTreeModel!: WorkspaceTrustTreeModel;
 	private workspaceTrustEditorModel!: WorkspaceTrustEditorModel;
+	private extensionsRequiringTrust: IExtensionDescription[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
@@ -46,6 +51,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rootElement = append(parent, $('.workspace-trust-editor.settings-editor', { tabindex: '-1' }));
 
 		this.createHeaderElement(this.rootElement);
+		this.createFeatureListElement(this.rootElement);
 		this.createConfigurationElement(this.rootElement);
 	}
 
@@ -62,6 +68,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this._register(model.dataModel.onDidChangeTrustState(() => {
 			this.render(model);
 		}));
+
+		this.extensionsRequiringTrust = (await this.extensionService.getExtensions()).filter(ext => ext.requiresWorkspaceTrust);
 
 		this.render(model);
 
@@ -102,6 +110,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private render(model: WorkspaceTrustEditorModel): void {
+		// Header Section
 		this.headerTitle.innerText = this.getHeaderTitleText(model.currentWorkspaceTrustState);
 		this.headerDescription.innerText = this.getHeaderDescriptionText(model.currentWorkspaceTrustState);
 		this.headerContainer.className = this.getHeaderContainerClass(model.currentWorkspaceTrustState);
@@ -109,7 +118,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		clearNode(this.headerButtons);
 		const buttonBar = this._register(new ButtonBar(this.headerButtons));
 
-		const createButton = (label: string, command: string) => {
+		const createButton = (label: string, callback: () => void) => {
 			const button = buttonBar.addButton();
 			button.label = label;
 			this._register(button.onDidClick(e => {
@@ -117,22 +126,36 @@ export class WorkspaceTrustEditor extends EditorPane {
 					EventHelper.stop(e);
 				}
 
-				this.commandService.executeCommand(command);
+				callback();
 			}));
 		};
 
+
+		const setTrustState = (state: WorkspaceTrustState) => {
+			this.workspaceService.getWorkspace().folders.forEach(folder => {
+				this.workspaceTrustEditorModel.dataModel.setFolderTrustState(folder.uri, state);
+			});
+		};
+
 		if (model.currentWorkspaceTrustState !== WorkspaceTrustState.Trusted) {
-			createButton(localize('trustButton', "Trust"), 'workbench.trust.grant');
+			createButton(localize('trustButton', "Trust"), () => setTrustState(WorkspaceTrustState.Trusted));
 		}
 
 		if (model.currentWorkspaceTrustState !== WorkspaceTrustState.Untrusted) {
-			createButton(localize('doNotTrustButton', "Don't Trust"), 'workbench.trust.deny');
+			createButton(localize('doNotTrustButton', "Don't Trust"), () => setTrustState(WorkspaceTrustState.Untrusted));
 		}
 
-		createButton(localize('learnMore', "Learn More"), 'workbench.trust.learnMore');
+		createButton(localize('learnMore', "Learn More"), () => { });
 
+		// Features List
+		clearNode(this.extensionsListEntriesContainer);
+		this.extensionsRequiringTrust.forEach(ext => {
+			const extensionListItem = append(this.extensionsListEntriesContainer, $('.workspace-trust-extension'));
+			extensionListItem.innerText = ext.displayName || ext.name;
+		});
+
+		// Configuration Tree
 		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
-
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 	}
 
@@ -158,6 +181,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.workspaceTrustSettingsTreeModel = this.instantiationService.createInstance(WorkspaceTrustTreeModel);
 
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e)));
+	}
+
+	private createFeatureListElement(parent: HTMLElement): void {
+		const featuresListContainer = append(parent, $('.workspace-trust-features-list'));
+		const extensionsListContainer = append(featuresListContainer, $('.workspace-trust-extensions-list'));
+		const extensionsListHeader = append(extensionsListContainer, $('.workspace-trust-extensions-list-header'));
+		extensionsListHeader.innerText = localize('extListHeader', "Extensions Requiring Workspace Trust");
+		this.extensionsListEntriesContainer = append(extensionsListContainer, $('.workspace-trust-extensions-list-entries'));
 	}
 
 	private onDidChangeSetting(change: IWorkspaceTrustSettingChangeEvent) {

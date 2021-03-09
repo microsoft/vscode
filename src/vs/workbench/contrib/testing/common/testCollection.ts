@@ -7,7 +7,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
 export interface TestIdWithProvider {
 	testId: string;
@@ -45,14 +45,14 @@ export interface IRichLocation {
 
 export interface ITestMessage {
 	message: string | IMarkdownString;
-	severity: TestMessageSeverity | undefined;
+	severity: TestMessageSeverity;
 	expectedOutput: string | undefined;
 	actualOutput: string | undefined;
 	location: IRichLocation | undefined;
 }
 
 export interface ITestState {
-	state: TestRunState;
+	state: TestResult;
 	duration: number | undefined;
 	messages: ITestMessage[];
 }
@@ -87,7 +87,7 @@ export interface TestResultItem extends IncrementalTestCollectionItem {
 	/** Current state of this test */
 	state: ITestState;
 	/** Computed state based on children */
-	computedState: TestRunState;
+	computedState: TestResult;
 	/** True if the test is outdated */
 	retired: boolean;
 	/** True if the test was directly requested by the run (is not a child or parent) */

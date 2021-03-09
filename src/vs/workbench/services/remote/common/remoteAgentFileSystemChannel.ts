@@ -147,7 +147,8 @@ export class RemoteFileSystemProvider extends Disposable implements
 						error = new Error(toErrorMessage(error));
 					}
 
-					stream.end(error);
+					stream.error(error);
+					stream.end();
 				}
 
 				// Signal to the remote side that we no longer listen
@@ -160,7 +161,8 @@ export class RemoteFileSystemProvider extends Disposable implements
 
 			// Ensure to end the stream properly with an error
 			// to indicate the cancellation.
-			stream.end(canceled());
+			stream.error(canceled());
+			stream.end();
 
 			// Ensure to dispose the listener upon cancellation. This will
 			// bubble through the remote side as event and allows to stop

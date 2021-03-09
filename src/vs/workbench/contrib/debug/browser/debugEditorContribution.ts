@@ -12,7 +12,7 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -603,15 +603,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				return undefined;
 			};
 
-			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
-
-			const ctx = { stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1) };
+			const ctx: InlineValueContext = {
+				frameId: stackFrame.frameId,
+				stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1)
+			};
 			const token = new CancellationTokenSource().token;
 
+			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 			const providers = InlineValuesProviderRegistry.ordered(model).reverse();
 
 			allDecorations = [];
-
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
 			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
@@ -641,9 +642,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 									expr = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
 								}
 								if (expr) {
-									const viewModel = this.debugService.getViewModel();
 									const expression = new Expression(expr);
-									await expression.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch');
+									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch');
 									if (expression.available) {
 										text = strings.format(var_value_format, expr, expression.value);
 									}

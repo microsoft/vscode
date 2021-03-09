@@ -107,6 +107,7 @@ export interface IProductConfiguration {
 	readonly twitterUrl?: string;
 	readonly requestFeatureUrl?: string;
 	readonly reportIssueUrl?: string;
+	readonly reportMarketplaceIssueUrl?: string;
 	readonly licenseUrl?: string;
 	readonly privacyStatementUrl?: string;
 	readonly telemetryOptOutUrl?: string;

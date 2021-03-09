@@ -56,6 +56,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -798,16 +799,8 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}
 
 		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, this.tree!.contextKeyService);
-		const groups = menu.getActions();
+		createAndFillInContextMenuActions(menu, undefined, result);
 		menu.dispose();
-
-		for (let group of groups) {
-			const [, actions] = group;
-			result.push(...actions);
-			result.push(new Separator());
-		}
-
-		result.pop(); // remove last separator
 		return result;
 	}
 

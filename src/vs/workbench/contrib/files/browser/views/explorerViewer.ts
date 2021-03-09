@@ -1231,7 +1231,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 			writeableStream.end(undefined);
 		} catch (error) {
-			writeableStream.end(error);
+			writeableStream.error(error);
+			writeableStream.end();
 		}
 
 		if (token.isCancellationRequested) {

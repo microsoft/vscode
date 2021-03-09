@@ -241,12 +241,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		else {
 
 			// Delete
-			if (event.operation === FileOperation.DELETE) {
+			if (event.isOperation(FileOperation.DELETE)) {
 				this.remove(event);
 			}
 
 			// Move
-			else if (event.operation === FileOperation.MOVE) {
+			else if (event.isOperation(FileOperation.MOVE) && event.target.isFile) {
 				this.move(event);
 			}
 		}

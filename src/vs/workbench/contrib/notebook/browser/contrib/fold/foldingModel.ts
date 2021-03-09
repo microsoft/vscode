@@ -147,7 +147,12 @@ export class FoldingModel {
 	}
 
 	recompute() {
-		const cells = this._viewModel!.viewCells;
+		if (!this._viewModel) {
+			return;
+		}
+
+		const viewModel = this._viewModel;
+		const cells = viewModel.viewCells;
 		const stack: { index: number, level: number, endIndex: number }[] = [];
 
 		for (let i = 0; i < cells.length; i++) {
@@ -214,7 +219,7 @@ export class FoldingModel {
 
 		while (collapsedIndex !== -1 && k < newRegions.length) {
 			// get the latest range
-			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
+			const decRange = viewModel.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
 			if (decRange) {
 				const collasedStartIndex = decRange.start;
 
@@ -244,8 +249,8 @@ export class FoldingModel {
 
 		// remove old tracked ranges and add new ones
 		// TODO@rebornix, implement delta
-		this._foldingRangeDecorationIds.forEach(id => this._viewModel!.setTrackedRange(id, null, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter));
-		this._foldingRangeDecorationIds = cellRanges.map(region => this._viewModel!.setTrackedRange(null, region, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(str => str !== null) as string[];
+		this._foldingRangeDecorationIds.forEach(id => viewModel.setTrackedRange(id, null, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter));
+		this._foldingRangeDecorationIds = cellRanges.map(region => viewModel.setTrackedRange(null, region, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(str => str !== null) as string[];
 
 		this._regions = newRegions;
 		this._onDidFoldingRegionChanges.fire();
@@ -269,12 +274,16 @@ export class FoldingModel {
 	}
 
 	public applyMemento(state: ICellRange[]): boolean {
+		if (!this._viewModel) {
+			return false;
+		}
+
 		let i = 0;
 		let k = 0;
 
 		while (k < state.length && i < this._regions.length) {
 			// get the latest range
-			const decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
+			const decRange = this._viewModel.getTrackedRange(this._foldingRangeDecorationIds[i]);
 			if (decRange) {
 				const collasedStartIndex = state[k].start;
 

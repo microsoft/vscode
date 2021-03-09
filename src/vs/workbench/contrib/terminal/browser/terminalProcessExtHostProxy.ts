@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -42,13 +42,15 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onRequestCwd: Event<void> = this._onRequestCwd.event;
 	private readonly _onRequestLatency = this._register(new Emitter<void>());
 	public readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingLatencyRequests: ((value: number | PromiseLike<number>) => void)[] = [];
 
 	constructor(
-		public terminalId: number,
+		public instanceId: number,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		private _cols: number,
 		private _rows: number,
@@ -101,7 +103,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
-		if (!this._shellLaunchConfig.isExtensionTerminal) {
+		if (!this._shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			throw new Error('Attempt to start an ext host process that is not an extension terminal');
 		}
 		return this._terminalService.requestStartExtensionTerminal(this, this._cols, this._rows);
@@ -119,8 +121,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onResize.fire({ cols, rows });
 	}
 
-	public acknowledgeDataEvent(charCount: number): void {
-		this._onAcknowledgeDataEvent.fire(charCount);
+	public acknowledgeDataEvent(): void {
+		// Flow control is disabled for extension terminals
 	}
 
 	public getInitialCwd(): Promise<string> {

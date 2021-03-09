@@ -311,6 +311,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'warnonly'
 		},
+		'terminal.integrated.environmentChangesRelaunch': {
+			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.showExitAlert': {
 			description: localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',
@@ -395,11 +400,6 @@ export const terminalConfiguration: IConfigurationNode = {
 		},
 		'terminal.integrated.enablePersistentSessions': {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
-			type: 'boolean',
-			default: true
-		},
-		'terminal.integrated.flowControl': {
-			description: localize('terminal.integrated.flowControl', "Experimental: whether to enable flow control which will slow the program on the remote side to avoid flooding remote connections with terminal output. This setting has no effect for local terminals and terminals where the output/input is controlled by an extension. Changing this will only affect new terminals."),
 			type: 'boolean',
 			default: true
 		}

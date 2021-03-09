@@ -28,6 +28,11 @@
 	padding: 10px 0px;
 }
 
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-description {
+	cursor: default;
+	user-select: text;
+}
+
 /** Buttons Container */
 .workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-buttons-row {
 	display: flex;
@@ -70,6 +75,19 @@
 .monaco-workbench.vs .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-trusted,
 .monaco-workbench.vs-dark .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-trusted {
 	border-color: #327E36;
+}
+
+/** Features List */
+.workspace-trust-editor.settings-editor > .workspace-trust-features-list {
+	padding: 14px;
+	cursor: default;
+	user-select: text;
+}
+
+.workspace-trust-editor.settings-editor > .workspace-trust-features-list  .workspace-trust-extensions-list-header {
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 32px;
 }
 
 /** Settings */

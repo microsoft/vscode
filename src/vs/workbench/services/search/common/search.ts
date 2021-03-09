@@ -374,9 +374,6 @@ export interface ISearchConfigurationProperties {
 		defaultNumberOfContextLines: number | null,
 		experimental: {}
 	};
-	experimental: {
-		searchInOpenEditors: boolean
-	}
 	sortOrder: SearchSortOrder;
 }
 
