@@ -1607,7 +1607,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
 		// special terminal (eg. task, extension terminal)
-		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal && !this._shellLaunchConfig.attachPersistentTerminal) {
+		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal && !this._shellLaunchConfig.isExtensionOwnedTerminal) {
 			this.relaunch();
 			return;
 		}
