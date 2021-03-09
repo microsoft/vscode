@@ -1558,6 +1558,7 @@ declare module 'vscode' {
 	}
 
 	// todo@API use openNotebookDOCUMENT to align with openCustomDocument etc?
+	// todo@API rename to NotebookDocumentContentProvider
 	export interface NotebookContentProvider {
 
 		readonly options?: NotebookDocumentContentOptions;
