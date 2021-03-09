@@ -1171,22 +1171,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		// this._processManager.dispose();
-
-		// Launch the process unless this is only a renderer.
-		// In the renderer only cases, we still need to set the title correctly.
-		// const oldTitle = this._title;
-		// this._createProcessManager();
-
-		// TODO: Is this needed anymore?
-		// if (oldTitle !== this._title) {
-		// 	this.setTitle(this._title, TitleEventSource.Process);
-		// }
-
 		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
-		// this._processManager.onProcessData(data => this._onProcessData(data));
-		// this._createProcess();
 
 		this._xtermTypeAhead?.reset(this._processManager);
 	}

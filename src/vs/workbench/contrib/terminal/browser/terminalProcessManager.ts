@@ -289,9 +289,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined> {
-		console.log('relaunch!', shellLaunchConfig);
+		this.ptyProcessReady = new Promise<void>(c => {
+			this.onProcessReady(() => {
+				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
+				c(undefined);
+			});
+		});
 		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
-		// return undefined;
 	}
 
 	// Fetch any extension environment additions and apply them
