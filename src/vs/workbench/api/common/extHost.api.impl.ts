@@ -296,11 +296,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.getDefaultShell(false, configProvider);
 			},
 			get isTelemetryEnabled() {
-				checkProposedApiEnabled(extension);
 				return extHostTelemetry.getTelemetryEnabled();
 			},
 			get onDidChangeTelemetryEnabled(): Event<boolean> {
-				checkProposedApiEnabled(extension);
 				return extHostTelemetry.onDidChangeTelemetryEnabled;
 			},
 			get isNewAppInstall() {

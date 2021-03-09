@@ -2716,16 +2716,8 @@ declare module 'vscode' {
 		readonly allowContributedOpeners?: boolean | string;
 	}
 
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/110267
-
 	namespace env {
 		export function openExternal(target: Uri, options?: OpenExternalOptions): Thenable<boolean>;
-
-		export const isTelemetryEnabled: boolean;
-
-		export const onDidChangeTelemetryEnabled: Event<boolean>;
 	}
 
 	//#endregion
