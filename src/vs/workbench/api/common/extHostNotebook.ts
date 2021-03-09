@@ -497,9 +497,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
+	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, token: CancellationToken): Promise<NotebookDataDto> {
 		const { provider } = this._getProviderData(viewType);
-		const data = await provider.openNotebook(URI.revive(uri), { backupId });
+		const data = await provider.openNotebook(URI.revive(uri), { backupId }, token);
 		return {
 			metadata: {
 				...notebookDocumentMetadataDefaults,

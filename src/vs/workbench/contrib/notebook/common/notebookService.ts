@@ -22,9 +22,10 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
-	openNotebook(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
+
+	openNotebook(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string>;
@@ -66,7 +67,7 @@ export interface INotebookService {
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
 
-	fetchNotebookRawData(viewType: string, uri: URI, backupId?: string): Promise<INotebookRawData>;
+	fetchNotebookRawData(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken): Promise<INotebookRawData>;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
