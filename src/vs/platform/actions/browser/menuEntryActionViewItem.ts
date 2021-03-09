@@ -12,11 +12,12 @@ import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isWindows, isLinux, OS } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
@@ -189,12 +190,12 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
 			if (!this._wantsAltCommand && this._action.alt) {
-				const PREFIX = '\u2B98'; // THREE-D TOP-LIGHTED LEFTWARDS EQUILATERAL ARROWHEAD
-				const SUFFIX = '\u2B9A'; // THREE-D TOP-LIGHTED RIGHTWARDS EQUILATERAL ARROWHEAD
+				const PREFIX = '[';
+				const SUFFIX = ']';
 				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
 				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
-				title += `\n${PREFIX}${isMacintosh ? 'Option' : 'Alt'}${SUFFIX} `;
+				title += `\n${PREFIX}${UILabelProvider.modifierLabels[OS].altKey}${SUFFIX} `;
 				title += altKeybindingLabel
 					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
 					: altTooltip;
