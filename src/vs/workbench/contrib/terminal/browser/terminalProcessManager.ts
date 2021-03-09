@@ -396,7 +396,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}));
 	}
 
-	public setDimensions(cols: number, rows: number, sync: boolean | undefined): Promise<void>;
+	public setDimensions(cols: number, rows: number): Promise<void>;
+	public setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	public setDimensions(cols: number, rows: number, sync: true): void;
 	public setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
 		if (!this._process) {
