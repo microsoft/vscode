@@ -988,7 +988,7 @@ const collectCounts = (count: TestStateCount) => {
 	};
 };
 
-const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) => {
+const getProgressText = (running: boolean, { passed, runSoFar, skipped, failed, totalWillBeRun }: CountSummary) => {
 	let percent = passed / runSoFar * 100;
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
@@ -997,10 +997,18 @@ const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) =>
 		percent = 0;
 	}
 
-	if (skipped === 0) {
-		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
+	if (running) {
+		if (skipped === 0) {
+			return localize('testProgress.running', 'Running {0} tests, {1}/{2} passed ({3}%)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3));
+		} else {
+			return localize('testProgressWithSkip.running', 'Running {0} tests, {1}/{2} tests passed ({3}%, {4} skipped)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3), skipped);
+		}
 	} else {
-		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
+		if (skipped === 0) {
+			return localize('testProgress.completed', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
+		} else {
+			return localize('testProgressWithSkip.completed', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
+		}
 	}
 };
 
@@ -1069,7 +1077,7 @@ class TestRunProgress {
 		if (collected.runSoFar === 0) {
 			this.messagesContainer.innerText = localize('testResultStarting', 'Test run is starting...');
 		} else {
-			this.messagesContainer.innerText = getProgressText(collected);
+			this.messagesContainer.innerText = getProgressText(true, collected);
 		}
 	}
 
@@ -1079,7 +1087,7 @@ class TestRunProgress {
 		} else {
 			const collected = collectCounts(lastCount);
 			this.messagesContainer.dataset.state = collected.failed ? 'failed' : 'running';
-			const doneMessage = getProgressText(collected);
+			const doneMessage = getProgressText(false, collected);
 			this.messagesContainer.innerText = doneMessage;
 			aria.alert(doneMessage);
 		}
