@@ -181,10 +181,7 @@ export interface ITerminalService {
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 }
 
-// TODO: Bring local and remote interfaces closer together
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
-	// TODO: Support pty host responsiveness events
-
 	createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess>;
 }
 
