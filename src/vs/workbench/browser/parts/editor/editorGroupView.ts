@@ -1616,12 +1616,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region replaceEditors()
 
-	async replaceEditors(editors: EditorReplacement[], ignoreUntitled?: boolean): Promise<void> {
+	async replaceEditors(editors: EditorReplacement[]): Promise<void> {
 
 		// Extract active vs. inactive replacements
 		let activeReplacement: EditorReplacement | undefined;
 		const inactiveReplacements: EditorReplacement[] = [];
-		for (let { editor, replacement, options } of editors) {
+		for (let { editor, replacement, skipSaveDialog, options } of editors) {
 			const index = this.getIndexOfEditor(editor);
 			if (index >= 0) {
 				const isActiveEditor = this.isActive(editor);
@@ -1636,7 +1636,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				options.inactive = !isActiveEditor;
 				options.pinned = options.pinned ?? true; // unless specified, prefer to pin upon replace
 
-				const editorToReplace = { editor, replacement, options };
+				const editorToReplace = { editor, replacement, skipSaveDialog, options };
 				if (isActiveEditor) {
 					activeReplacement = editorToReplace;
 				} else {
@@ -1646,14 +1646,20 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Handle inactive first
-		for (const { editor, replacement, options } of inactiveReplacements) {
+		for (const { editor, replacement, skipSaveDialog, options } of inactiveReplacements) {
 
 			// Open inactive editor
 			await this.doOpenEditor(replacement, options);
 
 			// Close replaced inactive editor unless they match
 			if (!editor.matches(replacement)) {
-				const closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true });
+				let closed = false;
+				if (skipSaveDialog) {
+					this.doCloseEditor(editor);
+					closed = true;
+				} else {
+					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true });
+				}
 				if (!closed) {
 					return; // canceled
 				}
@@ -1668,7 +1674,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
-				if (ignoreUntitled) {
+				if (activeReplacement.skipSaveDialog) {
 					this.doCloseEditor(activeReplacement.editor);
 				} else {
 					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
@@ -1791,6 +1797,8 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 export interface EditorReplacement {
 	readonly editor: EditorInput;
 	readonly replacement: EditorInput;
+	// Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to!
+	readonly skipSaveDialog?: boolean;
 	readonly options?: EditorOptions;
 }
 

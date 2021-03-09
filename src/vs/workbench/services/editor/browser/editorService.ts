@@ -540,8 +540,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 								await this.replaceEditors([{
 									editor: existingEditor,
 									replacement: fileEditorInput,
+									skipSaveDialog: true,
 									options: options ? EditorOptions.create(options) : undefined,
-								}], group, true);
+								}], group);
 							}
 
 							return this.openEditor(fileEditorInput, textOptions, group);
@@ -983,9 +984,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region replaceEditors()
 
-	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void>;
-	async replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void>;
-	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void> {
+	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
 		const typedEditors: IEditorReplacement[] = [];
 
 		editors.forEach(replaceEditorArg => {
@@ -995,6 +996,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				typedEditors.push({
 					editor: replacementArg.editor,
 					replacement: replacementArg.replacement,
+					skipSaveDialog: replacementArg.skipSaveDialog,
 					options: this.toOptions(replacementArg.options)
 				});
 			} else {
@@ -1010,7 +1012,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 		if (targetGroup) {
-			return targetGroup.replaceEditors(typedEditors, ignoreUntitled);
+			return targetGroup.replaceEditors(typedEditors);
 		}
 	}
 

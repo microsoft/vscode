@@ -213,8 +213,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				await this.editorService.replaceEditors([{
 					editor: existing,
 					replacement: input,
+					skipSaveDialog: true,
 					options: options ? EditorOptions.create(options) : undefined,
-				}], targetGroup, true);
+				}], targetGroup);
 
 				if (existing instanceof CustomEditorInput) {
 					existing.dispose();

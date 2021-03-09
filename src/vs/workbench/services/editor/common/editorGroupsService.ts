@@ -108,6 +108,8 @@ export interface ICloseAllEditorsOptions {
 export interface IEditorReplacement {
 	editor: IEditorInput;
 	replacement: IEditorInput;
+	// Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to!
+	skipSaveDialog?: boolean;
 	options?: IEditorOptions | ITextEditorOptions;
 }
 
@@ -547,12 +549,11 @@ export interface IEditorGroup {
 	 * Replaces editors in this group with the provided replacement.
 	 *
 	 * @param editors the editors to replace
-	 * @param ignoreUntitled Whether or not you want to ignore untitled files
 	 *
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IEditorReplacement[], ignoreUntitled?: boolean): Promise<void>;
+	replaceEditors(editors: IEditorReplacement[]): Promise<void>;
 
 	/**
 	 * Set an editor to be pinned. A pinned editor is not replaced

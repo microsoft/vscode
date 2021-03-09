@@ -202,13 +202,12 @@ export interface IEditorService {
 	 *
 	 * @param editors the editors to replace
 	 * @param group the editor group
-	 * @param ignoreUntitled whether to replace the untitled files without saving
 	 *
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier, ignoreUntitled?: boolean): Promise<void>;
+	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
 	 * Find out if the provided editor is opened in any editor group.
