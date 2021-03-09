@@ -1223,6 +1223,18 @@ suite('Notebook API tests', function () {
 		await vscode.notebook.openNotebookDocument(resource);
 		assert.ok(await openedEditor);
 	});
+	test.only('Select a cell', async function () {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		assert.strictEqual(vscode.window.activeNotebookEditor?.selection?.index, 1);
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		assert.strictEqual(vscode.window.activeNotebookEditor?.selection?.index, 2);
+
+		// Select second cell.
+		await vscode.window.showNotebookDocument(vscode.window.activeNotebookEditor.document.uri, { selection: new vscode.NotebookCellRange(1, 1) });
+		assert.strictEqual(vscode.window.activeNotebookEditor?.selection?.index, 1);
+	});
 
 	// });
 
