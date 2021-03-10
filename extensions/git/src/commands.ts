@@ -2247,7 +2247,7 @@ export class CommandCenter {
 		}
 
 		await repository.addRemote(name, url);
-		await repository.fetch(name);
+		await repository.fetch({ remote: name });
 		return name;
 	}
 
@@ -2667,6 +2667,52 @@ export class CommandCenter {
 		}
 
 		env.clipboard.writeText(item.message);
+	}
+
+	private _selectedForCompare: { uri: Uri, item: GitTimelineItem } | undefined;
+
+	@command('git.timeline.selectForCompare', { repository: false })
+	async timelineSelectForCompare(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item) || !uri) {
+			return;
+		}
+
+		this._selectedForCompare = { uri, item };
+		await commands.executeCommand('setContext', 'git.timeline.selectedForCompare', true);
+	}
+
+	@command('git.timeline.compareWithSelected', { repository: false })
+	async timelineCompareWithSelected(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item) || !uri || !this._selectedForCompare || uri.toString() !== this._selectedForCompare.uri.toString()) {
+			return;
+		}
+
+		const { item: selected } = this._selectedForCompare;
+
+		const basename = path.basename(uri.fsPath);
+		let leftTitle;
+		if ((selected.previousRef === 'HEAD' || selected.previousRef === '~') && selected.ref === '') {
+			leftTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		}
+		else if (selected.previousRef === 'HEAD' && selected.ref === '~') {
+			leftTitle = localize('git.title.index', '{0} (Index)', basename);
+		} else {
+			leftTitle = localize('git.title.ref', '{0} ({1})', basename, selected.shortRef);
+		}
+
+		let rightTitle;
+		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
+			rightTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		}
+		else if (item.previousRef === 'HEAD' && item.ref === '~') {
+			rightTitle = localize('git.title.index', '{0} (Index)', basename);
+		} else {
+			rightTitle = localize('git.title.ref', '{0} ({1})', basename, item.shortRef);
+		}
+
+
+		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
+		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 
 	@command('git.rebaseAbort', { repository: true })

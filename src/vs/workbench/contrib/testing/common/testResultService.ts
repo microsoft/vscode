@@ -15,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { IncrementalTestCollectionItem, ISerializedTestResults, ITestState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -26,7 +26,7 @@ import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/t
 /**
  * Count of the number of tests in each run state.
  */
-export type TestStateCount = { [K in TestRunState]: number };
+export type TestStateCount = { [K in TestResult]: number };
 
 export const enum TestResultItemChangeReason {
 	Retired,
@@ -102,13 +102,13 @@ export const sumCounts = (counts: Iterable<TestStateCount>) => {
 const queuedState: ITestState = {
 	duration: undefined,
 	messages: [],
-	state: TestRunState.Queued
+	state: TestResult.Queued
 };
 
 const unsetState: ITestState = {
 	duration: undefined,
 	messages: [],
-	state: TestRunState.Unset
+	state: TestResult.Unset
 };
 
 const itemToNode = (
@@ -120,7 +120,7 @@ const itemToNode = (
 		// shallow-clone the test to take a 'snapshot' of it at the point in time where tests run
 		item: { ...item.item },
 		state: unsetState,
-		computedState: TestRunState.Unset,
+		computedState: TestResult.Unset,
 		retired: false,
 	};
 
@@ -153,6 +153,7 @@ const makeParents = (
 const makeNodeAndChildren = (
 	collection: IMainThreadTestCollection,
 	test: IncrementalTestCollectionItem,
+	excluded: ReadonlySet<string>,
 	byExtId: Map<string, TestResultItem>,
 	isExecutedDirectly = true,
 ): TestResultItem => {
@@ -168,8 +169,8 @@ const makeNodeAndChildren = (
 
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
-		if (child) {
-			makeNodeAndChildren(collection, child, byExtId, false);
+		if (child && !excluded.has(childId)) {
+			makeNodeAndChildren(collection, child, excluded, byExtId, false);
 		}
 	}
 
@@ -190,6 +191,7 @@ export class LiveTestResult implements ITestResult {
 		req: RunTestsRequest,
 	) {
 		const testByExtId = new Map<string, TestResultItem>();
+		const excludeSet = new Set<string>(req.exclude);
 		for (const test of req.tests) {
 			for (const collection of collections) {
 				const node = collection.getNodeById(test.testId);
@@ -197,12 +199,12 @@ export class LiveTestResult implements ITestResult {
 					continue;
 				}
 
-				makeNodeAndChildren(collection, node, testByExtId);
+				makeNodeAndChildren(collection, node, excludeSet, testByExtId);
 				makeParents(collection, node, testByExtId);
 			}
 		}
 
-		return new LiveTestResult(collections, testByExtId, !!req.isAutoRun);
+		return new LiveTestResult(collections, testByExtId, excludeSet, !!req.isAutoRun);
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
@@ -227,7 +229,7 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts: { [K in TestRunState]: number } = makeEmptyCounts();
+	public readonly counts: { [K in TestResult]: number } = makeEmptyCounts();
 
 	/**
 	 * @inheritdoc
@@ -270,9 +272,10 @@ export class LiveTestResult implements ITestResult {
 	constructor(
 		private readonly collections: ReadonlyArray<IMainThreadTestCollection>,
 		private readonly testById: Map<string, TestResultItem>,
+		private readonly excluded: ReadonlySet<string>,
 		public readonly isAutoRun: boolean,
 	) {
-		this.counts[TestRunState.Unset] = testById.size;
+		this.counts[TestResult.Unset] = testById.size;
 	}
 
 	/**
@@ -362,8 +365,8 @@ export class LiveTestResult implements ITestResult {
 			if (test) {
 				const originalSize = this.testById.size;
 				makeParents(collection, test, this.testById);
-				const node = makeNodeAndChildren(collection, test, this.testById);
-				this.counts[TestRunState.Unset] += this.testById.size - originalSize;
+				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById);
+				this.counts[TestResult.Unset] += this.testById.size - originalSize;
 				return node;
 			}
 		}
@@ -380,7 +383,7 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		// un-queue any tests that weren't explicitly updated
-		this.setAllToState(unsetState, t => t.state.state === TestRunState.Queued);
+		this.setAllToState(unsetState, t => t.state.state === TestResult.Queued);
 		this._completedAt = Date.now();
 		this.completeEmitter.fire();
 	}
@@ -548,7 +551,10 @@ export class TestResultService implements ITestResultService {
 	private readonly isRunning: IContextKey<boolean>;
 	private readonly serializedResults: StoredValue<ISerializedTestResults[]>;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService, @IStorageService storage: IStorageService) {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService storage: IStorageService,
+	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 		this.serializedResults = new StoredValue({
 			key: 'testResults',
@@ -574,7 +580,7 @@ export class TestResultService implements ITestResultService {
 	public getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
 		for (const result of this.results) {
 			const lookup = result.getStateById(extId);
-			if (lookup && lookup.computedState !== TestRunState.Unset) {
+			if (lookup && lookup.computedState !== TestResult.Unset) {
 				return [result, lookup];
 			}
 		}

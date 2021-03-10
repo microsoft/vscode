@@ -114,7 +114,6 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -170,7 +169,7 @@ export interface IPathData {
 	readonly openOnlyIfExists?: boolean;
 
 	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
-	readonly overrideId?: string;
+	readonly editorOverrideId?: string;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
@@ -254,8 +253,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;
-
-	enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 /**

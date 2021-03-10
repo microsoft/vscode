@@ -37,12 +37,12 @@ xterm-addon-unicode11@0.3.0-beta.3:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.3.0-beta.3.tgz#70af2dfb67809258edb62c19e2861f7ce5ccf5cd"
   integrity sha512-vaYopnOjn19wCLDCyIWPWLwKR7CvLPxB5YZ3CAxt9qL05o3symxIJJJC0DuCa4GaGKVjNc7EmjRCs5bsJ2O1tw==
 
-xterm-addon-webgl@0.10.0-beta.2:
-  version "0.10.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.10.0-beta.2.tgz#520547b2f845b2f9265f1817140b0f4e114c4a55"
-  integrity sha512-DLfmF5+H1M/0BABEaqJlLUasKck7TjyRWVlzGflFTWVCr7/Kqaf0al4KMlw3yWX76A1ITGXrWj0qbDn2Sixl2Q==
+xterm-addon-webgl@0.10.0:
+  version "0.10.0"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.10.0.tgz#e99366fdc4cbd46b798a5e2fc114ecc19f9fd4b7"
+  integrity sha512-MJzyWie5yw+PH6p//fXlXzmsULLtpBo992EWEKl2uv5M5Zj9etTwfuutCUK7o98mr6itDl+vS/CYIMP68jCf8w==
 
-xterm@4.11.0-beta.3:
-  version "4.11.0-beta.3"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.11.0-beta.3.tgz#f19b4aaabdd634a6e62a96d770d6a8e8be0664b9"
-  integrity sha512-hmAbSwmgYDgQPE5A2UtfpU+Wta4PYIpsDlnGwbhC783OwcYK8ZW0XajhTIQGZywpZb9bXusNmpcGeVsqHYWGLg==
+xterm@4.11.0:
+  version "4.11.0"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.11.0.tgz#d7dabc7af5299579e4663fedf2b3a179af9aaff9"
+  integrity sha512-NeJH909WTO2vth/ZlC0gkP3AGzupbvVHVlmtrpBw56/sGFXaF9bNdKgqKa3tf8qbGvXMzL2JhCcHVklqFztIRw==

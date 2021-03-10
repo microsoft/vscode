@@ -41,9 +41,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 // Commands
 
@@ -354,13 +354,15 @@ CommandsRegistry.registerCommand({
 	id: OPEN_WITH_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
 			const input = editorService.createEditorInput({ resource: uri });
-			openEditorWith(accessor, input, undefined, undefined, editorGroupsService.activeGroup);
+
+			return editorService.openEditor(input, { override: EditorOverride.PICK });
 		}
+
+		return undefined;
 	}
 });
 
@@ -678,7 +680,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			const textInput = editorService.createEditorInput({ options: { pinned: true } });
 			const group = editorGroupsService.activeGroup;
-			await openEditorWith(accessor, textInput, args.viewType, { pinned: true }, group);
+			await editorService.openEditor(textInput, { override: args.viewType, pinned: true }, group);
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}

@@ -14,8 +14,6 @@ import { IOSConfiguration } from 'vs/platform/windows/common/windows';
 
 export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
-	declare readonly _serviceBrand: undefined;
-
 	@memoize
 	get machineId() { return this.configuration.machineId; }
 

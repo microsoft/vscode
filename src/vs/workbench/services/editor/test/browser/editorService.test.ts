@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -57,9 +57,7 @@ suite('EditorService', () => {
 	});
 
 	function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): [EditorPart, EditorService, TestServiceAccessor] {
-		const part = disposables.add(instantiationService.createInstance(EditorPart));
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+		const part = createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -403,8 +401,8 @@ suite('EditorService', () => {
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
 		const inp = instantiationService.createInstance(ResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
-		const delegate = instantiationService.createInstance(DelegatingEditorService, async (delegate, group, input) => {
-			assert.strictEqual(input, inp);
+		const delegate = instantiationService.createInstance(DelegatingEditorService, async (group, delegate) => {
+			assert.ok(group);
 
 			done();
 
@@ -496,6 +494,32 @@ suite('EditorService', () => {
 		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
+	});
+
+	test('inactive editor group does not activate when closing editor (#117686)', async () => {
+		const [part, service] = createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
+
+		const rootGroup = part.activeGroup;
+
+		await part.whenRestored;
+
+		await service.openEditor(input1, { pinned: true }, rootGroup);
+		await service.openEditor(input2, { pinned: true }, rootGroup);
+
+		const sideGroup = (await service.openEditor(input2, { pinned: true }, SIDE_GROUP))?.group;
+		assert.strictEqual(part.activeGroup, sideGroup);
+		assert.notStrictEqual(rootGroup, sideGroup);
+
+		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS, part.activeGroup);
+
+		await rootGroup.closeEditor(input2);
+		assert.strictEqual(part.activeGroup, sideGroup);
+
+		assert.strictEqual(rootGroup.isMinimized, true);
+		assert.strictEqual(part.activeGroup.isMinimized, false);
 	});
 
 	test('active editor change / visible editor change events', async function () {

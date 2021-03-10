@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme, screen, Display } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -74,6 +74,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Events
 
 	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
@@ -95,7 +96,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
+	readonly onDidChangeDisplay = Event.debounce(Event.any(
+		Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
+			// Electron will emit 'display-metrics-changed' events even when actually
+			// going fullscreen, because the dock hides. However, we do not want to
+			// react on this event as there is no change in display bounds.
+			return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
+		}),
+		Event.fromNodeEventEmitter(screen, 'display-added'),
+		Event.fromNodeEventEmitter(screen, 'display-removed')
+	), () => { }, 100);
+
 	//#endregion
+
 
 	//#region Window
 
@@ -234,6 +247,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Dialog
 
 	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
@@ -312,6 +326,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region OS
 
@@ -502,6 +517,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
@@ -536,6 +552,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region Lifecycle
 
@@ -591,6 +608,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
@@ -604,6 +622,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region Development
 
@@ -635,6 +654,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Registry (windows)
 
 	async windowsGetStringRegKey(windowId: number | undefined, hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> {
@@ -651,6 +671,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region Credentials
 

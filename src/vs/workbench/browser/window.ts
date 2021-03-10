@@ -52,13 +52,13 @@ export class BrowserWindow extends Disposable {
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => this.onWindowResize()));
 
 		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.layoutService.getWorkbenchContainer(), EventType.WHEEL, e => e.preventDefault(), { passive: false }));
+		this._register(addDisposableListener(this.layoutService.container, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
 
 		// Prevent native context menus in web
-		this._register(addDisposableListener(this.layoutService.getWorkbenchContainer(), EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
 
 		// Prevent default navigation on drop
-		this._register(addDisposableListener(this.layoutService.getWorkbenchContainer(), EventType.DROP, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Fullscreen (Browser)
 		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
@@ -153,7 +153,7 @@ export class BrowserWindow extends Disposable {
 			scheme: Schemas.userData,
 			priority: true,
 			formatting: {
-				label: '${scheme}:${path}',
+				label: '(Settings) ${path}',
 				separator: '/',
 			}
 		});

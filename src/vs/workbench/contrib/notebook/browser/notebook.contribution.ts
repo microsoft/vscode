@@ -16,13 +16,13 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, EditorOverride } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, EditorsAssociations, editorsAssociationsSettingId, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -34,9 +34,8 @@ import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoC
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { INotebookEditor, IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -47,8 +46,8 @@ import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/comm
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
-import { INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
-import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetServiceImpl';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorServiceImpl';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -58,15 +57,16 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 
 // Editor Contribution
-
+import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
-import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
-// import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
+import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
+
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -145,22 +145,22 @@ class NotebookEditorFactory implements IEditorInputFactory {
 		assertType(input instanceof NotebookEditorInput);
 		return JSON.stringify({
 			resource: input.resource,
-			name: input.name,
+			name: input.getName(),
 			viewType: input.viewType,
 		});
 	}
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, name: string, viewType: string, group: number };
+		type Data = { resource: URI, viewType: string, group: number };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
 		}
-		const { resource, name, viewType } = data;
-		if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
+		const { resource, viewType } = data;
+		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, name, viewType);
+		const input = NotebookEditorInput.create(instantiationService, resource, viewType);
 		return input;
 	}
 }
@@ -182,7 +182,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 					throw new Error(`No backup found for Notebook editor: ${resource}`);
 				}
 
-				const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.name, backup.meta.viewType, { startDirty: true });
+				const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.viewType, { startDirty: true });
 				return input;
 			});
 		}
@@ -269,26 +269,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			}
 		}));
 
-		this._register(this.editorService.onDidVisibleEditorsChange(() => {
-			const visibleNotebookEditors = editorService.visibleEditorPanes
-				.filter(pane => (pane as unknown as { isNotebookEditor?: boolean }).isNotebookEditor)
-				.map(pane => pane.getControl() as INotebookEditor)
-				.filter(control => !!control)
-				.map(editor => editor.getId());
-
-			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
-		}));
-
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			const activeEditorPane = editorService.activeEditorPane as { isNotebookEditor?: boolean } | undefined;
-			const notebookEditor = activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
-			if (notebookEditor) {
-				this.notebookService.updateActiveNotebookEditor(notebookEditor);
-			} else {
-				this.notebookService.updateActiveNotebookEditor(null);
-			}
-		}));
-
 		this.editorGroupService.whenRestored.then(() => this._updateContextKeys());
 		this._register(this.editorService.onDidActiveEditorChange(() => this._updateContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this._updateContextKeys()));
@@ -298,20 +278,19 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	}
 
 	private _updateContextKeys() {
-		const activeEditorPane = this.editorService.activeEditorPane as { isNotebookEditor?: boolean } | undefined;
-		this._notebookEditorIsOpen.set(!!activeEditorPane?.isNotebookEditor);
-		this._notebookDiffEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebookTextDiffEditor');
+		this._notebookEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID);
+		this._notebookDiffEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_DIFF_EDITOR_ID);
 	}
 
 	getUserAssociatedEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
 
 		return coalesce(rawAssociations
 			.filter(association => CustomEditorInfo.selectorMatches(association, resource)));
 	}
 
 	getUserAssociatedNotebookEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
 
 		return coalesce(rawAssociations
 			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
@@ -347,12 +326,12 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				} else {
 					return {
 						override: (async () => {
-							const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.getName(), id);
+							const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, id);
 							const originalEditorIndex = group.getIndexOfEditor(originalInput);
 
 							await group.closeEditor(originalInput);
 							originalInput.dispose();
-							const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: false });
+							const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: EditorOverride.DISABLED });
 							if (newEditor) {
 								return newEditor;
 							} else {
@@ -369,7 +348,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					// there are notebook editors with the same resource
 
 					if (existingEditors.find(editor => editor.viewType === id)) {
-						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, { ...options, override: false }, group) };
+						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, { ...options, override: EditorOverride.DISABLED }, group) };
 					} else {
 						return {
 							override: (async () => {
@@ -378,8 +357,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 								await group.closeEditor(firstEditor);
 								firstEditor.dispose();
-								const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource!, originalInput.getName(), id);
-								const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: false });
+								const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource!, id);
+								const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: EditorOverride.DISABLED });
 
 								if (newEditor) {
 									return newEditor;
@@ -473,8 +452,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			index = group.isPinned(originalInput) ? originalEditorIndex + 1 : originalEditorIndex;
 		}
 
-		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, originalInput.getName(), info.id);
-		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: false, index });
+		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, info.id);
+		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: EditorOverride.DISABLED, index });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 
@@ -517,7 +496,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		const info = associatedEditors[0];
 
 		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), info.id);
-		const notebookOptions = new NotebookEditorOptions({ ...options, override: false });
+		const notebookOptions = new NotebookEditorOptions({ ...options, override: EditorOverride.DISABLED });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 }
@@ -659,10 +638,6 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 					type: 'boolean',
 					description: `Controls whether a cell's editor is editable/readonly`
 				},
-				['runnable']: {
-					type: 'boolean',
-					description: 'Controls if the cell is executable'
-				},
 				['breakpointMargin']: {
 					type: 'boolean',
 					description: 'Controls if the cell has a margin to support the breakpoint UI'
@@ -756,7 +731,7 @@ registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
-registerSingleton(INotebookEditorWidgetService, NotebookEditorWidgetService, true);
+registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

@@ -25,7 +25,10 @@ const storageKey = 'VSCode.ABExp.FeatureData';
 const refetchInterval = 0; // no polling
 
 class MementoKeyValueStorage implements IKeyValueStorage {
-	constructor(private mementoObj: MementoObject) { }
+	private mementoObj: MementoObject;
+	constructor(private memento: Memento) {
+		this.mementoObj = memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+	}
 
 	async getValue<T>(key: string, defaultValue?: T | undefined): Promise<T | undefined> {
 		const value = await this.mementoObj[key];
@@ -34,6 +37,7 @@ class MementoKeyValueStorage implements IKeyValueStorage {
 
 	setValue<T>(key: string, value: T): void {
 		this.mementoObj[key] = value;
+		this.memento.saveMemento();
 	}
 }
 
@@ -218,7 +222,7 @@ export class ExperimentService implements ITASExperimentService {
 			readTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<TAASClientReadTreatmentData, TAASClientReadTreatmentCalssification>('tasClientReadTreatmentComplete',
-			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result) });
+			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(JSON.stringify(result)) });
 
 		return result;
 	}
@@ -249,8 +253,7 @@ export class ExperimentService implements ITASExperimentService {
 			targetPopulation
 		);
 
-		const memento = new Memento(ExperimentService.MEMENTO_ID, this.storageService);
-		const keyValueStorage = new MementoKeyValueStorage(memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE));
+		const keyValueStorage = new MementoKeyValueStorage(new Memento(ExperimentService.MEMENTO_ID, this.storageService));
 
 		this.telemetry = new ExperimentServiceTelemetry(this.telemetryService);
 
@@ -268,9 +271,10 @@ export class ExperimentService implements ITASExperimentService {
 		});
 
 		await tasClient.initializePromise;
+		await tasClient.getTreatmentVariableAsync('vscode', 'initialize');
 
 		type TAASClientSetupData = { setupTime: number; };
-		type TAASClientSetupCalssification = { setupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' }; };
+		type TAASClientSetupCalssification = { setupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true }; };
 		this.telemetryService.publicLog2<TAASClientSetupData, TAASClientSetupCalssification>('tasClientSetupComplete', { setupTime: Date.now() - startSetup });
 
 		return tasClient;

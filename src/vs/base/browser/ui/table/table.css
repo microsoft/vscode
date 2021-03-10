@@ -22,6 +22,7 @@
 
 .monaco-table-tr {
 	display: flex;
+	height: 100%;
 }
 
 .monaco-table-th {

@@ -5,7 +5,7 @@
 
 // Scrollable Element
 
-export const SCROLLABLE_ELEMENT_PADDING_TOP = 20;
+export const SCROLLABLE_ELEMENT_PADDING_TOP = 22;
 
 // Cell sizing related
 export const CELL_MARGIN = 8;

@@ -11,12 +11,11 @@ import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/brow
 import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { NativeStorageService2 } from 'vs/platform/storage/electron-sandbox/storageService2';
+import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -42,8 +41,9 @@ import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uri
 import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleSignService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService, SimpleLogService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { SimpleConfigurationService, simpleFileSystemProvider, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService, SimpleLogService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 class DesktopMain extends Disposable {
 
@@ -116,14 +116,14 @@ class DesktopMain extends Disposable {
 		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
-	private registerListeners(workbench: Workbench, storageService: NativeStorageService2): void {
+	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
 
 		// Workbench Lifecycle
 		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
 		this._register(workbench.onShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService2 }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -145,7 +145,6 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
-		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
@@ -178,7 +177,7 @@ class DesktopMain extends Disposable {
 
 
 		// Sign
-		const signService = new SimpleSignService();
+		const signService = ProxyChannel.toService<ISignService>(mainProcessService.getChannel('sign'));
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
@@ -294,8 +293,8 @@ class DesktopMain extends Disposable {
 		return new SimpleWorkspaceService();
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService2> {
-		const storageService = new NativeStorageService2(payload, mainProcessService, this.environmentService);
+	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+		const storageService = new NativeStorageService(payload, mainProcessService, this.environmentService);
 
 		try {
 			await storageService.initialize();

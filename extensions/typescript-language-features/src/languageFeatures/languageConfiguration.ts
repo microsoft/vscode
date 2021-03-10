@@ -15,7 +15,7 @@ import * as languageModeIds from '../utils/languageModeIds';
 const jsTsLanguageConfiguration: vscode.LanguageConfiguration = {
 	indentationRules: {
 		decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]].*$/,
-		increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$|^\s*(case\s.+:|default\s*:)$/,
+		increaseIndentPattern: /^((?!\/\/).)*(\{([^}"'`]*|(\t| )*\/\/.*)|\([^)"'`]*|\[[^\]"'`]*)$|^\s*(case\s.+:|default\s*:)$/,
 		indentNextLinePattern: /^\s*(else|((else )?if|for|while) *\(.*\))$/,
 		decreaseIndentWithPreviousLinePattern: /^((\s*(else|((else )?if|for|while) *\(.*\)))|(\s*(case\s.+:|default\s*:)))\s*\r?\n\s*\{$/,
 		// e.g.  * ...| or */| or *-----*/|

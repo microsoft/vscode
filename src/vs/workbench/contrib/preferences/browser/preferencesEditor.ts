@@ -81,7 +81,7 @@ export class PreferencesEditor extends EditorPane {
 	get minimumHeight() { return 260; }
 
 	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
+	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
 
 	constructor(
 		@IPreferencesService private readonly preferencesService: IPreferencesService,

@@ -11,10 +11,10 @@ suite('Notebook Document', function () {
 
 	const contentProvider = new class implements vscode.NotebookContentProvider {
 		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
-			return {
-				cells: [{ cellKind: vscode.NotebookCellKind.Code, source: uri.toString(), language: 'javascript', metadata: new vscode.NotebookCellMetadata(), outputs: [] }],
-				metadata: new vscode.NotebookDocumentMetadata()
-			};
+			return new vscode.NotebookData(
+				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
+				new vscode.NotebookDocumentMetadata()
+			);
 		}
 		async resolveNotebook(_document: vscode.NotebookDocument, _webview: vscode.NotebookCommunication) {
 			//
@@ -125,13 +125,13 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 0, [{
-				cellKind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new_markdown'
 			}, {
-				cellKind: vscode.NotebookCellKind.Code,
+				kind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -162,13 +162,13 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 1, [{
-				cellKind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new2_markdown'
 			}, {
-				cellKind: vscode.NotebookCellKind.Code,
+				kind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -198,13 +198,13 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(document.uri, 0, 0, [{
-			cellKind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
 			source: 'new_markdown'
 		}, {
-			cellKind: vscode.NotebookCellKind.Code,
+			kind: vscode.NotebookCellKind.Code,
 			language: 'fooLang',
 			metadata: undefined,
 			outputs: [],
@@ -306,13 +306,13 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(notebook.uri, 0, 0, [{
-			cellKind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
 			source: 'new_markdown'
 		}, {
-			cellKind: vscode.NotebookCellKind.Code,
+			kind: vscode.NotebookCellKind.Code,
 			language: 'fooLang',
 			metadata: undefined,
 			outputs: [],
@@ -347,5 +347,45 @@ suite('Notebook Document', function () {
 		assert.strictEqual(closed.uri.toString(), first.uri.toString());
 		assert.strictEqual(opened.uri.toString(), first.uri.toString());
 		assert.strictEqual(opened === closed, true);
+	});
+
+
+	test('#117273, Add multiple outputs', async function () {
+
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput(
+				[new vscode.NotebookCellOutputItem('application/x.notebook.stream', '1', { outputType: 'stream', streamName: 'stdout' })],
+				{ outputType: 'stream', streamName: 'stdout' }
+			)
+		]);
+		let success = await vscode.workspace.applyEdit(edit);
+
+		assert.ok(success);
+		assert.strictEqual(document.cells[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+
+		const edit2 = new vscode.WorkspaceEdit();
+		edit2.appendNotebookCellOutput(document.uri, 0, [
+			new vscode.NotebookCellOutput(
+				[new vscode.NotebookCellOutputItem('hello', '1', { outputType: 'stream', streamName: 'stderr' })],
+				{ outputType: 'stream', streamName: 'stderr' }
+			)
+		]);
+		success = await vscode.workspace.applyEdit(edit2);
+		assert.ok(success);
+
+		assert.strictEqual(document.cells[0].outputs.length, 2);
+		assert.strictEqual(document.cells[0].outputs[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[1].outputs.length, 1);
+		assert.deepStrictEqual(document.cells[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].metadata, { outputType: 'stream', streamName: 'stderr' });
+		assert.deepStrictEqual(document.cells[0].outputs[1].outputs[0].metadata, { outputType: 'stream', streamName: 'stderr' });
 	});
 });

@@ -18,6 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 suite('StorageService (browser)', function () {
 
 	const disposables = new DisposableStore();
+	let storageService: BrowserStorageService;
 
 	createSuite<BrowserStorageService>({
 		setup: async () => {
@@ -28,13 +29,14 @@ suite('StorageService (browser)', function () {
 			const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
 			disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
 
-			const storageService = disposables.add(new BrowserStorageService({ id: String(Date.now()) }, { userRoamingDataHome: URI.file('/User').with({ scheme: Schemas.userData }) } as unknown as IEnvironmentService, fileService));
+			storageService = disposables.add(new BrowserStorageService({ id: String(Date.now()) }, { userRoamingDataHome: URI.file('/User').with({ scheme: Schemas.userData }) } as unknown as IEnvironmentService, fileService));
 
 			await storageService.initialize();
 
 			return storageService;
 		},
 		teardown: async storage => {
+			await storageService.flush();
 			disposables.clear();
 		}
 	});

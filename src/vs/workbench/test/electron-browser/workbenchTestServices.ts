@@ -41,6 +41,8 @@ import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { homedir, release } from 'os';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
@@ -55,7 +57,6 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release() },
-	enableExperimentalMainProcessWorkspaceStorage: false,
 	...parseArgs(process.argv, OPTIONS)
 };
 
@@ -168,6 +169,7 @@ export class TestNativeHostService implements INativeHostService {
 	onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
+	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
@@ -248,6 +250,9 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 	});
 
 	instantiationService.stub(INativeHostService, new TestNativeHostService());
+	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
 
 	return instantiationService;

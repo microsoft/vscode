@@ -412,7 +412,8 @@ class CodeActionAdapter {
 
 		const codeActionContext: vscode.CodeActionContext = {
 			diagnostics: allDiagnostics,
-			only: context.only ? new CodeActionKind(context.only) : undefined
+			only: context.only ? new CodeActionKind(context.only) : undefined,
+			triggerKind: typeConvert.CodeActionTriggerKind.to(context.trigger),
 		};
 
 		return asPromise(() => this._provider.provideCodeActions(doc, ran, codeActionContext, token)).then((commandsOrActions): extHostProtocol.ICodeActionListDto | undefined => {

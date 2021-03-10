@@ -145,14 +145,14 @@ steps:
       set -e
       DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
     displayName: Run unit tests (Browser)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -181,7 +181,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
     displayName: Run integration tests (Browser)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -193,7 +193,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
       DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 7
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishPipelineArtifact@0
