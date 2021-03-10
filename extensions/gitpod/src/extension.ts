@@ -56,7 +56,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		'function:getWorkspaceTimeout',
 		'resource:workspace::' + workspaceId + '::get/update',
 		'function:accessCodeSyncStorage',
-		'function:getLoggedInUser'
+		'function:getLoggedInUser',
+		'function:takeSnapshot'
 	]);
 	const pendingServerToken = (async () => {
 		const getTokenRequest = new GetTokenRequest();
@@ -149,7 +150,34 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage(`Cannot extend workspace timeout: ${err.toString()}`);
 		}
 	}));
-
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.takeSnapshot', async () => {
+		try {
+			const snapshotId = await vscode.window.withProgress({
+				location: vscode.ProgressLocation.Notification,
+				cancellable: true,
+				title: 'Capturing workspace snapshot'
+			}, _ => {
+				return gitpodService.server.takeSnapshot({ workspaceId /*, layoutData?*/ });
+			});
+			const hostname = gitpodApi.getHost();
+			const uri = `https://${hostname}#snapshot/${snapshotId}`;
+			const copyAction = await vscode.window.showInformationMessage(`The current state is captured in a snapshot. Sharing the link '${uri}' allows anybody to create their own copy of this workspace.`,
+				'Copy URL to Clipboard', 'Copy Markdown button', 'Copy HTML button');
+			switch (copyAction) {
+				case 'Copy URL to Clipboard':
+					await vscode.env.clipboard.writeText(uri);
+					break;
+				case 'Copy Markdown button':
+					await vscode.env.clipboard.writeText(`[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](${uri})`);
+					break;
+				case 'Copy HTML button':
+					await vscode.env.clipboard.writeText(`<a href="${uri}"><img alt="Open in Gitpod" src="https://gitpod.io/button/open-in-gitpod.svg"></a>`);
+			}
+		} catch (err) {
+			console.error('cannot capture workspace snapshot', err);
+			await vscode.window.showErrorMessage(`Cannot capture workspace snapshot: ${err.toString()}`);
+		}
+	}));
 	const communityStatusBarItem = vscode.window.createStatusBarItem({
 		id: 'gitpod.community',
 		name: 'Chat with us on Discourse',
