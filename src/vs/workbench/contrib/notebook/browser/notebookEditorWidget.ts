@@ -923,7 +923,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
-		if (viewState && viewState.cellTotalHeights && 0) {
+		if (viewState && viewState.cellTotalHeights) {
 			const totalHeightCache = viewState.cellTotalHeights;
 			const scrollTop = viewState.scrollPosition?.top ?? 0;
 
