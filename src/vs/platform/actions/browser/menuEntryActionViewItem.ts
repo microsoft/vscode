@@ -221,10 +221,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 		if (ThemeIcon.isThemeIcon(icon)) {
 			// theme icons
-			const iconClass = ThemeIcon.asClassName(icon);
-			label.classList.add(...iconClass.split(' '));
+			const iconClasses = ThemeIcon.asClassNameArray(icon);
+			label.classList.add(...iconClasses);
 			this._itemClassDispose.value = toDisposable(() => {
-				label.classList.remove(...iconClass.split(' '));
+				label.classList.remove(...iconClasses);
 			});
 
 		} else {
