@@ -464,14 +464,6 @@ export const problemsWarningIconForeground = registerColor('problemsWarningIcon.
 export const problemsInfoIconForeground = registerColor('problemsInfoIcon.foreground', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoForeground }, nls.localize('problemsInfoIconForeground', "The color used for the problems info icon."));
 
 /**
- * Workspace Trust colors
- */
-
-export const trustedForegroundColor = registerColor('workspaceTrust.trustedForergound', { dark: new Color(new RGBA(88, 124, 12)), light: new Color(new RGBA(129, 184, 139)), hc: new Color(new RGBA(51, 171, 78)) }, nls.localize('workspaceTrustTrustedColor', 'Color used when indicating a workspace is trusted.'));
-export const untrustedForegroundColor = registerColor('workspaceTrust.untrustedForeground', { dark: editorErrorForeground, light: editorErrorForeground, hc: editorErrorForeground }, nls.localize('workspaceTrustUntrustedColor', 'Color used when indicating a workspace is not trusted.'));
-
-
-/**
  * Chart colors
  */
 export const chartsForeground = registerColor('charts.foreground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('chartsForeground', "The foreground color used in charts."));

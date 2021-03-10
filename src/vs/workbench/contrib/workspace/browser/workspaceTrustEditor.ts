@@ -21,13 +21,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { trustedForegroundColor, untrustedForegroundColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
