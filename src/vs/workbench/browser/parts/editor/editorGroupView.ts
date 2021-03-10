@@ -1621,7 +1621,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Extract active vs. inactive replacements
 		let activeReplacement: EditorReplacement | undefined;
 		const inactiveReplacements: EditorReplacement[] = [];
-		for (let { editor, replacement, skipSaveDialog, options } of editors) {
+		for (let { editor, replacement, forceReplaceDirty, options } of editors) {
 			const index = this.getIndexOfEditor(editor);
 			if (index >= 0) {
 				const isActiveEditor = this.isActive(editor);
@@ -1636,7 +1636,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				options.inactive = !isActiveEditor;
 				options.pinned = options.pinned ?? true; // unless specified, prefer to pin upon replace
 
-				const editorToReplace = { editor, replacement, skipSaveDialog, options };
+				const editorToReplace = { editor, replacement, forceReplaceDirty, options };
 				if (isActiveEditor) {
 					activeReplacement = editorToReplace;
 				} else {
@@ -1646,7 +1646,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Handle inactive first
-		for (const { editor, replacement, skipSaveDialog, options } of inactiveReplacements) {
+		for (const { editor, replacement, forceReplaceDirty, options } of inactiveReplacements) {
 
 			// Open inactive editor
 			await this.doOpenEditor(replacement, options);
@@ -1654,8 +1654,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Close replaced inactive editor unless they match
 			if (!editor.matches(replacement)) {
 				let closed = false;
-				if (skipSaveDialog) {
-					this.doCloseEditor(editor);
+				if (forceReplaceDirty) {
+					this.doCloseEditor(editor, false);
 					closed = true;
 				} else {
 					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true });
@@ -1674,8 +1674,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
-				if (activeReplacement.skipSaveDialog) {
-					this.doCloseEditor(activeReplacement.editor);
+				if (activeReplacement.forceReplaceDirty) {
+					this.doCloseEditor(activeReplacement.editor, false);
 				} else {
 					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
 				}
@@ -1798,7 +1798,7 @@ export interface EditorReplacement {
 	readonly editor: EditorInput;
 	readonly replacement: EditorInput;
 	// Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to!
-	readonly skipSaveDialog?: boolean;
+	readonly forceReplaceDirty?: boolean;
 	readonly options?: EditorOptions;
 }
 

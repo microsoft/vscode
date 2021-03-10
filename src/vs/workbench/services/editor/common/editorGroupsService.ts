@@ -109,7 +109,7 @@ export interface IEditorReplacement {
 	editor: IEditorInput;
 	replacement: IEditorInput;
 	// Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to!
-	skipSaveDialog?: boolean;
+	forceReplaceDirty?: boolean;
 	options?: IEditorOptions | ITextEditorOptions;
 }
 

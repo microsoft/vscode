@@ -213,7 +213,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				await this.editorService.replaceEditors([{
 					editor: existing,
 					replacement: input,
-					skipSaveDialog: true,
+					forceReplaceDirty: existing.resource?.scheme === Schemas.untitled,
 					options: options ? EditorOptions.create(options) : undefined,
 				}], targetGroup);
 
