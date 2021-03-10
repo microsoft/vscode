@@ -1060,14 +1060,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		for (const extensionDevelopmentPath of extensionDevelopmentPaths) {
 			if (extensionDevelopmentPath.match(/^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/)) {
 				const url = URI.parse(extensionDevelopmentPath);
-				const devPathRemoteAuthority = getRemoteAuthority(url);
-				if (devPathRemoteAuthority) {
+				const extensionDevelopmentPathRemoteAuthority = getRemoteAuthority(url);
+				if (extensionDevelopmentPathRemoteAuthority) {
 					if (remoteAuthority) {
-						if (devPathRemoteAuthority !== remoteAuthority) {
+						if (extensionDevelopmentPathRemoteAuthority !== remoteAuthority) {
 							this.logService.error('more than one extension development path authority');
 						}
 					} else {
-						remoteAuthority = devPathRemoteAuthority;
+						remoteAuthority = extensionDevelopmentPathRemoteAuthority;
 					}
 				}
 			}

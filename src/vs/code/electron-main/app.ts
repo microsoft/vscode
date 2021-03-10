@@ -266,8 +266,7 @@ export class CodeApplication extends Disposable {
 					cli: this.environmentMainService.args,
 					urisToOpen: macOpenFileURIs,
 					gotoLineMode: false,
-					preferNewWindow: true, /* dropping on the dock or opening from finder prefers to open in a new window */
-					remoteAuthority: undefined /* always local */
+					preferNewWindow: true /* dropping on the dock or opening from finder prefers to open in a new window */
 				});
 
 				macOpenFileURIs = [];
