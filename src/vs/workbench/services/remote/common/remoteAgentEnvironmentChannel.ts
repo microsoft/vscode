@@ -7,7 +7,7 @@ import * as platform from 'vs/base/common/platform';
 import * as performance from 'vs/base/common/performance';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, ExtensionIdentifier, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -20,6 +20,7 @@ export interface IScanExtensionsArguments {
 	language: string;
 	remoteAuthority: string;
 	extensionDevelopmentPath: UriComponents[] | undefined;
+	extensionDevelopmentKind: ExtensionKind[] | undefined;
 	skipExtensions: ExtensionIdentifier[];
 }
 
@@ -74,11 +75,12 @@ export class RemoteExtensionEnvironmentChannelClient {
 		await channel.call<void>('whenExtensionsReady');
 	}
 
-	static async scanExtensions(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath: URI[] | undefined, skipExtensions: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
+	static async scanExtensions(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath: URI[] | undefined, extensionDevelopmentKind: ExtensionKind[] | undefined, skipExtensions: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
 		const args: IScanExtensionsArguments = {
 			language: platform.language,
 			remoteAuthority,
 			extensionDevelopmentPath,
+			extensionDevelopmentKind,
 			skipExtensions
 		};
 

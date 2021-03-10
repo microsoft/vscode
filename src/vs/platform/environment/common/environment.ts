@@ -6,6 +6,7 @@
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 export const INativeEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeEnvironmentService>(IEnvironmentService);
@@ -62,6 +63,7 @@ export interface IEnvironmentService {
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 
 	// --- logging

@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionKind, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 
 const MANIFEST_FILE = 'package.json';
@@ -34,14 +34,16 @@ abstract class ExtensionManifestHandler {
 	protected readonly _absoluteFolderPath: string;
 	protected readonly _isBuiltin: boolean;
 	protected readonly _isUnderDevelopment: boolean;
+	protected readonly _extensionKind: ExtensionKind | undefined;
 	protected readonly _absoluteManifestPath: string;
 
-	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean) {
+	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, extensionKind: ExtensionKind | undefined) {
 		this._ourVersion = ourVersion;
 		this._log = log;
 		this._absoluteFolderPath = absoluteFolderPath;
 		this._isBuiltin = isBuiltin;
 		this._isUnderDevelopment = isUnderDevelopment;
+		this._extensionKind = extensionKind;
 		this._absoluteManifestPath = path.join(absoluteFolderPath, MANIFEST_FILE);
 	}
 }
@@ -87,13 +89,18 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	}
 }
 
-class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
+class ExtensionManifestNLSReplacer {
 
 	private readonly _nlsConfig: NlsConfiguration;
+	private readonly _log: ILog;
+	private readonly _absoluteFolderPath: string;
+	private readonly _absoluteManifestPath: string;
 
-	constructor(ourVersion: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration) {
-		super(ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
+	constructor(log: ILog, absoluteFolderPath: string, nlsConfig: NlsConfiguration) {
+		this._log = log;
+		this._absoluteFolderPath = absoluteFolderPath;
 		this._nlsConfig = nlsConfig;
+		this._absoluteManifestPath = path.join(absoluteFolderPath, MANIFEST_FILE);
 	}
 
 	public replaceNLS(extensionDescription: IExtensionDescription): Promise<IExtensionDescription> {
@@ -303,6 +310,7 @@ export interface IRelaxedExtensionDescription {
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
+	extensionKind?: ExtensionKind;
 	engines: {
 		vscode: string;
 	};
@@ -316,6 +324,9 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.isBuiltin = this._isBuiltin;
 		extensionDescription.isUserBuiltin = !this._isBuiltin && !!extensionDescription.isUserBuiltin;
 		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
+		if (this._extensionKind) {
+			extensionDescription.extensionKind = this._extensionKind;
+		}
 
 		let notices: string[] = [];
 		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._absoluteFolderPath, extensionDescription, notices)) {
@@ -459,6 +470,7 @@ export class ExtensionScannerInput {
 		public readonly absoluteFolderPath: string,
 		public readonly isBuiltin: boolean,
 		public readonly isUnderDevelopment: boolean,
+		public readonly extensionKind: ExtensionKind | undefined,
 		public readonly translations: Translations
 	) {
 		// Keep empty!! (JSON.parse)
@@ -482,6 +494,7 @@ export class ExtensionScannerInput {
 			&& a.absoluteFolderPath === b.absoluteFolderPath
 			&& a.isBuiltin === b.isBuiltin
 			&& a.isUnderDevelopment === b.isUnderDevelopment
+			&& a.extensionKind === b.extensionKind
 			&& a.mtime === b.mtime
 			&& Translations.equals(a.translations, b.translations)
 		);
@@ -512,23 +525,23 @@ export class ExtensionScanner {
 	/**
 	 * Read the extension defined in `absoluteFolderPath`
 	 */
-	private static scanExtension(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration): Promise<IExtensionDescription | null> {
+	private static scanExtension(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, extensionKind: ExtensionKind | undefined, nlsConfig: NlsConfiguration): Promise<IExtensionDescription | null> {
 		absoluteFolderPath = path.normalize(absoluteFolderPath);
 
-		let parser = new ExtensionManifestParser(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
+		let parser = new ExtensionManifestParser(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, extensionKind);
 		return parser.parse().then<IExtensionDescription | null>((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let nlsReplacer = new ExtensionManifestNLSReplacer(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
+			let nlsReplacer = new ExtensionManifestNLSReplacer(log, absoluteFolderPath, nlsConfig);
 			return nlsReplacer.replaceNLS(extensionDescription);
 		}).then((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let validator = new ExtensionManifestValidator(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
+			let validator = new ExtensionManifestValidator(version, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, extensionKind);
 			return validator.validate(extensionDescription);
 		});
 	}
@@ -540,6 +553,7 @@ export class ExtensionScanner {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
+		const extensionKind = input.extensionKind;
 
 		if (!resolver) {
 			resolver = new DefaultExtensionResolver(absoluteFolderPath);
@@ -566,7 +580,7 @@ export class ExtensionScanner {
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-			let _extensionDescriptions = await Promise.all(refs.map(r => this.scanExtension(input.ourVersion, log, r.path, isBuiltin, isUnderDevelopment, nlsConfig)));
+			let _extensionDescriptions = await Promise.all(refs.map(r => this.scanExtension(input.ourVersion, log, r.path, isBuiltin, isUnderDevelopment, extensionKind, nlsConfig)));
 			let extensionDescriptions = arrays.coalesce(_extensionDescriptions);
 			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[new ExtensionIdentifierWithVersion({ id: getGalleryExtensionId(item.publisher, item.name) }, item.version).key()]);
 
@@ -597,11 +611,12 @@ export class ExtensionScanner {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
+		const extensionKind = input.extensionKind;
 
 		return pfs.SymlinkSupport.existsFile(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-				return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {
+				return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, extensionKind, nlsConfig).then((extensionDescription) => {
 					if (extensionDescription === null) {
 						return [];
 					}
@@ -619,8 +634,9 @@ export class ExtensionScanner {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
+		const extensionKind = input.extensionKind;
 		const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-		return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
+		return this.scanExtension(input.ourVersion, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, extensionKind, nlsConfig);
 	}
 
 	public static mergeBuiltinExtensions(builtinExtensions: Promise<IExtensionDescription[]>, extraBuiltinExtensions: Promise<IExtensionDescription[]>): Promise<IExtensionDescription[]> {

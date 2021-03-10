@@ -233,6 +233,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
+				extensionDevelopmentKind: this._environmentService.extensionDevelopmentKind,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
 				workspaceStorageHome: remoteInitData.workspaceStorageHome,

@@ -357,6 +357,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
+				extensionDevelopmentKind: this._environmentService.extensionDevelopmentKind,
 				extensionTestsLocationURI: undefined, // never run extension tests in web worker extension host
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,

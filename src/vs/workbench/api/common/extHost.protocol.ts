@@ -25,7 +25,7 @@ import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/modes/
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationData, IConfigurationChange, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionKind, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { LogLevel } from 'vs/platform/log/common/log';
@@ -69,6 +69,7 @@ export interface IEnvironment {
 	appLanguage: string;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
