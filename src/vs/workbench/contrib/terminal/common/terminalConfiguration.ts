@@ -81,22 +81,26 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: []
 		},
 		'terminal.integrated.profiles': {
-			description: localize('terminal.integrated.profiles', "The shell profiles to select from when creating a new terminal. They will be auto-selected for each platform unless overridden here"),
+			markdownDescription: localize({
+				key: 'terminal.integrated.profiles',
+				comment: ['{0}, {1}, and {2} are the `path`, `profileName`, and optional `args` settings keys']
+			},
+				"The shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`path`', '`profileName`', '`args`.'),
 			type: 'object',
 			properties: {
-				'terminal.integrated.profiles.linux': {
-					markdownDescription: 'The linux profiles',
-					type: ['object', 'null'],
+				'linux': {
+					description: 'The linux profiles',
+					type: ['array', 'null'],
 					default: null
 				},
-				'terminal.integrated.shell.osx': {
-					markdownDescription: 'The osx profiles',
-					type: ['object', 'null'],
+				'osx': {
+					description: 'The osx profiles',
+					type: ['array', 'null'],
 					default: null
 				},
-				'terminal.integrated.shell.windows': {
-					markdownDescription: 'The windows profiles',
-					type: ['object', 'null'],
+				'windows': {
+					description: 'The windows profiles',
+					type: ['array', 'null'],
 					default: null
 				}
 			}

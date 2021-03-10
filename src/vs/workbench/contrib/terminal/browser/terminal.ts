@@ -154,7 +154,12 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	getDefaultShells(noQuickPick?: boolean): Promise<ITerminalProfile[] | undefined>;
+	selectDefaultShell(): Promise<void>;
+
+	/**
+	 * gets the detected terminal profiles for the platform
+	 */
+	getDetectedProfiles(): Promise<ITerminalProfile[] | undefined>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;

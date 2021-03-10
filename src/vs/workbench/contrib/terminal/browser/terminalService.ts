@@ -27,6 +27,7 @@ import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -118,6 +119,7 @@ export class TerminalService implements ITerminalService {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -144,12 +146,11 @@ export class TerminalService implements ITerminalService {
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
+		this._connectionState = TerminalConnectionState.Connecting;
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
 			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
-			this._connectionState = TerminalConnectionState.Connecting;
 		} else if (enableTerminalReconnection) {
 			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
-			this._connectionState = TerminalConnectionState.Connecting;
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
 		}
@@ -270,6 +271,11 @@ export class TerminalService implements ITerminalService {
 	public async extHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
 		this._extHostsReady[remoteAuthority]!.resolve();
+	}
+
+	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
+		this._createExtHostReadyEntry(remoteAuthority);
+		return this._extHostsReady[remoteAuthority]!.promise;
 	}
 
 	private _createExtHostReadyEntry(remoteAuthority: string): void {
@@ -733,23 +739,22 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public async getDefaultShells(noQuickPick?: boolean): Promise<ITerminalProfile[] | undefined> {
+	public async getDetectedProfiles(): Promise<ITerminalProfile[] | undefined> {
 		const shells = await this._detectShells();
+		console.log('profiles detected', shells);
+		// default terminal profiles to select from in the dropdown
+		return shells.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile));
+	}
 
-		if (noQuickPick) {
-			// default terminal profiles to select from in the dropdown
-			return shells.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile));
-		}
-
+	public async selectDefaultShell(): Promise<void> {
+		const shells = await this._detectShells();
 		const options: IPickOptions<IQuickPickItem> = {
 			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 		};
 		const quickPickItems = shells.map((s): IQuickPickItem => {
 			return { label: s.profileName, description: s.path };
 		});
-
-		let value = await this._quickInputService.pick(quickPickItems, options);
-
+		const value = await this._quickInputService.pick(quickPickItems, options);
 		if (!value) {
 			return undefined;
 		}
@@ -757,15 +762,20 @@ export class TerminalService implements ITerminalService {
 		const env = await this._remoteAgentService.getEnvironment();
 		let platformKey: string;
 		if (env) {
-			platformKey = env?.os === OperatingSystem.Windows ? 'windows' : (env?.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
+			platformKey = env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
 		} else {
 			platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		}
 		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER);
-		return undefined;
 	}
 
-	private _detectShells(): Promise<ITerminalProfile[]> {
+	private async _detectShells(): Promise<ITerminalProfile[]> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		// Wait for the remoteAuthority to be ready (and listening for events) before firing
+		// the event to spawn the ext host process
+		const conn = this._remoteAgentService.getConnection();
+		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+		await this._whenExtHostReady(remoteAuthority);
 		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
 	}
 

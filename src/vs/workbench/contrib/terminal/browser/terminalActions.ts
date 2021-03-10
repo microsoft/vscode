@@ -1342,7 +1342,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).getDefaultShells();
+			await accessor.get(ITerminalService).selectDefaultShell();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1450,7 +1450,7 @@ export function registerTerminalActions() {
 			}
 			if (item === selectDefaultShellTitle) {
 				terminalService.refreshActiveTab();
-				return terminalService.getDefaultShells();
+				return terminalService.selectDefaultShell();
 			}
 			if (item === configureTerminalSettingsTitle) {
 				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
@@ -1461,7 +1461,7 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const detectedShells = await terminalService.getDefaultShells(true);
+			const detectedShells = await terminalService.getDetectedProfiles();
 			const userProfiles = terminalService.configHelper.config.profiles;
 			const customProfiles = isWindows ? userProfiles.windows : isIOS ? userProfiles.osx : userProfiles.linux;
 
