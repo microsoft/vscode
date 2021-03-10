@@ -8,6 +8,8 @@ import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 import { FileAccess } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
@@ -16,8 +18,11 @@ import { localize } from 'vs/nls';
 import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { trustedForegroundColor, untrustedForegroundColor } from 'vs/platform/theme/common/colorRegistry';
+import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
@@ -71,6 +76,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.createHeaderElement(this.rootElement);
 		this.createAffectedFeaturesElement(this.rootElement);
 		this.createConfigurationElement(this.rootElement);
+
+		this._register(attachStylerCallback(this.themeService, { trustedForegroundColor, untrustedForegroundColor }, colors => {
+			this.rootElement.style.setProperty('--workspace-trust-state-trusted-color', colors.trustedForegroundColor?.toString() || '');
+			this.rootElement.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
+		}));
 	}
 
 	async setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -121,30 +131,52 @@ export class WorkspaceTrustEditor extends EditorPane {
 			case WorkspaceTrustState.Trusted:
 			case WorkspaceTrustState.Untrusted:
 			case WorkspaceTrustState.Unknown:
-				return localize('unknownHeaderDescription', "Trust is required for certain extensions to function in this workspace.");
+				return localize('unknownHeaderDescription', "Trust is required for certain extensions to function in this workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
 		}
 	}
 
+	private rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	private render(model: WorkspaceTrustEditorModel): void {
+		this.rerenderDisposables.clear();
+
 		// Header Section
 		this.headerTitleText.innerText = this.getHeaderTitleText(model.currentWorkspaceTrustState);
 		this.headerTitleIcon.classList.add(...trustIcon.classNamesArray);
-		this.headerDescription.innerText = this.getHeaderDescriptionText(model.currentWorkspaceTrustState);
+		this.headerTitleIcon.classList.toggle('trusted', model.currentWorkspaceTrustState === WorkspaceTrustState.Trusted);
+		this.headerTitleIcon.classList.toggle('untrusted', model.currentWorkspaceTrustState === WorkspaceTrustState.Untrusted);
+		this.headerDescription.innerText = '';
+
+		const linkedText = parseLinkedText(this.getHeaderDescriptionText(model.currentWorkspaceTrustState));
+		const p = append(this.headerDescription, $('p'));
+		for (const node of linkedText.nodes) {
+			if (typeof node === 'string') {
+				append(p, document.createTextNode(node));
+			} else {
+				const link = this.instantiationService.createInstance(Link, node);
+				append(p, link.el);
+				this.rerenderDisposables.add(link);
+				this.rerenderDisposables.add(attachLinkStyler(link, this.themeService));
+			}
+		}
+
 		this.headerContainer.className = this.getHeaderContainerClass(model.currentWorkspaceTrustState);
 
 		clearNode(this.headerButtons);
-		const buttonBar = this._register(new ButtonBar(this.headerButtons));
+		const buttonBar = this.rerenderDisposables.add(new ButtonBar(this.headerButtons));
 
-		const createButton = (label: string, callback: () => void) => {
+		const createButton = (label: string, enabled: boolean, callback: () => void) => {
 			const button = buttonBar.addButton();
 			button.label = label;
-			this._register(button.onDidClick(e => {
+			button.enabled = enabled;
+			this.rerenderDisposables.add(button.onDidClick(e => {
 				if (e) {
 					EventHelper.stop(e);
 				}
 
 				callback();
 			}));
+
+			this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
 		};
 
 
@@ -154,15 +186,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 			});
 		};
 
-		if (model.currentWorkspaceTrustState !== WorkspaceTrustState.Trusted) {
-			createButton(localize('trustButton', "Trust"), () => setTrustState(WorkspaceTrustState.Trusted));
-		}
-
-		if (model.currentWorkspaceTrustState !== WorkspaceTrustState.Untrusted) {
-			createButton(localize('doNotTrustButton', "Don't Trust"), () => setTrustState(WorkspaceTrustState.Untrusted));
-		}
-
-		createButton(localize('learnMore', "Learn More"), () => { });
+		createButton(localize('trustButton', "Trust"), model.currentWorkspaceTrustState !== WorkspaceTrustState.Trusted, () => setTrustState(WorkspaceTrustState.Trusted));
+		createButton(localize('doNotTrustButton', "Don't Trust"), model.currentWorkspaceTrustState !== WorkspaceTrustState.Untrusted, () => setTrustState(WorkspaceTrustState.Untrusted));
 
 		// Features List
 		this.renderExtensionList(
