@@ -24,7 +24,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -733,12 +733,12 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public async getDefaultShells(noQuickPick?: boolean): Promise<IShellProfile[] | undefined> {
+	public async getDefaultShells(noQuickPick?: boolean): Promise<ITerminalProfile[] | undefined> {
 		const shells = await this._detectShells();
 
 		if (noQuickPick) {
 			// default terminal profiles to select from in the dropdown
-			return shells.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as IShellProfile));
+			return shells.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile));
 		}
 
 		const options: IPickOptions<IQuickPickItem> = {
@@ -765,7 +765,7 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	private _detectShells(): Promise<IShellProfile[]> {
+	private _detectShells(): Promise<ITerminalProfile[]> {
 		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
 	}
 

@@ -9,7 +9,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellAndArgsDto, IShellProfileDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IShellAndArgsDto, ITerminalProfileDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider, ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -131,7 +131,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, process.env as platform.IProcessEnvironment);
 	}
 
-	public $getAvailableShells(): Promise<IShellProfileDto[]> {
+	public $getAvailableShells(): Promise<ITerminalProfileDto[]> {
 		return detectAvailableShells();
 	}
 

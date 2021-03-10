@@ -96,9 +96,9 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: {
-		linux: IShellProfile[];
-		osx: IShellProfile[];
-		windows: IShellProfile[];
+		linux: ITerminalProfile[];
+		osx: ITerminalProfile[];
+		windows: ITerminalProfile[];
 	};
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
@@ -222,14 +222,14 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-export interface IShellProfile {
+export interface ITerminalProfile {
 	profileName: string;
 	path: string;
 	args?: string | string[] | undefined;
 }
 
 export interface IAvailableShellsRequest {
-	callback: (shells: IShellProfile[]) => void;
+	callback: (shells: ITerminalProfile[]) => void;
 }
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
@@ -324,7 +324,7 @@ export interface IStartExtensionTerminalRequest {
 }
 
 export interface IAvailableShellsRequest {
-	callback: (shells: IShellProfile[]) => void;
+	callback: (shells: ITerminalProfile[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {

@@ -1608,7 +1608,7 @@ export interface IShellLaunchConfigDto {
 	hideFromUser?: boolean;
 }
 
-export interface IShellProfileDto {
+export interface ITerminalProfileDto {
 	profileName: string;
 	path: string;
 }
@@ -1652,7 +1652,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
-	$getAvailableShells(): Promise<IShellProfileDto[]>;
+	$getAvailableShells(): Promise<ITerminalProfileDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
 	$activateLink(id: number, linkId: number): void;
