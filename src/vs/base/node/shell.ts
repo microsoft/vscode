@@ -13,7 +13,7 @@ import * as processes from 'vs/base/node/processes';
  * shell that the terminal uses by default.
  * @param p The platform to detect the shell of.
  */
-export async function getSystemShell(p: platform.Platform, env = process.env as platform.IProcessEnvironment): Promise<string> {
+export async function getSystemShell(p: platform.Platform, env: platform.IProcessEnvironment): Promise<string> {
 	if (p === platform.Platform.Windows) {
 		if (platform.isWindows) {
 			return getSystemShellWindows();
@@ -25,7 +25,7 @@ export async function getSystemShell(p: platform.Platform, env = process.env as 
 	return getSystemShellUnixLike(p, env);
 }
 
-export function getSystemShellSync(p: platform.Platform, env = process.env as platform.IProcessEnvironment): string {
+export function getSystemShellSync(p: platform.Platform, env: platform.IProcessEnvironment): string {
 	if (p === platform.Platform.Windows) {
 		if (platform.isWindows) {
 			return getSystemShellWindowsSync(env);

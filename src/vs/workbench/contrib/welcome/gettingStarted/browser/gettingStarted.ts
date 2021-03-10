@@ -565,7 +565,6 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedTask = undefined;
 			this.selectTask(undefined);
 			this.setSlide('categories');
-			this.focusFirstUncompletedCategory();
 		});
 	}
 
@@ -613,7 +612,7 @@ export class GettingStartedPage extends EditorPane {
 			const progressAmount = assertIsDefined(progress.querySelector('.progress-bar-inner') as HTMLDivElement).style.width;
 			if (!toFocus && progressAmount !== '100%') { toFocus = assertIsDefined(progress.parentElement?.parentElement); }
 		});
-		(toFocus ?? assertIsDefined(this.container.querySelector('button.skip')) as HTMLButtonElement).focus();
+		(toFocus ?? assertIsDefined(this.container.querySelector('button.getting-started-category')) as HTMLButtonElement)?.focus();
 	}
 
 	private setSlide(toEnable: 'details' | 'categories') {
@@ -623,7 +622,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.add('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			(this.container.querySelector('.welcomePageFocusElement') as HTMLElement)?.focus();
+			this.focusFirstUncompletedCategory();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');

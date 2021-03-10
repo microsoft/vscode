@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { isFirefox } from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -1593,6 +1594,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			viewModel.revealPrimaryCursor(args.source, true);
+			status(nls.localize('removedCursor', "Removed secondary cursors"));
 		}
 	});
 

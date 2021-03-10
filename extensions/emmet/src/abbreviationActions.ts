@@ -440,10 +440,18 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
+		// Get the abbreviation right now
+		// Fixes https://github.com/microsoft/vscode/issues/74505
+		// Stylesheet abbreviations starting with @ should bring up suggestions
+		// even at outer-most level
+		const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
+		if (abbreviation.startsWith('@')) {
+			return true;
+		}
+
 		// Fix for https://github.com/microsoft/vscode/issues/34162
 		// Other than sass, stylus, we can make use of the terminator tokens to validate position
 		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
-
 			// Fix for upstream issue https://github.com/emmetio/css-parser/issues/3
 			if (currentNode.parent
 				&& currentNode.parent.type !== 'rule'
@@ -451,7 +459,6 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				return false;
 			}
 
-			const abbreviation = document.getText(new vscode.Range(abbreviationRange.start.line, abbreviationRange.start.character, abbreviationRange.end.line, abbreviationRange.end.character));
 			const propertyNode = <Property>currentNode;
 			if (propertyNode.terminatorToken
 				&& propertyNode.separator

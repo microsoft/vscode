@@ -5,12 +5,12 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IProcessDetails, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 
 type WorkspaceId = string;
@@ -34,10 +34,14 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<{ id: number, event: string }>());
 	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<{ id: number, event: TerminalShellType }>());
+	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<{ id: number, event: ITerminalDimensionsOverride | undefined }>());
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
+	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	constructor(
 		private _lastPtyId: number,
@@ -69,7 +73,7 @@ export class PtyService extends Disposable implements IPtyService {
 		workspaceId: string,
 		workspaceName: string
 	): Promise<number> {
-		if (shellLaunchConfig.attachPersistentTerminal) {
+		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
 		const id = ++this._lastPtyId;
@@ -82,29 +86,46 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentTerminalProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService);
 		process.onProcessExit(() => {
-			persistentTerminalProcess.dispose();
+			persistentProcess.dispose();
 			this._ptys.delete(id);
 		});
-		persistentTerminalProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
-		persistentTerminalProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
-		persistentTerminalProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
-		this._ptys.set(id, persistentTerminalProcess);
+		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
+		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
+		persistentProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
+		persistentProcess.onProcessShellTypeChanged(event => this._onProcessShellTypeChanged.fire({ id, event }));
+		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
+		this._ptys.set(id, persistentProcess);
 		return id;
 	}
 
 	async attachToProcess(id: number): Promise<void> {
 		try {
 			this._throwIfNoPty(id).attach();
-			this._logService.trace(`Persistent terminal reconnection "${id}"`);
+			this._logService.trace(`Persistent process reconnection "${id}"`);
 		} catch (e) {
-			this._logService.trace(`Persistent terminal reconnection "${id}" failed`, e.message);
+			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
 		}
 	}
 
 	async detachFromProcess(id: number): Promise<void> {
 		this._throwIfNoPty(id).detach();
+	}
+
+	async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
+		if (reduceGraceTime) {
+			for (const pty of this._ptys.values()) {
+				pty.reduceGraceTime();
+			}
+		}
+
+		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
+
+		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);
+		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
+		const allTerminals = await Promise.all(promises);
+		return allTerminals.filter(entry => entry.isOrphan);
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {
@@ -131,6 +152,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async getLatency(id: number): Promise<number> {
 		return 0;
 	}
+	async orphanQuestionReply(id: number): Promise<void> {
+		return this._throwIfNoPty(id).orphanQuestionReply();
+	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
@@ -150,20 +174,20 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
 		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
-		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto>[];
+		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IProcessDetails>[];
 		return {
 			isActive: tab.isActive,
-			activePersistentTerminalId: tab.activePersistentTerminalId,
+			activePersistentProcessId: tab.activePersistentProcessId,
 			terminals: filtered
 		};
 	}
 
-	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
+	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
-			const persistentTerminalProcess = this._throwIfNoPty(t.terminal);
-			const termDto = persistentTerminalProcess && await this._terminalToDto(t.terminal, persistentTerminalProcess);
+			const persistentProcess = this._throwIfNoPty(t.terminal);
+			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess);
 			return {
-				terminal: termDto ?? null,
+				terminal: processDetails ?? null,
 				relativeSize: t.relativeSize
 			};
 		} catch (e) {
@@ -176,14 +200,14 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	private async _terminalToDto(id: number, persistentTerminalProcess: PersistentTerminalProcess): Promise<IPtyHostDescriptionDto> {
-		const [cwd, isOrphan] = await Promise.all([persistentTerminalProcess.getCwd(), persistentTerminalProcess.isOrphaned()]);
+	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess): Promise<IProcessDetails> {
+		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), persistentProcess.isOrphaned()]);
 		return {
 			id,
-			title: persistentTerminalProcess.title,
-			pid: persistentTerminalProcess.pid,
-			workspaceId: persistentTerminalProcess.workspaceId,
-			workspaceName: persistentTerminalProcess.workspaceName,
+			title: persistentProcess.title,
+			pid: persistentProcess.pid,
+			workspaceId: persistentProcess.workspaceId,
+			workspaceName: persistentProcess.workspaceName,
 			cwd,
 			isOrphan
 		};
@@ -219,10 +243,14 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
+	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
+	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
+	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	private _inReplay = false;
 
@@ -233,7 +261,7 @@ export class PersistentTerminalProcess extends Disposable {
 	get title(): string { return this._terminalProcess.currentTitle; }
 
 	constructor(
-		private _persistentTerminalId: number,
+		private _persistentProcessId: number,
 		private readonly _terminalProcess: TerminalProcess,
 		public readonly workspaceId: string,
 		public readonly workspaceName: string,
@@ -246,11 +274,11 @@ export class PersistentTerminalProcess extends Disposable {
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent terminal "${this._persistentTerminalId}": The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, so the process (pid=${this._pid}) will be shutdown.`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, shutting down pid "${this._pid}"`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionGraceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent terminal "${this._persistentTerminalId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, so the process (pid=${this._pid}) will be shutdown.`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
@@ -269,12 +297,12 @@ export class PersistentTerminalProcess extends Disposable {
 			this._onProcessReady.fire(e);
 		}));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
-
+		this._register(this._terminalProcess.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 		// Buffer data events to reduce the amount of messages going to the renderer
-		// this._register(this._bufferer.startBuffering(this._persistentTerminalId, this._terminalProcess.onProcessData));
+		// this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessData(e => this._recorder.recordData(e)));
 		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			// this._bufferer.stopBuffering(this._persistentTerminalId);
+			// this._bufferer.stopBuffering(this._persistentProcessId);
 		}));
 	}
 
@@ -301,6 +329,7 @@ export class PersistentTerminalProcess extends Disposable {
 		} else {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd });
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
+			this._onProcessShellTypeChanged.fire(this._terminalProcess.shellType);
 			this.triggerReplay();
 		}
 		return undefined;
@@ -344,7 +373,7 @@ export class PersistentTerminalProcess extends Disposable {
 			dataLength += e.data.length;
 		}
 
-		this._logService.info(`Persistent terminal "${this._persistentTerminalId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
+		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
 	}
@@ -357,7 +386,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._pendingCommands.delete(reqId);
 	}
 
-	async orphanQuestionReply(): Promise<void> {
+	orphanQuestionReply(): void {
 		this._orphanQuestionReplyTime = Date.now();
 		if (this._orphanQuestionBarrier) {
 			const barrier = this._orphanQuestionBarrier;
@@ -382,19 +411,17 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	private async _isOrphaned(): Promise<boolean> {
+		// The process is already known to be orphaned
 		if (this._disconnectRunner1.isScheduled() || this._disconnectRunner2.isScheduled()) {
 			return true;
 		}
 
+		// Ask whether the renderer(s) whether the process is orphaned and await the reply
 		if (!this._orphanQuestionBarrier) {
 			// the barrier opens after 4 seconds with or without a reply
 			this._orphanQuestionBarrier = new AutoOpenBarrier(4000);
 			this._orphanQuestionReplyTime = 0;
-			// TODO: Fire?
-			// const ev: IPtyHostProcessOrphanQuestionEvent = {
-			// 	type: 'orphan?'
-			// };
-			// this._events.fire(ev);
+			this._onProcessOrphanQuestion.fire();
 		}
 
 		await this._orphanQuestionBarrier.wait();

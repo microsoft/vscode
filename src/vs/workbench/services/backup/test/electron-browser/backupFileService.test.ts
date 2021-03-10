@@ -5,13 +5,12 @@
 
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { createHash } from 'crypto';
 import { tmpdir } from 'os';
-import { promises, existsSync, readFileSync, writeFileSync } from 'fs';
+import { promises, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'vs/base/common/path';
 import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { BackupFilesModel } from 'vs/workbench/services/backup/common/backupFileService';
+import { BackupFilesModel, hashPath } from 'vs/workbench/services/backup/common/backupFileService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -23,13 +22,15 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
-import { hashPath, NativeBackupFileService } from 'vs/workbench/services/backup/electron-browser/backupFileService';
+import { NativeBackupFileService } from 'vs/workbench/services/backup/electron-sandbox/backupFileService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { insert } from 'vs/base/common/arrays';
+import { hash } from 'vs/base/common/hash';
+import { isEqual } from 'vs/base/common/resources';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -118,6 +119,7 @@ suite('BackupFileService', () => {
 	let fooBackupPath: string;
 	let barBackupPath: string;
 	let untitledBackupPath: string;
+	let customFileBackupPath: string;
 
 	let service: NodeTestBackupFileService;
 
@@ -134,9 +136,10 @@ suite('BackupFileService', () => {
 		backupHome = join(testDir, 'Backups');
 		workspacesJsonPath = join(backupHome, 'workspaces.json');
 		workspaceBackupPath = join(backupHome, hashPath(workspaceResource));
-		fooBackupPath = join(workspaceBackupPath, 'file', hashPath(fooFile));
-		barBackupPath = join(workspaceBackupPath, 'file', hashPath(barFile));
-		untitledBackupPath = join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
+		fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashPath(fooFile));
+		barBackupPath = join(workspaceBackupPath, barFile.scheme, hashPath(barFile));
+		untitledBackupPath = join(workspaceBackupPath, untitledFile.scheme, hashPath(untitledFile));
+		customFileBackupPath = join(workspaceBackupPath, customFile.scheme, hashPath(customFile));
 
 		service = new NodeTestBackupFileService(testDir, workspaceBackupPath);
 
@@ -157,8 +160,8 @@ suite('BackupFileService', () => {
 			});
 			const actual = hashPath(uri);
 			// If these hashes change people will lose their backed up files!
-			assert.strictEqual(actual, '13264068d108c6901b3592ea654fcd57');
-			assert.strictEqual(actual, createHash('md5').update(uri.fsPath).digest('hex'));
+			assert.strictEqual(actual, '-7f9c1a2e');
+			assert.strictEqual(actual, hash(uri.fsPath).toString(16));
 		});
 
 		test('should correctly hash the path for file scheme URIs', () => {
@@ -166,11 +169,22 @@ suite('BackupFileService', () => {
 			const actual = hashPath(uri);
 			// If these hashes change people will lose their backed up files!
 			if (isWindows) {
-				assert.strictEqual(actual, 'dec1a583f52468a020bd120c3f01d812');
+				assert.strictEqual(actual, '20ffaa13');
 			} else {
-				assert.strictEqual(actual, '1effb2475fcfba4f9e8b8a1dbc8f3caf');
+				assert.strictEqual(actual, '20eb3560');
 			}
-			assert.strictEqual(actual, createHash('md5').update(uri.fsPath).digest('hex'));
+			assert.strictEqual(actual, hash(uri.fsPath).toString(16));
+		});
+
+		test('should correctly hash the path for custom scheme URIs', () => {
+			const uri = URI.from({
+				scheme: 'vscode-custom',
+				path: 'somePath'
+			});
+			const actual = hashPath(uri);
+			// If these hashes change people will lose their backed up files!
+			assert.strictEqual(actual, '-44972d98');
+			assert.strictEqual(actual, hash(uri.toString()).toString(16));
 		});
 	});
 
@@ -636,6 +650,11 @@ suite('BackupFileService', () => {
 			assert.strictEqual(model.has(resource4), true);
 			assert.strictEqual(model.has(resource4, undefined, { foo: 'bar' }), true);
 			assert.strictEqual(model.has(resource4, undefined, { bar: 'foo' }), false);
+
+			const resource5 = URI.file('test4.html');
+			model.move(resource4, resource5);
+			assert.strictEqual(model.has(resource4), false);
+			assert.strictEqual(model.has(resource5), true);
 		});
 
 		test('resolve', async () => {
@@ -643,8 +662,8 @@ suite('BackupFileService', () => {
 			writeFileSync(fooBackupPath, 'foo');
 			const model = new BackupFilesModel(service.fileService);
 
-			const resolvedModel = await model.resolve(URI.file(workspaceBackupPath));
-			assert.strictEqual(resolvedModel.has(URI.file(fooBackupPath)), true);
+			await model.resolve(URI.file(workspaceBackupPath));
+			assert.strictEqual(model.has(URI.file(fooBackupPath)), true);
 		});
 
 		test('get', () => {
@@ -664,4 +683,40 @@ suite('BackupFileService', () => {
 		});
 	});
 
+	suite('Hash migration', () => {
+
+		test('works', async () => {
+
+			// Prepare backups of the old MD5 hash format
+			mkdirSync(join(workspaceBackupPath, fooFile.scheme), { recursive: true });
+			mkdirSync(join(workspaceBackupPath, untitledFile.scheme), { recursive: true });
+			mkdirSync(join(workspaceBackupPath, customFile.scheme), { recursive: true });
+			writeFileSync(join(workspaceBackupPath, fooFile.scheme, '8a8589a2f1c9444b89add38166f50229'), `${fooFile.toString()}\ntest file`);
+			writeFileSync(join(workspaceBackupPath, untitledFile.scheme, '13264068d108c6901b3592ea654fcd57'), `${untitledFile.toString()}\ntest untitled`);
+			writeFileSync(join(workspaceBackupPath, customFile.scheme, 'bf018572af7b38746b502893bd0adf6c'), `${customFile.toString()}\ntest custom`);
+
+			service.reinitialize(URI.file(workspaceBackupPath));
+
+			const backups = await service.getBackups();
+			assert.strictEqual(backups.length, 3);
+			assert.ok(backups.some(backup => isEqual(backup, fooFile)));
+			assert.ok(backups.some(backup => isEqual(backup, untitledFile)));
+			assert.ok(backups.some(backup => isEqual(backup, customFile)));
+
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, fooFile.scheme)).length, 1);
+			assert.strictEqual(existsSync(fooBackupPath), true);
+			assert.strictEqual(readFileSync(fooBackupPath).toString(), `${fooFile.toString()}\ntest file`);
+			assert.ok(service.hasBackupSync(fooFile));
+
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, untitledFile.scheme)).length, 1);
+			assert.strictEqual(existsSync(untitledBackupPath), true);
+			assert.strictEqual(readFileSync(untitledBackupPath).toString(), `${untitledFile.toString()}\ntest untitled`);
+			assert.ok(service.hasBackupSync(untitledFile));
+
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, customFile.scheme)).length, 1);
+			assert.strictEqual(existsSync(customFileBackupPath), true);
+			assert.strictEqual(readFileSync(customFileBackupPath).toString(), `${customFile.toString()}\ntest custom`);
+			assert.ok(service.hasBackupSync(customFile));
+		});
+	});
 });

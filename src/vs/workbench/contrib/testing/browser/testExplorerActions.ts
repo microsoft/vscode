@@ -23,7 +23,7 @@ import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } fro
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -668,16 +668,33 @@ abstract class RunOrDebugCurrentFile extends Action2 {
 		const testService = accessor.get(ITestService);
 		const collection = testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, model.uri);
 
+		// the gather function builds the first nodes in the tree who have a
+		// location in the file. Ideally we could just request to run the roots,
+		// but in the case where they're polyfilled from a workspace heirarchy,
+		// the "root" test actually refers to the workspace root.
+		const expectedUri = model.uri.toString();
+		const tests: IncrementalTestCollectionItem[] = [];
+		const gather = (testIds: Iterable<string>) => {
+			for (const id of testIds) {
+				const node = collection.object.getNodeById(id);
+				if (!node) {
+					// no-op
+				} else if (node.item.location?.uri.toString() === expectedUri) {
+					if (this.filter(node)) {
+						tests.push(node);
+					}
+				} else if (node.children) {
+					gather(node.children);
+				}
+			}
+		};
+
 		try {
 			await showDiscoveringWhile(accessor.get(IProgressService), waitForAllTests(collection.object));
+			gather(collection.object.rootIds);
 
-			const roots = [...collection.object.rootIds]
-				.map(r => collection.object.getNodeById(r))
-				.filter(isDefined)
-				.filter(n => this.filter(n));
-
-			if (roots.length) {
-				await this.runTest(testService, roots);
+			if (tests.length) {
+				await this.runTest(testService, tests);
 			}
 		} finally {
 			collection.dispose();

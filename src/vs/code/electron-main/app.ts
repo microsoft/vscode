@@ -80,13 +80,13 @@ import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encry
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { DisplayMainService, IDisplayMainService } from 'vs/platform/display/electron-main/displayMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -559,9 +559,6 @@ export class CodeApplication extends Disposable {
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
-		// Display
-		services.set(IDisplayMainService, new SyncDescriptor(DisplayMainService));
-
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
 
@@ -629,13 +626,13 @@ export class CodeApplication extends Disposable {
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
+		// Signing
+		const signChannel = ProxyChannel.fromService(accessor.get(ISignService));
+		mainProcessElectronServer.registerChannel('sign', signChannel);
+
 		// Keyboard Layout
 		const keyboardLayoutChannel = ProxyChannel.fromService(accessor.get(IKeyboardLayoutMainService));
 		mainProcessElectronServer.registerChannel('keyboardLayout', keyboardLayoutChannel);
-
-		// Display
-		const displayChannel = ProxyChannel.fromService(accessor.get(IDisplayMainService));
-		mainProcessElectronServer.registerChannel('display', displayChannel);
 
 		// Native host (main & shared process)
 		this.nativeHostMainService = accessor.get(INativeHostMainService);

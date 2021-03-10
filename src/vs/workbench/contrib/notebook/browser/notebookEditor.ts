@@ -24,14 +24,14 @@ import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contri
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IBorrowValue, INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
+import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
 export class NotebookEditor extends EditorPane {
-	static readonly ID: string = 'workbench.editor.notebook';
+	static readonly ID: string = NOTEBOOK_EDITOR_ID;
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private readonly _groupListener = this._register(new DisposableStore());
@@ -57,7 +57,7 @@ export class NotebookEditor extends EditorPane {
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
+		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
@@ -76,11 +76,6 @@ export class NotebookEditor extends EditorPane {
 	set maximumWidth(value: number) { /*noop*/ }
 
 	//#region Editor Core
-
-	get isNotebookEditor() {
-		return true;
-	}
-
 	get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._widget.value?.scopedContextKeyService;
 	}

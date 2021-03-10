@@ -88,7 +88,10 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 	private readonly _themeService: IThemeService;
 
-	constructor(@IThemeService themeService: IThemeService, styleSheet: GlobalStyleSheet | null = null) {
+	constructor(
+		styleSheet: GlobalStyleSheet | null,
+		@IThemeService themeService: IThemeService,
+	) {
 		super();
 		this._globalStyleSheet = styleSheet ? styleSheet : null;
 		this._themeService = themeService;
@@ -328,7 +331,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 }
 
 
-const _CSS_MAP: { [prop: string]: string; } = {
+export const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
 	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',

@@ -10,6 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
 import { Schemas } from 'vs/base/common/network';
+import Severity from 'vs/base/common/severity';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -145,12 +146,34 @@ export interface IInputOptions {
 	/**
 	 * an optional function that is used to validate user input.
 	 */
-	validateInput?: (input: string) => Promise<string | null | undefined>;
+	validateInput?: (input: string) => Promise<string | null | undefined | { content: string, severity: Severity }>;
+}
+
+export enum QuickInputHideReason {
+
+	/**
+	 * Focus moved away from the quick input.
+	 */
+	Blur = 1,
+
+	/**
+	 * An explicit user gesture, e.g. pressing Escape key.
+	 */
+	Gesture,
+
+	/**
+	 * Anything else.
+	 */
+	Other
+}
+
+export interface IQuickInputHideEvent {
+	reason: QuickInputHideReason;
 }
 
 export interface IQuickInput extends IDisposable {
 
-	readonly onDidHide: Event<void>;
+	readonly onDidHide: Event<IQuickInputHideEvent>;
 	readonly onDispose: Event<void>;
 
 	title: string | undefined;
@@ -301,6 +324,8 @@ export interface IInputBox extends IQuickInput {
 	prompt: string | undefined;
 
 	validationMessage: string | undefined;
+
+	severity: Severity;
 }
 
 export interface IQuickInputButton {

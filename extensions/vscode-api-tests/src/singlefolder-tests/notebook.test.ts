@@ -48,22 +48,103 @@ async function saveAllFilesAndCloseAll(resource: vscode.Uri | undefined) {
 	await documentClosed;
 }
 
-async function updateCellMetadata(uri: vscode.Uri, cell: vscode.NotebookCell, newMetadata: vscode.NotebookCellMetadata) {
-	const edit = new vscode.WorkspaceEdit();
-	edit.replaceNotebookCellMetadata(uri, cell.index, newMetadata);
-	await vscode.workspace.applyEdit(edit);
-}
-
-async function updateNotebookMetadata(uri: vscode.Uri, newMetadata: vscode.NotebookDocumentMetadata) {
-	const edit = new vscode.WorkspaceEdit();
-	edit.replaceNotebookMetadata(uri, newMetadata);
-	await vscode.workspace.applyEdit(edit);
-}
-
 async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) => Promise<void>) {
 	const e = asPromise<T>(event);
 	await callback(e);
 }
+
+const kernel1: vscode.NotebookKernel = {
+	id: 'mainKernel',
+	label: 'Notebook Test Kernel',
+	isPreferred: true,
+	supportedLanguages: ['typescript', 'javascript'],
+	executeAllCells: async (_document: vscode.NotebookDocument) => {
+		const edit = new vscode.WorkspaceEdit();
+
+		edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
+			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+		])]);
+		return vscode.workspace.applyEdit(edit);
+	},
+	cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
+	executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
+		if (!cell) {
+			cell = document.cells[0];
+		}
+
+		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
+			])]);
+
+			return vscode.workspace.applyEdit(edit);
+		}
+
+		const edit = new vscode.WorkspaceEdit();
+		// const previousOutputs = cell.outputs;
+		edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+		])]);
+
+		return vscode.workspace.applyEdit(edit);
+	},
+	cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
+};
+
+const kernel2: vscode.NotebookKernel = {
+	id: 'secondaryKernel',
+	label: 'Notebook Secondary Test Kernel',
+	isPreferred: false,
+	supportedLanguages: ['typescript', 'javascript'],
+	executeAllCells: async (_document: vscode.NotebookDocument) => {
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
+			new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+		])]);
+
+		return vscode.workspace.applyEdit(edit);
+	},
+	cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
+	executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
+		if (!cell) {
+			cell = document.cells[0];
+		}
+
+		const edit = new vscode.WorkspaceEdit();
+
+		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
+			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/custom', ['test 2'], undefined)
+			])]);
+		} else {
+			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+			])]);
+		}
+
+		return vscode.workspace.applyEdit(edit);
+	},
+	cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
+};
+
+class KernelProvider implements vscode.NotebookKernelProvider {
+	private _onDidChangeKernels = new vscode.EventEmitter<undefined>();
+	onDidChangeKernels = this._onDidChangeKernels.event;
+
+	private _hasKernels = true;
+	private readonly _kernels = [kernel1, kernel2];
+
+	provideKernels(): vscode.ProviderResult<vscode.NotebookKernel[]> {
+		return this._hasKernels ? this._kernels : [];
+	}
+
+	setHasKernels(hasKernels: boolean): void {
+		this._hasKernels = hasKernels;
+		this._onDidChangeKernels.fire(undefined);
+	}
+}
+let currentKernerProvider: KernelProvider;
 
 suite('Notebook API tests', function () {
 
@@ -96,14 +177,14 @@ suite('Notebook API tests', function () {
 						{
 							source: 'test',
 							language: 'typescript',
-							cellKind: vscode.NotebookCellKind.Code,
+							kind: vscode.NotebookCellKind.Code,
 							outputs: [],
 							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 						},
 						{
 							source: 'test2',
 							language: 'typescript',
-							cellKind: vscode.NotebookCellKind.Code,
+							kind: vscode.NotebookCellKind.Code,
 							outputs: [
 								new vscode.NotebookCellOutput([
 									new vscode.NotebookCellOutputItem('text/plain', 'Hello World', { testOutputItemMetadata: true })
@@ -133,87 +214,8 @@ suite('Notebook API tests', function () {
 			}
 		}));
 
-
-		const kernel: vscode.NotebookKernel = {
-			id: 'mainKernel',
-			label: 'Notebook Test Kernel',
-			isPreferred: true,
-			supportedLanguages: ['typescript', 'javascript'],
-			executeAllCells: async (_document: vscode.NotebookDocument) => {
-				const edit = new vscode.WorkspaceEdit();
-
-				edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
-				])]);
-				return vscode.workspace.applyEdit(edit);
-			},
-			cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
-			executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
-				if (!cell) {
-					cell = document.cells[0];
-				}
-
-				if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-					const edit = new vscode.WorkspaceEdit();
-					edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
-						new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
-					])]);
-
-					return vscode.workspace.applyEdit(edit);
-				}
-
-				const edit = new vscode.WorkspaceEdit();
-				// const previousOutputs = cell.outputs;
-				edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
-				])]);
-
-				return vscode.workspace.applyEdit(edit);
-			},
-			cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
-		};
-
-		const kernel2: vscode.NotebookKernel = {
-			id: 'secondaryKernel',
-			label: 'Notebook Secondary Test Kernel',
-			isPreferred: false,
-			supportedLanguages: ['typescript', 'javascript'],
-			executeAllCells: async (_document: vscode.NotebookDocument) => {
-				const edit = new vscode.WorkspaceEdit();
-				edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
-				])]);
-
-				return vscode.workspace.applyEdit(edit);
-			},
-			cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
-			executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
-				if (!cell) {
-					cell = document.cells[0];
-				}
-
-				const edit = new vscode.WorkspaceEdit();
-
-				if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-					edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
-						new vscode.NotebookCellOutputItem('text/custom', ['test 2'], undefined)
-					])]);
-				} else {
-					edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
-						new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
-					])]);
-				}
-
-				return vscode.workspace.applyEdit(edit);
-			},
-			cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
-		};
-
-		disposables.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, {
-			provideKernels: async () => {
-				return [kernel, kernel2];
-			}
-		}));
+		currentKernerProvider = new KernelProvider();
+		disposables.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, currentKernerProvider));
 	});
 
 	test('shared document in notebook editors', async function () {
@@ -421,29 +423,6 @@ suite('Notebook API tests', function () {
 		await saveFileAndCloseAll(resource);
 	});
 
-	test('change cell language', async function () {
-		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-
-		assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].language, 'typescript');
-		assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].cellKind, vscode.NotebookCellKind.Code);
-		await withEvent(vscode.notebook.onDidChangeCellLanguage, async event => {
-			await vscode.commands.executeCommand('notebook.cell.changeLanguage', { start: 0, end: 1 }, 'javascript');
-			await event;
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].language, 'javascript');
-		});
-
-		// switch to markdown will change the cell kind
-		await withEvent(vscode.notebook.onDidChangeNotebookCells, async event => {
-			await vscode.commands.executeCommand('notebook.cell.changeLanguage', { start: 0, end: 1 }, 'markdown');
-			await event;
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].language, 'markdown');
-			assert.strictEqual(vscode.window.activeNotebookEditor?.document.cells[0].cellKind, vscode.NotebookCellKind.Markdown);
-		});
-
-		await saveAllFilesAndCloseAll(resource);
-	});
-
 	test('edit API (replaceMetadata)', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -488,8 +467,8 @@ suite('Notebook API tests', function () {
 		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ runnable: false }));
+			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ breakpointMargin: false }));
 		});
 
 		await cellsChangeEvent;
@@ -506,19 +485,19 @@ suite('Notebook API tests', function () {
 		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
 		const version = vscode.window.activeNotebookEditor!.document.version;
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ runnable: false }));
+			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ breakpointMargin: false }));
 		});
 
 		await cellsChangeEvent;
 		await cellMetadataChangeEvent;
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells.length, 3);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.runnable, false);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.breakpointMargin, false);
 		assert.strictEqual(version + 1, vscode.window.activeNotebookEditor!.document.version);
 
 		await vscode.commands.executeCommand('undo');
 		assert.strictEqual(version + 2, vscode.window.activeNotebookEditor!.document.version);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.runnable, undefined);
+		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells[0]?.metadata?.breakpointMargin, undefined);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells.length, 2);
 
 		await saveAllFilesAndCloseAll(resource);
@@ -686,36 +665,7 @@ suite('Notebook API tests', function () {
 		await saveFileAndCloseAll(resource);
 	});
 
-
-	test('cell runnable metadata is respected', async () => {
-		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		const editor = vscode.window.activeNotebookEditor!;
-
-		await vscode.commands.executeCommand('notebook.focusTop');
-		const cell = editor.document.cells[0];
-		assert.strictEqual(cell.outputs.length, 0);
-
-		let metadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
-		await updateCellMetadata(resource, cell, cell.metadata.with({ runnable: false }));
-		await metadataChangeEvent;
-
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
-
-		metadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
-		await updateCellMetadata(resource, cell, cell.metadata.with({ runnable: true }));
-		await metadataChangeEvent;
-
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-	});
-
-	test('document runnable metadata is respected', async () => {
+	test('document runnable based on kernel count', async () => {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -724,18 +674,11 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cells[0];
 		assert.strictEqual(cell.outputs.length, 0);
 
-		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: false }));
-			await event;
-		});
-
+		currentKernerProvider.setHasKernels(false);
 		await vscode.commands.executeCommand('notebook.execute');
 		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
-		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
-			await event;
-		});
+		currentKernerProvider.setHasKernels(true);
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
 			await vscode.commands.executeCommand('notebook.execute');
@@ -767,11 +710,6 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cells[0];
-
-		await withEvent(vscode.notebook.onDidChangeNotebookDocumentMetadata, async event => {
-			updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
-			await event;
-		});
 
 		await withEvent(vscode.notebook.onDidChangeCellOutputs, async (event) => {
 			await vscode.commands.executeCommand('notebook.execute');
@@ -805,11 +743,6 @@ suite('Notebook API tests', function () {
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cells[0];
 
-		const metadataChangeEvent = asPromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
-		await metadataChangeEvent;
-		assert.strictEqual(editor.document.metadata.runnable, true);
-
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
 			await vscode.commands.executeCommand('notebook.execute');
 			await event;
@@ -840,10 +773,6 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cells[0];
-
-		const metadataChangeEvent = asPromise<vscode.NotebookDocumentMetadataChangeEvent>(vscode.notebook.onDidChangeNotebookDocumentMetadata);
-		updateNotebookMetadata(editor.document.uri, editor.document.metadata.with({ runnable: true }));
-		await metadataChangeEvent;
 
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
@@ -1187,7 +1116,7 @@ suite('Notebook API tests', function () {
 
 		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
 		});
 
 		const cellChangeEventRet = await cellsChangeEvent;
@@ -1239,6 +1168,12 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
+	});
+	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+		const openedEditor = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.notebook.openNotebookDocument(resource);
+		assert.ok(await openedEditor);
 	});
 
 	// });

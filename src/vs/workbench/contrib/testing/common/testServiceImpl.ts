@@ -159,6 +159,9 @@ export class TestService extends Disposable implements ITestService {
 	 */
 	public updateRootProviderCount(delta: number) {
 		this.rootProviderCount += delta;
+		for (const { collection } of this.testSubscriptions.values()) {
+			collection.updatePendingRoots(delta);
+		}
 	}
 
 
@@ -406,8 +409,8 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * @override
 	 */
-	protected updatePendingRoots(delta: number) {
-		this._pendingRootProviders += delta;
+	public updatePendingRoots(delta: number) {
+		this._pendingRootProviders = Math.max(0, this._pendingRootProviders + delta);
 		this.pendingRootChangeEmitter.fire(this._pendingRootProviders);
 	}
 

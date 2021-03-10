@@ -126,7 +126,6 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		return {
 			meta: {
 				mtime: stats?.mtime ?? Date.now(),
-				name: this._name,
 				viewType: this.notebook.viewType,
 				backupId: backupId
 			}
@@ -171,7 +170,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
 
-		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId);
+		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId, CancellationToken.None);
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
 		if (this.isDisposed()) {
@@ -224,7 +223,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			this.notebook.metadata = data.data.metadata;
 			this.notebook.transientOptions = data.transientOptions;
 			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this.notebook.cells.length, cells: data.data.cells }];
-			this.notebook.applyEdits(this.notebook.versionId, edits, true, undefined, () => undefined, undefined);
+			this.notebook.applyEdits(edits, true, undefined, () => undefined, undefined);
 		}
 
 		if (backupId) {

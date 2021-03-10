@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeSort } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 
 /**
@@ -60,7 +59,7 @@ export abstract class LoaderStats {
 			map.set(stat.detail, duration + stat.timestamp);
 		}
 
-		const stats = mergeSort(require.getStats().slice(0), (a, b) => a.timestamp - b.timestamp);
+		const stats = require.getStats().slice(0).sort((a, b) => a.timestamp - b.timestamp);
 
 		for (const stat of stats) {
 			switch (stat.type) {

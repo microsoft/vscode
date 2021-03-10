@@ -61,6 +61,10 @@
 	/* overflow: hidden; */
 }
 
+.notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	cursor: default;
+}
+
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {

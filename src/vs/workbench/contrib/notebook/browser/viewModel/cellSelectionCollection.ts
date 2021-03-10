@@ -42,7 +42,7 @@ export class NotebookCellSelectionCollection extends Disposable {
 		return this._selections[0];
 	}
 
-	setState(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'edit') {
+	setState(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'model') {
 		if (primary !== null) {
 			const primaryRange = primary;
 			// TODO@rebornix deal with overlap
@@ -75,11 +75,11 @@ export class NotebookCellSelectionCollection extends Disposable {
 		}
 	}
 
-	setFocus(selection: ICellRange | null, forceEventEmit: boolean, source: 'view' | 'edit') {
+	setFocus(selection: ICellRange | null, forceEventEmit: boolean, source: 'view' | 'model') {
 		this.setState(selection, this._selections, forceEventEmit, source);
 	}
 
-	setSelections(selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'edit') {
+	setSelections(selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'model') {
 		this.setState(this._primary, selections, forceEventEmit, source);
 	}
 }
