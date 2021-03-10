@@ -27,6 +27,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IThemable } from 'vs/base/common/styler';
 import { createStyleSheet } from 'vs/base/browser/dom';
+import { timeout } from 'vs/base/common/async';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -1468,7 +1469,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		}
 	}
 
-	focusNextPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
+	async focusNextPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): Promise<void> {
 		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
 		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
 		const lastPageElement = this.view.element(lastPageIndex);
@@ -1490,12 +1491,13 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 				this.setFocus([]);
 
 				// Let the scroll event listener run
-				setTimeout(() => this.focusNextPage(browserEvent, filter), 0);
+				await timeout(0);
+				await this.focusNextPage(browserEvent, filter);
 			}
 		}
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): void {
+	async focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): Promise<void> {
 		let firstPageIndex: number;
 		const scrollTop = this.view.getScrollTop();
 
@@ -1524,7 +1526,8 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 				this.setFocus([]);
 
 				// Let the scroll event listener run
-				setTimeout(() => this.focusPreviousPage(browserEvent, filter), 0);
+				await timeout(0);
+				await this.focusPreviousPage(browserEvent, filter);
 			}
 		}
 	}

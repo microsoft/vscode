@@ -238,12 +238,20 @@ export class PagedList<T> implements IThemable, IDisposable {
 		this.list.focusPrevious(n, loop);
 	}
 
-	focusNextPage(): void {
-		this.list.focusNextPage();
+	focusNextPage(): Promise<void> {
+		return this.list.focusNextPage();
 	}
 
-	focusPreviousPage(): void {
-		this.list.focusPreviousPage();
+	focusPreviousPage(): Promise<void> {
+		return this.list.focusPreviousPage();
+	}
+
+	focusLast(): void {
+		this.list.focusLast();
+	}
+
+	focusFirst(): void {
+		this.list.focusFirst();
 	}
 
 	getFocus(): number[] {

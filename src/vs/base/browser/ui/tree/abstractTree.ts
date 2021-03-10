@@ -1580,12 +1580,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.focusPrevious(n, loop, browserEvent, filter);
 	}
 
-	focusNextPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
-		this.view.focusNextPage(browserEvent, filter);
+	focusNextPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
+		return this.view.focusNextPage(browserEvent, filter);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
-		this.view.focusPreviousPage(browserEvent, filter);
+	focusPreviousPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
+		return this.view.focusPreviousPage(browserEvent, filter);
 	}
 
 	focusLast(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
