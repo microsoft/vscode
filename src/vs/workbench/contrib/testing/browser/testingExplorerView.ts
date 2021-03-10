@@ -10,7 +10,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -35,7 +35,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -218,8 +218,20 @@ class EmptyTestsWidget extends Disposable {
 	}
 }
 
+class TestTreeDataSource implements IAsyncDataSource<ITestTreeElement, ITestTreeElement> {
+	constructor(private readonly projectionRef: () => ITestTreeProjection) {}
+
+	hasChildren(element: ITestTreeElement): boolean {
+		return element.expandable;
+	}
+
+	getChildren(element: ITestTreeElement): Promise<Iterable<ITestTreeElement>> {
+
+	}
+}
+
 export class TestingExplorerViewModel extends Disposable {
-	public tree: ObjectTree<ITestTreeElement, FuzzyScore>;
+	public tree: WorkbenchAsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
@@ -265,7 +277,7 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 
 		this._viewSorting.set(newSorting);
-		this.tree.resort(null);
+		this.tree.resort(undefined);
 		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
@@ -295,13 +307,14 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.filter = this.instantiationService.createInstance(TestsFilter);
 		this.tree = instantiationService.createInstance(
-			WorkbenchObjectTree,
+			WorkbenchAsyncDataTree,
 			'Test Explorer List',
 			listContainer,
 			new ListDelegate(),
 			[
 				instantiationService.createInstance(TestsRenderer, labels)
 			],
+			new TestTreeDataSource(() => this.projection),
 			{
 				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
@@ -310,7 +323,7 @@ export class TestingExplorerViewModel extends Disposable {
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
+			}) as WorkbenchAsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>;
 
 		this._register(filterState.currentDocumentOnly.onDidChange(() => {
 			if (!filterState.currentDocumentOnly.value) {
@@ -379,7 +392,7 @@ export class TestingExplorerViewModel extends Disposable {
 		}));
 
 		this._register(testResults.onResultsChanged(() => {
-			this.tree.resort(null);
+			this.tree.resort(undefined);
 		}));
 	}
 
@@ -402,7 +415,7 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Reveals and moves focus to the item.
 	 */
 	public async revealItem(item: ITestTreeElement, reveal = true): Promise<void> {
-		if (!this.tree.hasElement(item)) {
+		if (!this.tree.hasNode(item)) {
 			return;
 		}
 
@@ -551,7 +564,6 @@ export class TestingExplorerViewModel extends Disposable {
 	private updatePreferredProjection() {
 		this.projection.clear();
 		if (!this.listener) {
-			this.tree.setChildren(null, []);
 			return;
 		}
 

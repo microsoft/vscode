@@ -41,6 +41,10 @@ export class HierarchicalElement implements ITestTreeElement {
 			: Iterable.empty();
 	}
 
+	public get expandable() {
+		return this.test.item.expandable;
+	}
+
 	public state = TestResult.Unset;
 	public retired = false;
 	public ownState = TestResult.Unset;
@@ -73,6 +77,10 @@ export class HierarchicalFolder implements ITestTreeElement {
 
 	public get debuggable() {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
+	}
+
+	public get expandable() {
+		return true;
 	}
 
 	public retired = false;

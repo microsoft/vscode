@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -103,6 +104,10 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		}
 	}
 
+	getChildren(node: ITestTreeElement): Iterable<ITestTreeElement> | Promise<Iterable<ITestTreeElement>> {
+		return this.changes.applyTo
+	}
+
 	/**
 	 * @inheritdoc
 	 */
@@ -189,7 +194,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	/**
 	 * @inheritdoc
 	 */
-	public applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>) {
+	public applyTo(tree: AsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>) {
 		this.changes.applyTo(tree, this.renderNode, () => this.folders.values());
 	}
 

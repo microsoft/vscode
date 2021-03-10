@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
@@ -55,9 +56,9 @@ export const enum NodeRenderDirective {
 export type NodeRenderFn<T> = (n: T, recurse: (items: Iterable<T>) => Iterable<ITreeElement<ITestTreeElement>>) =>
 	ITreeElement<ITestTreeElement> | NodeRenderDirective;
 
-const pruneNodesNotInTree = <T extends ITestTreeElement>(nodes: Set<T | null>, tree: ObjectTree<ITestTreeElement, any>) => {
+const pruneNodesNotInTree = <T extends ITestTreeElement>(nodes: Set<T | null>, tree: AsyncDataTree<ITestTreeElement, any>) => {
 	for (const node of nodes) {
-		if (node && !tree.hasElement(node)) {
+		if (node && !tree.hasNode(node)) {
 			nodes.delete(node);
 		}
 	}
@@ -85,7 +86,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 	}
 
 	public applyTo(
-		tree: ObjectTree<ITestTreeElement, any>,
+		tree: AsyncDataTree<ITestTreeElement, ITestTreeElement, any>,
 		renderNode: NodeRenderFn<T>,
 		roots: () => Iterable<T>,
 	) {
@@ -100,17 +101,18 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 				parent = parent.parentItem;
 			}
 
-			if (parent === null || tree.hasElement(parent)) {
-				tree.setChildren(
-					parent,
-					this.renderNodeList(renderNode, parent === null ? roots() : parent.children),
+			if (parent === null || tree.hasNode(parent)) {
+				tree.updateChildren(
+					parent || undefined,
+					false,
+					false,
 					{ diffIdentityProvider: testIdentityProvider, diffDepth },
 				);
 			}
 		}
 
 		for (const node of this.updatedNodes) {
-			if (tree.hasElement(node)) {
+			if (tree.hasNode(node)) {
 				tree.rerender(node);
 			}
 		}

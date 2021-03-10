@@ -1632,6 +1632,7 @@ export namespace TestItem {
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
+			expandable: item.expandable,
 		};
 	}
 
@@ -1643,10 +1644,11 @@ export namespace TestItem {
 			debuggable: false,
 			description: item.description,
 			runnable: true,
+			expandable: true,
 		};
 	}
 
-	export function toPlainShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
+	export function toPlain(item: ITestItem): types.TestItem {
 		return {
 			id: item.extId,
 			label: item.label,
@@ -1654,14 +1656,15 @@ export namespace TestItem {
 				range: item.location.range,
 				uri: URI.revive(item.location.uri)
 			}),
+			expandable: item.expandable,
 			debuggable: item.debuggable,
 			description: item.description,
 			runnable: item.runnable,
 		};
 	}
 
-	export function toShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
-		const testItem = new types.TestItem(item.extId, item.label);
+	export function to(item: ITestItem): types.TestItem {
+		const testItem = new types.TestItem(item.extId, item.label, item.expandable);
 		if (item.location) {
 			testItem.location = location.to({
 				range: item.location.range,
@@ -1714,7 +1717,7 @@ export namespace TestResults {
 	}
 
 	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => ({
-		...TestItem.toPlainShallow(item.item),
+		...TestItem.toPlain(item.item),
 		result: TestState.to(item.state),
 		children: item.children
 			.map(c => byInternalId.get(c))

@@ -2269,6 +2269,29 @@ declare module 'vscode' {
 		 * with children will mark the entire subtree as outdated.
 		 */
 		readonly onDidInvalidateTest?: Event<T>;
+
+		/**
+		 * Gets the chilren of this test item.
+		 *
+		 * VS Code will try to call this method lazily, particularly when working
+		 * in the test tree. Once called, the provider is expected to watch the
+		 * test and fires the {@link TestHierarchy.onDidChangeTest} method if they
+		 * update. After being called once, this method will be called each time
+		 * this test is fired in {@link TestHierarchy.onDidChangeTest}.
+		 *
+		 * @param token Cancellation for the request. Cancellation will be
+		 * requested if the test changes before the previous call completes.
+		 * @returns a provider result of child test items
+		 */
+		getChildren(item: T, token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Gets the parent of the test item. This should only return "undefined"
+		 * if called with the root node.
+		 * @param item TestItem to retrieve the parent for
+		 * @returns the parent TestItem, or undefined if the test is the root
+		 */
+		getParent(item: T): T | undefined;
 	}
 
 	/**
@@ -2407,29 +2430,20 @@ declare module 'vscode' {
 		debuggable: boolean;
 
 		/**
-		 * Gets the chilren of this test item. Implementing this method is optional
-		 * and it should only be implemented if there are likely going to be
-		 * children of the node, since VS Code will show UI to allow the user to
-		 * expand the children if so.
-		 *
-		 * VS Code will try to call this method lazily, particularly when working
-		 * in the test tree. Once called, the provider is expected to watch the
-		 * test and fires the {@link TestHierarchy.onDidChangeTest} method if they
-		 * update. After being called once, this method will be called each time
-		 * this test is fired in {@link TestHierarchy.onDidChangeTest}.
-		 *
-		 * @param token Cancellation for the request. Cancellation will be
-		 * requested if the test changes before the previous call completes.
-		 * @returns a provider result of child test items
+		 * Whether this test item can be expanded in the tree view, implying it
+		 * has (or may have) children. If this is given, the item may be
+		 * passed to the {@link TestHierarchy.getChildren} method.
 		 */
-		getChildren?(token: CancellationToken): ProviderResult<TestItem[]>;
+		expandable: boolean;
 
 		/**
 		 * Creates a new TestItem instance.
 		 * @param id Value of the "id" property
 		 * @param label Value of the "label" property.
+		 * @param parent Parent of this item. This should only be defined for the
+		 * test root.
 		 */
-		constructor(id: string, label: string);
+		constructor(id: string, label: string, expandable: boolean);
 	}
 
 	/**

@@ -5,11 +5,16 @@
 
 import { mapFind } from 'vs/base/common/arrays';
 import { isThenable, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
 import { IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { ProviderResult } from 'vs/editor/common/modes';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
 import { InternalTestItem, TestDiffOpType, TestItemExpandable, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+
+export interface IHierarchyProvider {
+	getChildren(node: TestItem.Raw, token: CancellationToken): ProviderResult<TestItem.Raw[]>;
+}
 
 /**
  * @private
@@ -45,12 +50,13 @@ export class OwnedTestCollection {
 /**
  * @private
  */
-export interface OwnedCollectionTestItem extends InternalTestItem {
-	actual: TestItem.Raw;
+export interface OwnedCollectionTestItem<T extends TestItem.Raw = TestItem.Raw> extends InternalTestItem {
+	actual: T;
 	/**
 	 * Number of levels of items below this one that are expanded. May be infinite.
 	 */
 	expandLevels?: number;
+	hierarchy: IHierarchyProvider;
 	childrenCancellation: MutableDisposable<CancellationTokenSource>;
 	previousChildren: Set<string>;
 	previousEquals: (v: TestItem.Raw) => boolean;
@@ -192,8 +198,8 @@ export class SingleUseTestCollection implements IDisposable {
 	/**
 	 * Adds a new root node to the collection.
 	 */
-	public addRoot(item: TestItem.Raw, providerId: string) {
-		this.addItem(item, providerId, null);
+	public addRoot(item: TestItem.Raw, hierarchy: IHierarchyProvider, providerId: string) {
+		this.addItem(item, providerId, hierarchy, null);
 		this.debounceSendDiff.schedule();
 	}
 
@@ -208,7 +214,7 @@ export class SingleUseTestCollection implements IDisposable {
 	/**
 	 * Should be called when an item change is fired on the test provider.
 	 */
-	public onItemChange(item: TestItem.Raw, providerId: string) {
+	public onItemChange(item: TestItem.Raw, hierarchy: IHierarchyProvider, providerId: string) {
 		const existing = this.testItemToInternal.get(item);
 		if (!existing) {
 			return;
@@ -220,7 +226,7 @@ export class SingleUseTestCollection implements IDisposable {
 			return;
 		}
 
-		this.addItem(item, providerId, parent);
+		this.addItem(item, providerId, hierarchy, parent);
 		this.debounceSendDiff.schedule();
 	}
 
@@ -277,7 +283,7 @@ export class SingleUseTestCollection implements IDisposable {
 		this.diff = [];
 	}
 
-	private addItem(actual: TestItem.Raw, providerId: string, parent: OwnedCollectionTestItem | null) {
+	private addItem(actual: TestItem.Raw, providerId: string, hierarchy: IHierarchyProvider, parent: OwnedCollectionTestItem | null) {
 		let internal = this.testItemToInternal.get(actual);
 		const parentId = parent ? parent.item.extId : null;
 		if (!internal) {
@@ -285,10 +291,11 @@ export class SingleUseTestCollection implements IDisposable {
 				throw new Error(`Attempted to insert a duplicate test item ID ${actual.id}`);
 			}
 
-			const expand = actual.getChildren ? TestItemExpandable.Expandable : TestItemExpandable.NotExpandable;
+			const expand = actual.expandable ? TestItemExpandable.Expandable : TestItemExpandable.NotExpandable;
 			const pExpandLvls = parent?.expandLevels;
 			internal = {
 				actual,
+				hierarchy,
 				parent: parentId,
 				item: TestItem.from(actual),
 				childrenCancellation: new MutableDisposable(),
@@ -310,6 +317,8 @@ export class SingleUseTestCollection implements IDisposable {
 			internal.item = TestItem.from(actual);
 			internal.previousEquals = itemEqualityComparator(actual);
 			this.diff.push([TestDiffOpType.Update, { parent: parentId, providerId, expand: internal.expand, item: internal.item }]);
+
+			// todo@connor4312: need to handle changes in expandable state
 
 			// If there are children, track which ones are deleted
 			// and recursively and/update them.
@@ -341,7 +350,7 @@ export class SingleUseTestCollection implements IDisposable {
 		const cts = internal.childrenCancellation.value = new CancellationTokenSource();
 
 		// todo@connor4312: error handling
-		const children = internal.actual.getChildren?.(cts.token) ?? [];
+		const children = internal.hierarchy.getChildren(internal.actual, cts.token) ?? [];
 		if (isThenable<TestItem.Raw[] | undefined | null>(children)) {
 			return this.updateChildrenAsync(internal, children, cts);
 		}
@@ -379,7 +388,7 @@ export class SingleUseTestCollection implements IDisposable {
 				this.removeItembyId(child.id);
 			}
 
-			const c = this.addItem(child, internal.providerId, internal);
+			const c = this.addItem(child, internal.providerId, internal.hierarchy, internal);
 			deletedChildren.delete(c.item.extId);
 			currentChildren.add(c.item.extId);
 		}
@@ -422,13 +431,14 @@ export class SingleUseTestCollection implements IDisposable {
 	}
 }
 
-const keyMap: { [K in keyof Omit<TestItem.Raw, 'children'>]: null } = {
+const keyMap: { [K in keyof TestItem.Raw]: null } = {
 	id: null,
 	label: null,
 	location: null,
 	debuggable: null,
 	description: null,
-	runnable: null
+	runnable: null,
+	expandable: null
 };
 
 const simpleProps = Object.keys(keyMap) as ReadonlyArray<keyof typeof keyMap>;

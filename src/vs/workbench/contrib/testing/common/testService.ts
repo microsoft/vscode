@@ -94,6 +94,17 @@ export const waitForAllTests = async (collection: IMainThreadTestCollection, ct 
 	}).finally(() => disposable.dispose());
 };
 
+/**
+ * An instance of the RootProvider should be registered for each extension
+ * host.
+ */
+export interface ITestRootProvider {
+	/**
+	 * Requests that children be revealed for the given test.
+	 */
+	expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number): Promise<void>;
+}
+
 export interface ITestService {
 	readonly _serviceBrand: undefined;
 	readonly onShouldSubscribe: Event<{ resource: ExtHostTestingResource, uri: URI; }>;
@@ -118,19 +129,32 @@ export interface ITestService {
 	 */
 	clearExcludedTests(): void;
 
-	registerTestController(id: string, controller: MainTestController): IDisposable;
-	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
-	cancelTestRun(req: RunTestsRequest): void;
-	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
-	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): IReference<IMainThreadTestCollection>;
-
 	/**
 	 * Updates the number of sources who provide test roots when subscription
 	 * is requested. This is equal to the number of extension hosts, and used
 	 * with `TestDiffOpType.DeltaRootsComplete` to signal when all roots
 	 * are available.
 	 */
-	updateRootProviderCount(delta: number): void;
+	registerRootProvider(provider: ITestRootProvider): IDisposable;
+
+	/**
+	 * Registers an interface that runs tests for the given provider ID.
+	 */
+	registerTestController(providerId: string, controller: MainTestController): IDisposable;
+
+	/**
+	 * Requests that tests be executed.
+	 */
+	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
+
+	/**
+	 * Cancels an ongoign test run request.
+	 */
+	cancelTestRun(req: RunTestsRequest): void;
+
+	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
+	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): IReference<IMainThreadTestCollection>;
+
 
 	/**
 	 * Looks up a test, by a request to extension hosts.

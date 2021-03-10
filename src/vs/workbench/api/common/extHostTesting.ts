@@ -178,8 +178,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					return;
 				}
 
-				collection.addRoot(hierarchy.root, id);
-				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
+				collection.addRoot(hierarchy.root, hierarchy, id);
+				hierarchy.onDidChangeTest(e => collection.onItemChange(e, hierarchy, id));
 				hierarchy.onDidInvalidateTest?.(e => {
 					const internal = collection.getTestByReference(e);
 					if (!internal) {
@@ -213,9 +213,9 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * be treated as infinite.
 	 * @override
 	 */
-	public $expandTest(resource: ExtHostTestingResource, uri: UriComponents, testId: string, levels: number) {
+	public async $expandTest(resource: ExtHostTestingResource, uri: UriComponents, testId: string, levels: number) {
 		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
-		sub?.collection.expand(testId, levels < 0 ? Infinity : levels);
+		await sub?.collection.expand(testId, levels < 0 ? Infinity : levels);
 	}
 
 	/**
@@ -333,7 +333,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		document: vscode.TextDocument,
 		folder: vscode.WorkspaceFolder | undefined,
 		token: CancellationToken,
-	): Promise<vscode.TestHierarchy<vscode.TestItem> | undefined> {
+	): Promise<vscode.TestHierarchy<TestItemFilteredWrapper> | undefined> {
 		if (!folder) {
 			return;
 		}
@@ -343,7 +343,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const onDidInvalidateTest = new Emitter<vscode.TestItem>();
+		const onDidInvalidateTest = new Emitter<TestItemFilteredWrapper>();
 		workspaceHierarchy.onDidInvalidateTest?.(node => {
 			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
 			if (wrapper.hasNodeMatchingFilter) {
@@ -351,7 +351,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			}
 		});
 
-		const onDidChangeTest = new Emitter<vscode.TestItem>();
+		const onDidChangeTest = new Emitter<TestItemFilteredWrapper>();
 		workspaceHierarchy.onDidChangeTest(node => {
 			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
 			const previouslySeen = wrapper.hasNodeMatchingFilter;
@@ -395,7 +395,24 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		return {
 			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
 			onDidInvalidateTest: onDidInvalidateTest.event,
-			onDidChangeTest: onDidChangeTest.event
+			onDidChangeTest: onDidChangeTest.event,
+
+			getChildren(item, token) {
+				const children = workspaceHierarchy.getChildren(item, token);
+				if (isThenable<vscode.TestItem[] | null | undefined>(children)) {
+					return children.then(c => {
+						return c?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item)) ?? [];
+					});
+				} else if (children instanceof Array) {
+					return children.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item));
+				} else {
+					return undefined;
+				}
+			},
+
+			getParent(item) {
+				return item.parent;
+			}
 		};
 	}
 }
@@ -420,7 +437,6 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		if (!innerMap) {
 			innerMap = new WeakMap<vscode.TestItem, TestItemFilteredWrapper>();
 			this.wrapperMap.set(filterDocument, innerMap);
-
 		}
 
 		const w = new TestItemFilteredWrapper(item, filterDocument, parent);
@@ -456,6 +472,10 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		return this.actual.runnable;
 	}
 
+	public get expandable() {
+		return this.actual.expandable;
+	}
+
 	public get visibleParent(): TestItemFilteredWrapper {
 		return this.hasNodeMatchingFilter ? this : this.parent!.visibleParent;
 	}
@@ -488,33 +508,19 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		this.matchesFilter = undefined;
 	}
 
-	private constructor(public readonly actual: vscode.TestItem, private filterDocument: vscode.TextDocument, private readonly parent?: TestItemFilteredWrapper) {
-		if (actual.getChildren) {
-			this.getChildren = token => {
-				const children = this.actual.getChildren?.(token);
-				if (isThenable<vscode.TestItem[] | null | undefined>(children)) {
-					return children.then(c => {
-						this.wrappedChildren = c?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this)) ?? [];
-						return this.wrappedChildren;
-					});
-				} else if (children instanceof Array) {
-					this.wrappedChildren = children.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this));
-					return this.wrappedChildren;
-				} else {
-					return undefined;
-				}
-			};
-		}
-	}
+	private constructor(
+		public readonly actual: vscode.TestItem,
+		private filterDocument: vscode.TextDocument,
+		public readonly parent?: TestItemFilteredWrapper,
+	) { }
 }
 
 /**
  * @private
  */
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
-	revived: Omit<vscode.TestItem, 'children'>;
+	revived: vscode.TestItem;
 	depth: number;
-	wrapped?: TestItemFromMirror;
 }
 
 class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
@@ -528,7 +534,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		return this.added.size === 0 && this.removed.size === 0 && this.updated.size === 0;
 	}
 
-	constructor(private readonly collection: MirroredTestCollection, private readonly emitter: Emitter<vscode.TestChangeEvent>) {
+	constructor(private readonly emitter: Emitter<vscode.TestChangeEvent>) {
 		super();
 	}
 
@@ -543,7 +549,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	 * @override
 	 */
 	public update(node: MirroredCollectionTestItem): void {
-		Object.assign(node.revived, Convert.TestItem.toPlainShallow(node.item));
+		Object.assign(node.revived, Convert.TestItem.toPlain(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
 		}
@@ -572,11 +578,11 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	 * @override
 	 */
 	public getChangeEvent(): vscode.TestChangeEvent {
-		const { collection, added, updated, removed } = this;
+		const { added, updated, removed } = this;
 		return {
-			get added() { return [...added].map(collection.getPublicTestItem, collection); },
-			get updated() { return [...updated].map(collection.getPublicTestItem, collection); },
-			get removed() { return [...removed].map(collection.getPublicTestItem, collection); },
+			get added() { return [...added].map(n => n.revived); },
+			get updated() { return [...updated].map(n => n.revived); },
+			get removed() { return [...removed].map(n => n.revived); },
 		};
 	}
 
@@ -614,7 +620,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
 			if (item) {
-				output.push(this.getPublicTestItem(item));
+				output.push(item.revived);
 			}
 		}
 
@@ -642,7 +648,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	protected createItem(item: InternalTestItem, parent?: MirroredCollectionTestItem): MirroredCollectionTestItem {
 		return {
 			...item,
-			revived: Convert.TestItem.toPlainShallow(item.item),
+			revived: Convert.TestItem.toPlain(item.item),
 			depth: parent ? parent.depth + 1 : 0,
 			children: new Set(),
 		};
@@ -652,55 +658,10 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 * @override
 	 */
 	protected createChangeCollector() {
-		return new MirroredChangeCollector(this, this.changeEmitter);
-	}
-
-	/**
-	 * Gets the public test item instance for the given mirrored record.
-	 */
-	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.TestItem {
-		if (!item.wrapped) {
-			item.wrapped = new TestItemFromMirror(item, this);
-		}
-
-		return item.wrapped;
+		return new MirroredChangeCollector(this.changeEmitter);
 	}
 }
 
-class TestItemFromMirror implements vscode.TestItem {
-	readonly #internal: MirroredCollectionTestItem;
-	readonly #collection: MirroredTestCollection;
-
-	public get id() { return this.#internal.revived.id!; }
-	public get label() { return this.#internal.revived.label; }
-	public get description() { return this.#internal.revived.description; }
-	public get location() { return this.#internal.revived.location; }
-	public get runnable() { return this.#internal.revived.runnable ?? true; }
-	public get debuggable() { return this.#internal.revived.debuggable ?? false; }
-	public get children() {
-		return this.#collection.getAllAsTestItem(this.#internal.children);
-	}
-
-	constructor(internal: MirroredCollectionTestItem, collection: MirroredTestCollection) {
-		this.#internal = internal;
-		this.#collection = collection;
-	}
-
-	public toJSON(): object {
-		return {
-			id: this.id,
-			label: this.label,
-			description: this.description,
-			location: this.location,
-			runnable: this.runnable,
-			debuggable: this.debuggable,
-			children: this.children.map(c => (c as TestItemFromMirror).toJSON()),
-
-			providerId: this.#internal.providerId,
-			testId: this.id,
-		};
-	}
-}
 
 interface IObserverData {
 	observers: number;

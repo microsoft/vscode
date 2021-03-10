@@ -19,7 +19,7 @@ import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestCollection, ITestRootProvider, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
 type TestLocationIdent = { resource: ExtHostTestingResource, uri: URI };
 
@@ -45,10 +45,10 @@ export class TestService extends Disposable implements ITestService {
 	private readonly hasRunnable: IContextKey<boolean>;
 	private readonly hasDebuggable: IContextKey<boolean>;
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
-	private rootProviderCount = 0;
+	private readonly rootProviders = new Set<ITestRootProvider>();
 
 	public readonly excludeTests = ObservableValue.stored(new StoredValue<ReadonlySet<string>>({
-		key: 'excludedTestItes',
+		key: 'excludedTestItems',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER,
 		serialization: {
@@ -157,11 +157,23 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public updateRootProviderCount(delta: number) {
-		this.rootProviderCount += delta;
-		for (const { collection } of this.testSubscriptions.values()) {
-			collection.updatePendingRoots(delta);
+	public registerRootProvider(provider: ITestRootProvider) {
+		if (this.rootProviders.has(provider)) {
+			return toDisposable(() => { });
 		}
+
+		this.rootProviders.add(provider);
+		for (const { collection } of this.testSubscriptions.values()) {
+			collection.updatePendingRoots(1);
+		}
+
+		return toDisposable(() => {
+			if (this.rootProviders.delete(provider)) {
+				for (const { collection } of this.testSubscriptions.values()) {
+					collection.updatePendingRoots(-1);
+				}
+			}
+		});
 	}
 
 
@@ -230,7 +242,7 @@ export class TestService extends Disposable implements ITestService {
 		if (!subscription) {
 			subscription = {
 				ident: { resource, uri },
-				collection: new MainThreadTestCollection(this.rootProviderCount),
+				collection: new MainThreadTestCollection(this.rootProviders.size),
 				listeners: 0,
 				onDiff: new Emitter(),
 			};

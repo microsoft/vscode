@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { getTestSubscriptionKey, ISerializedTestResults, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { HydratedTestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
@@ -27,7 +27,7 @@ const reviveDiff = (diff: TestsDiff) => {
 };
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
-export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
+export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly testSubscriptions = new Map<string, IDisposable>();
 	private readonly testProviderRegistrations = new Map<string, IDisposable>();
@@ -56,7 +56,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			}
 		}));
 
-		testService.updateRootProviderCount(1);
+		this._register(testService.registerRootProvider(this));
 
 		for (const { resource, uri } of this.testService.subscriptions) {
 			this.proxy.$subscribeToTests(resource, uri);
@@ -66,14 +66,21 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
+	expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number): Promise<void> {
+		return this.proxy.$expandTest(resource, uri, testId, levels);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
 		this.resultService.push(new HydratedTestResult(results, persist));
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	$retireTest(extId: string): void {
+	public $retireTest(extId: string): void {
 		for (const result of this.resultService.results) {
 			if (result instanceof LiveTestResult) {
 				result.retire(extId);
@@ -84,7 +91,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$updateTestStateInRun(runId: string, testId: string, state: ITestState): void {
+	public $updateTestStateInRun(runId: string, testId: string, state: ITestState): void {
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
 			for (const message of state.messages) {
@@ -121,7 +128,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$subscribeToDiffs(resource: ExtHostTestingResource, uriComponents: UriComponents): void {
+	public $subscribeToDiffs(resource: ExtHostTestingResource, uriComponents: UriComponents): void {
 		const uri = URI.revive(uriComponents);
 		const disposable = this.testService.subscribeToDiffs(resource, uri,
 			diff => this.proxy.$acceptDiff(resource, uriComponents, diff));
@@ -152,7 +159,6 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 	public dispose() {
 		super.dispose();
-		this.testService.updateRootProviderCount(-1);
 		for (const subscription of this.testSubscriptions.values()) {
 			subscription.dispose();
 		}

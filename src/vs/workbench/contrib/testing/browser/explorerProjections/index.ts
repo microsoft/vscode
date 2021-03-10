@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -43,9 +43,14 @@ export interface ITestTreeProjection extends IDisposable {
 	hasTestInDocument(uri: URI): boolean;
 
 	/**
+	 * Gets the children of the node, if any.
+	 */
+	getChildren(node: ITestTreeElement): Iterable<ITestTreeElement> | Promise<Iterable<ITestTreeElement>>;
+
+	/**
 	 * Applies pending update to the tree.
 	 */
-	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;
+	applyTo(tree: AsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>): void;
 }
 
 
@@ -86,6 +91,8 @@ export interface ITestTreeElement {
 	 * Tests that can be run using this tree item.
 	 */
 	readonly debuggable: Iterable<TestIdWithProvider>;
+
+	readonly expandable: boolean;
 
 	/**
 	 * Element state to display.

@@ -69,6 +69,7 @@ export interface ITestItem {
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;
+	expandable: boolean;
 }
 
 export const enum TestItemExpandable {
@@ -101,7 +102,8 @@ export interface TestResultItem extends IncrementalTestCollectionItem {
 	direct?: boolean;
 }
 
-export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined };
+export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
+	& { children: string[], retired: undefined };
 
 /**
  * Test results serialized for transport and storage.
@@ -293,7 +295,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * the total pending test roots reaches 0, the roots for all providers
 	 * will exist in the collection.
 	 */
-	protected updatePendingRoots(delta: number) {
+	public updatePendingRoots(delta: number) {
 		// no-op
 	}
 

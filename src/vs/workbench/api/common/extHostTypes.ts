@@ -3295,9 +3295,8 @@ export class TestItem implements vscode.TestItem {
 	public description?: string;
 	public runnable = true;
 	public debuggable = false;
-	public children: vscode.TestItem[] = [];
 
-	constructor(id: string, public label: string) {
+	constructor(id: string, public label: string, public expandable: boolean) {
 		Object.defineProperty(this, 'id', {
 			value: id,
 			enumerable: true,
