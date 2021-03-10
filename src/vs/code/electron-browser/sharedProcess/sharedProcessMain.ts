@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/browser/requestService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -86,6 +86,7 @@ import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
 import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
+import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 
 class SharedProcessMain extends Disposable {
 
@@ -236,6 +237,10 @@ class SharedProcessMain extends Disposable {
 		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(telemetryAppender));
 		services.set(ITelemetryService, telemetryService);
 
+		// Custom Endpoint Telemetry
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService);
+		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
+
 		// Extension Management
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
@@ -297,6 +302,10 @@ class SharedProcessMain extends Disposable {
 		// Settings Sync
 		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
+
+		// Custom Endpoint Telemetry
+		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService));
+		this.server.registerChannel('customEndpointTelemetry', customEndpointTelemetryChannel);
 
 		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
 		this.server.registerChannel('userDataSyncAccount', userDataSyncAccountChannel);

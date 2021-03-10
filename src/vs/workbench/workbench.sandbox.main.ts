@@ -65,6 +65,7 @@ import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
 import 'vs/workbench/services/backup/electron-sandbox/backupFileService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/platform/checksum/electron-sandbox/checksumService';
+import 'vs/platform/telemetry/electron-sandbox/customEndpointTelemetryService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
