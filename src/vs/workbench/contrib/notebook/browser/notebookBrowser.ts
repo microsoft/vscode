@@ -243,6 +243,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;
+	getHeight(lineHeight: number): number;
 	metadata: NotebookCellMetadata | undefined;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;

@@ -144,23 +144,35 @@ function webviewPreloads() {
 				}
 
 				if (entry.target.id === id && entry.contentRect) {
-					if (entry.contentRect.height !== 0) {
-						const padding = output ? __outputNodePadding__ : __previewNodePadding__;
+					if (output) {
+						if (entry.contentRect.height !== 0) {
+							const padding = __outputNodePadding__;
 
-						entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-						postNotebookMessage<IDimensionMessage>('dimension', {
-							id: id,
-							data: {
-								height: entry.contentRect.height + padding * 2
-							},
-							isOutput: output
-						});
+							entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+							postNotebookMessage<IDimensionMessage>('dimension', {
+								id: id,
+								data: {
+									height: entry.contentRect.height + padding * 2
+								},
+								isOutput: output
+							});
+						} else {
+							entry.target.style.padding = `0px`;
+							postNotebookMessage<IDimensionMessage>('dimension', {
+								id: id,
+								data: {
+									height: entry.contentRect.height
+								},
+								isOutput: output
+							});
+						}
 					} else {
-						entry.target.style.padding = `0px`;
+						// console.log('dimension update resize', id, entry.contentRect.height);
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
-								height: entry.contentRect.height
+								// entry.contentRect does not include padding
+								height: entry.contentRect.height + __previewNodePadding__ * 2
 							},
 							isOutput: output
 						});
@@ -568,6 +580,13 @@ function webviewPreloads() {
 							widget.style.top = `${cell.top}px`;
 						}
 
+						const markdownPreview = document.getElementById(`${cell.id}`);
+
+						if (markdownPreview) {
+							// const date = new Date();
+							// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, 'markdown preview');
+							markdownPreview.style.display = 'block';
+						}
 					});
 
 					break;
@@ -759,7 +778,7 @@ function webviewPreloads() {
 				id: `${cellId}_preview`,
 				init: true,
 				data: {
-					height: previewContainerNode.clientHeight + __previewNodePadding__ * 2,
+					height: previewContainerNode.clientHeight,
 				},
 				isOutput: false
 			});
@@ -791,7 +810,7 @@ function webviewPreloads() {
 			postNotebookMessage<IDimensionMessage>('dimension', {
 				id: `${cellId}_preview`,
 				data: {
-					height: previewContainerNode.clientHeight + __previewNodePadding__ * 2,
+					height: previewContainerNode.clientHeight,
 				},
 				isOutput: false
 			});

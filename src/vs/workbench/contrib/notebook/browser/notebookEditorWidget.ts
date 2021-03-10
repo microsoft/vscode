@@ -782,30 +782,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (useRenderer) {
 			await this._resolveWebview();
-			const totalHeightCache = viewState?.cellTotalHeights;
-
-			let mdCnt = 0;
-			let offset = 0;
-			let requests: [ICellViewModel, number][] = [];
-
-			for (let i = 0; i < this.viewModel.viewCells.length; i++) {
-				const cell = this.viewModel.viewCells[i];
-				if (cell.cellKind === CellKind.Markdown) {
-					mdCnt++;
-					requests.push([cell, offset]);
-				}
-
-				if (mdCnt > 5) {
-					break;
-				}
-
-				offset += (totalHeightCache ? totalHeightCache[i] : 0);
-			}
-
-			await this._webview!.initializeMarkdown(requests
-				.map(request => ({ cellId: request[0].id, content: request[0].getText(), offset: request[1] })));
+			await this._warmupViewport(this.viewModel, viewState);
 		}
-
 
 		// restore view states, including contributions
 
@@ -935,6 +913,80 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		// restore list state at last, it must be after list layout
 		this.restoreListViewState(viewState);
+	}
+
+	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
+		if (viewState && viewState.cellTotalHeights) {
+			const totalHeightCache = viewState.cellTotalHeights;
+			const scrollTop = viewState.scrollPosition?.top ?? 0;
+
+			let mdCnt = 0;
+			let offset = 0;
+			let requests: [ICellViewModel, number][] = [];
+
+			for (let i = 0; i < viewModel.viewCells.length; i++) {
+				const cell = viewModel.viewCells[i];
+
+				if (offset + (totalHeightCache[i] ?? 0) < scrollTop) {
+					offset += (totalHeightCache ? totalHeightCache[i] : 0);
+					continue;
+				} else {
+					if (cell.cellKind === CellKind.Markdown) {
+						mdCnt++;
+						requests.push([cell, offset]);
+					}
+				}
+
+				if (mdCnt > 5) {
+					break;
+				}
+
+				offset += (totalHeightCache ? totalHeightCache[i] : 0);
+			}
+
+			await this._webview!.initializeMarkdown(requests
+				.map(request => ({ cellId: request[0].id, content: request[0].getText(), offset: request[1] })));
+		} else {
+			let mdCnt = 0;
+			let requests: [ICellViewModel, number][] = [];
+
+			for (let i = 0; i < viewModel.viewCells.length; i++) {
+				const cell = viewModel.viewCells[i];
+				if (cell.cellKind === CellKind.Markdown) {
+					mdCnt++;
+					requests.push([cell, -10000]);
+				}
+
+				if (mdCnt > 5) {
+					break;
+				}
+			}
+
+			await this._webview!.initializeMarkdown(requests
+				.map(request => ({ cellId: request[0].id, content: request[0].getText(), offset: request[1] })));
+
+			// no cached view state so we are rendering the first viewport
+			// after above async call, we already get init height for markdown cells, we can update their offset
+
+			mdCnt = 0;
+			let offset = 0;
+			let offsetUpdateRequests: { id: string, top: number }[] = [];
+			for (let i = 0; i < viewModel.viewCells.length; i++) {
+				const cell = viewModel.viewCells[i];
+				if (cell.cellKind === CellKind.Markdown) {
+					mdCnt++;
+					offsetUpdateRequests.push({ id: cell.id, top: offset });
+				}
+
+				if (mdCnt > 5) {
+					break;
+				}
+
+				offset += cell.getHeight(this.getLayoutInfo().fontInfo.lineHeight);
+			}
+
+			this._webview?.updateMarkdownScrollTop(offsetUpdateRequests);
+		}
 	}
 
 	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
@@ -1346,10 +1398,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		let r: () => void;
 		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
-			this._debug('layoutNotebookCell cell:', cell.handle, ' height', height);
 			if (this._isDisposed) {
 				return;
 			}
+
+			if (this._list.elementHeight(cell) === height) {
+				return;
+			}
+
+			this._debug('layoutNotebookCell cell:', cell.handle, ' height', height);
 
 			this._pendingLayouts.delete(cell);
 
@@ -1821,8 +1878,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
 		const cell = this.getCellById(cellId);
 		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._debug('updateMarkdownCellHeight', cell.handle, height);
-			cell.renderedMarkdownHeight = height;
+			if (height + BOTTOM_CELL_TOOLBAR_GAP !== cell.layoutInfo.totalHeight) {
+				this._debug('updateMarkdownCellHeight', cell.handle, height + BOTTOM_CELL_TOOLBAR_GAP, isInit);
+				cell.renderedMarkdownHeight = height;
+			}
 		}
 	}
 
