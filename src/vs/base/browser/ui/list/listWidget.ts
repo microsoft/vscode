@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
-import { range, binarySearch } from 'vs/base/common/arrays';
+import { range, binarySearch, firstOrDefault } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { Gesture } from 'vs/base/browser/touch';
@@ -618,27 +618,25 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		let reference = this.list.getFocus()[0];
-		const selection = this.list.getSelection();
-		reference = reference === undefined ? selection[0] : reference;
-
 		const focus = e.index;
 
 		if (typeof focus === 'undefined') {
 			this.list.setFocus([], e.browserEvent);
 			this.list.setSelection([], e.browserEvent);
+			this.list.setAnchor(undefined);
 			return;
 		}
 
 		if (this.multipleSelectionSupport && this.isSelectionRangeChangeEvent(e)) {
-			return this.changeSelection(e, reference);
+			return this.changeSelection(e);
 		}
 
 		if (this.multipleSelectionSupport && this.isSelectionChangeEvent(e)) {
-			return this.changeSelection(e, reference);
+			return this.changeSelection(e);
 		}
 
 		this.list.setFocus([focus], e.browserEvent);
+		this.list.setAnchor(focus);
 
 		if (!isMouseRightClick(e.browserEvent)) {
 			this.list.setSelection([focus], e.browserEvent);
@@ -660,15 +658,16 @@ export class MouseController<T> implements IDisposable {
 		this.list.setSelection(focus, e.browserEvent);
 	}
 
-	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>, reference: number | undefined): void {
+	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
 		const focus = e.index!;
+		const anchor = this.list.getAnchor();
 
-		if (this.isSelectionRangeChangeEvent(e) && reference !== undefined) {
-			const min = Math.min(reference, focus);
-			const max = Math.max(reference, focus);
+		if (this.isSelectionRangeChangeEvent(e) && typeof anchor === 'number') {
+			const min = Math.min(anchor, focus);
+			const max = Math.max(anchor, focus);
 			const rangeSelection = range(min, max + 1);
 			const selection = this.list.getSelection();
-			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [reference]), reference);
+			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [anchor]), anchor);
 
 			if (contiguousRange.length === 0) {
 				return;
@@ -676,12 +675,14 @@ export class MouseController<T> implements IDisposable {
 
 			const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
 			this.list.setSelection(newSelection, e.browserEvent);
+			this.list.setFocus([focus], e.browserEvent);
 
 		} else if (this.isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
 
 			this.list.setFocus([focus]);
+			this.list.setAnchor(focus);
 
 			if (selection.length === newSelection.length) {
 				this.list.setSelection([...newSelection, focus], e.browserEvent);
@@ -1131,8 +1132,9 @@ export interface IListOptionsUpdate extends IListViewOptionsUpdate {
 
 export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
-	private focus: Trait<T>;
+	private focus = new Trait<T>('focused');
 	private selection: Trait<T>;
+	private anchor = new Trait<T>('anchor');
 	private eventBufferer = new EventBufferer();
 	protected view: ListView<T>;
 	private spliceable: ISpliceable<T>;
@@ -1224,7 +1226,6 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	) {
 		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
 		this.selection = new SelectionTrait(role !== 'listbox');
-		this.focus = new Trait('focused');
 
 		mixin(_options, defaultStyles, false);
 
@@ -1260,11 +1261,13 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		this.spliceable = new CombinedSpliceable([
 			new TraitSpliceable(this.focus, this.view, _options.identityProvider),
 			new TraitSpliceable(this.selection, this.view, _options.identityProvider),
+			new TraitSpliceable(this.anchor, this.view, _options.identityProvider),
 			this.view
 		]);
 
 		this.disposables.add(this.focus);
 		this.disposables.add(this.selection);
+		this.disposables.add(this.anchor);
 		this.disposables.add(this.view);
 		this.disposables.add(this._onDidDispose);
 
@@ -1435,6 +1438,23 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 	getSelectedElements(): T[] {
 		return this.getSelection().map(i => this.view.element(i));
+	}
+
+	setAnchor(index: number | undefined): void {
+		if (typeof index === 'undefined') {
+			this.anchor.set([]);
+			return;
+		}
+
+		if (index < 0 || index >= this.length) {
+			throw new ListError(this.user, `Invalid index ${index}`);
+		}
+
+		this.anchor.set([index]);
+	}
+
+	getAnchor(): number | undefined {
+		return firstOrDefault(this.anchor.get(), undefined);
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent): void {

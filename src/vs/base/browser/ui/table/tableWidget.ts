@@ -273,6 +273,14 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		this.list.domFocus();
 	}
 
+	setAnchor(index: number | undefined): void {
+		this.list.setAnchor(index);
+	}
+
+	getAnchor(): number | undefined {
+		return this.list.getAnchor();
+	}
+
 	getSelectedElements(): TRow[] {
 		return this.list.getSelectedElements();
 	}

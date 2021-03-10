@@ -628,6 +628,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.refilter();
 	}
 
+	setAnchor(element: T | undefined): void {
+		this.tree.setAnchor(typeof element === 'undefined' ? undefined : this.getDataNode(element));
+	}
+
+	getAnchor(): T | undefined {
+		const node = this.tree.getAnchor();
+		return node?.element as T;
+	}
+
 	setSelection(elements: T[], browserEvent?: UIEvent): void {
 		const nodes = elements.map(e => this.getDataNode(e));
 		this.tree.setSelection(nodes, browserEvent);

@@ -226,6 +226,14 @@ export class PagedList<T> implements IThemable, IDisposable {
 		this.list.scrollLeft = scrollLeft;
 	}
 
+	setAnchor(index: number | undefined): void {
+		this.list.setAnchor(index);
+	}
+
+	getAnchor(): number | undefined {
+		return this.list.getAnchor();
+	}
+
 	setFocus(indexes: number[]): void {
 		this.list.setFocus(indexes);
 	}

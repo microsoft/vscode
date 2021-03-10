@@ -586,6 +586,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
 		widget.setSelection([], fakeKeyboardEvent);
 		widget.setFocus([], fakeKeyboardEvent);
+		widget.setAnchor(undefined);
 	}
 });
 
