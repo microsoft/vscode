@@ -606,6 +606,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		this.logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uri.path, data);
 		const document = this._getNotebookDocument(URI.revive(uri));
 		document.acceptDocumentPropertiesChanged(data);
+		if (data.metadata) {
+			this._onDidChangeNotebookDocumentMetadata.fire({ document: document.notebookDocument });
+		}
 	}
 
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
@@ -684,9 +687,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
 							that._onDidChangeCellMetadata.fire(event);
 						},
-						emitDocumentMetadataChange(event: vscode.NotebookDocumentMetadataChangeEvent): void {
-							that._onDidChangeNotebookDocumentMetadata.fire(event);
-						}
 					},
 					viewType,
 					modelData.metadata ? typeConverters.NotebookDocumentMetadata.to(modelData.metadata) : new extHostTypes.NotebookDocumentMetadata(),
