@@ -861,6 +861,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
+				console.log(`(tasks) Terminal Process ID ${terminal!.processId}`);
+
 				if (!processStartedSignaled) {
 					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 					processStartedSignaled = true;

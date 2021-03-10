@@ -249,6 +249,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 
 		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
+			console.log(`(terminal) Terminal Process ID ${e.pid}`);
 			this.shellProcessId = e.pid;
 			this._initialCwd = e.cwd;
 			this._onProcessReady.fire();
