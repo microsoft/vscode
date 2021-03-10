@@ -190,15 +190,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
 			if (!this._wantsAltCommand && this._action.alt) {
-				const PREFIX = '[';
-				const SUFFIX = ']';
 				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
 				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
 				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
-				title += `\n${PREFIX}${UILabelProvider.modifierLabels[OS].altKey}${SUFFIX} `;
-				title += altKeybindingLabel
+				const altTitleSection = altKeybindingLabel
 					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
 					: altTooltip;
+				title += `\n[${UILabelProvider.modifierLabels[OS].altKey}] ${altTitleSection}`;
 			}
 			this.label.title = title;
 		}
