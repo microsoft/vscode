@@ -1056,18 +1056,18 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		let authority = openConfig.remoteAuthority;
+		let remoteAuthority = openConfig.remoteAuthority;
 		for (const extensionDevelopmentPath of extensionDevelopmentPaths) {
 			if (extensionDevelopmentPath.match(/^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/)) {
 				const url = URI.parse(extensionDevelopmentPath);
-				const remoteAuhtority = getRemoteAuthority(url);
-				if (remoteAuhtority) {
-					if (authority) {
-						if (url.authority !== authority) {
+				const devPathRemoteAuthority = getRemoteAuthority(url);
+				if (devPathRemoteAuthority) {
+					if (remoteAuthority) {
+						if (devPathRemoteAuthority !== remoteAuthority) {
 							this.logService.error('more than one extension development path authority');
 						}
 					} else {
-						authority = url.authority;
+						remoteAuthority = devPathRemoteAuthority;
 					}
 				}
 			}
@@ -1083,7 +1083,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return getRemoteAuthority(uri) === authority;
+			return getRemoteAuthority(uri) === remoteAuthority;
 		});
 
 		folderUris = folderUris.filter(folderUriStr => {
@@ -1092,7 +1092,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return folderUri ? getRemoteAuthority(folderUri) === authority : false;
+			return folderUri ? getRemoteAuthority(folderUri) === remoteAuthority : false;
 		});
 
 		fileUris = fileUris.filter(fileUriStr => {
@@ -1101,7 +1101,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return fileUri ? getRemoteAuthority(fileUri) === authority : false;
+			return fileUri ? getRemoteAuthority(fileUri) === remoteAuthority : false;
 		});
 
 		openConfig.cli._ = cliArgs;
@@ -1119,7 +1119,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			userEnv: openConfig.userEnv,
 			noRecentEntry: true,
 			waitMarkerFileURI: openConfig.waitMarkerFileURI,
-			remoteAuthority: authority
+			remoteAuthority
 		};
 
 		return this.open(openArgs);

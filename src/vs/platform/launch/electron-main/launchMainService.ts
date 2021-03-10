@@ -128,7 +128,6 @@ export class LaunchMainService implements ILaunchMainService {
 
 		// Start without file/folder arguments
 		else if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
-
 			let openNewWindow = false;
 
 			// Force new window
