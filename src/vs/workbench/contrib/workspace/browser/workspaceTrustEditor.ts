@@ -6,10 +6,14 @@
 import { $, append, clearNode, Dimension, EventHelper } from 'vs/base/browser/dom';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
+import { FileAccess } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -24,19 +28,33 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
+const trustIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
+
 export class WorkspaceTrustEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.workspaceTrust';
 	private rootElement!: HTMLElement;
+
+	// Header Section
 	private headerContainer!: HTMLElement;
-	private headerTitle!: HTMLElement;
+	private headerTitleContainer!: HTMLElement;
+	private headerTitleIcon!: HTMLElement;
+	private headerTitleText!: HTMLElement;
 	private headerDescription!: HTMLElement;
 	private headerButtons!: HTMLElement;
-	private extensionsListEntriesContainer!: HTMLElement;
+
+	// Affected Features Section
+	private affectedFeaturesContainer!: HTMLElement;
+	private extensionsContainer!: HTMLElement;
+	private onDemandExtensionsContainer!: HTMLElement;
+	private onStartExtensionsContainer!: HTMLElement;
+	private extensionsRequiringTrust: IExtensionDescription[] = [];
+
+	// Settings Section
 	private configurationContainer!: HTMLElement;
 	private trustSettingsTree!: WorkspaceTrustTree;
 	private workspaceTrustSettingsTreeModel!: WorkspaceTrustTreeModel;
+
 	private workspaceTrustEditorModel!: WorkspaceTrustEditorModel;
-	private extensionsRequiringTrust: IExtensionDescription[] = [];
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -51,7 +69,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rootElement = append(parent, $('.workspace-trust-editor.settings-editor', { tabindex: '-1' }));
 
 		this.createHeaderElement(this.rootElement);
-		this.createFeatureListElement(this.rootElement);
+		this.createAffectedFeaturesElement(this.rootElement);
 		this.createConfigurationElement(this.rootElement);
 	}
 
@@ -90,28 +108,27 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private getHeaderTitleText(trustState: WorkspaceTrustState): string {
 		switch (trustState) {
 			case WorkspaceTrustState.Trusted:
-				return localize('trustedHeader', "This Workspace Is Trusted");
+				return localize('trustedHeader', "This workspace is trusted");
 			case WorkspaceTrustState.Untrusted:
-				return localize('untrustedHeader', "This Workspace Is Not Trusted");
+				return localize('untrustedHeader', "This workspace is not trusted");
 			case WorkspaceTrustState.Unknown:
-				return localize('unknownHeader', "This Workspace Has Not Been Trusted");
+				return localize('unknownHeader', "Do you want to trust this workspace?");
 		}
 	}
 
 	private getHeaderDescriptionText(trustState: WorkspaceTrustState): string {
 		switch (trustState) {
 			case WorkspaceTrustState.Trusted:
-				return localize('trustedHeaderDescription', "All features requiring trust in this workspace are enabled. Below is the current list of features that will be disabled until you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inheret the current workspace trust status.");
 			case WorkspaceTrustState.Untrusted:
-				return localize('untrustedHeaderDescription', "This workspace has limited functionality as some features will not work until trust is given to the current workspace. Below is the current list of features that will be disabled until you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inherit the current workspace trust status.");
 			case WorkspaceTrustState.Unknown:
-				return localize('unknownHeaderDescription', "This workspace has limited functionality as some features will not work until trust is given to the current workspace. Below is the current list of features that will be disabled until you grant trust to the workspace. Note that after trust is given, new features requiring trust will automatically inherit the current workspace trust status.");
+				return localize('unknownHeaderDescription', "Trust is required for certain extensions to function in this workspace.");
 		}
 	}
 
 	private render(model: WorkspaceTrustEditorModel): void {
 		// Header Section
-		this.headerTitle.innerText = this.getHeaderTitleText(model.currentWorkspaceTrustState);
+		this.headerTitleText.innerText = this.getHeaderTitleText(model.currentWorkspaceTrustState);
+		this.headerTitleIcon.classList.add(...trustIcon.classNamesArray);
 		this.headerDescription.innerText = this.getHeaderDescriptionText(model.currentWorkspaceTrustState);
 		this.headerContainer.className = this.getHeaderContainerClass(model.currentWorkspaceTrustState);
 
@@ -148,20 +165,57 @@ export class WorkspaceTrustEditor extends EditorPane {
 		createButton(localize('learnMore', "Learn More"), () => { });
 
 		// Features List
-		clearNode(this.extensionsListEntriesContainer);
-		this.extensionsRequiringTrust.forEach(ext => {
-			const extensionListItem = append(this.extensionsListEntriesContainer, $('.workspace-trust-extension'));
-			extensionListItem.innerText = ext.displayName || ext.name;
-		});
+		this.renderExtensionList(
+			localize('onStartExtensions', "Disabled Extensions"),
+			this.onStartExtensionsContainer,
+			this.extensionsRequiringTrust.filter(ext => ext.requiresWorkspaceTrust === 'onStart'));
+		this.renderExtensionList(
+			localize('onDemandExtensions', "Limited Extensions"),
+			this.onDemandExtensionsContainer,
+			this.extensionsRequiringTrust.filter(ext => ext.requiresWorkspaceTrust === 'onDemand'));
 
 		// Configuration Tree
 		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 	}
 
+	private renderExtensionList(title: string, parent: HTMLElement, extensions: IExtensionDescription[]) {
+		clearNode(parent);
+
+		if (!extensions.length) {
+			return;
+		}
+
+		const titleElement = append(parent, $('.workspace-trust-extension-list-title'));
+		titleElement.innerText = title;
+
+		const listContainer = append(parent, $('.workspace-trust-extension-list'));
+		extensions.forEach(ext => {
+			const extensionEntry = append(listContainer, $('.workspace-trust-extension-list-entry'));
+			this.renderExtension(extensionEntry, ext);
+		});
+	}
+
+	private renderExtension(parent: HTMLElement, extension: IExtensionDescription) {
+		const iconContainer = append(parent, $('.workspace-trust-extension-icon'));
+		const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
+		const textContainer = append(parent, $('.workspace-trust-extension-text'));
+		const nameContainer = append(textContainer, $('.workspace-trust-extension-name'));
+
+		const extensionDescription = append(textContainer, $('.workspace-trust-extension-description'));
+
+		nameContainer.innerText = extension.displayName || extension.name;
+		icon.src = extension.icon
+			? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
+			: DefaultIconPath;
+		extensionDescription.innerText = extension.description || '';
+	}
+
 	private createHeaderElement(parent: HTMLElement): void {
 		this.headerContainer = append(parent, $('.workspace-trust-header'));
-		this.headerTitle = append(this.headerContainer, $('.workspace-trust-title'));
+		this.headerTitleContainer = append(this.headerContainer, $('.workspace-trust-title'));
+		this.headerTitleIcon = append(this.headerTitleContainer, $('.workspace-trust-title-icon'));
+		this.headerTitleText = append(this.headerTitleContainer, $('.workspace-trust-title-text'));
 		this.headerDescription = append(this.headerContainer, $('.workspace-trust-description'));
 
 		const buttonsRow = append(this.headerContainer, $('.workspace-trust-buttons-row'));
@@ -183,12 +237,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e)));
 	}
 
-	private createFeatureListElement(parent: HTMLElement): void {
-		const featuresListContainer = append(parent, $('.workspace-trust-features-list'));
-		const extensionsListContainer = append(featuresListContainer, $('.workspace-trust-extensions-list'));
-		const extensionsListHeader = append(extensionsListContainer, $('.workspace-trust-extensions-list-header'));
-		extensionsListHeader.innerText = localize('extListHeader', "Extensions Requiring Workspace Trust");
-		this.extensionsListEntriesContainer = append(extensionsListContainer, $('.workspace-trust-extensions-list-entries'));
+	private createAffectedFeaturesElement(parent: HTMLElement): void {
+		this.affectedFeaturesContainer = append(parent, $('.workspace-trust-features'));
+		this.extensionsContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-extensions'));
+		this.onDemandExtensionsContainer = append(this.extensionsContainer, $('.workspace-trust-extensions-on-demand'));
+		this.onStartExtensionsContainer = append(this.extensionsContainer, $('.workspace-trust-extensions-on-start'));
 	}
 
 	private onDidChangeSetting(change: IWorkspaceTrustSettingChangeEvent) {
