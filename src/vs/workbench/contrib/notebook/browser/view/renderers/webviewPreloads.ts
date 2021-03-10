@@ -423,10 +423,15 @@ function webviewPreloads() {
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
+				// const date = new Date();
+				// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: createMarkdownPreview', event.data.id, event.data.top);
 				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
 				break;
 			case 'showMarkdownPreview':
 				{
+					// const date = new Date();
+					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: showMarkdownPreview', event.data.id, event.data.top);
+
 					const data = event.data;
 					let cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
@@ -572,7 +577,7 @@ function webviewPreloads() {
 			case 'view-scroll-markdown':
 				{
 					// const date = new Date();
-					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: view-scroll-markdown', event.data.cells);
 					event.data.cells.map(cell => {
 						const widget = document.getElementById(`${cell.id}_preview`)!;
 
@@ -583,8 +588,6 @@ function webviewPreloads() {
 						const markdownPreview = document.getElementById(`${cell.id}`);
 
 						if (markdownPreview) {
-							// const date = new Date();
-							// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, 'markdown preview');
 							markdownPreview.style.display = 'block';
 						}
 					});
@@ -774,6 +777,7 @@ function webviewPreloads() {
 
 			resizeObserve(previewContainerNode, `${cellId}_preview`, false);
 
+			// console.log('init markdown ', `${cellId}_preview`, previewContainerNode.clientHeight);
 			postNotebookMessage<IDimensionMessage>('dimension', {
 				id: `${cellId}_preview`,
 				init: true,
@@ -807,6 +811,7 @@ function webviewPreloads() {
 				content: content
 			}]);
 
+			console.log('update markdown preview', `${cellId}_preview`, previewContainerNode.clientHeight);
 			postNotebookMessage<IDimensionMessage>('dimension', {
 				id: `${cellId}_preview`,
 				data: {

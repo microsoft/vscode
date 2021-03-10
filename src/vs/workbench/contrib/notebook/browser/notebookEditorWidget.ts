@@ -302,7 +302,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		console.log(`frame #${this._frameId}: `, ...args);
+		const date = new Date();
+		console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, `frame #${this._frameId}: `, ...args);
 	}
 
 	/**
@@ -680,7 +681,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernel) {
 		if (kernel.preloads && kernel.preloads.length) {
-			await this._resolveWebview();
+			if (!this._webview?.isResolved()) {
+				await this._resolveWebview();
+			}
+
 			this._webview?.updateKernelPreloads([extensionLocation], kernel.preloads.map(preload => URI.revive(preload)));
 		}
 	}
@@ -782,6 +786,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (useRenderer) {
 			await this._resolveWebview();
+			this._debug('resolve webview finished');
 			await this._warmupViewport(this.viewModel, viewState);
 		}
 
@@ -901,6 +906,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}));
 
+		this._debug('attach view model which will start rendering cells');
+
 		this._list.attachViewModel(this.viewModel);
 
 		if (this._dimension) {
@@ -916,7 +923,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
-		if (viewState && viewState.cellTotalHeights) {
+		if (viewState && viewState.cellTotalHeights && 0) {
 			const totalHeightCache = viewState.cellTotalHeights;
 			const scrollTop = viewState.scrollPosition?.top ?? 0;
 
@@ -1742,13 +1749,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		await this._resolveWebview();
+		if (!this._webview.isResolved()) {
+			await this._resolveWebview();
+		}
 
 		if (!this._webview) {
 			return;
 		}
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
+		this._debug('WebviewMarkdownRenderer after resolve webview', cell.handle, cellTop);
+
 		if (this._webview.markdownPreviewMapping.has(cell.id)) {
 			await this._webview.showMarkdownPreview(cell.id, cell.getText(), cellTop);
 		} else {
@@ -1761,7 +1772,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		await this._resolveWebview();
+		if (!this._webview.isResolved()) {
+			await this._resolveWebview();
+		}
 
 		await this._webview?.unhideMarkdownPreview(cell.id);
 	}
@@ -1771,7 +1784,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		await this._resolveWebview();
+		if (!this._webview.isResolved()) {
+			await this._resolveWebview();
+		}
 
 		await this._webview?.hideMarkdownPreview(cell.id);
 	}
@@ -1781,7 +1796,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		await this._resolveWebview();
+		if (!this._webview.isResolved()) {
+			await this._resolveWebview();
+		}
 
 		await this._webview?.removeMarkdownPreview(cell.id);
 	}
@@ -1791,7 +1808,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		await this._resolveWebview();
+		if (!this._webview.isResolved()) {
+			await this._resolveWebview();
+		}
 
 		await this._webview?.updateMarkdownPreviewSelectionState(cell.id, isSelected);
 	}
@@ -1802,7 +1821,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			await this._resolveWebview();
+			if (!this._webview.isResolved()) {
+				await this._resolveWebview();
+			}
 
 			if (!this._webview!.insetMapping.has(output.source)) {
 				const cellTop = this._list.getAbsoluteTopOfElement(cell);
