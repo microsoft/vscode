@@ -902,7 +902,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 		this._localStore.add(this._list.onDidRemoveCellFromView(cell => {
 			if (cell.cellKind === CellKind.Markdown) {
-				this.removeMarkdownPreview(cell as MarkdownCellViewModel);
+				const mdCell = cell as MarkdownCellViewModel;
+				if (this.viewModel?.viewCells.find(cell => cell.handle === mdCell.handle)) {
+					// Cell has been folded but is still in model
+					this.hideMarkdownPreview(mdCell);
+				} else {
+					// Cell was deleted
+					this.removeMarkdownPreview(mdCell);
+				}
 			}
 		}));
 
