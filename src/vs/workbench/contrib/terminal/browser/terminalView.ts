@@ -437,7 +437,7 @@ async function getProfileSelectOptionItems(terminalService: ITerminalService): P
 			// fall back since this is the only powershell installed
 			profilesToDisplay.push('windows powershell');
 		}
-		const filtered = detectedProfiles?.filter(term => profilesToDisplay.find(t => t === term.profileName.toLowerCase()));
+		const filtered = detectedProfiles?.filter(term => profilesToDisplay.find(t => t === term.profileName));
 		labels = filtered.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
 	}
 	return labels;

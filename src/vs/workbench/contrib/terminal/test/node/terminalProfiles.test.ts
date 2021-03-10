@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
 suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableShells', () => {

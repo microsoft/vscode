@@ -17,7 +17,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 import type * as vscode from 'vscode';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
