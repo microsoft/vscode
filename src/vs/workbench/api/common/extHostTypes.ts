@@ -3190,8 +3190,11 @@ export enum NotebookCellKind {
 export enum NotebookCellRunState {
 	Running = 1,
 	Idle = 2,
-	Success = 3,
-	Error = 4
+	Pending = 3,
+
+	// TODO@rob
+	Success = 4,
+	Error = 5
 }
 
 export enum NotebookRunState {

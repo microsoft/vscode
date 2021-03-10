@@ -19,7 +19,7 @@ import { ICellViewModel, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_HAS_MULTIP
 import { configureKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, INotebookKernel, NotebookCellRunState, NotebookRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellIndexesToRanges, CellKind, ICellRange, INotebookKernel, NotebookCellRunState, NotebookRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
 const NotebookEditorActiveKernelCache = 'workbench.editor.notebook.activeKernel';
@@ -371,7 +371,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		await this._ensureActiveKernel();
-		await this._activeKernel?.cancelNotebookCell!(this._delegate.viewModel.uri, undefined);
+		// await this._activeKernel?.cancelNotebookCell!(this._delegate.viewModel.uri, undefined);
 	}
 
 	async executeNotebook(): Promise<void> {
@@ -384,8 +384,11 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
+		const fullRange: ICellRange = {
+			start: 0, end: this._delegate.viewModel.length
+		};
 		this._activeKernelExecuted = true;
-		await this._activeKernel?.executeNotebookCell!(this._delegate.viewModel.uri, undefined);
+		await this._activeKernel?.executeNotebookCellsRequest(this._delegate.viewModel.uri, [fullRange]);
 	}
 
 	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
@@ -403,7 +406,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		await this._ensureActiveKernel();
-		await this._activeKernel?.cancelNotebookCell!(this._delegate.viewModel.uri, cell.handle);
+		// await this._activeKernel?.cancelNotebookCell!(this._delegate.viewModel.uri, cell.handle);
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
@@ -416,8 +419,10 @@ export class NotebookEditorKernelManager extends Disposable {
 			throw new Error('Cell is not executable: ' + cell.uri);
 		}
 
+		const idx = this._delegate.viewModel.getCellIndex(cell);
+		const range = cellIndexesToRanges([idx]);
 		this._activeKernelExecuted = true;
-		await this._activeKernel?.executeNotebookCell!(this._delegate.viewModel.uri, cell.handle);
+		await this._activeKernel?.executeNotebookCellsRequest(this._delegate.viewModel.uri, range);
 	}
 
 	private canExecuteNotebook(): boolean {

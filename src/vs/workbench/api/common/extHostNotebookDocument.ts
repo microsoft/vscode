@@ -52,6 +52,7 @@ export class ExtHostCell {
 	private _outputs: extHostTypes.NotebookCellOutput[];
 	private _metadata: extHostTypes.NotebookCellMetadata;
 
+	private _internalMetadata: NotebookCellMetadata;
 	readonly handle: number;
 	readonly uri: URI;
 	readonly cellKind: CellKind;
@@ -67,12 +68,17 @@ export class ExtHostCell {
 		this.uri = URI.revive(_cellData.uri);
 		this.cellKind = _cellData.cellKind;
 		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
-		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(_cellData.metadata ?? {});
+		this._internalMetadata = _cellData.metadata ?? {};
+		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(this._internalMetadata);
 	}
 
 	dispose() {
 		this._onDidDispose.fire();
 		this._onDidDispose.dispose();
+	}
+
+	get internalMetadata(): NotebookCellMetadata {
+		return this._internalMetadata;
 	}
 
 	get cell(): vscode.NotebookCell {
@@ -89,6 +95,7 @@ export class ExtHostCell {
 				document: data.document,
 				get outputs() { return that._outputs.slice(0); },
 				get metadata() { return that._metadata; },
+				get previousResult() { return {}; }
 			});
 		}
 		return this._cell;
@@ -110,6 +117,7 @@ export class ExtHostCell {
 	}
 
 	setMetadata(newMetadata: NotebookCellMetadata): void {
+		this._internalMetadata = newMetadata;
 		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(newMetadata);
 	}
 }
@@ -320,6 +328,10 @@ export class ExtHostNotebookDocument extends Disposable {
 
 	getCell(cellHandle: number): ExtHostCell | undefined {
 		return this._cells.find(cell => cell.handle === cellHandle);
+	}
+
+	getCellByIndex(index: number): ExtHostCell | undefined {
+		return this._cells[index];
 	}
 
 	getCellIndex(cell: ExtHostCell): number {

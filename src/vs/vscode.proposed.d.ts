@@ -963,7 +963,7 @@ declare module 'vscode' {
 		Code = 2
 	}
 
-	export interface NotebookCellPreviousRunResult {
+	export interface NotebookCellPreviousExecutionResult {
 		success?: boolean;
 		duration?: number;
 		executionOrder?: number;
@@ -1019,7 +1019,7 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 		readonly metadata: NotebookCellMetadata
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
-		readonly previousResult: NotebookCellPreviousRunResult;
+		readonly previousResult: NotebookCellPreviousExecutionResult;
 	}
 
 	export class NotebookDocumentMetadata {
@@ -1225,10 +1225,10 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
-	export interface NotebookCellRunStateChangeEvent {
+	export interface NotebookCellExecutionStateChangeEvent {
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
-		readonly runState: NotebookCellRunState;
+		readonly executionState: NotebookCellExecutionState;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1478,30 +1478,6 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
-	// todo@API use the NotebookCellExecution-object as a container to model and enforce
-	// the flow of a cell execution
-
-	// kernel -> execute_info
-	// ext -> createNotebookCellExecution(cell)
-	// kernel -> done
-	// exec.dispose();
-
-	// export interface NotebookCellExecution {
-	// 	resolve(result: NotebookCellPreviousResult): void; // or just stop time, extension can set error outputs or not, and return a success bool
-	// 	clearOutput(): void;
-	// 	appendOutput(out: NotebookCellOutput): void;
-	// 	replaceOutput(out: NotebookCellOutput): void;
-	//  appendOutputItems(output:string, items: NotebookCellOutputItem[]):void;
-	//  replaceOutputItems(output:string, items: NotebookCellOutputItem[]):void;
-	// }
-
-	// export interface NotebookCellPending {
-	// 	 start(): NotebookCellExecution; // throws if called twice
-	// }
-
-	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellPending;
-	// export const onDidChangeNotebookCellExecutionState: Event<any>; // idle -> pending -> executing -> idle
-
 	export interface NotebookKernel {
 
 		// todo@API make this mandatory?
@@ -1529,20 +1505,31 @@ declare module 'vscode' {
 		// todo@API how can Jupyter ensure that the document-level cancel button shows whenever any cell is running?
 		// Maybe this behavior is automatic for any kernel that implements interrupt
 		interrupt?(): void;
-		executeCells(document: NotebookDocument, cells: NotebookCellRange[]): void;
+
+		/**
+		 * Called when the user triggers execution of a cell by clicking the run button for a cell, multiple cells,
+		 * or full notebook. The cell will be put into the Pending state when this method is called. If
+		 * createNotebookCellExecutionTask has not been called by the time the promise returned by this method is
+		 * resolved, the cell will be put back into the Idle state.
+		 */
+		executeCellsRequest(document: NotebookDocument, ranges: NotebookCellRange[]): Thenable<void>;
 	}
 
-	// todo@API use the NotebookCellExecution-object as a container to model and enforce
-	// the flow of a cell execution
+	export interface NotebookCellExecuteStartContext {
+		executionOrder?: number;
+		startTime?: number;
+	}
 
-	// kernel -> execute_info
-	// ext -> createNotebookCellExecution(cell)
-	// kernel -> done
-	// exec.dispose();
-
-	export interface NotebookCellExecution {
-		start(context?: { executionOrder?: number }): void;
-		resolve(result: NotebookCellPreviousRunResult): void;
+	/**
+	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
+	 * [`createNotebookCellExecutionTask`](#notebook.createNotebookCellExecutionTask) is called, the cell
+	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
+	 * `resolve()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
+	 * modified with the methods on the run task.
+	 */
+	export interface NotebookCellExecutionTask {
+		start(context?: NotebookCellExecuteStartContext): void;
+		end(result: NotebookCellPreviousExecutionResult): void;
 		token: CancellationToken;
 
 		clearOutput(): void;
@@ -1552,19 +1539,26 @@ declare module 'vscode' {
 		replaceOutputItems(outputId: string, items: NotebookCellOutputItem[]): void;
 	}
 
-	export enum NotebookCellRunState {
+	export enum NotebookCellExecutionState {
+		Executing,
 		Idle,
 		Pending,
-		Running
-	}
 
-	export interface NotebookCellExecutionStartContext {
-		startTime?: number;
+		// TODO@rob
+		Success,
+		Error
 	}
 
 	export namespace notebook {
-		export function createNotebookCellExecution(uri: Uri, index: number, context?: NotebookCellExecutionStartContext): NotebookCellExecution;
-		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellRunStateChangeEvent>;
+		/**
+		 * Creates a [`NotebookCellExecutionTask`](#NotebookCellExecutionTask). Should only be called by a kernel. Returns undefined unless requested by the active kernel.
+		 * @param uri The [uri](#Uri) of the notebook document.
+		 * @param index The index of the cell.
+		 * @param kernelId The id of the kernel requesting this run task. If this kernel is not the current active kernel, `undefined` is returned.
+		 */
+		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
+
+		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
