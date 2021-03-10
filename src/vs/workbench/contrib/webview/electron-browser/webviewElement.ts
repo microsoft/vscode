@@ -44,10 +44,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _findStarted: boolean = false;
 
 	private readonly _resourceRequestManager: WebviewResourceRequestManager;
-	private _messagePromise = Promise.resolve();
 
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
+
+	private _isWebviewReadyForMessages = false;
+	private readonly _pendingMessages: Array<{ channel: string, data: any }> = [];
 
 	constructor(
 		id: string,
@@ -81,6 +83,16 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this._myLogService.debug(`Webview(${this.id}): init`);
 
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options));
+		this._resourceRequestManager.ensureReady()
+			.then(() => {
+				this._isWebviewReadyForMessages = true;
+
+				while (this._pendingMessages.length) {
+					const { channel, data } = this._pendingMessages.shift()!;
+					this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
+					this.element?.send(channel, data);
+				}
+			});
 
 		this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
 			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
@@ -210,13 +222,13 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	protected async doPostMessage(channel: string, data?: any): Promise<void> {
 		this._myLogService.debug(`Webview(${this.id}): will post message on '${channel}'`);
+		if (!this._isWebviewReadyForMessages) {
+			this._pendingMessages.push({ channel, data });
+			return;
+		}
 
-		this._messagePromise = this._messagePromise
-			.then(() => this._resourceRequestManager.ensureReady())
-			.then(() => {
-				this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
-				return this.element?.send(channel, data);
-			});
+		this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
+		this.element?.send(channel, data);
 	}
 
 	public focus(): void {
