@@ -79,13 +79,11 @@ export class ExtHostCell {
 			if (!data) {
 				throw new Error(`MISSING extHostDocument for notebook cell: ${this.uri}`);
 			}
-			this._cell = Object.freeze({
+			this._cell = Object.freeze<vscode.NotebookCell>({
 				get index() { return that._notebook.getCellIndex(that); },
 				notebook: that._notebook.notebookDocument,
-				uri: that.uri,
-				cellKind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
-				get document() { return data!.document; },
-				get language() { return data!.document.languageId; },
+				kind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
+				document: data.document,
 				get outputs() { return that._outputs.slice(0); },
 				get metadata() { return that._metadata; },
 			});
@@ -313,7 +311,7 @@ export class ExtHostNotebookDocument extends Disposable {
 
 	private _changeCellLanguage(index: number, newModeId: string): void {
 		const cell = this._cells[index];
-		if (cell.cell.language !== newModeId) {
+		if (cell.cell.document.languageId !== newModeId) {
 			this._textDocuments.$acceptModelModeChanged(cell.uri, newModeId);
 		}
 	}
