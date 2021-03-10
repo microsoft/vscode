@@ -139,9 +139,6 @@ import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-// Performance
-import 'vs/workbench/contrib/performance/electron-sandbox/performance.contribution';
-
 // CLI
 import 'vs/workbench/contrib/cli/node/cli.contribution';
 

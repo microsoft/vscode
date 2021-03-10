@@ -129,4 +129,7 @@ import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
 import 'vs/workbench/contrib/tags/electron-sandbox/workspaceTagsService';
 import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
 
+// Performance
+import 'vs/workbench/contrib/performance/electron-sandbox/performance.contribution';
+
 //#endregion
