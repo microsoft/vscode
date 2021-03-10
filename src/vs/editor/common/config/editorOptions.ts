@@ -655,6 +655,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	jumpOutOfAutoClosedOnTab?: boolean;
+
+	/**
+	 * Minimal top space beetwen window and content widget
+	 */
+	contentWidgetTopPadding?: number;
 }
 
 /**
@@ -3889,6 +3894,7 @@ export const enum EditorOption {
 	tabFocusMode,
 	layoutInfo,
 	wrappingInfo,
+	contentWidgetTopPadding,
 }
 
 /**
@@ -4590,7 +4596,11 @@ export const EditorOptions = {
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorTabFocusMode()),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
-	wrappingInfo: register(new EditorWrappingInfoComputer())
+	wrappingInfo: register(new EditorWrappingInfoComputer()),
+	contentWidgetTopPadding: register(new EditorIntOption(
+		EditorOption.contentWidgetTopPadding, 'contentWidgetTopPadding',
+		22, 0, 999
+	)),
 };
 
 type EditorOptionsType = typeof EditorOptions;

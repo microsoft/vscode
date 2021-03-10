@@ -3219,6 +3219,10 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		jumpOutOfAutoClosedOnTab?: boolean;
+		/**
+		 * Minimal top space beetwen window and content widget
+		 */
+		contentWidgetTopPadding?: number;
 	}
 
 	/**
@@ -4117,7 +4121,8 @@ declare namespace monaco.editor {
 		pixelRatio = 127,
 		tabFocusMode = 128,
 		layoutInfo = 129,
-		wrappingInfo = 130
+		wrappingInfo = 130,
+		contentWidgetTopPadding = 131
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4251,6 +4256,7 @@ declare namespace monaco.editor {
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;
 		layoutInfo: IEditorOption<EditorOption.layoutInfo, EditorLayoutInfo>;
 		wrappingInfo: IEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo>;
+		contentWidgetTopPadding: IEditorOption<EditorOption.contentWidgetTopPadding, number>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

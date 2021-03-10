@@ -356,7 +356,8 @@ class Widget {
 		const [belowLeft, absoluteBelowLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, bottomLeft.left - ctx.scrollLeft + this._contentLeft, width);
 
 		// Leave some clearance to the top/bottom
-		const TOP_PADDING = 22;
+		const options = this._context.configuration.options;
+		const TOP_PADDING = options.get(EditorOption.contentWidgetTopPadding);
 		const BOTTOM_PADDING = 22;
 
 		const fitsAbove = (absoluteAboveTop >= TOP_PADDING);
