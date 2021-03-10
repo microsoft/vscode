@@ -220,7 +220,7 @@ export class PortsAttributes extends Disposable {
 			} else if (this.hasStartEnd(value.key)) {
 				return port >= value.key.start && port <= value.key.end;
 			} else {
-				return commandLine ? value.key.test(commandLine) : -1;
+				return commandLine ? value.key.test(commandLine) : false;
 			}
 		});
 		return foundIndex >= 0 ? foundIndex + fromIndex : -1;
