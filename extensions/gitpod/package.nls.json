@@ -12,6 +12,7 @@
 	"stopWorkspace": "Gitpod: Stop Workspace",
 	"upgradeSubscription": "Gitpod: Upgrade Subscription",
 	"extendTimeout": "Gitpod: Extend Workspace Timeout",
+	"takeSnapshot": "Gitpod: Share Workspace Snapshot",
 	"openBrowser": "Open Browser",
 	"makePrivate": "Make Private",
 	"makePublic": "Make Public",

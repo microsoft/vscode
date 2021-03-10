@@ -65,6 +65,10 @@
         "title": "%extendTimeout%"
       },
       {
+        "command": "gitpod.takeSnapshot",
+        "title": "%takeSnapshot%"
+      },
+      {
         "command": "gitpod.ports.openBrowser",
         "title": "%openBrowser%",
         "icon": "$(globe)"
@@ -101,8 +105,12 @@
           "group": "gitpod@20"
         },
         {
-          "command": "gitpod.stop.ws",
+          "command": "gitpod.takeSnapshot",
           "group": "gitpod@30"
+        },
+        {
+          "command": "gitpod.stop.ws",
+          "group": "gitpod@40"
         }
       ],
       "accounts/context": [
@@ -119,8 +127,12 @@
           "group": "navigation@30"
         },
         {
+          "command": "gitpod.takeSnapshot",
+          "group": "gitpod@40"
+        },
+        {
           "command": "gitpod.ExtendTimeout",
-          "group": "navigation@40"
+          "group": "navigation@50"
         }
       ],
       "menuBar/help": [

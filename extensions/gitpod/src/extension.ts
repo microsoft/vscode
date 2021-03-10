@@ -50,7 +50,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		'function:stopWorkspace',
 		'resource:workspace::' + workspaceId + '::get/update',
 		'function:accessCodeSyncStorage',
-		'function:getLoggedInUser'
+		'function:getLoggedInUser',
+		'function:takeSnapshot'
 	]);
 	const pendingServerToken = (async () => {
 		const tokenServiceClient = new TokenServiceClient(supervisorAddr, grpc.credentials.createInsecure());
@@ -146,7 +147,29 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage(`Cannot extend workspace timeout: ${err.toString()}`);
 		}
 	}));
-
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.takeSnapshot', async () => {
+		const uri = await vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			cancellable: true,
+			title: 'Capturing workspace snapshot'
+		}, _ => {
+			return gitpodService.server.takeSnapshot({ workspaceId /*, layoutData?*/ });
+		});
+		if (uri) {
+			const copyAction = await vscode.window.showInformationMessage('The current state is captured in a snapshot. Sharing the link below allows anybody to create their own copy of this workspace.',
+				'Copy URL to Clipboard', 'Copy Markdown button', 'Copy HTML button');
+			switch (copyAction) {
+				case 'Copy URL to Clipboard':
+					await vscode.env.clipboard.writeText(uri);
+					break;
+				case 'Copy Markdown button':
+					await vscode.env.clipboard.writeText(`[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)]($uri)`);
+					break;
+				case 'Copy HTML button':
+					await vscode.env.clipboard.writeText(`<a href="$uri"><img alt="Open in Gitpod" src="https://gitpod.io/button/open-in-gitpod.svg"></a>`);
+			}
+		}
+	}));
 	const communityStatusBarItem = vscode.window.createStatusBarItem({
 		id: 'gitpod.community',
 		name: 'Chat with us on Discourse',
