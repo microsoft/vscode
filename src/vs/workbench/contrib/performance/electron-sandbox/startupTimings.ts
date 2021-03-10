@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { timeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -13,17 +13,20 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { didUseCachedData } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class StartupTimings implements IWorkbenchContribution {
 
 	constructor(
+		@IFileService private readonly _fileService: IFileService,
 		@ITimerService private readonly _timerService: ITimerService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -56,8 +59,14 @@ export class StartupTimings implements IWorkbenchContribution {
 		Promise.all([
 			this._timerService.whenReady(),
 			timeout(15000), // wait: cached data creation, telemetry sending
-		]).then(() => {
-			return promises.appendFile(appendTo, `${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
+		]).then(async () => {
+			const uri = URI.file(appendTo);
+			const chunks: VSBuffer[] = [];
+			if (await this._fileService.exists(uri)) {
+				chunks.push((await this._fileService.readFile(uri)).value);
+			}
+			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`));
+			await this._fileService.writeFile(uri, VSBuffer.concat(chunks));
 		}).then(() => {
 			this._nativeHostService.quit();
 		}).catch(err => {
