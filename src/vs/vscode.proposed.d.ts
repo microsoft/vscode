@@ -1141,7 +1141,7 @@ declare module 'vscode' {
 		// todo@API duplicates #document.languageId
 		readonly language: string;
 		readonly document: TextDocument;
-		readonly outputs: readonly NotebookCellOutput[];
+		readonly outputs: ReadonlyArray<NotebookCellOutput>;
 		readonly metadata: NotebookCellMetadata
 	}
 
