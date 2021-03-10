@@ -1414,9 +1414,8 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
-		// todo@API should we really support to pass the viewType? We do NOT support
-		// to open the same file with different viewTypes at the same time
-		export function openNotebookDocument(uri: Uri, viewType?: string): Thenable<NotebookDocument>;
+		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 

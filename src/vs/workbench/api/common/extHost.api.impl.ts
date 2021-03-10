@@ -1028,9 +1028,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: notebook
 		const notebook: typeof vscode.notebook = {
-			openNotebookDocument: (uriComponents, viewType) => {
+			openNotebookDocument: (uriComponents) => {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.openNotebookDocument(uriComponents, viewType);
+				return extHostNotebook.openNotebookDocument(uriComponents);
 			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
 				checkProposedApiEnabled(extension);

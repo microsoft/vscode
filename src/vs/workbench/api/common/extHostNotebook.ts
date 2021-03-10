@@ -382,13 +382,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return new NotebookEditorDecorationType(this._proxy, options).value;
 	}
 
-	async openNotebookDocument(uriComponents: UriComponents, viewType?: string): Promise<vscode.NotebookDocument> {
-		const cached = this._documents.get(URI.revive(uriComponents));
+	async openNotebookDocument(uri: URI): Promise<vscode.NotebookDocument> {
+		const cached = this._documents.get(uri);
 		if (cached) {
 			return cached.notebookDocument;
 		}
-		await this._proxy.$tryOpenDocument(uriComponents, viewType);
-		const document = this._documents.get(URI.revive(uriComponents));
+		const canonicalUri = await this._proxy.$tryOpenDocument(uri);
+		const document = this._documents.get(URI.revive(canonicalUri));
 		return assertIsDefined(document?.notebookDocument);
 	}
 

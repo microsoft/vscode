@@ -582,11 +582,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	}
 
 
-	async $tryOpenDocument(uriComponents: UriComponents, viewType?: string): Promise<URI> {
+	async $tryOpenDocument(uriComponents: UriComponents): Promise<URI> {
 		const uri = URI.revive(uriComponents);
-		const ref = await this._notebookModelResolverService.resolve(uri, viewType);
+		const ref = await this._notebookModelResolverService.resolve(uri, undefined);
 		this._modelReferenceCollection.add(uri, ref);
-
 		return uri;
 	}
 
