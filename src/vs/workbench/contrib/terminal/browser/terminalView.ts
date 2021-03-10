@@ -431,11 +431,11 @@ async function getProfileSelectOptionItems(terminalService: ITerminalService): P
 	if (customProfiles && customProfiles.length > 0) {
 		labels = customProfiles.map(shell => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
 	} else if (detectedProfiles) {
-		const profilesToDisplay = platform.isWindows ? ['Git Bash', 'Command Prompt', 'WSL Bash', 'Powershell'] : ['bash', 'zsh', 'fish', 'tmux'];
-		const hasOnlyWindowsPowershell = detectedProfiles?.find(t => t.profileName === 'Windows Powershell') && !detectedProfiles?.find(t => t.profileName.toLowerCase() === 'powershell');
+		const profilesToDisplay = platform.isWindows ? ['Git Bash', 'Command Prompt', 'WSL Bash', 'PowerShell'] : ['bash', 'zsh', 'fish', 'tmux'];
+		const hasOnlyWindowsPowershell = detectedProfiles?.find(t => t.profileName === 'Windows PowerShell') && !detectedProfiles?.find(t => t.profileName.toLowerCase() === 'powershell');
 		if (hasOnlyWindowsPowershell) {
 			// fall back since this is the only powershell installed
-			profilesToDisplay.push('windows powershell');
+			profilesToDisplay.push('Windows PowerShell');
 		}
 		const filtered = detectedProfiles?.filter(term => profilesToDisplay.find(t => t === term.profileName));
 		labels = filtered.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));

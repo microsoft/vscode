@@ -5,31 +5,11 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import { SymlinkSupport } from 'vs/base/node/pfs';
 import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalProfile, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
-
-let detectedDistro = LinuxDistro.Unknown;
-if (platform.isLinux) {
-	const file = '/etc/os-release';
-	SymlinkSupport.existsFile(file).then(async exists => {
-		if (!exists) {
-			return;
-		}
-		const buffer = await fs.promises.readFile(file);
-		const contents = buffer.toString();
-		if (/NAME="?Fedora"?/.test(contents)) {
-			detectedDistro = LinuxDistro.Fedora;
-		} else if (/NAME="?Ubuntu"?/.test(contents)) {
-			detectedDistro = LinuxDistro.Ubuntu;
-		}
-	});
-}
-
-export const linuxDistro = detectedDistro;
+import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export function detectAvailableShells(): Promise<ITerminalProfile[]> {
 	return platform.isWindows ? detectAvailableWindowsShells() : detectAvailableUnixShells();
