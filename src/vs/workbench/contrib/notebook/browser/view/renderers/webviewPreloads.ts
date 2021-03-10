@@ -416,7 +416,7 @@ function webviewPreloads() {
 
 					const cellContainer = document.getElementById(cell.cellId);
 					if (cellContainer) {
-						cellContainer.style.display = 'none';
+						cellContainer.style.visibility = 'hidden';
 					}
 				}
 
@@ -430,7 +430,7 @@ function webviewPreloads() {
 					const data = event.data;
 					let cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = 'block';
+						cellContainer.style.visibility = 'visible';
 					}
 					const previewNode = document.getElementById(`${data.id}_container`);
 					if (previewNode) {
@@ -444,7 +444,7 @@ function webviewPreloads() {
 					const data = event.data;
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = 'none';
+						cellContainer.style.visibility = 'hidden';
 					}
 				}
 				break;
@@ -453,7 +453,7 @@ function webviewPreloads() {
 					const data = event.data;
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = '';
+						cellContainer.style.visibility = 'visible';
 					}
 				}
 				break;
