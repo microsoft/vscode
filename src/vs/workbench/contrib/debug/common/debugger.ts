@@ -13,7 +13,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -36,7 +35,6 @@ export class Debugger implements IDebugger {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITextResourcePropertiesService private readonly resourcePropertiesService: ITextResourcePropertiesService,
 		@IConfigurationResolverService private readonly configurationResolverService: IConfigurationResolverService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDebugHelperService private readonly debugHelperService: IDebugHelperService,
 		@IDebugService private readonly debugService: IDebugService
 	) {
@@ -182,23 +180,13 @@ export class Debugger implements IDebugger {
 	}
 
 	@memoize
-	getCustomTelemetryService(): Promise<TelemetryService | undefined> {
-
+	async getCustomTelemetryService(): Promise<TelemetryService | undefined> {
 		const aiKey = this.debuggerContribution.aiKey;
-
 		if (!aiKey) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
-		return this.telemetryService.getTelemetryInfo().then(info => {
-			const telemetryInfo: { [key: string]: string } = Object.create(null);
-			telemetryInfo['common.vscodemachineid'] = info.machineId;
-			telemetryInfo['common.vscodesessionid'] = info.sessionId;
-			return telemetryInfo;
-		}).then(data => {
-			const args = [`${this.getMainExtensionDescriptor().publisher}.${this.type}`, JSON.stringify(data), aiKey];
-			return this.debugHelperService.createTelemetryService(this.configurationService, args);
-		});
+		return this.debugHelperService.createPrivateTelemetryService(`${this.getMainExtensionDescriptor().publisher}.${this.type}`, aiKey);
 	}
 
 	getSchemaAttributes(): IJSONSchema[] | null {

@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
@@ -971,6 +971,5 @@ export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HE
 
 export interface IDebugHelperService {
 	readonly _serviceBrand: undefined;
-
-	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
+	createPrivateTelemetryService(id: string, aiKey: string): Promise<TelemetryService>
 }
