@@ -146,15 +146,13 @@ function webviewPreloads() {
 				if (entry.target.id === id && entry.contentRect) {
 					if (output) {
 						if (entry.contentRect.height !== 0) {
-							const padding = __outputNodePadding__;
-
-							entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
 							postNotebookMessage<IDimensionMessage>('dimension', {
 								id: id,
 								data: {
-									height: entry.contentRect.height + padding * 2
+									height: entry.contentRect.height + __outputNodePadding__ * 2
 								},
-								isOutput: output
+								isOutput: true
 							});
 						} else {
 							entry.target.style.padding = `0px`;
@@ -163,18 +161,17 @@ function webviewPreloads() {
 								data: {
 									height: entry.contentRect.height
 								},
-								isOutput: output
+								isOutput: true
 							});
 						}
 					} else {
-						// console.log('dimension update resize', id, entry.contentRect.height);
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
 								// entry.contentRect does not include padding
 								height: entry.contentRect.height + __previewNodePadding__ * 2
 							},
-							isOutput: output
+							isOutput: false
 						});
 					}
 				}
@@ -426,15 +423,10 @@ function webviewPreloads() {
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
-				// const date = new Date();
-				// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: createMarkdownPreview', event.data.id, event.data.top);
 				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
 				break;
 			case 'showMarkdownPreview':
 				{
-					// const date = new Date();
-					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: showMarkdownPreview', event.data.id, event.data.top);
-
 					const data = event.data;
 					let cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
@@ -796,7 +788,6 @@ function webviewPreloads() {
 
 			resizeObserve(previewContainerNode, `${cellId}_preview`, false);
 
-			// console.log('init markdown ', `${cellId}_preview`, previewContainerNode.clientHeight);
 			postNotebookMessage<IDimensionMessage>('dimension', {
 				id: `${cellId}_preview`,
 				init: true,
@@ -830,7 +821,6 @@ function webviewPreloads() {
 				content: content
 			}]);
 
-			console.log('update markdown preview', `${cellId}_preview`, previewContainerNode.clientHeight);
 			postNotebookMessage<IDimensionMessage>('dimension', {
 				id: `${cellId}_preview`,
 				data: {

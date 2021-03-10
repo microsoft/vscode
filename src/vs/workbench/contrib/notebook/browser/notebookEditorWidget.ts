@@ -870,7 +870,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					removedItems.forEach(output => this._webview?.removeInset(output));
 
 					if (updateItems.length) {
-						this._debug('list height change outputs', updateItems);
+						this._debug('_list.onDidChangeContentHeight/outputs', updateItems);
 						this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
 					}
 				}
@@ -886,7 +886,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					});
 
 					if (updateItems.length) {
-						this._debug('list height change mds', updateItems);
+						this._debug('_list.onDidChangeContentHeight/markdown', updateItems);
 						this._webview?.updateMarkdownScrollTop(updateItems);
 					}
 
@@ -905,8 +905,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.removeMarkdownPreview(cell as MarkdownCellViewModel);
 			}
 		}));
-
-		this._debug('attach view model which will start rendering cells');
 
 		this._list.attachViewModel(this.viewModel);
 
@@ -1413,8 +1411,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			this._debug('layoutNotebookCell cell:', cell.handle, ' height', height);
-
 			this._pendingLayouts.delete(cell);
 
 			relayout(cell, height);
@@ -1758,8 +1754,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		this._debug('WebviewMarkdownRenderer after resolve webview', cell.handle, cellTop);
-
 		if (this._webview.markdownPreviewMapping.has(cell.id)) {
 			await this._webview.showMarkdownPreview(cell.id, cell.getText(), cellTop);
 		} else {
@@ -1890,7 +1884,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			this._debug('updateOutputHeight', cell.handle, outputHeight, isInit);
 			cell.updateOutputHeight(outputIndex, outputHeight);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 		}
