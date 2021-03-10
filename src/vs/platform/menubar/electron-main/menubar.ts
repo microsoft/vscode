@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemRecentAction, IMenubarMenuRecentItemAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -447,8 +447,8 @@ export class Menubar {
 				const submenuItem = new MenuItem({ label: this.mnemonicLabel(item.label), submenu });
 				this.setMenu(submenu, item.submenu.items);
 				menu.append(submenuItem);
-			} else if (isMenubarMenuItemUriAction(item)) {
-				menu.append(this.createOpenRecentMenuItem(item.uri, item.label, item.id));
+			} else if (isMenubarMenuItemRecentAction(item)) {
+				menu.append(this.createOpenRecentMenuItem(item));
 			} else if (isMenubarMenuItemAction(item)) {
 				if (item.id === 'workbench.action.showAboutDialog') {
 					this.insertCheckForUpdatesItems(menu);
@@ -487,14 +487,15 @@ export class Menubar {
 		}
 	}
 
-	private createOpenRecentMenuItem(uri: URI, label: string, commandId: string): MenuItem {
-		const revivedUri = URI.revive(uri);
+	private createOpenRecentMenuItem(item: IMenubarMenuRecentItemAction): MenuItem {
+		const revivedUri = URI.revive(item.uri);
+		const commandId = item.id;
 		const openable: IWindowOpenable =
 			(commandId === 'openRecentFile') ? { fileUri: revivedUri } :
 				(commandId === 'openRecentWorkspace') ? { workspaceUri: revivedUri } : { folderUri: revivedUri };
 
 		return new MenuItem(this.likeAction(commandId, {
-			label,
+			label: item.label,
 			click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsMainService.open({
@@ -502,7 +503,8 @@ export class Menubar {
 					cli: this.environmentMainService.args,
 					urisToOpen: [openable],
 					forceNewWindow: openInNewWindow,
-					gotoLineMode: false
+					gotoLineMode: false,
+					remoteAuthority: item.remoteAuthority
 				}).length > 0;
 
 				if (!success) {

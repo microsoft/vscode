@@ -160,16 +160,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
 		let cli = this.environmentMainService.args;
-		const remote = options?.remoteAuthority;
-		if (cli && (cli.remote !== remote)) {
-			cli = { ...cli, remote };
-		}
-
+		const remoteAuthority = options?.remoteAuthority || undefined;
 		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow });
+		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
 	}
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
@@ -298,11 +294,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const recents: IRecent[] = [];
 			for (const pathToOpen of pathsToOpen) {
 				if (isWorkspacePathToOpen(pathToOpen)) {
-					recents.push({ label: pathToOpen.label, workspace: pathToOpen.workspace });
+					recents.push({ label: pathToOpen.label, workspace: pathToOpen.workspace, remoteAuthority: pathToOpen.remoteAuthority });
 				} else if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
-					recents.push({ label: pathToOpen.label, folderUri: pathToOpen.workspace.uri });
+					recents.push({ label: pathToOpen.label, folderUri: pathToOpen.workspace.uri, remoteAuthority: pathToOpen.remoteAuthority });
 				} else if (pathToOpen.fileUri) {
-					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri });
+					recents.push({ label: pathToOpen.label, fileUri: pathToOpen.fileUri, remoteAuthority: pathToOpen.remoteAuthority });
 				}
 			}
 
@@ -507,7 +503,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				emptyToOpen++;
 			}
 
-			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : (openConfig.cli && openConfig.cli.remote || undefined);
+			const remoteAuthority = filesToOpen ? filesToOpen.remoteAuthority : openConfig.remoteAuthority;
 
 			for (let i = 0; i < emptyToOpen; i++) {
 				addUsedWindow(this.doOpenEmpty(openConfig, openFolderInNewWindow, remoteAuthority, filesToOpen), !!filesToOpen);
@@ -650,7 +646,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doExtractPathsFromAPI(openConfig: IOpenConfiguration): IPathToOpen[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const pathResolveOptions: IPathResolveOptions = { gotoLineMode: openConfig.gotoLineMode };
+		const pathResolveOptions: IPathResolveOptions = { gotoLineMode: openConfig.gotoLineMode, remoteAuthority: openConfig.remoteAuthority };
 		for (const pathToOpen of coalesce(openConfig.urisToOpen || [])) {
 			const path = this.resolveOpenable(pathToOpen, pathResolveOptions);
 
@@ -1060,17 +1056,18 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		let authority = '';
+		let remoteAuthority = openConfig.remoteAuthority;
 		for (const extensionDevelopmentPath of extensionDevelopmentPaths) {
 			if (extensionDevelopmentPath.match(/^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/)) {
 				const url = URI.parse(extensionDevelopmentPath);
-				if (url.scheme === Schemas.vscodeRemote) {
-					if (authority) {
-						if (url.authority !== authority) {
+				const extensionDevelopmentPathRemoteAuthority = getRemoteAuthority(url);
+				if (extensionDevelopmentPathRemoteAuthority) {
+					if (remoteAuthority) {
+						if (extensionDevelopmentPathRemoteAuthority !== remoteAuthority) {
 							this.logService.error('more than one extension development path authority');
 						}
 					} else {
-						authority = url.authority;
+						remoteAuthority = extensionDevelopmentPathRemoteAuthority;
 					}
 				}
 			}
@@ -1086,7 +1083,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return uri.authority === authority;
+			return getRemoteAuthority(uri) === remoteAuthority;
 		});
 
 		folderUris = folderUris.filter(folderUriStr => {
@@ -1095,7 +1092,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return folderUri ? folderUri.authority === authority : false;
+			return folderUri ? getRemoteAuthority(folderUri) === remoteAuthority : false;
 		});
 
 		fileUris = fileUris.filter(fileUriStr => {
@@ -1104,18 +1101,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				return false;
 			}
 
-			return fileUri ? fileUri.authority === authority : false;
+			return fileUri ? getRemoteAuthority(fileUri) === remoteAuthority : false;
 		});
 
 		openConfig.cli._ = cliArgs;
 		openConfig.cli['folder-uri'] = folderUris;
 		openConfig.cli['file-uri'] = fileUris;
 
-		// if there are no files or folders cli args left, use the "remote" cli argument
 		const noFilesOrFolders = !cliArgs.length && !folderUris.length && !fileUris.length;
-		if (noFilesOrFolders && authority) {
-			openConfig.cli.remote = authority;
-		}
 
 		// Open it
 		const openArgs: IOpenConfiguration = {
@@ -1125,7 +1118,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			forceEmpty: noFilesOrFolders,
 			userEnv: openConfig.userEnv,
 			noRecentEntry: true,
-			waitMarkerFileURI: openConfig.waitMarkerFileURI
+			waitMarkerFileURI: openConfig.waitMarkerFileURI,
+			remoteAuthority
 		};
 
 		return this.open(openArgs);
