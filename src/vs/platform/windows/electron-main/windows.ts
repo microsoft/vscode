@@ -197,7 +197,14 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
-	readonly remoteAuthority?: string; /* used when no inputs are provided or inputs are neither file nor vscode-remote */
+		/**
+	 * Only used when a window is opened with either
+	 * no workspace or with a workspace that is
+	 * neither `file://` nor `vscode-remote://`
+	 * protocol to indicate the remote authority
+	 * that should be used.
+	 */
+	readonly remoteAuthority?: string;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
