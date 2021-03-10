@@ -10,13 +10,13 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('NotebookEditorModel', function () {
@@ -24,7 +24,7 @@ suite('NotebookEditorModel', function () {
 	const notebokService = new class extends mock<INotebookService>() { };
 	const backupService = new class extends mock<IBackupFileService>() { };
 	const notificationService = new class extends mock<INotificationService>() { };
-	const instantiationService = new class extends mock<IInstantiationService>() { };
+	const untitledTextEditorService = new class extends mock<IUntitledTextEditorService>() { };
 	const fileService = new class extends mock<IFileService>() {
 		onDidFilesChange = Event.None;
 	};
@@ -47,8 +47,8 @@ suite('NotebookEditorModel', function () {
 			}
 		};
 
-		new NotebookEditorModel(r1, 'fff', notebokService, workingCopyService, backupService, fileService, instantiationService, notificationService, new NullLogService(), labelService);
-		new NotebookEditorModel(r2, 'fff', notebokService, workingCopyService, backupService, fileService, instantiationService, notificationService, new NullLogService(), labelService);
+		new NotebookEditorModel(r1, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new NotebookEditorModel(r2, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
 
 		assert.strictEqual(copies.length, 2);
 		assert.strictEqual(!isEqual(copies[0].resource, copies[1].resource), true);

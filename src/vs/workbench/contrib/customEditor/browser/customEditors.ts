@@ -12,7 +12,6 @@ import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -31,6 +30,7 @@ import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/comm
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -61,6 +61,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
 	) {
 		super();
 
@@ -159,17 +160,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		// If it's an untitled file we must populate the untitledDocumentData
-		let untitledDocumentData = await this.instantiationService.invokeFunction(async accessor => {
-			if (resource.scheme === Schemas.untitled) {
-				const textModelResolverService = accessor.get(ITextModelService);
-				const model = await textModelResolverService.createModelReference(resource);
-				const untitledModel = model.object;
-				const untitledFileValue = untitledModel.textEditorModel.getValue();
-				model.dispose();
-				return VSBuffer.fromString(untitledFileValue);
-			}
-			return;
-		});
+		const untitledString = this.untitledTextEditorService.getValue(resource);
+		let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
 
 		const input = this.createInput(resource, viewType, group?.id, { untitledDocumentData });
 		return this.openEditorForResource(resource, input, options, group);
