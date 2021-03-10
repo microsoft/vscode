@@ -2929,7 +2929,6 @@ export class NotebookCellMetadata {
 	constructor(
 		readonly editable?: boolean,
 		readonly breakpointMargin?: boolean,
-		readonly runnable?: boolean,
 		readonly hasExecutionOrder?: boolean,
 		readonly executionOrder?: number,
 		readonly runState?: NotebookCellRunState,
@@ -2944,7 +2943,6 @@ export class NotebookCellMetadata {
 	with(change: {
 		editable?: boolean | null,
 		breakpointMargin?: boolean | null,
-		runnable?: boolean | null,
 		hasExecutionOrder?: boolean | null,
 		executionOrder?: number | null,
 		runState?: NotebookCellRunState | null,
@@ -2956,7 +2954,7 @@ export class NotebookCellMetadata {
 		custom?: Record<string, any> | null,
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, runnable, hasExecutionOrder, executionOrder, runState, runStartTime, statusMessage, lastRunDuration, inputCollapsed, outputCollapsed, custom } = change;
+		let { editable, breakpointMargin, hasExecutionOrder, executionOrder, runState, runStartTime, statusMessage, lastRunDuration, inputCollapsed, outputCollapsed, custom } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -2967,11 +2965,6 @@ export class NotebookCellMetadata {
 			breakpointMargin = this.breakpointMargin;
 		} else if (breakpointMargin === null) {
 			breakpointMargin = undefined;
-		}
-		if (runnable === undefined) {
-			runnable = this.runnable;
-		} else if (runnable === null) {
-			runnable = undefined;
 		}
 		if (hasExecutionOrder === undefined) {
 			hasExecutionOrder = this.hasExecutionOrder;
@@ -3021,7 +3014,6 @@ export class NotebookCellMetadata {
 
 		if (editable === this.editable &&
 			breakpointMargin === this.breakpointMargin &&
-			runnable === this.runnable &&
 			hasExecutionOrder === this.hasExecutionOrder &&
 			executionOrder === this.executionOrder &&
 			runState === this.runState &&
@@ -3038,7 +3030,6 @@ export class NotebookCellMetadata {
 		return new NotebookCellMetadata(
 			editable,
 			breakpointMargin,
-			runnable,
 			hasExecutionOrder,
 			executionOrder,
 			runState,
@@ -3056,9 +3047,7 @@ export class NotebookDocumentMetadata {
 
 	constructor(
 		readonly editable: boolean = true,
-		readonly runnable: boolean = true,
 		readonly cellEditable: boolean = true,
-		readonly cellRunnable: boolean = true,
 		readonly cellHasExecutionOrder: boolean = true,
 		readonly custom: { [key: string]: any; } = {},
 		readonly runState: NotebookRunState = NotebookRunState.Idle,
@@ -3067,36 +3056,24 @@ export class NotebookDocumentMetadata {
 
 	with(change: {
 		editable?: boolean | null,
-		runnable?: boolean | null,
 		cellEditable?: boolean | null,
-		cellRunnable?: boolean | null,
 		cellHasExecutionOrder?: boolean | null,
 		custom?: { [key: string]: any; } | null,
 		runState?: NotebookRunState | null,
 		trusted?: boolean | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, runnable, cellEditable, cellRunnable, cellHasExecutionOrder, custom, runState, trusted } = change;
+		let { editable, cellEditable, cellHasExecutionOrder, custom, runState, trusted } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
 		} else if (editable === null) {
 			editable = undefined;
 		}
-		if (runnable === undefined) {
-			runnable = this.runnable;
-		} else if (runnable === null) {
-			runnable = undefined;
-		}
 		if (cellEditable === undefined) {
 			cellEditable = this.cellEditable;
 		} else if (cellEditable === null) {
 			cellEditable = undefined;
-		}
-		if (cellRunnable === undefined) {
-			cellRunnable = this.cellRunnable;
-		} else if (cellRunnable === null) {
-			cellRunnable = undefined;
 		}
 		if (cellHasExecutionOrder === undefined) {
 			cellHasExecutionOrder = this.cellHasExecutionOrder;
@@ -3120,9 +3097,7 @@ export class NotebookDocumentMetadata {
 		}
 
 		if (editable === this.editable &&
-			runnable === this.runnable &&
 			cellEditable === this.cellEditable &&
-			cellRunnable === this.cellRunnable &&
 			cellHasExecutionOrder === this.cellHasExecutionOrder &&
 			custom === this.custom &&
 			runState === this.runState &&
@@ -3134,9 +3109,7 @@ export class NotebookDocumentMetadata {
 
 		return new NotebookDocumentMetadata(
 			editable,
-			runnable,
 			cellEditable,
-			cellRunnable,
 			cellHasExecutionOrder,
 			custom,
 			runState,

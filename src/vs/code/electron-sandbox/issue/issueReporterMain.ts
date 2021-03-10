@@ -37,6 +37,12 @@ interface SearchResult {
 	state?: string;
 }
 
+enum IssueSource {
+	VSCode = 'vscode',
+	Extension = 'extension',
+	Marketplace = 'marketplace'
+}
+
 export interface IssueReporterConfiguration extends IWindowConfiguration {
 	windowId: number;
 	disableExtensions: boolean;
@@ -84,7 +90,6 @@ export class IssueReporter extends Disposable {
 		super();
 
 		this.initServices(configuration);
-		console.log(configuration);
 
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
@@ -328,17 +333,18 @@ export class IssueReporter extends Disposable {
 				hide(problemSourceHelpText);
 			}
 
-			const fileOnExtension = JSON.parse(value);
-			this.issueReporterModel.update({ fileOnExtension: fileOnExtension });
+			let fileOnExtension, fileOnMarketplace = false;
+			if (value === IssueSource.Extension) {
+				fileOnExtension = true;
+			} else if (value === IssueSource.Marketplace) {
+				fileOnMarketplace = true;
+			}
+
+			this.issueReporterModel.update({ fileOnExtension, fileOnMarketplace });
 			this.render();
 
 			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-			if (fileOnExtension) {
-				this.searchExtensionIssues(title);
-			} else {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchVSCodeIssues(title, description);
-			}
+			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
 		this.addEventListener('description', 'input', (e: Event) => {
@@ -361,18 +367,13 @@ export class IssueReporter extends Disposable {
 			} else {
 				hide(lengthValidationMessage);
 			}
-
-			const fileOnExtension = this.issueReporterModel.fileOnExtension();
-			if (fileOnExtension === undefined) {
+			const issueSource = this.getElementById<HTMLSelectElement>('issue-source');
+			if (!issueSource || issueSource.value === '') {
 				return;
 			}
 
-			if (fileOnExtension) {
-				this.searchExtensionIssues(title);
-			} else {
-				const description = this.issueReporterModel.getData().issueDescription;
-				this.searchVSCodeIssues(title, description);
-			}
+			const { fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
+			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
 		this.previewButton.onDidClick(() => this.createIssue());
@@ -471,10 +472,6 @@ export class IssueReporter extends Disposable {
 			return true;
 		}
 
-		if (issueType === IssueType.Marketplace) {
-			return true;
-		}
-
 		return false;
 	}
 
@@ -496,6 +493,19 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private searchIssues(title: string, fileOnExtension: boolean | undefined, fileOnMarketplace: boolean | undefined): void {
+		if (fileOnExtension) {
+			return this.searchExtensionIssues(title);
+		}
+
+		if (fileOnMarketplace) {
+			return this.searchMarketplaceIssues(title);
+		}
+
+		const description = this.issueReporterModel.getData().issueDescription;
+		this.searchVSCodeIssues(title, description);
+	}
+
 	private searchExtensionIssues(title: string): void {
 		const url = this.getExtensionGitHubUrl();
 		if (title) {
@@ -514,6 +524,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		this.clearSearchResults();
+	}
+
+	private searchMarketplaceIssues(title: string): void {
+		if (title) {
+			const gitHubInfo = this.parseGitHubUrl(this.configuration.product.reportMarketplaceIssueUrl!);
+			if (gitHubInfo) {
+				return this.searchGitHub(`${gitHubInfo.owner}/${gitHubInfo.repositoryName}`, title);
+			}
+		}
 	}
 
 	private clearSearchResults(): void {
@@ -640,18 +659,11 @@ export class IssueReporter extends Disposable {
 
 		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
 		const { issueType } = this.issueReporterModel.getData();
-		this.configuration.product.reportMarketplaceIssueUrl
-			? reset(typeSelect,
-				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
-				makeOption(IssueType.Marketplace, localize('marketplaceIssue', "Extensions Marketplace Issue"))
-			)
-			: reset(typeSelect,
-				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
-			);
+		reset(typeSelect,
+			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
+			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
+			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue")),
+		);
 
 		typeSelect.value = issueType.toString();
 
@@ -680,19 +692,15 @@ export class IssueReporter extends Disposable {
 		}
 
 		sourceSelect.innerText = '';
-		if (issueType === IssueType.FeatureRequest) {
-			sourceSelect.append(...[
-				this.makeOption('', localize('selectSource', "Select source"), true),
-				this.makeOption('false', localize('vscode', "Visual Studio Code"), false),
-				this.makeOption('true', localize('extension', "An extension"), false)
-			]);
-		} else {
-			sourceSelect.append(...[
-				this.makeOption('', localize('selectSource', "Select source"), true),
-				this.makeOption('false', localize('vscode', "Visual Studio Code"), false),
-				this.makeOption('true', localize('extension', "An extension"), false),
-				this.makeOption('', localize('unknown', "Don't Know"), false)
-			]);
+		sourceSelect.append(this.makeOption('', localize('selectSource', "Select source"), true));
+		sourceSelect.append(this.makeOption('vscode', localize('vscode', "Visual Studio Code"), false));
+		sourceSelect.append(this.makeOption('extension', localize('extension', "An extension"), false));
+		if (this.configuration.product.reportMarketplaceIssueUrl) {
+			sourceSelect.append(this.makeOption('marketplace', localize('marketplace', "Extensions marketplace"), false));
+		}
+
+		if (issueType !== IssueType.FeatureRequest) {
+			sourceSelect.append(this.makeOption('', localize('unknown', "Don't know"), false));
 		}
 
 		if (selected !== -1 && selected < sourceSelect.options.length) {
@@ -705,7 +713,7 @@ export class IssueReporter extends Disposable {
 
 	private renderBlocks(): void {
 		// Depending on Issue Type, we render different blocks and text
-		const { issueType, fileOnExtension } = this.issueReporterModel.getData();
+		const { issueType, fileOnExtension, fileOnMarketplace } = this.issueReporterModel.getData();
 		const blockContainer = this.getElementById('block-container');
 		const systemBlock = document.querySelector('.block-system');
 		const processBlock = document.querySelector('.block-process');
@@ -729,29 +737,35 @@ export class IssueReporter extends Disposable {
 		hide(extensionSelector);
 
 		if (issueType === IssueType.Bug) {
-			show(blockContainer);
-			show(systemBlock);
 			show(problemSource);
-			show(experimentsBlock);
+
+			if (!fileOnMarketplace) {
+				show(blockContainer);
+				show(systemBlock);
+				show(experimentsBlock);
+			}
 
 			if (fileOnExtension) {
 				show(extensionSelector);
-			} else {
+			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
-			show(blockContainer);
-			show(systemBlock);
-			show(processBlock);
-			show(workspaceBlock);
 			show(problemSource);
-			show(experimentsBlock);
+
+			if (!fileOnMarketplace) {
+				show(blockContainer);
+				show(systemBlock);
+				show(processBlock);
+				show(workspaceBlock);
+				show(experimentsBlock);
+			}
 
 			if (fileOnExtension) {
 				show(extensionSelector);
-			} else {
+			} else if (!fileOnMarketplace) {
 				show(extensionsBlock);
 			}
 
@@ -765,9 +779,6 @@ export class IssueReporter extends Disposable {
 			if (fileOnExtension) {
 				show(extensionSelector);
 			}
-		} else if (issueType === IssueType.Marketplace) {
-			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('marketplaceDescription', "Please describe the feature you would like added to the marketplace, or steps to reliably reproduce the problem if you are reporting a bug. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		}
 	}
 
@@ -787,13 +798,9 @@ export class IssueReporter extends Disposable {
 
 	private validateInputs(): boolean {
 		let isValid = true;
-		['issue-title', 'description'].forEach(elementId => {
+		['issue-title', 'description', 'issue-source'].forEach(elementId => {
 			isValid = this.validateInput(elementId) && isValid;
 		});
-
-		if (this.issueReporterModel.getData().issueType !== IssueType.Marketplace) {
-			isValid = this.validateInput('issue-source') && isValid;
-		}
 
 		if (this.issueReporterModel.fileOnExtension()) {
 			isValid = this.validateInput('extension-selector') && isValid;
@@ -905,7 +912,7 @@ export class IssueReporter extends Disposable {
 	private getIssueUrl(): string {
 		return this.issueReporterModel.fileOnExtension()
 			? this.getExtensionGitHubUrl()
-			: this.issueReporterModel.getData().issueType === IssueType.Marketplace
+			: this.issueReporterModel.getData().fileOnMarketplace
 				? this.configuration.product.reportMarketplaceIssueUrl!
 				: this.configuration.product.reportIssueUrl!;
 	}

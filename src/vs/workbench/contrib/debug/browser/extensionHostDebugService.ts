@@ -8,7 +8,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
@@ -191,8 +190,8 @@ class BrowserDebugHelperService implements IDebugHelperService {
 
 	declare readonly _serviceBrand: undefined;
 
-	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined {
-		return undefined;
+	async createPrivateTelemetryService(_id: string, _aiKey: string): Promise<TelemetryService> {
+		return undefined!;
 	}
 }
 

@@ -49,7 +49,6 @@ import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionMana
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
 import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
-import 'vs/workbench/services/diagnostics/electron-sandbox/diagnosticsService';
 import 'vs/workbench/services/localizations/electron-sandbox/localizationsService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementServerService';
@@ -63,8 +62,9 @@ import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
 import 'vs/workbench/services/timer/electron-sandbox/timerService';
 import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
-import 'vs/platform/checksum/electron-sandbox/checksumService';
 import 'vs/workbench/services/backup/electron-sandbox/backupFileService';
+import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
+import 'vs/platform/checksum/electron-sandbox/checksumService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -128,5 +128,8 @@ import 'vs/workbench/contrib/output/electron-sandbox/outputChannelModelService';
 // Tags
 import 'vs/workbench/contrib/tags/electron-sandbox/workspaceTagsService';
 import 'vs/workbench/contrib/tags/electron-sandbox/tags.contribution';
+
+// Performance
+import 'vs/workbench/contrib/performance/electron-sandbox/performance.contribution';
 
 //#endregion

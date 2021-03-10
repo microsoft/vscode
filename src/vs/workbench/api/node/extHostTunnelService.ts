@@ -123,9 +123,9 @@ export async function findPorts(tcp: string, tcp6: string, procSockets: string, 
 
 	const ports: CandidatePort[] = [];
 	connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
-		const command = processMap[socketMap[socket].pid].cmd;
-		if (!knownExcludeCmdline(command)) {
-			ports.push({ host: ip, port, detail: processMap[socketMap[socket].pid].cmd, pid: socketMap[socket].pid });
+		const command: string | undefined = processMap[socketMap[socket].pid]?.cmd;
+		if (command && !knownExcludeCmdline(command)) {
+			ports.push({ host: ip, port, detail: command, pid: socketMap[socket].pid });
 		}
 	});
 	return ports;

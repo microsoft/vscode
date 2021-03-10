@@ -54,7 +54,7 @@ suite('NotebookCell#Document', function () {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
@@ -80,7 +80,6 @@ suite('NotebookCell#Document', function () {
 					cellKind: CellKind.Code,
 					outputs: [],
 				}],
-				contentOptions: { transientMetadata: {}, transientOutputs: false }
 			}],
 			addedEditors: [{
 				documentUri: notebookUri,
@@ -104,16 +103,16 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
 
 		const [c1, c2] = notebook.notebookDocument.cells;
-		const d1 = extHostDocuments.getDocument(c1.uri);
+		const d1 = extHostDocuments.getDocument(c1.document.uri);
 
 		assert.ok(d1);
-		assert.strictEqual(d1.languageId, c1.language);
+		assert.strictEqual(d1.languageId, c1.document.languageId);
 		assert.strictEqual(d1.version, 1);
 		assert.ok(d1.notebook === notebook.notebookDocument);
 
-		const d2 = extHostDocuments.getDocument(c2.uri);
+		const d2 = extHostDocuments.getDocument(c2.document.uri);
 		assert.ok(d2);
-		assert.strictEqual(d2.languageId, c2.language);
+		assert.strictEqual(d2.languageId, c2.document.languageId);
 		assert.strictEqual(d2.version, 1);
 		assert.ok(d2.notebook === notebook.notebookDocument);
 	});
@@ -121,8 +120,8 @@ suite('NotebookCell#Document', function () {
 	test('cell document goes when notebook closes', async function () {
 		const cellUris: string[] = [];
 		for (let cell of notebook.notebookDocument.cells) {
-			assert.ok(extHostDocuments.getDocument(cell.uri));
-			cellUris.push(cell.uri.toString());
+			assert.ok(extHostDocuments.getDocument(cell.document.uri));
+			cellUris.push(cell.document.uri.toString());
 		}
 
 		const removedCellUris: string[] = [];
@@ -147,11 +146,11 @@ suite('NotebookCell#Document', function () {
 
 					const [first, second] = e.changes[0].items;
 
-					const doc1 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, first.uri));
+					const doc1 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, first.document.uri));
 					assert.ok(doc1);
 					assert.strictEqual(doc1?.document === first.document, true);
 
-					const doc2 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, second.uri));
+					const doc2 = extHostDocuments.getAllDocumentData().find(data => isEqual(data.document.uri, second.document.uri));
 					assert.ok(doc2);
 					assert.strictEqual(doc2?.document === second.document, true);
 
@@ -198,9 +197,9 @@ suite('NotebookCell#Document', function () {
 		const docs: vscode.TextDocument[] = [];
 		const addData: IModelAddedData[] = [];
 		for (let cell of notebook.notebookDocument.cells) {
-			const doc = extHostDocuments.getDocument(cell.uri);
+			const doc = extHostDocuments.getDocument(cell.document.uri);
 			assert.ok(doc);
-			assert.strictEqual(extHostDocuments.getDocument(cell.uri).isClosed, false);
+			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
 			docs.push(doc);
 			addData.push({
 				EOL: '\n',
@@ -220,14 +219,14 @@ suite('NotebookCell#Document', function () {
 
 		// notebook is still open -> cell documents stay open
 		for (let cell of notebook.notebookDocument.cells) {
-			assert.ok(extHostDocuments.getDocument(cell.uri));
-			assert.strictEqual(extHostDocuments.getDocument(cell.uri).isClosed, false);
+			assert.ok(extHostDocuments.getDocument(cell.document.uri));
+			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
 		}
 
 		// close notebook -> docs are closed
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
 		for (let cell of notebook.notebookDocument.cells) {
-			assert.throws(() => extHostDocuments.getDocument(cell.uri));
+			assert.throws(() => extHostDocuments.getDocument(cell.document.uri));
 		}
 		for (let doc of docs) {
 			assert.strictEqual(doc.isClosed, true);
@@ -253,7 +252,7 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(cell1.document.isClosed, true); // ref still alive!
 		assert.strictEqual(cell2.document.isClosed, false);
 
-		assert.throws(() => extHostDocuments.getDocument(cell1.uri));
+		assert.throws(() => extHostDocuments.getDocument(cell1.document.uri));
 	});
 
 	test('cell document knows notebook', function () {
@@ -352,5 +351,65 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(event.changes[0].items.length, 2);
 		assert.strictEqual(event.changes[0].items[0].document.isClosed, false);
 		assert.strictEqual(event.changes[0].items[1].document.isClosed, false);
+	});
+
+
+	test('Opening a notebook results in VS Code firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
+		let count = 0;
+		extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			addedEditors: [{
+				documentUri: notebookUri,
+				id: '_notebook_editor_2',
+				selections: [{ start: 0, end: 1 }],
+				visibleRanges: []
+			}]
+		});
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			newActiveEditor: '_notebook_editor_2'
+		});
+
+		assert.strictEqual(count, 1);
+	});
+
+	test('unset active notebook editor', function () {
+
+		const editor = extHostNotebooks.activeNotebookEditor;
+		assert.ok(editor !== undefined);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: undefined });
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({});
+		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
+
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: null });
+		assert.ok(extHostNotebooks.activeNotebookEditor === undefined);
+	});
+
+	test('change cell language triggers onDidChange events', async function () {
+
+		const [first] = notebook.notebookDocument.cells;
+
+		assert.strictEqual(first.document.languageId, 'markdown');
+
+		const removed = Event.toPromise(extHostDocuments.onDidRemoveDocument);
+		const added = Event.toPromise(extHostDocuments.onDidAddDocument);
+
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			versionId: 12, rawEvents: [{
+				kind: NotebookCellsChangeType.ChangeLanguage,
+				index: 0,
+				language: 'fooLang'
+			}]
+		}, false);
+
+		const removedDoc = await removed;
+		const addedDoc = await added;
+
+		assert.strictEqual(first.document.languageId, 'fooLang');
+		assert.ok(removedDoc === addedDoc);
 	});
 });

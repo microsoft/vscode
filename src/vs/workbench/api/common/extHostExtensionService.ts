@@ -25,7 +25,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -388,7 +388,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;
-		const installAge = Date.now() - new Date(this._initData.telemetryInfo.firstSessionDate).getTime();
+		const extensionKind = this._initData.remote.isRemote ? ExtensionKind.Workspace : ExtensionKind.UI;
 
 		this._logService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.identifier.value}`);
 
@@ -398,6 +398,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._storagePath.whenReady
 		]).then(() => {
 			const that = this;
+			let extension: vscode.Extension<any> | undefined;
+
 			return Object.freeze<vscode.ExtensionContext>({
 				globalState,
 				workspaceState,
@@ -413,21 +415,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				get storageUri() { return that._storagePath.workspaceValue(extensionDescription); },
 				get globalStorageUri() { return that._storagePath.globalValue(extensionDescription); },
 				get extensionMode() { return extensionMode; },
-				get extensionId() {
+				get extension() {
 					checkProposedApiEnabled(extensionDescription);
-					return extensionDescription.identifier.value;
-				},
-				get extensionVersion() {
-					checkProposedApiEnabled(extensionDescription);
-					return extensionDescription.version;
+					if (extension === undefined) {
+						extension = new Extension(this, extensionDescription.identifier, extensionDescription, extensionKind);
+					}
+					return extension;
 				},
 				get extensionRuntime() {
 					checkProposedApiEnabled(extensionDescription);
 					return that.extensionRuntime;
-				},
-				get isNewInstall() {
-					checkProposedApiEnabled(extensionDescription);
-					return isNaN(installAge) ? false : installAge < 1000 * 60 * 60 * 24; // installAge is less than a day;
 				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
 			});
@@ -839,4 +836,43 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 
 	onDidChangeRemoteConnectionData: Event<void>;
 	getRemoteConnectionData(): IRemoteConnectionData | null;
+}
+
+export class Extension<T> implements vscode.Extension<T> {
+
+	#extensionService: IExtHostExtensionService;
+	#originExtensionId: ExtensionIdentifier;
+	#identifier: ExtensionIdentifier;
+
+	readonly id: string;
+	readonly extensionUri: URI;
+	readonly extensionPath: string;
+	readonly packageJSON: IExtensionDescription;
+	readonly extensionKind: vscode.ExtensionKind;
+
+	constructor(extensionService: IExtHostExtensionService, originExtensionId: ExtensionIdentifier, description: IExtensionDescription, kind: ExtensionKind) {
+		this.#extensionService = extensionService;
+		this.#originExtensionId = originExtensionId;
+		this.#identifier = description.identifier;
+		this.id = description.identifier.value;
+		this.extensionUri = description.extensionLocation;
+		this.extensionPath = path.normalize(originalFSPath(description.extensionLocation));
+		this.packageJSON = description;
+		this.extensionKind = kind;
+	}
+
+	get isActive(): boolean {
+		return this.#extensionService.isActivated(this.#identifier);
+	}
+
+	get exports(): T {
+		if (this.packageJSON.api === 'none') {
+			return undefined!; // Strict nulloverride - Public api
+		}
+		return <T>this.#extensionService.getExtensionExports(this.#identifier);
+	}
+
+	activate(): Thenable<T> {
+		return this.#extensionService.activateByIdWithErrors(this.#identifier, { startup: false, extensionId: this.#originExtensionId, activationEvent: 'api' }).then(() => this.exports);
+	}
 }

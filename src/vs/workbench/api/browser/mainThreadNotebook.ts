@@ -84,8 +84,7 @@ class NotebookAndEditorState {
 				cellKind: cell.cellKind,
 				outputs: cell.outputs,
 				metadata: cell.metadata
-			})),
-			contentOptions: e.transientOptions,
+			}))
 		};
 	}
 
@@ -403,8 +402,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
-			openNotebook: async (viewType: string, uri: URI, backupId?: string) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId);
+			openNotebook: async (viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId, token);
 				return {
 					data,
 					transientOptions: contentOptions
@@ -583,11 +582,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	}
 
 
-	async $tryOpenDocument(uriComponents: UriComponents, viewType?: string): Promise<URI> {
+	async $tryOpenDocument(uriComponents: UriComponents): Promise<URI> {
 		const uri = URI.revive(uriComponents);
-		const ref = await this._notebookModelResolverService.resolve(uri, viewType);
+		const ref = await this._notebookModelResolverService.resolve(uri, undefined);
 		this._modelReferenceCollection.add(uri, ref);
-
 		return uri;
 	}
 

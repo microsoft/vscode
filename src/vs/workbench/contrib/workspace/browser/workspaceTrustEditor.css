@@ -19,6 +19,9 @@
 .workspace-trust-editor.settings-editor > .workspace-trust-header {
 	padding: 14px;
 	border: solid 1px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
 }
 
 .workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title {
@@ -26,11 +29,18 @@
 	font-weight: 600;
 	line-height: 32px;
 	padding: 10px 0px;
+	display: flex;
+}
+
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
+	font-size: 32px;
+	margin-right: 8px;
 }
 
 .workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-description {
 	cursor: default;
 	user-select: text;
+	max-width: 500px;
 }
 
 /** Buttons Container */
@@ -78,16 +88,36 @@
 }
 
 /** Features List */
-.workspace-trust-editor.settings-editor > .workspace-trust-features-list {
+.workspace-trust-editor.settings-editor > .workspace-trust-features {
 	padding: 14px;
 	cursor: default;
 	user-select: text;
 }
 
-.workspace-trust-editor.settings-editor > .workspace-trust-features-list  .workspace-trust-extensions-list-header {
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-title {
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 32px;
+}
+
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry {
+	display: flex;
+	margin-bottom: 10px;
+	align-items: center;
+}
+
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-text {
+	display: flex;
+	flex-direction: column;
+	margin-left: 5px;
+}
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon,
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon .icon {
+	height: 42px;
+}
+
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-name {
+	font-weight: 600;
 }
 
 /** Settings */
