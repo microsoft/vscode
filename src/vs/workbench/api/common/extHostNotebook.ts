@@ -25,6 +25,7 @@ import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { assertIsDefined } from 'vs/base/common/types';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { hash } from 'vs/base/common/hash';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 
@@ -497,9 +498,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, token: CancellationToken): Promise<NotebookDataDto> {
+	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<NotebookDataDto> {
 		const { provider } = this._getProviderData(viewType);
-		const data = await provider.openNotebook(URI.revive(uri), { backupId }, token);
+		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
 		return {
 			metadata: {
 				...notebookDocumentMetadataDefaults,

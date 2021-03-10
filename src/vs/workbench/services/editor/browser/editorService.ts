@@ -540,6 +540,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 								await this.replaceEditors([{
 									editor: existingEditor,
 									replacement: fileEditorInput,
+									forceReplaceDirty: existingEditor.resource?.scheme === Schemas.untitled,
 									options: options ? EditorOptions.create(options) : undefined,
 								}], group);
 							}
@@ -995,6 +996,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				typedEditors.push({
 					editor: replacementArg.editor,
 					replacement: replacementArg.replacement,
+					forceReplaceDirty: replacementArg.forceReplaceDirty,
 					options: this.toOptions(replacementArg.options)
 				});
 			} else {

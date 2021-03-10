@@ -368,6 +368,20 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(counter, 1);
 	});
 
+
+	test('service#getValue', async () => {
+		// This function is used for the untitledocumentData API
+		const service = accessor.untitledTextEditorService;
+		const model1 = await instantiationService.createInstance(UntitledTextEditorInput, service.create()).resolve();
+
+		model1.textEditorModel!.setValue('foo bar');
+		assert.strictEqual(service.getValue(model1.resource), 'foo bar');
+		model1.dispose();
+
+		// When a model doesn't exist, it should return undefined
+		assert.strictEqual(service.getValue(URI.parse('https://www.microsoft.com')), undefined);
+	});
+
 	test('model#onDidChangeContent', async function () {
 		const service = accessor.untitledTextEditorService;
 		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());

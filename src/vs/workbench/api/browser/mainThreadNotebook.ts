@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { diffMaps, diffSets } from 'vs/base/common/collections';
 import { Emitter } from 'vs/base/common/event';
@@ -402,8 +403,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
-			openNotebook: async (viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId, token);
+			openNotebook: async (viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId, token, untitledDocumentData);
 				return {
 					data,
 					transientOptions: contentOptions
