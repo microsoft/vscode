@@ -10120,8 +10120,11 @@ declare module 'vscode' {
 		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
 
 		/**
-		 * The name of the workspace. `undefined` when no folder
+		 * The name of the workspace. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 */
 		export const name: string | undefined;
 
@@ -10137,7 +10140,7 @@ declare module 'vscode' {
 		 * for a workspace that is untitled and not yet saved.
 		 *
 		 * Depending on the workspace that is opened, the value will be:
-		 *  * `undefined` when no workspace or  a single folder is opened
+		 *  * `undefined` when no workspace is opened
 		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
 		 * is untitled, the returned URI will use the `untitled:` scheme
 		 *
@@ -10148,6 +10151,9 @@ declare module 'vscode' {
 		 * ```typescript
 		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
 		 * ```
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 *
 		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
 		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
