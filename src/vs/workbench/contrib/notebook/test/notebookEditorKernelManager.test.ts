@@ -12,7 +12,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { TestQuickInputService } from 'vs/platform/quickinput/test/testQuickInputService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
@@ -21,6 +20,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellKind, INotebookKernel, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('NotebookEditorKernelManager', () => {
 	const instantiationService = setupInstantiationService();

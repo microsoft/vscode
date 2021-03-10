@@ -97,7 +97,7 @@ import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEdit
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor, IEditor } from 'vs/editor/common/editorCommon';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
@@ -129,6 +129,7 @@ import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { isArray } from 'vs/base/common/types';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -1515,4 +1516,36 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async getLatency(): Promise<number> { return 0; }
+}
+
+export class TestQuickInputService implements IQuickInputService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly onShow = Event.None;
+	readonly onHide = Event.None;
+
+	readonly quickAccess = undefined!;
+	backButton!: IQuickInputButton;
+
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
+	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
+	async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
+		if (isArray(picks)) {
+			return <any>{ label: 'selectedPick', description: 'pick description', value: 'selectedPick' };
+		} else {
+			return undefined;
+		}
+	}
+
+	async input(options?: IInputOptions, token?: CancellationToken): Promise<string> { return options ? 'resolved' + options.prompt : 'resolved'; }
+
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> { throw new Error('not implemented.'); }
+	createInputBox(): IInputBox { throw new Error('not implemented.'); }
+	focus(): void { throw new Error('not implemented.'); }
+	toggle(): void { throw new Error('not implemented.'); }
+	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }
+	accept(): Promise<void> { throw new Error('not implemented.'); }
+	back(): Promise<void> { throw new Error('not implemented.'); }
+	cancel(): Promise<void> { throw new Error('not implemented.'); }
 }
