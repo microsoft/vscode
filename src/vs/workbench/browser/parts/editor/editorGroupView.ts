@@ -1797,7 +1797,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 export interface EditorReplacement {
 	readonly editor: EditorInput;
 	readonly replacement: EditorInput;
-	// Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to!
+	/** Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to! */
 	readonly forceReplaceDirty?: boolean;
 	readonly options?: EditorOptions;
 }
