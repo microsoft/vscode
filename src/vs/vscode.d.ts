@@ -10072,9 +10072,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for dealing with the current workspace. A workspace is the representation
-	 * of the folder that has been opened. There is no workspace when just a file but not a
-	 * folder has been opened.
+	 * Namespace for dealing with the current workspace. A workspace is the collection of one
+	 * or more folders that are opened in a VS Code window (instance).
+	 *
+	 * It is also possible to open VS Code without a workspace. For example, when you open a
+	 * new VS Code window by selecting a file from your platform's File menu, you will not be
+	 * inside a workspace. In this mode, some of VS Code's capabilities are reduced but you can
+	 * still open text files and edit them.
+	 *
+	 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+	 * the concept of workspaces in VS Code.
 	 *
 	 * The workspace offers support for [listening](#workspace.createFileSystemWatcher) to fs
 	 * events and for [finding](#workspace.findFiles) files. Both perform well and run _outside_
@@ -10091,15 +10098,23 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * The folder that is open in the editor. `undefined` when no folder
+		 * The workspace folder that is open in VS Code. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
 		 */
 		export const rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders or `undefined` when no folder is open.
+		 * List of workspace folders that are open in VS Code. `undefined when no workspace
+		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
+		 *
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
 		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
