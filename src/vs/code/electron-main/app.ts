@@ -839,7 +839,7 @@ export class CodeApplication extends Disposable {
 				noRecentEntry,
 				waitMarkerFileURI,
 				initialStartup: true,
-				remoteAuthority: undefined /* always local */
+				/* remoteAuthority will be determined based on macOpenFiles */
 			});
 		}
 
