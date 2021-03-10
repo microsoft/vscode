@@ -1261,41 +1261,13 @@ export function registerTerminalActions() {
 			await terminalService.showPanel(true);
 		}
 	});
-	const createTerminalTitle: ICommandActionTitle = { value: localize('workbench.action.terminal.createTerminalWithDropdown', "Create Terminal"), original: 'Create Terminal' };
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TERMINAL_COMMAND_ID.NEW,
-				title: createTerminalTitle,
-				f1: true,
-				category,
-				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
-				icon: Codicon.arrowDown,
-				menu: {
-					id: MenuId.ViewTitle,
-					group: 'navigation',
-					order: 1,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor, item: string) {
-			const terminalService = accessor.get(ITerminalService);
-
-			if (terminalService.isProcessSupportRegistered) {
-				const shells = terminalService.configHelper.config.shells;
-				const shellsForPlatform = isWindows ? shells.windows : isIOS ? shells.osx : shells.linux;
-				const launchConfig = shellsForPlatform.find(shell => shell.label === item);
-				const instance = terminalService.createTerminal(launchConfig);
-				if (!instance) {
-					return;
-				}
-				terminalService.setActiveInstance(instance);
-			}
-			return terminalService.showPanel(true);
-		}
+	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW,
+			title: localize('workbench.action.terminal.new.short', "New Terminal")
+		},
+		group: ContextMenuGroup.Create
 	});
-
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1370,7 +1342,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).selectDefaultShell();
+			await accessor.get(ITerminalService).getDefaultShells();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1478,7 +1450,7 @@ export function registerTerminalActions() {
 			}
 			if (item === selectDefaultShellTitle) {
 				terminalService.refreshActiveTab();
-				return terminalService.selectDefaultShell();
+				return terminalService.getDefaultShells();
 			}
 			if (item === configureTerminalSettingsTitle) {
 				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
@@ -1489,12 +1461,25 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const shells = terminalService.configHelper.config.shells;
-			const shellsForPlatform = isWindows ? shells.windows : isIOS ? shells.osx : shells.linux;
-			const launchConfig = shellsForPlatform.find(shell => shell.label === item);
-			if (launchConfig) {
-				const instance = terminalService.createTerminal({ executable: launchConfig.shell, name: launchConfig.label, args: launchConfig?.args, cwd: launchConfig.cwd, env: launchConfig.env });
-				terminalService.setActiveInstance(instance);
+			const detectedShells = await terminalService.getDefaultShells(true);
+			const userProfiles = terminalService.configHelper.config.profiles;
+			const customProfiles = isWindows ? userProfiles.windows : isIOS ? userProfiles.osx : userProfiles.linux;
+
+			// Remove 'New ' from the selected item to get the shell type
+			const shellSelection = item.substring(4);
+
+			if (customProfiles) {
+				let launchConfig = customProfiles.find(shell => shell.profileName === shellSelection);
+				if (launchConfig) {
+					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
+					terminalService.setActiveInstance(instance);
+				}
+			} else if (detectedShells) {
+				let launchConfig = detectedShells?.find((shell: { profileName: string; }) => shell.profileName === shellSelection);
+				if (launchConfig) {
+					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
+					terminalService.setActiveInstance(instance);
+				}
 			} else {
 				const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
 				if (customType) {

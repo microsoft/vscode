@@ -95,10 +95,10 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	shells: {
-		linux: IShellConfig[];
-		osx: IShellConfig[];
-		windows: IShellConfig[];
+	profiles: {
+		linux: IShellProfile[];
+		osx: IShellProfile[];
+		windows: IShellProfile[];
 	};
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
@@ -184,15 +184,6 @@ export interface IRemoteTerminalAttachTarget {
 	isOrphan: boolean;
 }
 
-interface IShellConfig {
-	shell: string;
-	args?: string[];
-	label?: string;
-	launchName?: string;
-	cwd?: string;
-	env?: { [key: string]: string | null; };
-}
-
 /**
  * Provides access to native Windows calls that can be injected into non-native layers.
  */
@@ -231,16 +222,15 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-export interface IShellDefinition {
-	label: string;
+export interface IShellProfile {
+	profileName: string;
 	path: string;
+	args?: string | string[] | undefined;
 }
 
 export interface IAvailableShellsRequest {
-	callback: (shells: IShellDefinition[]) => void;
+	callback: (shells: IShellProfile[]) => void;
 }
-
-
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
 	callback: (shell: string, args: string[] | string | undefined) => void;
@@ -334,7 +324,7 @@ export interface IStartExtensionTerminalRequest {
 }
 
 export interface IAvailableShellsRequest {
-	callback: (shells: IShellDefinition[]) => void;
+	callback: (shells: IShellProfile[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {

@@ -10,7 +10,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { IShellDefinition, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellProfile, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 
 let detectedDistro = LinuxDistro.Unknown;
 if (platform.isLinux) {
@@ -31,11 +31,11 @@ if (platform.isLinux) {
 
 export const linuxDistro = detectedDistro;
 
-export function detectAvailableShells(): Promise<IShellDefinition[]> {
+export function detectAvailableShells(): Promise<IShellProfile[]> {
 	return platform.isWindows ? detectAvailableWindowsShells() : detectAvailableUnixShells();
 }
 
-async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
+async function detectAvailableWindowsShells(): Promise<IShellProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -59,11 +59,10 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 		],
-		// See #75945
-		// Cygwin: [
-		// 	`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-		// 	`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-		// ]
+		'Cygwin': [
+			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
+			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+		]
 	};
 
 	// Add all of the different kinds of PowerShells
@@ -71,24 +70,28 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 		expectedLocations[pwshExe.displayName] = [pwshExe.exePath];
 	}
 
-	const promises: Promise<IShellDefinition | undefined>[] = [];
+	const promises: Promise<IShellProfile | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));
 	const shells = await Promise.all(promises);
+	let definition = shells.find(shell => shell?.profileName === 'Cygwin');
+	if (definition) {
+		definition.args = ['-l'];
+	}
 	return coalesce(shells);
 }
 
-async function detectAvailableUnixShells(): Promise<IShellDefinition[]> {
+async function detectAvailableUnixShells(): Promise<IShellProfile[]> {
 	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const shells = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 	return shells.map(e => {
 		return {
-			label: basename(e),
+			profileName: basename(e),
 			path: e
 		};
 	});
 }
 
-async function validateShellPaths(label: string, potentialPaths: string[]): Promise<IShellDefinition | undefined> {
+async function validateShellPaths(label: string, potentialPaths: string[]): Promise<IShellProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -100,7 +103,7 @@ async function validateShellPaths(label: string, potentialPaths: string[]): Prom
 		const result = await fs.promises.stat(normalize(current));
 		if (result.isFile() || result.isSymbolicLink()) {
 			return {
-				label,
+				profileName: label,
 				path: current
 			};
 		}
@@ -112,7 +115,7 @@ async function validateShellPaths(label: string, potentialPaths: string[]): Prom
 			const result = await fs.promises.lstat(normalize(current));
 			if (result.isFile() || result.isSymbolicLink()) {
 				return {
-					label,
+					profileName: label,
 					path: current
 				};
 			}

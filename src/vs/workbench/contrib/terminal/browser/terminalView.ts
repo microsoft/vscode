@@ -39,6 +39,7 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 const FIND_FOCUS_CLASS = 'find-focused';
+const TERMINAL_STARTING_LABEL = [{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
 
 export class TerminalViewPane extends ViewPane {
 	private _menu: IMenu;
@@ -367,13 +368,12 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
 		@IContextViewService contextViewService: IContextViewService,
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
-
-		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
-		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
-		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
-		this._register(_terminalService.onTabDisposed(this._updateItems, this));
-		this._register(_terminalService.onDidChangeConnectionState(this._updateItems, this));
+		super(null, action, TERMINAL_STARTING_LABEL, _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		this._register(_terminalService.onInstancesChanged(async () => await this._updateItems(), this));
+		this._register(_terminalService.onActiveTabChanged(async () => await this._updateItems(), this));
+		this._register(_terminalService.onInstanceTitleChanged(async () => await this._updateItems(), this));
+		this._register(_terminalService.onTabDisposed(async () => await this._updateItems(), this));
+		this._register(_terminalService.onDidChangeConnectionState(async () => await this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -385,8 +385,8 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		}));
 	}
 
-	private _updateItems(): void {
-		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
+	private async _updateItems(): Promise<void> {
+		const options = await getTerminalSelectOpenItems(this._terminalService, this._contributions);
 		// only update options if they've changed
 		if (!equals(Object.values(options), Object.values(this._lastOptions)) || this._lastActiveTab !== this._terminalService.activeTabIndex) {
 			this.setOptions(options, this._terminalService.activeTabIndex);
@@ -396,7 +396,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 }
 
-function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
+async function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): Promise<ISelectOptionItem[]> {
 	let items: ISelectOptionItem[];
 
 	if (terminalService.connectionState === TerminalConnectionState.Connected) {
@@ -404,20 +404,41 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 			return { text: label };
 		});
 	} else {
-		items = [{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
+		items = TERMINAL_STARTING_LABEL;
 	}
-
-	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 
 	for (const contributed of contributions.terminalTypes) {
 		items.push({ text: contributed.title });
 	}
+
+	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
+
+	const profiles = await getProfileSelectOptionItems(terminalService);
+	if (profiles) {
+		items.push(...profiles);
+	}
+	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 	items.push({ text: selectDefaultShellTitle });
 	items.push({ text: configureTerminalSettingsTitle });
-	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-	const shells = terminalService.configHelper.config.shells;
-	const shellsForPlatform = platform.isWindows ? shells.windows : platform.isIOS ? shells.osx : shells.linux;
-	const labels = shellsForPlatform.map(shell => ({ text: shell.label } as ISelectOptionItem));
-	items.push(...labels);
 	return items;
+}
+
+async function getProfileSelectOptionItems(terminalService: ITerminalService): Promise<ISelectOptionItem[]> {
+	const detectedProfiles = await terminalService.getDefaultShells(true);
+	const userProfiles = terminalService.configHelper.config.profiles;
+	const customProfiles = (platform.isWindows ? userProfiles.windows : platform.isIOS ? userProfiles.osx : userProfiles.linux);
+	let labels: ISelectOptionItem[] = [];
+	if (customProfiles && customProfiles.length > 0) {
+		labels = customProfiles.map(shell => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
+	} else if (detectedProfiles) {
+		const profilesToDisplay = platform.isWindows ? ['Git Bash', 'Command Prompt', 'WSL Bash', 'Powershell'] : ['bash', 'zsh', 'fish', 'tmux'];
+		const hasOnlyWindowsPowershell = detectedProfiles?.find(t => t.profileName === 'Windows Powershell') && !detectedProfiles?.find(t => t.profileName.toLowerCase() === 'powershell');
+		if (hasOnlyWindowsPowershell) {
+			// fall back since this is the only powershell installed
+			profilesToDisplay.push('windows powershell');
+		}
+		const filtered = detectedProfiles?.filter(term => profilesToDisplay.find(t => t === term.profileName.toLowerCase()));
+		labels = filtered.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
+	}
+	return labels;
 }
