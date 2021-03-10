@@ -76,7 +76,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 	readonly input = {
 		name: nls.localize('remote.tunnelsView.addPort', "Add Port"),
 		label: nls.localize('remote.tunnelsView.add', "Forward a Port..."),
-		icon: forwardPortIcon,
+		icon: undefined,
 		tunnelType: TunnelType.Add,
 		remoteHost: '',
 		remotePort: 0,
