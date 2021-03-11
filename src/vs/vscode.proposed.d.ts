@@ -1373,7 +1373,7 @@ declare module 'vscode' {
 
 	export class NotebookData {
 		cells: NotebookCellData[];
-		metadata?: NotebookDocumentMetadata;
+		metadata: NotebookDocumentMetadata;
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
