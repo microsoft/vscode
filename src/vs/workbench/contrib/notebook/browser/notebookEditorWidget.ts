@@ -399,6 +399,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				keyboardSupport: false,
 				mouseSupport: true,
 				multipleSelectionSupport: true,
+				selectionNavigation: true,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
