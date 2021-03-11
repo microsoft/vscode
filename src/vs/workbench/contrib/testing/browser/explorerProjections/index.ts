@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -20,7 +21,7 @@ import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testi
  * using a single IncrementalTestChangeCollector, but this became hairy
  * with status projections.
  */
-export interface ITestTreeProjection extends IDisposable {
+export interface ITestTreeProjection extends IDisposable, IAsyncDataSource<null, ITestTreeElement> {
 	/**
 	 * Event that fires when the projection changes.
 	 */
@@ -43,14 +44,9 @@ export interface ITestTreeProjection extends IDisposable {
 	hasTestInDocument(uri: URI): boolean;
 
 	/**
-	 * Gets the children of the node, if any.
-	 */
-	getChildren(node: ITestTreeElement): Iterable<ITestTreeElement> | Promise<Iterable<ITestTreeElement>>;
-
-	/**
 	 * Applies pending update to the tree.
 	 */
-	applyTo(tree: AsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>): void;
+	applyTo(tree: AsyncDataTree<null, ITestTreeElement, FuzzyScore>): void;
 }
 
 

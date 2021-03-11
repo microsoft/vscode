@@ -249,7 +249,10 @@ export class TestService extends Disposable implements ITestService {
 		if (!subscription) {
 			subscription = {
 				ident: { resource, uri },
-				collection: new MainThreadTestCollection(this.rootProviders.size),
+				collection: new MainThreadTestCollection(
+					this.rootProviders.size,
+					this.expandTest.bind(this, resource, uri),
+				),
 				listeners: 0,
 				onDiff: new Emitter(),
 			};
@@ -367,7 +370,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	public readonly onPendingRootProvidersChange = this.pendingRootChangeEmitter.event;
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
 
-	constructor(pendingRootProviders: number) {
+	constructor(pendingRootProviders: number, public readonly expand: (testId: string, levels: number) => Promise<void>) {
 		super();
 		this.pendingRootCount = pendingRootProviders;
 	}

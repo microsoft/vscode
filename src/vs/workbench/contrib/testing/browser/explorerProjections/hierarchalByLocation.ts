@@ -6,6 +6,7 @@
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
@@ -14,9 +15,9 @@ import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { locationsEqual, TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
-import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
+import { NodeChangeList } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestDiffOpType, TestItemExpandable, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
@@ -55,7 +56,10 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	 */
 	public readonly onUpdate = this.updateEmitter.event;
 
-	constructor(listener: TestSubscriptionListener, @ITestResultService private readonly results: ITestResultService) {
+	constructor(
+		private readonly listener: TestSubscriptionListener,
+		@ITestResultService private readonly results: ITestResultService,
+	) {
 		super();
 		this._register(listener.onDiff(([folder, diff]) => this.applyDiff(folder, diff)));
 		this._register(listener.onFolderChange(this.applyFolderChange, this));
@@ -106,8 +110,52 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	/**
 	 * @inheritdoc
 	 */
-	getChildren(node: ITestTreeElement): Iterable<ITestTreeElement> | Promise<Iterable<ITestTreeElement>> {
-		return this.changes.renderNodeList(this.renderNode, node.children as Iterable<HierarchicalElement>);
+	public getChildren(node: ITestTreeElement | null): Iterable<ITestTreeElement> | Promise<Iterable<ITestTreeElement>> {
+		// If requesting the root, expand the first folder if there's only one
+		if (!node) {
+			if (this.folders.size !== 1) {
+				return this.folders.values();
+			}
+
+			node = Iterable.first(this.folders.values())!;
+		}
+
+		// For folders, show the folder's first root if there's only one
+		if (node instanceof HierarchicalFolder) {
+			if (node.children.size !== 1) {
+				return node.children;
+			}
+
+			node = Iterable.first(node.children)!;
+		}
+
+		// Non-expandable or already-expanded nodes:
+		if (!(node instanceof HierarchicalElement && node.test.expand === TestItemExpandable.Expandable)) {
+			return node.children;
+		}
+
+		// We got an expandable node, do so:
+		return this.expandNode(node);
+	}
+
+	/**
+	 * Expands the children of the element.
+	 */
+	protected expandNode(node: HierarchicalElement, depth = 1) {
+		const folder = node.folder;
+		const collection = this.listener.workspaceFolderCollections.find(([f]) => f.folder === folder);
+		if (!collection) {
+			return Iterable.empty();
+		}
+
+		return collection[1].expand(node.test.item.extId, depth).then(() => node!.children);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public hasChildren(node: ITestTreeElement | null) {
+		return !(node instanceof HierarchicalElement) || node.expandable;
 	}
 
 	/**
@@ -115,17 +163,6 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	 */
 	public getElementByTestId(testId: string): ITestTreeElement | undefined {
 		return this.items.get(testId);
-	}
-
-	private applyFolderChange(evt: IWorkspaceFoldersChangeEvent) {
-		for (const folder of evt.removed) {
-			const existing = this.folders.get(folder.uri.toString());
-			if (existing) {
-				this.folders.delete(folder.uri.toString());
-				this.changes.removed(existing);
-			}
-			this.updateEmitter.fire();
-		}
 	}
 
 	/**
@@ -140,6 +177,17 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	 */
 	public hasTestInDocument(uri: URI) {
 		return this.locations.hasTestInDocument(uri);
+	}
+
+	private applyFolderChange(evt: IWorkspaceFoldersChangeEvent) {
+		for (const folder of evt.removed) {
+			const existing = this.folders.get(folder.uri.toString());
+			if (existing) {
+				this.folders.delete(folder.uri.toString());
+				this.changes.removed(existing);
+			}
+			this.updateEmitter.fire();
+		}
 	}
 
 	/**
@@ -196,8 +244,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	/**
 	 * @inheritdoc
 	 */
-	public applyTo(tree: AsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>) {
-		this.changes.applyTo(tree, this.renderNode, () => this.folders.values());
+	public applyTo(tree: AsyncDataTree<null, ITestTreeElement, FuzzyScore>) {
+		this.changes.applyTo(tree);
 	}
 
 	protected createItem(item: InternalTestItem, folder: IWorkspaceFolder): HierarchicalElement {
@@ -219,14 +267,6 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	protected readonly addUpdated = (item: ITestTreeElement) => {
 		const cast = item as HierarchicalElement | HierarchicalFolder;
 		this.changes.updated(cast);
-	};
-
-	protected renderNode: NodeRenderFn<HierarchicalElement | HierarchicalFolder> = node => {
-		if (node.depth < 2 && !peersHaveChildren(node, () => this.folders.values())) {
-			return NodeRenderDirective.Concat;
-		}
-
-		return node;
 	};
 
 	protected unstoreItem(treeElement: HierarchicalElement) {

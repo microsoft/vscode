@@ -52,6 +52,12 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	getNodeById(id: string): IncrementalTestCollectionItem | undefined;
 
 	/**
+	 * Requests that children be revealed for the given test. "Levels" may
+	 * be infinite.
+	 */
+	expand(testId: string, levels: number): Promise<void>;
+
+	/**
 	 * Gets a diff that adds all items currently in the tree to a new collection,
 	 * allowing it to fully hydrate.
 	 */
@@ -141,11 +147,6 @@ export interface ITestService {
 	 * Registers an interface that runs tests for the given provider ID.
 	 */
 	registerTestController(providerId: string, controller: MainTestController): IDisposable;
-
-	/**
-	 * Requests that children be revealed for the given test.
-	 */
-	expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number): Promise<void>;
 
 	/**
 	 * Requests that tests be executed.

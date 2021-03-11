@@ -34,7 +34,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -217,20 +217,20 @@ class EmptyTestsWidget extends Disposable {
 	}
 }
 
-class TestTreeDataSource implements IAsyncDataSource<ITestTreeElement, ITestTreeElement> {
+class TestTreeDataSource implements IAsyncDataSource<null, ITestTreeElement> {
 	constructor(private readonly projectionRef: () => ITestTreeProjection | undefined) { }
 
-	hasChildren(element: ITestTreeElement): boolean {
-		return element.expandable;
+	hasChildren(element: null | ITestTreeElement): boolean {
+		return !!this.projectionRef()?.hasChildren(element);
 	}
 
-	getChildren(element: ITestTreeElement) {
-		return this.projectionRef()?.getChildren(element) ?? [];
+	getChildren(element: null | ITestTreeElement) {
+		return this.projectionRef()?.getChildren(element) ?? Iterable.empty();
 	}
 }
 
 export class TestingExplorerViewModel extends Disposable {
-	public tree: WorkbenchAsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>;
+	public tree: WorkbenchAsyncDataTree<null, ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
@@ -317,12 +317,14 @@ export class TestingExplorerViewModel extends Disposable {
 			{
 				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
-				hideTwistiesOfChildlessElements: true,
 				sorter: instantiationService.createInstance(TreeSorter, this),
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-			}) as WorkbenchAsyncDataTree<ITestTreeElement, ITestTreeElement, FuzzyScore>;
+				collapseByDefault: (e: ITestTreeElement | null) => !e || e.depth > 1,
+			} as IWorkbenchAsyncDataTreeOptions<any, any>) as WorkbenchAsyncDataTree<null, ITestTreeElement, FuzzyScore>;
+
+		this.tree.setInput(null);
 
 		this._register(filterState.currentDocumentOnly.onDidChange(() => {
 			if (!filterState.currentDocumentOnly.value) {
@@ -425,7 +427,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		for (const parent of chain.reverse()) {
 			try {
-				this.tree.expand(parent);
+				await this.tree.expand(parent);
 			} catch {
 				// ignore if not present
 			}
@@ -555,9 +557,11 @@ export class TestingExplorerViewModel extends Disposable {
 	}
 
 	private shouldShowEmptyPlaceholder() {
-		return !!this.listener
-			&& this.listener.subscription.busyProviders === 0
-			&& this.listener.subscription.isEmpty;
+		// todo@connor4312
+		return false;
+		// return !!this.listener
+		// 	&& this.listener.subscription.busyProviders === 0
+		// 	&& this.listener.subscription.isEmpty;
 	}
 
 	private updatePreferredProjection() {

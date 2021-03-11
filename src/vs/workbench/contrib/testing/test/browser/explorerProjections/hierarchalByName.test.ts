@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { stubTestHierarchyProvider, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { makeTestWorkspaceFolder, TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
@@ -25,16 +25,16 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	});
 
 	test('renders initial tree', () => {
-		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.c.addRoot(testStubs.nested(), stubTestHierarchyProvider, 'a');
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' }, { e: 'ab' }, { e: 'b' }
 		]);
 	});
 
 	test('updates render if a second folder is added', () => {
-		harness.c.addRoot(testStubs.nested('id1-'), 'a');
+		harness.c.addRoot(testStubs.nested('id1-'), stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested('id2-'), 'a');
+		harness.c.addRoot(testStubs.nested('id2-'), stubTestHierarchyProvider, 'a');
 		harness.flush(folder2);
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'f1', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
@@ -43,9 +43,9 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	});
 
 	test('updates render if second folder is removed', () => {
-		harness.c.addRoot(testStubs.nested('id1-'), 'a');
+		harness.c.addRoot(testStubs.nested('id1-'), stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested('id2-'), 'a');
+		harness.c.addRoot(testStubs.nested('id2-'), stubTestHierarchyProvider, 'a');
 		harness.flush(folder2);
 		harness.onFolderChange.fire({ added: [], changed: [], removed: [folder1] });
 		assert.deepStrictEqual(harness.flush(folder1), [
@@ -54,9 +54,9 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	});
 
 	test('updates render if second test provider appears', () => {
-		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.c.addRoot(testStubs.nested(), stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
-		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), 'b');
+		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), stubTestHierarchyProvider, 'b');
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'root', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
 			{ e: 'root2', children: [{ e: 'c' }] },
@@ -65,11 +65,11 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('updates nodes if they add children', () => {
 		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
+		harness.c.addRoot(tests, stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
 
 		tests.children[0].children?.push(testStubs.test('ac'));
-		harness.c.onItemChange(tests.children[0], 'a');
+		harness.c.onItemChange(tests.children[0], stubTestHierarchyProvider, 'a');
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' },
@@ -81,11 +81,11 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('updates nodes if they remove children', () => {
 		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
+		harness.c.addRoot(tests, stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
 
 		tests.children[0].children?.pop();
-		harness.c.onItemChange(tests.children[0], 'a');
+		harness.c.onItemChange(tests.children[0], stubTestHierarchyProvider, 'a');
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' },
@@ -95,11 +95,11 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('swaps when node is no longer leaf', () => {
 		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
+		harness.c.addRoot(tests, stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
 
 		tests.children[1].children = [testStubs.test('ba')];
-		harness.c.onItemChange(tests.children[1], 'a');
+		harness.c.onItemChange(tests.children[1], stubTestHierarchyProvider, 'a');
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' },
@@ -110,15 +110,15 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('swaps when node is no longer runnable', () => {
 		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
+		harness.c.addRoot(tests, stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
 
 		tests.children[1].children = [testStubs.test('ba')];
-		harness.c.onItemChange(tests.children[0], 'a');
+		harness.c.onItemChange(tests.children[0], stubTestHierarchyProvider, 'a');
 		harness.flush(folder1);
 
 		tests.children[1].children[0].runnable = false;
-		harness.c.onItemChange(tests.children[1].children[0], 'a');
+		harness.c.onItemChange(tests.children[1].children[0], stubTestHierarchyProvider, 'a');
 
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'aa' },

@@ -45,6 +45,10 @@ export class HierarchicalElement implements ITestTreeElement {
 		return this.test.item.expandable;
 	}
 
+	public get folder(): IWorkspaceFolder {
+		return this.parentItem.folder;
+	}
+
 	public state = TestResult.Unset;
 	public retired = false;
 	public ownState = TestResult.Unset;
@@ -87,7 +91,7 @@ export class HierarchicalFolder implements ITestTreeElement {
 	public state = TestResult.Unset;
 	public ownState = TestResult.Unset;
 
-	constructor(private readonly folder: IWorkspaceFolder) { }
+	constructor(public readonly folder: IWorkspaceFolder) { }
 
 	public get label() {
 		return this.folder.name;

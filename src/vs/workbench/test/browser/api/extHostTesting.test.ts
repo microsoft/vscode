@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MirroredTestCollection, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
-import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestItem as TestItemImpl } from 'vs/workbench/api/common/extHostTypes';
-import { TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
-import { stubTest, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
-import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { TestChangeEvent, TestItem, TextDocument } from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Location } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
+import { Location } from 'vs/editor/common/modes';
+import { createDefaultDocumentTestHierarchy, MirroredTestCollection, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
+import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestDiffOpType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { stubTest, stubTestHierarchyProvider, StubTestItem, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+import { TestChangeEvent, TestHierarchy, TestItem, TextDocument } from 'vscode';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -26,8 +27,8 @@ const simplify = (item: TestItem) => ({
 const assertTreesEqual = (a: TestItem, b: TestItem) => {
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = (a.children ?? []).slice().sort();
-	const bChildren = (b.children ?? []).slice().sort();
+	const aChildren = ((a as StubTestItem).children ?? []).slice().sort();
+	const bChildren = ((b as StubTestItem).children ?? []).slice().sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
 	aChildren.forEach((_, i) => assertTreesEqual(aChildren[i], bChildren[i]));
 };
@@ -66,7 +67,7 @@ suite('ExtHost Testing', () => {
 	suite('OwnedTestCollection', () => {
 		test('adds a root recursively', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, { providerId: 'pid', parent: null, item: convert.TestItem.from(stubTest('root')) }],
 				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-root', item: convert.TestItem.from(stubTest('a')) }],
@@ -78,17 +79,17 @@ suite('ExtHost Testing', () => {
 
 		test('no-ops if items not changed', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			single.collectDiff();
 			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
 		test('watches property mutations', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			single.collectDiff();
 			tests.children![0].description = 'Hello world'; /* item a */
-			single.onItemChange(tests, 'pid');
+			single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 
 			const expected = stubTest('a');
 			expected.description = 'Hello world';
@@ -96,16 +97,16 @@ suite('ExtHost Testing', () => {
 				[TestDiffOpType.Update, { parent: 'id-root', providerId: 'pid', item: convert.TestItem.from(expected) }],
 			]);
 
-			single.onItemChange(tests, 'pid');
+			single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 			assert.deepStrictEqual(single.collectDiff(), []);
 		});
 
 		test('removes children', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			single.collectDiff();
 			tests.children!.splice(0, 1);
-			single.onItemChange(tests, 'pid');
+			single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Remove, 'id-a'],
@@ -116,11 +117,11 @@ suite('ExtHost Testing', () => {
 
 		test('adds new children', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			single.collectDiff();
 			const child = stubTest('ac');
 			tests.children![0].children!.push(child);
-			single.onItemChange(tests, 'pid');
+			single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, { providerId: 'pid', parent: 'id-a', item: convert.TestItem.from(child) }],
@@ -139,7 +140,7 @@ suite('ExtHost Testing', () => {
 
 		test('mirrors creation of the root', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			m.apply(single.collectDiff());
 			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
 			assert.strictEqual(m.length, single.itemToInternal.size);
@@ -147,10 +148,10 @@ suite('ExtHost Testing', () => {
 
 		test('mirrors node deletion', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			m.apply(single.collectDiff());
 			tests.children!.splice(0, 1);
-			single.onItemChange(tests, 'pid');
+			single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 			m.apply(single.collectDiff());
 
 			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
@@ -159,10 +160,10 @@ suite('ExtHost Testing', () => {
 
 		test('mirrors node addition', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			m.apply(single.collectDiff());
 			tests.children![0].children!.push(stubTest('ac'));
-			single.onItemChange(tests, 'pid');
+			single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 			m.apply(single.collectDiff());
 
 			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
@@ -171,10 +172,10 @@ suite('ExtHost Testing', () => {
 
 		test('mirrors node update', () => {
 			const tests = testStubs.nested();
-			single.addRoot(tests, 'pid');
+			single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 			m.apply(single.collectDiff());
 			tests.children![0].description = 'Hello world'; /* item a */
-			single.onItemChange(tests, 'pid');
+			single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 			m.apply(single.collectDiff());
 
 			assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
@@ -184,7 +185,7 @@ suite('ExtHost Testing', () => {
 			let tests = testStubs.nested();
 			setup(() => {
 				tests = testStubs.nested();
-				single.addRoot(tests, 'pid');
+				single.addRoot(tests, stubTestHierarchyProvider, 'pid');
 				m.apply(single.collectDiff());
 			});
 
@@ -202,21 +203,21 @@ suite('ExtHost Testing', () => {
 
 			test('creates change for delete', () => {
 				const rm = tests.children.shift()!;
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				m.apply(single.collectDiff());
 
 				assertTreeListEqual(m.changeEvent.added, []);
 				assertTreeListEqual(m.changeEvent.removed, [
-					{ ...rm, children: [] },
-					{ ...rm.children![0], children: [] },
-					{ ...rm.children![1], children: [] },
+					{ ...rm },
+					{ ...rm.children![0] },
+					{ ...rm.children![1] },
 				]);
 				assertTreeListEqual(m.changeEvent.updated, []);
 			});
 
 			test('creates change for update', () => {
 				tests.children[0].label = 'updated!';
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				m.apply(single.collectDiff());
 
 				assertTreeListEqual(m.changeEvent.added, []);
@@ -227,9 +228,9 @@ suite('ExtHost Testing', () => {
 			test('is a no-op if a node is added and removed', () => {
 				const nested = testStubs.nested('id2-');
 				tests.children.push(nested);
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				tests.children.pop();
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				const previousEvent = m.changeEvent;
 				m.apply(single.collectDiff());
 				assert.strictEqual(m.changeEvent, previousEvent);
@@ -238,9 +239,9 @@ suite('ExtHost Testing', () => {
 			test('is a single-op if a node is added and changed', () => {
 				const child = stubTest('c');
 				tests.children.push(child);
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				child.label = 'd';
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				m.apply(single.collectDiff());
 
 				assertTreeListEqual(m.changeEvent.added, [child]);
@@ -251,7 +252,7 @@ suite('ExtHost Testing', () => {
 			test('gets the common ancestor (1)', () => {
 				tests.children![0].children![0].label = 'za';
 				tests.children![0].children![1].label = 'zb';
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				m.apply(single.collectDiff());
 
 			});
@@ -259,13 +260,13 @@ suite('ExtHost Testing', () => {
 			test('gets the common ancestor (2)', () => {
 				tests.children![0].children![0].label = 'za';
 				tests.children![1].label = 'ab';
-				single.onItemChange(tests, 'pid');
+				single.onItemChange(tests, stubTestHierarchyProvider, 'pid');
 				m.apply(single.collectDiff());
 			});
 		});
 
 		suite('TestItemFilteredWrapper', () => {
-			const stubTestWithLocation = (label: string, location: Location, children: TestItemImpl[] = []) => {
+			const stubTestWithLocation = (label: string, location: Location, children: StubTestItem[] = []) => {
 				const t = stubTest(label, undefined, children);
 				t.location = location as any;
 				return t;
@@ -290,14 +291,32 @@ suite('ExtHost Testing', () => {
 				uri: location1.uri
 			} as TextDocument;
 
-			let testsWithLocation: TestItem;
-			setup(() => {
+			let testsWithLocation: StubTestItem;
+			let hierarchy: TestHierarchy<TestItemFilteredWrapper>;
+			setup(async () => {
 				testsWithLocation =
 					stubTest('root', undefined, [
 						stubTestWithLocation('a', location1, [stubTestWithLocation('aa', location1), stubTestWithLocation('ab', location1)]),
 						stubTestWithLocation('b', location2, [stubTestWithLocation('ba', location2), stubTestWithLocation('bb', location2)]),
 						stubTestWithLocation('b', location3),
 					]);
+
+				hierarchy = (await createDefaultDocumentTestHierarchy<StubTestItem>(
+					{
+						provideWorkspaceTestHierarchy: () => ({
+							getChildren: stubTestHierarchyProvider.getChildren,
+							getParent: stubTestHierarchyProvider.getParent,
+							onDidChangeTest: new Emitter<StubTestItem>().event,
+							root: testsWithLocation
+						}),
+						runTests() {
+							throw new Error('no implemented');
+						}
+					},
+					textDocumentFilter,
+					undefined,
+					CancellationToken.None
+				))!;
 			});
 
 			teardown(() => {
@@ -318,15 +337,17 @@ suite('ExtHost Testing', () => {
 			test('gets no children if nothing matches Uri filter', () => {
 				let tests: TestItem = testStubs.nested();
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(tests, textDocumentFilter);
-				assert.strictEqual(wrapper.children.length, 0);
+				const children = hierarchy.getChildren(wrapper, CancellationToken.None) as TestItemFilteredWrapper[];
+				assert.strictEqual(children.length, 0);
 			});
 
 			test('filter is applied to children', () => {
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
 				assert.strictEqual(wrapper.label, 'root');
-				assert.strictEqual(wrapper.children.length, 1);
-				assert.strictEqual(wrapper.children[0] instanceof TestItemFilteredWrapper, true);
-				assert.strictEqual(wrapper.children[0].label, 'a');
+				const children = hierarchy.getChildren(wrapper, CancellationToken.None) as TestItemFilteredWrapper[];
+				assert.strictEqual(children.length, 1);
+				assert.strictEqual(children[0] instanceof TestItemFilteredWrapper, true);
+				assert.strictEqual(children[0].label, 'a');
 			});
 
 			test('can get if node has matching filter', () => {

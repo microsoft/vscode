@@ -222,7 +222,7 @@ export class SingleUseTestCollection implements IDisposable {
 
 		const parent = existing.parent === null ? undefined : this.testIdToInternal.object.get(existing.parent);
 		if (!parent) {
-			console.error(`TestProvider.onDidChangeTest for a test missing its parent, please report.`);
+			// can be a change for something we haven't expanded yet
 			return;
 		}
 
@@ -311,20 +311,19 @@ export class SingleUseTestCollection implements IDisposable {
 			this.diff.push([TestDiffOpType.Add, { parent: parentId, providerId, expand, item: internal.item }]);
 
 			if (internal.expandLevels !== undefined) {
-				this.expandChildren(internal, internal.expandLevels);
+				this.expand(actual.id, internal.expandLevels);
 			}
 		} else if (!internal.previousEquals(actual)) {
 			internal.item = TestItem.from(actual);
 			internal.previousEquals = itemEqualityComparator(actual);
 			this.diff.push([TestDiffOpType.Update, { parent: parentId, providerId, expand: internal.expand, item: internal.item }]);
-
 			// todo@connor4312: need to handle changes in expandable state
+		}
 
-			// If there are children, track which ones are deleted
-			// and recursively and/update them.
-			if (internal.expand === TestItemExpandable.Expanded) {
-				this.updateChildren(internal);
-			}
+		// If there are children, track which ones are deleted
+		// and recursively and/update them.
+		if (internal.expand === TestItemExpandable.Expanded) {
+			this.updateChildren(internal);
 		}
 
 		return internal;

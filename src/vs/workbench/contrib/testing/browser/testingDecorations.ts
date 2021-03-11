@@ -125,12 +125,12 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
-		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, diff => {
+		const collection = this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, diff => {
 			this.setDecorations(uri!);
 
 			for (const op of diff) {
 				if (op[0] === TestDiffOpType.Add && !op[1].parent) {
-					this.testService.expandTest(ExtHostTestingResource.TextDocument, uri!, op[1].item.extId, Infinity);
+					collection.object.expand(op[1].item.extId, Infinity);
 				}
 			}
 		});

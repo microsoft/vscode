@@ -5,8 +5,18 @@
 
 import { TestItem, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
-export const stubTest = (label: string, idPrefix = 'id-', children: TestItem[] = []): TestItem => {
-	const t = new TestItem(idPrefix + label, label);
+export class StubTestItem extends TestItem {
+	children: StubTestItem[] = [];
+	parent: StubTestItem | undefined;
+}
+
+export const stubTestHierarchyProvider = {
+	getChildren: (s: StubTestItem) => s.children,
+	getParent: (s: StubTestItem) => s.parent,
+};
+
+export const stubTest = (label: string, idPrefix = 'id-', children: StubTestItem[] = []): StubTestItem => {
+	const t = new StubTestItem(idPrefix + label, label, children.length > 0);
 	t.children = children;
 	return t;
 };

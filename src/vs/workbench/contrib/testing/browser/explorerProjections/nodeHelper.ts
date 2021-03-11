@@ -48,12 +48,12 @@ export const enum NodeRenderDirective {
 	/** Omit node and all its children */
 	Omit,
 	/** Concat children with parent */
-	Concat
+	Concat,
 }
 
 export type NodeRenderFn<T> = (n: T, recurse: (items: Iterable<T>) => Iterable<ITestTreeElement>) => ITestTreeElement | NodeRenderDirective;
 
-const pruneNodesNotInTree = <T extends ITestTreeElement>(nodes: Set<T | null>, tree: AsyncDataTree<ITestTreeElement, any>) => {
+const pruneNodesNotInTree = <T extends ITestTreeElement>(nodes: Set<T | null>, tree: AsyncDataTree<null, ITestTreeElement>) => {
 	for (const node of nodes) {
 		if (node && !tree.hasNode(node)) {
 			nodes.delete(node);
@@ -82,11 +82,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		this.changedParents.add(this.getNearestNotOmittedParent(node));
 	}
 
-	public applyTo(
-		tree: AsyncDataTree<ITestTreeElement, ITestTreeElement, any>,
-		renderNode: NodeRenderFn<T>,
-		roots: () => Iterable<T>,
-	) {
+	public applyTo(tree: AsyncDataTree<null, ITestTreeElement, any>) {
 		pruneNodesNotInTree(this.changedParents, tree);
 		pruneNodesNotInTree(this.updatedNodes, tree);
 
@@ -94,11 +90,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		this.isFirstApply = false;
 
 		for (let parent of this.changedParents) {
-			while (parent && typeof renderNode(parent, () => []) !== 'object') {
-				parent = parent.parentItem;
-			}
-
-			if (parent === null || tree.hasNode(parent)) {
+			if (tree.hasNode(parent) && !tree.getNode(parent).collapsed) {
 				tree.updateChildren(
 					parent || undefined,
 					false,
@@ -109,8 +101,10 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		}
 
 		for (const node of this.updatedNodes) {
-			if (tree.hasNode(node)) {
+			try {
 				tree.rerender(node);
+			} catch {
+				// ignore if the node is not in the tree, can happen for new children
 			}
 		}
 
@@ -125,22 +119,5 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		}
 
 		return parent;
-	}
-
-	public *renderNodeList(renderNode: NodeRenderFn<T>, nodes: Iterable<T>): Iterable<ITestTreeElement> {
-		for (const node of nodes) {
-			const rendered = renderNode(node, this.renderNodeList.bind(this, renderNode));
-			if (rendered === NodeRenderDirective.Omit) {
-				this.omittedNodes.add(node);
-			} else if (rendered === NodeRenderDirective.Concat) {
-				this.omittedNodes.add(node);
-				for (const nested of this.renderNodeList(renderNode, node.children)) {
-					yield nested;
-				}
-			} else {
-				this.omittedNodes.delete(node);
-				yield rendered;
-			}
-		}
 	}
 }

@@ -8,10 +8,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
-import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
-import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { InternalTestItem, TestItemExpandable } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Type of test element in the list.
@@ -118,17 +115,25 @@ export class HierarchicalByNameElement extends HierarchicalElement {
  * test root rather than the heirarchal parent.
  */
 export class HierarchicalByNameProjection extends HierarchicalByLocationProjection {
-	constructor(listener: TestSubscriptionListener, @ITestResultService results: ITestResultService) {
-		super(listener, results);
-
-		const originalRenderNode = this.renderNode.bind(this);
-		this.renderNode = (node, recurse) => {
-			if (node instanceof HierarchicalByNameElement && node.elementType !== ListElementType.TestLeaf && !node.isTestRoot) {
-				return NodeRenderDirective.Concat;
+	/**
+	 * @override
+	 */
+	public async getChildren(node: ITestTreeElement | null): Promise<Iterable<ITestTreeElement>> {
+		// If requesting the root, expand the first folder if there's only one
+		if (!node) {
+			if (this.folders.size !== 1) {
+				return this.folders.values();
 			}
 
-			return originalRenderNode(node, recurse);
-		};
+			node = Iterable.first(this.folders.values())!;
+		}
+
+		// expand roots
+		if (node instanceof HierarchicalElement && node.depth === 1 && node.test.expand === TestItemExpandable.Expandable) {
+			await this.expandNode(node, Infinity);
+		}
+
+		return node.children;
 	}
 
 	/**

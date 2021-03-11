@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
+import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { Emitter } from 'vs/base/common/event';
+import { FuzzyScore } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspaceFolderData, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
@@ -19,8 +22,8 @@ const element = document.createElement('div');
 element.style.height = '1000px';
 element.style.width = '200px';
 
-export class TestObjectTree<T> extends ObjectTree<T, any> {
-	constructor(serializer: (node: T) => string) {
+export class TestObjectTree<T> extends AsyncDataTree<null, T, FuzzyScore> {
+	constructor(serializer: (node: T) => string, dataProvider: IAsyncDataSource<null, T>) {
 		super(
 			'test',
 			element,
@@ -38,6 +41,7 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 					templateId: 'default'
 				}
 			],
+			dataProvider,
 			{
 				sorter: {
 					compare: (a, b) => serializer(a).localeCompare(serializer(b))
@@ -48,7 +52,7 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 	}
 
 	public getModel() {
-		return this.model;
+		return (this.tree as any).model as IObjectTreeModel<T>;
 	}
 
 	public getRendered() {
@@ -93,7 +97,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 			onDiff: this.onDiff.event,
 			onFolderChange: this.onFolderChange.event,
 		} as any));
-		this.tree = this._register(new TestObjectTree(t => t.label));
+		this.tree = this._register(new TestObjectTree(t => t.label, this.projection));
 	}
 
 	public flush(folder?: IWorkspaceFolderData) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout, isThenable } from 'vs/base/common/async';
+import { disposableTimeout, isThenable, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -158,7 +158,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
 				method = p => p.provideDocumentTestHierarchy
 					? p.provideDocumentTestHierarchy(document!.document, cancellation.token)
-					: this.createDefaultDocumentTestHierarchy(p, document!.document, folder, cancellation.token);
+					: createDefaultDocumentTestHierarchy(p, document!.document, folder, cancellation.token);
 			}
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
@@ -217,6 +217,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
 		await sub?.collection.expand(testId, levels < 0 ? Infinity : levels);
 		this.flushCollectionDiffs();
+		await timeout(100);
 	}
 
 	/**
@@ -328,111 +329,115 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			?? mapFind(this.testSubscriptions.values(), c => c.collection.getTestByReference(test))
 			?? this.textDocumentObservers.getMirroredTestDataByReference(test);
 	}
+}
 
-	private async createDefaultDocumentTestHierarchy(
-		provider: vscode.TestProvider,
-		document: vscode.TextDocument,
-		folder: vscode.WorkspaceFolder | undefined,
-		token: CancellationToken,
-	): Promise<vscode.TestHierarchy<TestItemFilteredWrapper> | undefined> {
-		if (!folder) {
-			return;
+export const createDefaultDocumentTestHierarchy = async <T extends vscode.TestItem>(
+	provider: vscode.TestProvider<T>,
+	document: vscode.TextDocument,
+	folder: vscode.WorkspaceFolder | undefined,
+	token: CancellationToken,
+): Promise<vscode.TestHierarchy<TestItemFilteredWrapper<T>> | undefined> => {
+	if (!folder) {
+		return;
+	}
+
+	const workspaceHierarchy = await provider.provideWorkspaceTestHierarchy(folder, token);
+	if (!workspaceHierarchy) {
+		return;
+	}
+
+	const onDidInvalidateTest = new Emitter<TestItemFilteredWrapper<T>>();
+	workspaceHierarchy.onDidInvalidateTest?.(node => {
+		const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
+		if (wrapper.hasNodeMatchingFilter) {
+			onDidInvalidateTest.fire(wrapper);
 		}
+	});
 
-		const workspaceHierarchy = await provider.provideWorkspaceTestHierarchy(folder, token);
-		if (!workspaceHierarchy) {
-			return;
-		}
+	const onDidChangeTest = new Emitter<TestItemFilteredWrapper<T>>();
+	workspaceHierarchy.onDidChangeTest(node => {
+		const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
+		const previouslySeen = wrapper.hasNodeMatchingFilter;
 
-		const onDidInvalidateTest = new Emitter<TestItemFilteredWrapper>();
-		workspaceHierarchy.onDidInvalidateTest?.(node => {
-			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
-			if (wrapper.hasNodeMatchingFilter) {
-				onDidInvalidateTest.fire(wrapper);
-			}
-		});
-
-		const onDidChangeTest = new Emitter<TestItemFilteredWrapper>();
-		workspaceHierarchy.onDidChangeTest(node => {
-			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
-			const previouslySeen = wrapper.hasNodeMatchingFilter;
-
-			if (previouslySeen) {
-				// reset cache and get whether you can currently see the TestItem.
-				wrapper.reset();
-				const currentlySeen = wrapper.hasNodeMatchingFilter;
-
-				if (currentlySeen) {
-					onDidChangeTest.fire(wrapper);
-					return;
-				}
-
-				// Fire the event to say that the current visible parent has changed.
-				onDidChangeTest.fire(wrapper.visibleParent);
-				return;
-			}
-
-			const previousParent = wrapper.visibleParent;
+		if (previouslySeen) {
+			// reset cache and get whether you can currently see the TestItem.
 			wrapper.reset();
 			const currentlySeen = wrapper.hasNodeMatchingFilter;
 
-			// It wasn't previously seen and isn't currently seen so
-			// nothing has actually changed.
-			if (!currentlySeen) {
+			if (currentlySeen) {
+				onDidChangeTest.fire(wrapper);
 				return;
 			}
 
-			// The test is now visible so we need to refresh the cache
-			// of the previous visible parent and fire that it has changed.
-			previousParent.reset();
-			onDidChangeTest.fire(previousParent);
-		});
+			// Fire the event to say that the current visible parent has changed.
+			onDidChangeTest.fire(wrapper.visibleParent);
+			return;
+		}
 
-		token.onCancellationRequested(() => {
-			TestItemFilteredWrapper.removeFilter(document);
-			onDidChangeTest.dispose();
-		});
+		const previousParent = wrapper.visibleParent;
+		wrapper.reset();
+		const currentlySeen = wrapper.hasNodeMatchingFilter;
 
-		return {
-			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
-			onDidInvalidateTest: onDidInvalidateTest.event,
-			onDidChangeTest: onDidChangeTest.event,
+		// It wasn't previously seen and isn't currently seen so
+		// nothing has actually changed.
+		if (!currentlySeen) {
+			return;
+		}
 
-			getChildren(item, token) {
-				const children = workspaceHierarchy.getChildren(item, token);
-				if (isThenable<vscode.TestItem[] | null | undefined>(children)) {
-					return children.then(c => {
-						return c?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item)) ?? [];
-					});
-				} else if (children instanceof Array) {
-					return children.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item));
-				} else {
-					return undefined;
-				}
-			},
+		// The test is now visible so we need to refresh the cache
+		// of the previous visible parent and fire that it has changed.
+		previousParent.reset();
+		onDidChangeTest.fire(previousParent);
+	});
 
-			getParent(item) {
-				return item.parent;
+	token.onCancellationRequested(() => {
+		TestItemFilteredWrapper.removeFilter(document);
+		onDidChangeTest.dispose();
+	});
+
+	return {
+		root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
+		onDidInvalidateTest: onDidInvalidateTest.event,
+		onDidChangeTest: onDidChangeTest.event,
+
+		getChildren(item, token) {
+			const children = workspaceHierarchy.getChildren(item.actual, token);
+			if (isThenable<T[] | null | undefined>(children)) {
+				return children.then(c => {
+					return c?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item)) ?? [];
+				});
+			} else if (children instanceof Array) {
+				return children.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item));
+			} else {
+				return undefined;
 			}
-		};
-	}
-}
+		},
+
+		getParent(item) {
+			return item.parent;
+		}
+	};
+};
 
 /*
  * A class which wraps a vscode.TestItem that provides the ability to filter a TestItem's children
  * to only the children that are located in a certain vscode.Uri.
  */
-export class TestItemFilteredWrapper implements vscode.TestItem {
+export class TestItemFilteredWrapper<T extends vscode.TestItem = vscode.TestItem> implements vscode.TestItem {
 	private static wrapperMap = new WeakMap<vscode.TextDocument, WeakMap<vscode.TestItem, TestItemFilteredWrapper>>();
 	public static removeFilter(document: vscode.TextDocument): void {
 		this.wrapperMap.delete(document);
 	}
 
 	// Wraps the TestItem specified in a TestItemFilteredWrapper and pulls from a cache if it already exists.
-	public static getWrapperForTestItem(item: vscode.TestItem, filterDocument: vscode.TextDocument, parent?: TestItemFilteredWrapper): TestItemFilteredWrapper {
+	public static getWrapperForTestItem<T extends vscode.TestItem>(
+		item: T,
+		filterDocument: vscode.TextDocument,
+		parent?: TestItemFilteredWrapper<T>,
+	): TestItemFilteredWrapper<T> {
 		let innerMap = this.wrapperMap.get(filterDocument);
 		if (innerMap?.has(item)) {
-			return innerMap.get(item)!;
+			return innerMap.get(item) as TestItemFilteredWrapper<T>;
 		}
 
 		if (!innerMap) {
@@ -477,7 +482,7 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		return this.actual.expandable;
 	}
 
-	public get visibleParent(): TestItemFilteredWrapper {
+	public get visibleParent(): TestItemFilteredWrapper<T> {
 		return this.hasNodeMatchingFilter ? this : this.parent!.visibleParent;
 	}
 
@@ -510,9 +515,9 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 	}
 
 	private constructor(
-		public readonly actual: vscode.TestItem,
+		public readonly actual: T,
 		private filterDocument: vscode.TextDocument,
-		public readonly parent?: TestItemFilteredWrapper,
+		public readonly parent?: TestItemFilteredWrapper<T>,
 	) { }
 }
 
