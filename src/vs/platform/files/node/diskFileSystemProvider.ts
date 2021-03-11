@@ -27,6 +27,9 @@ import { ReadableStreamEvents, newWriteableStream } from 'vs/base/common/stream'
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { insert } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IDebugParams } from 'vs/platform/environment/common/environment';
+import { parseWatchServicePort } from 'vs/platform/environment/node/environmentService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
@@ -48,6 +51,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	constructor(
 		private readonly logService: ILogService,
+		private readonly envArgs?: NativeParsedArgs,
 		private readonly options?: IDiskFileSystemProviderOptions
 	) {
 		super();
@@ -577,7 +581,8 @@ export class DiskFileSystemProvider extends Disposable implements
 						onChange: (changes: IDiskFileChange[]) => void,
 						onLogMessage: (msg: ILogMessage) => void,
 						verboseLogging: boolean,
-						watcherOptions?: IWatcherOptions
+						watcherDebugOpts?: IDebugParams,
+						watcherOptions?: IWatcherOptions,
 					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
 				};
 
@@ -604,7 +609,6 @@ export class DiskFileSystemProvider extends Disposable implements
 						watcherImpl = NsfwWatcherService;
 					}
 				}
-
 				// Create and start watching
 				this.recursiveWatcher = new watcherImpl(
 					this.recursiveFoldersToWatch,
@@ -617,6 +621,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						this.logService[msg.type](msg.message);
 					},
 					this.logService.getLevel() === LogLevel.Trace,
+					this.envArgs ? parseWatchServicePort(this.envArgs) : undefined,
 					watcherOptions
 				);
 
