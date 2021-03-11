@@ -143,6 +143,11 @@ export interface ITestService {
 	registerTestController(providerId: string, controller: MainTestController): IDisposable;
 
 	/**
+	 * Requests that children be revealed for the given test.
+	 */
+	expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number): Promise<void>;
+
+	/**
 	 * Requests that tests be executed.
 	 */
 	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;

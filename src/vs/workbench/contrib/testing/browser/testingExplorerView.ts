@@ -9,7 +9,6 @@ import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionb
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -35,7 +34,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchAsyncDataTree, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -219,14 +218,14 @@ class EmptyTestsWidget extends Disposable {
 }
 
 class TestTreeDataSource implements IAsyncDataSource<ITestTreeElement, ITestTreeElement> {
-	constructor(private readonly projectionRef: () => ITestTreeProjection) {}
+	constructor(private readonly projectionRef: () => ITestTreeProjection | undefined) { }
 
 	hasChildren(element: ITestTreeElement): boolean {
 		return element.expandable;
 	}
 
-	getChildren(element: ITestTreeElement): Promise<Iterable<ITestTreeElement>> {
-
+	getChildren(element: ITestTreeElement) {
+		return this.projectionRef()?.getChildren(element) ?? [];
 	}
 }
 
@@ -314,7 +313,7 @@ export class TestingExplorerViewModel extends Disposable {
 			[
 				instantiationService.createInstance(TestsRenderer, labels)
 			],
-			new TestTreeDataSource(() => this.projection),
+			new TestTreeDataSource(() => this.projection.value),
 			{
 				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),

@@ -72,6 +72,13 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
+	public async expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number) {
+		await Promise.all([...this.rootProviders].map(p => p.expandTest(resource, uri, testId, levels)));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	public clearExcludedTests() {
 		this.excludeTests.value = new Set();
 	}

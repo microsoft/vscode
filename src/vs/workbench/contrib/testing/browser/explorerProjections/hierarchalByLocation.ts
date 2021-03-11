@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -104,8 +103,11 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		}
 	}
 
+	/**
+	 * @inheritdoc
+	 */
 	getChildren(node: ITestTreeElement): Iterable<ITestTreeElement> | Promise<Iterable<ITestTreeElement>> {
-		return this.changes.applyTo
+		return this.changes.renderNodeList(this.renderNode, node.children as Iterable<HierarchicalElement>);
 	}
 
 	/**
@@ -219,12 +221,12 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this.changes.updated(cast);
 	};
 
-	protected renderNode: NodeRenderFn<HierarchicalElement | HierarchicalFolder> = (node, recurse) => {
+	protected renderNode: NodeRenderFn<HierarchicalElement | HierarchicalFolder> = node => {
 		if (node.depth < 2 && !peersHaveChildren(node, () => this.folders.values())) {
 			return NodeRenderDirective.Concat;
 		}
 
-		return { element: node, incompressible: true, children: recurse(node.children) };
+		return node;
 	};
 
 	protected unstoreItem(treeElement: HierarchicalElement) {

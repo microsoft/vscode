@@ -267,9 +267,9 @@ export class SingleUseTestCollection implements IDisposable {
 		if (internal.expand === TestItemExpandable.Expandable) {
 			internal.expand = TestItemExpandable.Expanded;
 			const r = this.updateChildren(internal);
-			if (isThenable(r)) {
-				return r.then(() => this.expandChildren(internal, levels - 1));
-			}
+			return isThenable(r)
+				? r.then(() => this.expandChildren(internal, levels - 1))
+				: this.expandChildren(internal, levels - 1);
 		} else if (internal.expand === TestItemExpandable.Expanded) {
 			return this.expandChildren(internal, levels - 1);
 		}

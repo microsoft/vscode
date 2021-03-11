@@ -216,6 +216,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public async $expandTest(resource: ExtHostTestingResource, uri: UriComponents, testId: string, levels: number) {
 		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
 		await sub?.collection.expand(testId, levels < 0 ? Infinity : levels);
+		this.flushCollectionDiffs();
 	}
 
 	/**

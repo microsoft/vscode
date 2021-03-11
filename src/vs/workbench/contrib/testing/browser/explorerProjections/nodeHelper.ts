@@ -5,9 +5,7 @@
 
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 
 export const testIdentityProvider: IIdentityProvider<ITestTreeElement> = {
@@ -53,8 +51,7 @@ export const enum NodeRenderDirective {
 	Concat
 }
 
-export type NodeRenderFn<T> = (n: T, recurse: (items: Iterable<T>) => Iterable<ITreeElement<ITestTreeElement>>) =>
-	ITreeElement<ITestTreeElement> | NodeRenderDirective;
+export type NodeRenderFn<T> = (n: T, recurse: (items: Iterable<T>) => Iterable<ITestTreeElement>) => ITestTreeElement | NodeRenderDirective;
 
 const pruneNodesNotInTree = <T extends ITestTreeElement>(nodes: Set<T | null>, tree: AsyncDataTree<ITestTreeElement, any>) => {
 	for (const node of nodes) {
@@ -130,7 +127,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		return parent;
 	}
 
-	private *renderNodeList(renderNode: NodeRenderFn<T>, nodes: Iterable<T>): Iterable<ICompressedTreeElement<ITestTreeElement>> {
+	public *renderNodeList(renderNode: NodeRenderFn<T>, nodes: Iterable<T>): Iterable<ITestTreeElement> {
 		for (const node of nodes) {
 			const rendered = renderNode(node, this.renderNodeList.bind(this, renderNode));
 			if (rendered === NodeRenderDirective.Omit) {

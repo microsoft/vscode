@@ -67,7 +67,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number): Promise<void> {
-		return this.proxy.$expandTest(resource, uri, testId, levels);
+		return this.proxy.$expandTest(resource, uri, testId, isFinite(levels) ? levels : -1);
 	}
 
 	/**
