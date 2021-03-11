@@ -73,6 +73,7 @@
 	align-items: center;
 	justify-content: center;
 	color: inherit;
+	outline-offset: -2px;
 }
 
 .monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {

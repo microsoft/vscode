@@ -94,7 +94,6 @@ class NotebookClipboardContribution extends Disposable {
 				const cloneMetadata = (cell: NotebookCellTextModel) => {
 					return {
 						editable: cell.metadata?.editable,
-						runnable: cell.metadata?.runnable,
 						breakpointMargin: cell.metadata?.breakpointMargin,
 						hasExecutionOrder: cell.metadata?.hasExecutionOrder,
 						inputCollapsed: cell.metadata?.inputCollapsed,

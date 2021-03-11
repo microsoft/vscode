@@ -292,7 +292,6 @@ export class CellDragAndDropController extends Disposable {
 			const cellHeight = this.list.elementHeight(target);
 
 			const dropDirection = this.getExplicitDragDropDirection(position.clientY, cellTop, cellHeight);
-			console.log(position.clientY);
 			const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
 			this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
 		}

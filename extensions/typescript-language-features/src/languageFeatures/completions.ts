@@ -82,7 +82,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.position = position;
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
-		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext, position);
+		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
 		this.insertText = tsEntry.insertText;
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
@@ -332,7 +332,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		};
 	}
 
-	private getRangeFromReplacementSpan(tsEntry: Proto.CompletionEntry, completionContext: CompletionContext, position: vscode.Position) {
+	private getRangeFromReplacementSpan(tsEntry: Proto.CompletionEntry, completionContext: CompletionContext) {
 		if (!tsEntry.replacementSpan) {
 			return;
 		}
@@ -342,8 +342,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (!replaceRange.isSingleLine) {
 			replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, completionContext.line.length);
 		}
+
+		// If TS returns an explicit replacement range, we should use it for both types of completion
 		return {
-			inserting: new vscode.Range(replaceRange.start, position),
+			inserting: replaceRange,
 			replacing: replaceRange,
 		};
 	}

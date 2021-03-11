@@ -108,6 +108,8 @@ export interface ICloseAllEditorsOptions {
 export interface IEditorReplacement {
 	editor: IEditorInput;
 	replacement: IEditorInput;
+	/** Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to! */
+	forceReplaceDirty?: boolean;
 	options?: IEditorOptions | ITextEditorOptions;
 }
 

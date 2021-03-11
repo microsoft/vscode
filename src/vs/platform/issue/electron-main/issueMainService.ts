@@ -414,7 +414,8 @@ export class IssueMainService implements ICommonIssueService {
 				version: !!product.darwinUniversalAssetId ? `${product.version} (Universal)` : product.version,
 				commit: product.commit,
 				date: product.date,
-				reportIssueUrl: product.reportIssueUrl
+				reportIssueUrl: product.reportIssueUrl,
+				reportMarketplaceIssueUrl: product.reportMarketplaceIssueUrl
 			}
 		};
 

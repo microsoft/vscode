@@ -41,7 +41,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Getting the SystemShell is an async operation, however, the ExtHost terminal service is mostly synchronous
 		// and the API `vscode.env.shell` is also synchronous. The default shell _should_ be set when extensions are
 		// starting up but if not, we run getSystemShellSync below which gets a sane default.
-		getSystemShell(platform.platform).then(s => this._defaultShell = s);
+		getSystemShell(platform.platform, process.env as platform.IProcessEnvironment).then(s => this._defaultShell = s);
 
 		this._updateLastActiveWorkspace();
 		this._updateVariableResolver();
@@ -83,7 +83,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return terminalEnvironment.getDefaultShell(
 			fetchSetting,
 			this._isWorkspaceShellAllowed,
-			this._defaultShell ?? getSystemShellSync(platform.platform),
+			this._defaultShell ?? getSystemShellSync(platform.platform, process.env as platform.IProcessEnvironment),
 			process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432'),
 			process.env.windir,
 			terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, this._variableResolver),

@@ -551,7 +551,10 @@ export class TestResultService implements ITestResultService {
 	private readonly isRunning: IContextKey<boolean>;
 	private readonly serializedResults: StoredValue<ISerializedTestResults[]>;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService, @IStorageService storage: IStorageService) {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService storage: IStorageService,
+	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 		this.serializedResults = new StoredValue({
 			key: 'testResults',

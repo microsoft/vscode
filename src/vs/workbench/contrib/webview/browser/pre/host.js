@@ -13,12 +13,6 @@
 			this.handlers = new Map();
 
 			window.addEventListener('message', (e) => {
-				if (e.data && (e.data.command === 'onmessage' || e.data.command === 'do-update-state')) {
-					// Came from inner iframe
-					this.postMessage(e.data.command, e.data.data);
-					return;
-				}
-
 				const channel = e.data.channel;
 				const handlers = this.handlers.get(channel);
 				if (handlers) {
@@ -184,6 +178,7 @@
 		ready: workerReady,
 		fakeLoad: !onElectron,
 		onElectron: onElectron,
+		useParentPostMessage: false,
 		onIframeLoaded: (/** @type {HTMLIFrameElement} */ frame) => {
 			unloadMonitor.onIframeLoaded(frame);
 		},

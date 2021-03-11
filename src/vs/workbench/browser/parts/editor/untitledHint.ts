@@ -18,6 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 const $ = dom.$;
 
 const untitledHintSetting = 'workbench.editor.untitled.hint';
@@ -28,13 +29,15 @@ export class UntitledHintContribution implements IEditorContribution {
 	private toDispose: IDisposable[];
 	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
 	private button: FloatingClickWidget | undefined;
+	private experimentTreatment: 'text' | 'button' | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ITASExperimentService private readonly experimentService: ITASExperimentService
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
@@ -44,13 +47,17 @@ export class UntitledHintContribution implements IEditorContribution {
 				this.update();
 			}
 		}));
-		this.update();
+		this.experimentService.getTreatment<'text' | 'button'>('untitledhint').then(treatment => {
+			this.experimentTreatment = treatment;
+			this.update();
+		});
 	}
 
 	private update(): void {
 		this.untitledHintContentWidget?.dispose();
 		this.button?.dispose();
-		const untitledHintMode = this.configurationService.getValue(untitledHintSetting);
+		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden'>(untitledHintSetting);
+		const untitledHintMode = configValue === 'hidden' ? configValue : (this.experimentTreatment || configValue);
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {

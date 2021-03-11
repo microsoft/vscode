@@ -304,11 +304,14 @@ function webviewPreloads() {
 	}
 
 	interface ICreateCellInfo {
-		outputId: string;
-		output?: unknown;
-		mimeType?: string;
 		element: HTMLElement;
+		outputId: string;
+
+		mime: string;
+		value: unknown;
+		metadata: unknown;
 	}
+
 	interface ICreateMarkdownInfo {
 		readonly content: string;
 		readonly element: HTMLElement;
@@ -513,12 +516,28 @@ function webviewPreloads() {
 						outputNode.appendChild(errList);
 						cellOutputContainer.appendChild(outputNode);
 					} else {
+						const { metadata, mimeType, value } = content;
 						onDidCreateOutput.fire([data.apiNamespace, {
 							element: outputNode,
-							output: content.output,
-							mimeType: content.mimeType,
-							outputId
-						}]);
+							outputId,
+							mime: content.mimeType,
+							value: content.value,
+							metadata: content.metadata,
+
+							get mimeType() {
+								console.warn(`event.mimeType is deprecated, use 'mime' instead`);
+								return mimeType;
+							},
+
+							get output() {
+								console.warn(`event.output is deprecated, use properties directly instead`);
+								return {
+									metadata: { [mimeType]: metadata },
+									data: { [mimeType]: value },
+									outputId,
+								};
+							},
+						} as ICreateCellInfo]);
 						cellOutputContainer.appendChild(outputNode);
 					}
 

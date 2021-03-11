@@ -6,16 +6,14 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
-import { throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
@@ -39,7 +37,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
+import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
@@ -56,13 +54,13 @@ import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/brows
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResultService, sumCounts, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
-import { IActivityService, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DebugAction, HideOrShowTestAction, RunAction } from './testExplorerActions';
 
@@ -71,14 +69,13 @@ export class TestingExplorerView extends ViewPane {
 	private filterActionBar = this._register(new MutableDisposable());
 	private readonly currentSubscription = new MutableDisposable<TestSubscriptionListener>();
 	private container!: HTMLElement;
-	private finishDiscovery?: () => void;
+	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly location = TestingContextKeys.explorerLocation.bindTo(this.contextKeyService);;
 
 	constructor(
 		options: IViewletViewOptions,
 		@IWorkspaceTestCollectionService private readonly testCollection: IWorkspaceTestCollectionService,
 		@ITestService private readonly testService: ITestService,
-		@IProgressService private readonly progress: IProgressService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -88,6 +85,7 @@ export class TestingExplorerView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this._register(testService.onDidChangeProviders(() => this._onDidChangeViewWelcomeState.fire()));
@@ -114,7 +112,21 @@ export class TestingExplorerView extends ViewPane {
 		}
 
 		const messagesContainer = dom.append(this.container, dom.$('.test-explorer-messages'));
-		this._register(this.instantiationService.createInstance(TestRunProgress, messagesContainer, this.getProgressLocation()));
+		this._register(this.testProgressService.onTextChange(text => {
+			messagesContainer.innerText = text;
+		}));
+
+		const progress = new MutableDisposable<UnmanagedProgress>();
+		this._register(this.testProgressService.onCountChange(evt => {
+			if (!evt.isRunning && progress.value) {
+				progress.clear();
+			} else if (evt.isRunning) {
+				if (!progress.value) {
+					progress.value = this.instantiationService.createInstance(UnmanagedProgress, { location: this.getProgressLocation(), total: 100 });
+				}
+				progress.value.report({ increment: evt.runSoFar, total: evt.totalWillBeRun });
+			}
+		}));
 
 		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
 		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility, this.currentSubscription.value);
@@ -160,12 +172,10 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	private updateDiscoveryProgress(busy: number) {
-		if (!busy && this.finishDiscovery) {
-			this.finishDiscovery();
-			this.finishDiscovery = undefined;
-		} else if (busy && !this.finishDiscovery) {
-			const promise = new Promise<void>(resolve => { this.finishDiscovery = resolve; });
-			this.progress.withProgress({ location: this.getProgressLocation() }, () => promise);
+		if (!busy && this.discoveryProgress) {
+			this.discoveryProgress.clear();
+		} else if (busy && !this.discoveryProgress.value) {
+			this.discoveryProgress.value = this.instantiationService.createInstance(UnmanagedProgress, { location: this.getProgressLocation() });
 		}
 	}
 
@@ -972,141 +982,6 @@ const getTestItemActions = (
 	}
 };
 
-type CountSummary = ReturnType<typeof collectCounts>;
-
-const collectCounts = (count: TestStateCount) => {
-	const failed = count[TestResult.Errored] + count[TestResult.Failed];
-	const passed = count[TestResult.Passed];
-	const skipped = count[TestResult.Skipped];
-
-	return {
-		passed,
-		failed,
-		runSoFar: passed + failed,
-		totalWillBeRun: passed + failed + count[TestResult.Queued] + count[TestResult.Running],
-		skipped,
-	};
-};
-
-const getProgressText = ({ passed, runSoFar, skipped, failed }: CountSummary) => {
-	let percent = passed / runSoFar * 100;
-	if (failed > 0) {
-		// fix: prevent from rounding to 100 if there's any failed test
-		percent = Math.min(percent, 99.9);
-	} else if (runSoFar === 0) {
-		percent = 0;
-	}
-
-	if (skipped === 0) {
-		return localize('testProgress', '{0}/{1} tests passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
-	} else {
-		return localize('testProgressWithSkip', '{0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
-	}
-};
-
-class TestRunProgress {
-	private current?: { update: IProgress<IProgressStep>; deferred: DeferredPromise<void> };
-	private badge = new MutableDisposable();
-	private readonly resultLister = this.resultService.onResultsChanged(result => {
-		if (!('started' in result)) {
-			return;
-		}
-
-		this.updateProgress();
-		this.updateBadge();
-
-		result.started.onChange(this.throttledProgressUpdate, this);
-		result.started.onComplete(() => {
-			this.throttledProgressUpdate();
-			this.updateBadge();
-		});
-	});
-
-	constructor(
-		private readonly messagesContainer: HTMLElement,
-		private readonly location: string,
-		@IProgressService private readonly progress: IProgressService,
-		@ITestResultService private readonly resultService: ITestResultService,
-		@IActivityService private readonly activityService: IActivityService,
-	) {
-	}
-
-	public dispose() {
-		this.resultLister.dispose();
-		this.current?.deferred.complete();
-		this.badge.dispose();
-	}
-
-	@throttle(200)
-	private throttledProgressUpdate() {
-		this.updateProgress();
-	}
-
-	private updateProgress() {
-		const running = this.resultService.results.filter(r => r.completedAt === undefined);
-		if (!running.length) {
-			this.setIdleText(this.resultService.results[0]?.counts);
-			this.current?.deferred.complete();
-			this.current = undefined;
-		} else if (!this.current) {
-			this.progress.withProgress({ location: this.location, total: 100 }, update => {
-				this.current = { update, deferred: new DeferredPromise() };
-				this.updateProgress();
-				return this.current.deferred.p;
-			});
-		} else {
-			const counts = sumCounts(running.map(r => r.counts));
-			this.setRunningText(counts);
-			const { runSoFar, totalWillBeRun } = collectCounts(counts);
-			this.current.update.report({ increment: runSoFar, total: totalWillBeRun });
-		}
-	}
-
-	private setRunningText(counts: TestStateCount) {
-		this.messagesContainer.dataset.state = 'running';
-
-		const collected = collectCounts(counts);
-		if (collected.runSoFar === 0) {
-			this.messagesContainer.innerText = localize('testResultStarting', 'Test run is starting...');
-		} else {
-			this.messagesContainer.innerText = getProgressText(collected);
-		}
-	}
-
-	private setIdleText(lastCount?: TestStateCount) {
-		if (!lastCount) {
-			this.messagesContainer.innerText = '';
-		} else {
-			const collected = collectCounts(lastCount);
-			this.messagesContainer.dataset.state = collected.failed ? 'failed' : 'running';
-			const doneMessage = getProgressText(collected);
-			this.messagesContainer.innerText = doneMessage;
-			aria.alert(doneMessage);
-		}
-	}
-
-	private updateBadge() {
-		this.badge.value = undefined;
-		const result = this.resultService.results[0]; // currently running, or last run
-		if (!result) {
-			return;
-		}
-
-		if (result.completedAt === undefined) {
-			const badge = new ProgressBadge(() => localize('testBadgeRunning', 'Test run in progress'));
-			this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge, clazz: 'progress-badge' });
-			return;
-		}
-
-		const failures = result.counts[TestResult.Failed] + result.counts[TestResult.Errored];
-		if (failures === 0) {
-			return;
-		}
-
-		const badge = new NumberBadge(failures, () => localize('testBadgeFailures', '{0} tests failed', failures));
-		this.badge.value = this.activityService.showViewActivity(Testing.ExplorerViewId, { badge });
-	}
-}
 
 registerThemingParticipant((theme, collector) => {
 	if (theme.type === 'dark') {

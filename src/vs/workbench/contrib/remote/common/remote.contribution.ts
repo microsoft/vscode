@@ -150,9 +150,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.portsAttributes': {
 				type: 'object',
 				patternProperties: {
-					'^\\d+(\\-\\d+)?$': {
+					'(^\\d+(\\-\\d+)?$)|(.+)': {
 						type: 'object',
-						description: localize('remote.portsAttributes.port', "A port, or range of ports (ex. \"40000-55000\") that the attributes should apply to"),
+						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
 						properties: {
 							'onAutoForward': {
 								type: 'string',
@@ -184,9 +184,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						}
 					}
 				},
-				markdownDescription: localize('remote.portsAttributes', "Set default properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Labeled Port\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n}\n```"),
-				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:My Port}', onAutoForward: 'notify' } } }],
-				errorMessage: localize('remote.portsAttributes.patternError', "Must be a port number or a range of port numbers"),
+				markdownDescription: localize('remote.portsAttributes', "Set default properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Labeled Port\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n},\n\".+\\\\/server.js\": {\n \"onAutoForward\": \"openPreview\"\n}\n```"),
+				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:My Port}', onAutoForward: 'openPreview' }, 'others': { onAutoForward: 'notify' } } }],
+				errorMessage: localize('remote.portsAttributes.patternError', "Must be a port number, range of port numbers, or regular expression."),
 				additionalProperties: false
 			}
 		}

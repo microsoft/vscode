@@ -14,8 +14,8 @@ suite('NotebookTextModel', () => {
 	const textModelService = instantiationService.get(ITextModelService);
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
-	test('insert', function () {
-		withTestNotebook(
+	test('insert', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -37,8 +37,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('multiple inserts at same position', function () {
-		withTestNotebook(
+	test('multiple inserts at same position', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -60,8 +60,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('delete', function () {
-		withTestNotebook(
+	test('delete', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -81,8 +81,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('delete + insert', function () {
-		withTestNotebook(
+	test('delete + insert', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -104,8 +104,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('delete + insert at same position', function () {
-		withTestNotebook(
+	test('delete + insert at same position', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -127,8 +127,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('(replace) delete + insert at same position', function () {
-		withTestNotebook(
+	test('(replace) delete + insert at same position', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -149,8 +149,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('output', function () {
-		withTestNotebook(
+	test('output', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -222,8 +222,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('metadata', function () {
-		withTestNotebook(
+	test('metadata', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -260,8 +260,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('multiple inserts in one edit', function () {
-		withTestNotebook(
+	test('multiple inserts in one edit', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -295,8 +295,8 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
-	test('insert and metadata change in one edit', function () {
-		withTestNotebook(
+	test('insert and metadata change in one edit', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],

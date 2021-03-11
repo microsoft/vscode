@@ -164,8 +164,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook.metadata;
 	}
 
-	get runnable() {
-		return !!this._notebook.metadata?.runnable && !!this._notebook.metadata?.trusted;
+	get trusted() {
+		return !!this._notebook.metadata?.trusted;
 	}
 
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
@@ -249,7 +249,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				this._decorationsTree.acceptReplace(diff[0], diff[1], diff[2].length, true);
 				deletedCells.forEach(cell => {
 					this._handleToViewCellMapping.delete(cell.handle);
-					// dispsoe the cell to release ref to the cell text document
+					// dispose the cell to release ref to the cell text document
 					cell.dispose();
 				});
 

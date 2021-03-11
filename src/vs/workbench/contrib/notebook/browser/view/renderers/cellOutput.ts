@@ -41,9 +41,9 @@ export class CellOutputElement extends Disposable {
 
 	public useDedicatedDOM: boolean = true;
 
-	get domClientHeight() {
+	get domOffsetHeight() {
 		if (this.useDedicatedDOM) {
-			return this.domNode.clientHeight;
+			return this.domNode.offsetHeight;
 		} else {
 			return 0;
 		}
@@ -150,7 +150,7 @@ export class CellOutputElement extends Disposable {
 		}
 
 		if (renderResult.type !== RenderOutputType.Mainframe) {
-			this.notebookEditor.createInset(this.viewCell, renderResult, this.viewCell.getOutputOffset(index));
+			this.notebookEditor.createOutput(this.viewCell, renderResult, this.viewCell.getOutputOffset(index));
 			this.domNode.classList.add('background');
 		} else {
 			this.domNode.classList.add('foreground', 'output-element');
@@ -169,13 +169,13 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// let's use resize listener for them
-		const clientHeight = Math.ceil(this.domNode.clientHeight);
+		const offsetHeight = Math.ceil(this.domNode.offsetHeight);
 		const dimension = {
 			width: this.viewCell.layoutInfo.editorWidth,
-			height: clientHeight
+			height: offsetHeight
 		};
 		this.bindResizeListener(dimension);
-		this.viewCell.updateOutputHeight(index, clientHeight);
+		this.viewCell.updateOutputHeight(index, offsetHeight);
 		const top = this.viewCell.getOutputOffsetInContainer(index);
 		this.domNode.style.top = `${top}px`;
 		return { initRenderIsSynchronous: true };
@@ -184,7 +184,7 @@ export class CellOutputElement extends Disposable {
 	private bindResizeListener(dimension: DOM.IDimension) {
 		const elementSizeObserver = getResizesObserver(this.domNode, dimension, () => {
 			if (this.outputContainer && document.body.contains(this.outputContainer)) {
-				const height = Math.ceil(elementSizeObserver.getHeight()) + 8;
+				const height = this.domNode.offsetHeight;
 
 				if (dimension.height === height) {
 					return;
@@ -388,9 +388,9 @@ export class CellOutputContainer extends Disposable {
 			const renderedOutput = this.outputEntries.get(currOutput);
 			if (renderedOutput && renderedOutput.renderResult) {
 				if (renderedOutput.renderResult.type !== RenderOutputType.Mainframe) {
-					this.notebookEditor.createInset(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
+					this.notebookEditor.createOutput(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
 				} else {
-					this.viewCell.updateOutputHeight(index, renderedOutput.domClientHeight);
+					this.viewCell.updateOutputHeight(index, renderedOutput.domOffsetHeight);
 				}
 			} else {
 				// Wasn't previously rendered, render it now

@@ -161,7 +161,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
-				waitMarkerFileURI: options.waitMarkerFileURI
+				waitMarkerFileURI: options.waitMarkerFileURI,
+				remoteAuthority: options.remoteAuthority || undefined
 			});
 		}
 	}
@@ -309,7 +310,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
 			urisToOpen: openable,
-			forceNewWindow: options.forceNewWindow
+			forceNewWindow: options.forceNewWindow,
+			/* remoteAuthority will be determined based on openable */
 		});
 	}
 
@@ -521,7 +523,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true });
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true, remoteAuthority: this.environmentMainService.args.remote || undefined });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {
