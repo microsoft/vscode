@@ -12,12 +12,12 @@ import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnviron
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface IStatProvider {
-	stat: fs.Stats,
-	lstat: fs.Stats
+	stat(path: string): boolean,
+	lstat(path: string): boolean
 }
 
-export function detectAvailableShells(statProvider?: IStatProvider, testShells?: string): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsShells(statProvider) : detectAvailableUnixShells(testShells);
+export function detectAvailableShells(statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsShells(statProvider) : detectAvailableUnixShells();
 }
 
 async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
@@ -57,15 +57,21 @@ async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promi
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key], statProvider)));
 	const shells = await Promise.all(promises);
-	let definition = shells.find(shell => shell?.profileName === 'Cygwin');
-	if (definition) {
-		definition.args = ['-l'];
+	let cygwin = shells.find(shell => shell?.profileName === 'Cygwin');
+	let wsl = shells.find(shell => shell?.path.endsWith('wsl.exe'));
+	let bashZsh = shells.find(shell => shell?.path.endsWith('bash.exe') || shell?.path.endsWith('zsh.exe'));
+	if (cygwin) {
+		cygwin.args = ['-l'];
+	} else if (wsl) {
+		wsl.args = ['-l'];
+	} else if (bashZsh) {
+		bashZsh.args = ['--login'];
 	}
 	return coalesce(shells);
 }
 
-async function detectAvailableUnixShells(testShells?: string): Promise<ITerminalProfile[]> {
-	const contents = testShells || await fs.promises.readFile('/etc/shells', 'utf8');
+async function detectAvailableUnixShells(): Promise<ITerminalProfile[]> {
+	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const shells = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 	return shells.map(e => {
 		return {
@@ -80,26 +86,17 @@ async function validateShellPaths(label: string, potentialPaths: string[], statP
 		return Promise.resolve(undefined);
 	}
 	const current = potentialPaths.shift()!;
+	if (current! === '') {
+		return validateShellPaths(label, potentialPaths, statProvider);
+	}
 	if (statProvider) {
-		try {
-			if (statProvider.stat.isFile() || statProvider.stat.isSymbolicLink()) {
-				return {
-					profileName: label,
-					path: current
-				};
-			}
-		} catch {
-			if (statProvider.lstat.isFile() || statProvider.lstat.isSymbolicLink()) {
-				return {
-					profileName: label,
-					path: current
-				};
-			}
+		if (statProvider.stat(current)) {
+			return {
+				profileName: label,
+				path: current
+			};
 		}
 	} else {
-		if (current! === '') {
-			return validateShellPaths(label, potentialPaths);
-		}
 		try {
 			const result = await fs.promises.stat(normalize(current));
 			if (result.isFile() || result.isSymbolicLink()) {
@@ -125,7 +122,6 @@ async function validateShellPaths(label: string, potentialPaths: string[], statP
 				// noop
 			}
 		}
-		return validateShellPaths(label, potentialPaths);
 	}
-	return undefined;
+	return validateShellPaths(label, potentialPaths, statProvider);
 }
