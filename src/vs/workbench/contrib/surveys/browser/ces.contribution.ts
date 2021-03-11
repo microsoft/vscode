@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -13,24 +14,41 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
 
-const PROBABILITY = 0.15;
-const SESSION_COUNT_KEY = 'ces/sessionCount';
-const LAST_SESSION_DATE_KEY = 'ces/lastSessionDate';
-const SKIP_VERSION_KEY = 'ces/skipVersion';
-const IS_CANDIDATE_KEY = 'ces/isCandidate';
+const SESSION_COUNT_KEY = 'nps/sessionCount';
 
 class CESContribution implements IWorkbenchContribution {
+
+	private tasExperimentService?: ITASExperimentService;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService openerService: IOpenerService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
+		if (!productService.surveys || !productService.cesSurveyUrl) {
+			return;
+		}
+		this.tasExperimentService = tasExperimentService;
+
+		// const [cesSurveyEligibility, cesSurveyHeuristic] = await Promise.all([
+		// 	this.tasExperimentService?.getTreatment<boolean>('CESSurvey'),
+		// 	this.tasExperimentService?.getTreatment<'shortDelay' | 'longDelay'>('CESSurveyHeuristic')
+		// ]);
+
+		// if (!cesSurveyEligibility) {
+		// 	return;
+		// }
+
+		productService.surveys
+			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl);
+
 		// if (!productService.cesSurveyUrl) {
 		// 	return;
 		// }
@@ -47,7 +65,8 @@ class CESContribution implements IWorkbenchContribution {
 		// 	return;
 		// }
 
-		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
+		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0);
+		console.log(sessionCount);
 		// storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
 		// storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL, StorageTarget.USER);
 
