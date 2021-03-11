@@ -735,6 +735,7 @@ export interface INotebookKernel {
 
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
 }
 
 export interface INotebookKernelProvider {

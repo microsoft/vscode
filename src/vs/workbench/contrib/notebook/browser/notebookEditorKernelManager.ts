@@ -406,7 +406,10 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		await this._ensureActiveKernel();
-		// await this._activeKernel?.cancelNotebookCell!(this._delegate.viewModel.uri, cell.handle);
+
+		const idx = this._delegate.viewModel.getCellIndex(cell);
+		const ranges = cellIndexesToRanges([idx]);
+		await this._activeKernel?.cancelNotebookCellExecution!(this._delegate.viewModel.uri, ranges);
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {

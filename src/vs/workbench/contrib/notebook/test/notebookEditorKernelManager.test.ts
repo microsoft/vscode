@@ -97,6 +97,9 @@ class TestNotebookKernel implements INotebookKernel {
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+	cancelNotebookCellExecution(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 
 	constructor(opts?: { languages?: string[] }) {
 		this.supportedLanguages = opts?.languages;

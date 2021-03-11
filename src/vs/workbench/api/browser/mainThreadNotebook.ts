@@ -505,6 +505,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 							this._logService.debug('MainthreadNotebooks.executeNotebookCell', uri.path, dto.friendlyId, cellRanges);
 							return this._proxy.$executeNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellRanges);
 						},
+						cancelNotebookCellExecution: (uri: URI, cellRanges: ICellRange[]): Promise<void> => {
+							this._logService.debug('MainthreadNotebooks.cancelNotebookCellExecution', uri.path, dto.friendlyId, cellRanges);
+							return this._proxy.$cancelNotebookCellExecution(handle, uri, dto.friendlyId, cellRanges);
+						}
 					});
 				}
 				return result;

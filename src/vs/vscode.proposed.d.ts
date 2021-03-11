@@ -1504,7 +1504,7 @@ declare module 'vscode' {
 
 		// todo@API how can Jupyter ensure that the document-level cancel button shows whenever any cell is running?
 		// Maybe this behavior is automatic for any kernel that implements interrupt
-		interrupt?(): void;
+		interrupt?(document: NotebookDocument, ranges: NotebookCellRange[]): void;
 
 		/**
 		 * Called when the user triggers execution of a cell by clicking the run button for a cell, multiple cells,

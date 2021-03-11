@@ -1098,9 +1098,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookCellStatusBarItemInternal(cell, alignment, priority);
 			},
-			createNotebookCellExecutionTask(uri: vscode.Uri, index: number): vscode.NotebookCellExecutionTask {
+			createNotebookCellExecutionTask(uri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.createNotebookCellExecution(uri, index);
+				return extHostNotebook.createNotebookCellExecution(uri, index, kernelId);
 			}
 		};
 
