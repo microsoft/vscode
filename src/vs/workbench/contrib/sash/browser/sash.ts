@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { clamp } from 'vs/base/common/numbers';
-import { setGlobalSashSize } from 'vs/base/browser/ui/sash/sash';
+import { setGlobalSashSize, setGlobalHoverDelay } from 'vs/base/browser/ui/sash/sash';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -20,15 +20,23 @@ export class SashSettingsController implements IWorkbenchContribution, IDisposab
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		const onDidChangeSizeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.size'));
-		onDidChangeSizeConfiguration(this.onDidChangeSizeConfiguration, this, this.disposables);
-		this.onDidChangeSizeConfiguration();
+		const onDidChangeSize = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.size'));
+		onDidChangeSize(this.onDidChangeSize, this, this.disposables);
+		this.onDidChangeSize();
+
+		const onDidChangeHoverDelay = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.hoverDelay'));
+		onDidChangeHoverDelay(this.onDidChangeHoverDelay, this, this.disposables);
+		this.onDidChangeHoverDelay();
 	}
 
-	private onDidChangeSizeConfiguration(): void {
+	private onDidChangeSize(): void {
 		const size = clamp(this.configurationService.getValue<number>('workbench.sash.size') ?? minSize, minSize, maxSize);
 		document.documentElement.style.setProperty('--sash-size', size + 'px');
 		setGlobalSashSize(size);
+	}
+
+	private onDidChangeHoverDelay(): void {
+		setGlobalHoverDelay(this.configurationService.getValue<number>('workbench.sash.hoverDelay'));
 	}
 
 	dispose(): void {
