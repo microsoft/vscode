@@ -412,6 +412,8 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
 				for (const cell of event.data.cells) {
+					console.log('initializeMarkdownPreview', cell.cellHandle);
+
 					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
 
 					const cellContainer = document.getElementById(cell.cellId);
@@ -423,6 +425,7 @@ function webviewPreloads() {
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
+				console.log('createMarkdown', event.data.handle);
 				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
 				break;
 			case 'showMarkdownPreview':

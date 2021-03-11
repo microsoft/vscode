@@ -936,7 +936,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		await this._resolveWebview();
 
-		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells
+		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
 		this._webview!.element.style.visibility = 'hidden';
 		// warm up can take around 200ms to load markdown libraries, etc.
 		await this._warmupViewport(viewModel, viewState);
@@ -947,12 +947,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		 * we can start rendering the list view
 		 * render
 		 *   - markdown cell -> request to webview to (10ms, basically just latency between UI and iframe)
-		 *   - code cell -> render in place (40ms)
+		 *   - code cell -> render in place
 		 */
 		this._list.layout(0, 0);
 		this._list.attachViewModel(viewModel);
-		// now I have a correct contentHeight/scrollHeight
-		// and now setting scrollTop works
+
+		// now the list widget has a correct contentHeight/scrollHeight
+		// setting scrollTop will work properly
 		// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
 		this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
 		this._debug('finish initial viewport warmup and view state restore.');
@@ -964,8 +965,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (viewState && viewState.cellTotalHeights) {
 			const totalHeightCache = viewState.cellTotalHeights;
 			const scrollTop = viewState.scrollPosition?.top ?? 0;
+			const scrollBottom = scrollTop + Math.max(this._dimension?.height ?? 0, 1080);
 
-			let mdCnt = 0;
 			let offset = 0;
 			let requests: [ICellViewModel, number][] = [];
 
@@ -977,57 +978,39 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					continue;
 				} else {
 					if (cell.cellKind === CellKind.Markdown) {
-						mdCnt++;
 						requests.push([cell, offset]);
 					}
 				}
 
-				if (mdCnt > 5) {
+				offset += (totalHeightCache ? totalHeightCache[i] : 0);
+
+				if (offset > scrollBottom) {
 					break;
 				}
-
-				offset += (totalHeightCache ? totalHeightCache[i] : 0);
 			}
 
 			await this._webview!.initializeMarkdown(requests
 				.map(request => ({ cellId: request[0].id, cellHandle: request[0].handle, content: request[0].getText(), offset: request[1] })));
 		} else {
-			let mdCnt = 0;
-			let requests: [ICellViewModel, number][] = [];
-
-			for (let i = 0; i < viewModel.viewCells.length; i++) {
-				const cell = viewModel.viewCells[i];
-				if (cell.cellKind === CellKind.Markdown) {
-					mdCnt++;
-					requests.push([cell, -10000]);
-				}
-
-				if (mdCnt > 5) {
-					break;
-				}
-			}
-
-			await this._webview!.initializeMarkdown(requests
-				.map(request => ({ cellId: request[0].id, cellHandle: request[0].handle, content: request[0].getText(), offset: request[1] })));
+			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markdown).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000 }));
+			await this._webview!.initializeMarkdown(initRequests);
 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
-
-			mdCnt = 0;
 			let offset = 0;
 			let offsetUpdateRequests: { id: string, top: number }[] = [];
+			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
 			for (let i = 0; i < viewModel.viewCells.length; i++) {
 				const cell = viewModel.viewCells[i];
 				if (cell.cellKind === CellKind.Markdown) {
-					mdCnt++;
 					offsetUpdateRequests.push({ id: cell.id, top: offset });
 				}
 
-				if (mdCnt > 5) {
+				offset += cell.getHeight(this.getLayoutInfo().fontInfo.lineHeight);
+
+				if (offset > scrollBottom) {
 					break;
 				}
-
-				offset += cell.getHeight(this.getLayoutInfo().fontInfo.lineHeight);
 			}
 
 			this._webview?.updateMarkdownScrollTop(offsetUpdateRequests);
