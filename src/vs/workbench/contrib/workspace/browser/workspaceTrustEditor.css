@@ -18,7 +18,6 @@
 
 .workspace-trust-editor.settings-editor > .workspace-trust-header {
 	padding: 14px;
-	border: solid 1px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -35,6 +34,14 @@
 .workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
 	font-size: 32px;
 	margin-right: 8px;
+}
+
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-trusted-icon {
+	color: var(--workspace-trust-state-trusted-color) !important;
+}
+
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-untrusted-icon {
+	color: var(--workspace-trust-state-untrusted-color) !important;
 }
 
 .workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-description {
@@ -67,24 +74,6 @@
 	text-overflow: ellipsis;
 	margin: 4px 5px; /* allows button focus outline to be visible */
 	outline-offset: 2px !important;
-}
-
-.monaco-workbench.vs .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-unknown {
-	border-color: #cccccc;
-}
-
-.monaco-workbench.vs-dark .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-unknown {
-	border-color: #3c3c3c;
-}
-
-.monaco-workbench.vs .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-untrusted,
-.monaco-workbench.vs-dark .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-untrusted {
-	border-color: #FF0000;
-}
-
-.monaco-workbench.vs .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-trusted,
-.monaco-workbench.vs-dark .workspace-trust-editor.settings-editor > .workspace-trust-header.workspace-trust-trusted {
-	border-color: #327E36;
 }
 
 /** Features List */

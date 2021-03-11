@@ -21,8 +21,12 @@ module.exports = {
 				use: ['style-loader', 'css-loader'],
 			},
 			{
-				test: /\.(woff|woff2|eot|ttf|otf)$/i,
+				test: /\.(woff2)$/i,
 				use: ['url-loader?limit=100000']
+			},
+			{
+				test: /\.(woff|eot|ttf|otf)$/i,
+				use: ['null-loader']
 			},
 		],
 	},

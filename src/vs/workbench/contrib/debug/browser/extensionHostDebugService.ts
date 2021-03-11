@@ -7,8 +7,6 @@ import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } f
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
-import { IDebugHelperService } from 'vs/workbench/contrib/debug/common/debug';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -185,14 +183,3 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 }
 
 registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService, true);
-
-class BrowserDebugHelperService implements IDebugHelperService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async createPrivateTelemetryService(_id: string, _aiKey: string): Promise<TelemetryService> {
-		return undefined!;
-	}
-}
-
-registerSingleton(IDebugHelperService, BrowserDebugHelperService, true);

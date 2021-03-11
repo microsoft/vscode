@@ -20,12 +20,12 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
-import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { IAction } from 'vs/base/common/actions';
+import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -137,7 +137,7 @@ export interface IExpression extends IExpressionContainer {
 export interface IDebugger {
 	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter>;
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
-	getCustomTelemetryService(): Promise<TelemetryService | undefined>;
+	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
 }
 
 export const enum State {
@@ -962,14 +962,4 @@ export interface IBreakpointEditorContribution extends editorCommon.IEditorContr
 	showBreakpointWidget(lineNumber: number, column: number | undefined, context?: BreakpointWidgetContext): void;
 	closeBreakpointWidget(): void;
 	getContextMenuActionsAtPosition(lineNumber: number, model: EditorIModel): IAction[];
-}
-
-// temporary debug helper service
-
-export const DEBUG_HELPER_SERVICE_ID = 'debugHelperService';
-export const IDebugHelperService = createDecorator<IDebugHelperService>(DEBUG_HELPER_SERVICE_ID);
-
-export interface IDebugHelperService {
-	readonly _serviceBrand: undefined;
-	createPrivateTelemetryService(id: string, aiKey: string): Promise<TelemetryService>
 }

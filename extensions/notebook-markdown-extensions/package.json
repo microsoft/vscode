@@ -41,6 +41,7 @@
     "@types/markdown-it": "^0.0.0",
     "css-loader": "^5.0.2",
     "markdown-it": "^12.0.4",
+    "null-loader": "^4.0.1",
     "style-loader": "^2.0.0",
     "url-loader": "^4.1.1"
   },

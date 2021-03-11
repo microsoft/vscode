@@ -36,7 +36,7 @@ export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStarte
 		stepsComplete: number
 		stepsTotal: number
 	}
-	| { type: 'command', command: string }
+	| { type: 'startEntry', command: string }
 }
 
 export interface IGettingStartedService {
@@ -214,7 +214,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private getCategoryProgress(category: IGettingStartedCategory): IGettingStartedCategoryWithProgress {
-		if (category.content.type === 'command') {
+		if (category.content.type === 'startEntry') {
 			return { ...category, content: category.content };
 		}
 

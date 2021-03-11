@@ -254,7 +254,7 @@ abstract class NotebookCellAction<T = INotebookCellActionContext> extends Notebo
 
 const executeCellCondition = ContextKeyExpr.or(
 	ContextKeyExpr.and(
-		ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellRunState[NotebookCellRunState.Idle]),
+		ContextKeyExpr.notEquals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellRunState[NotebookCellRunState.Running]),
 		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0)),
 	NOTEBOOK_CELL_TYPE.isEqualTo('markdown'));
 
@@ -358,7 +358,7 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 	}
 });
 
-registerAction2(class StopExecuteCell extends NotebookCellAction<ICellRange> {
+registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 	constructor() {
 		super({
 			id: CANCEL_CELL_COMMAND_ID,
@@ -583,7 +583,7 @@ function renderAllMarkdownCells(context: INotebookActionContext): void {
 	});
 }
 
-registerAction2(class extends NotebookAction {
+registerAction2(class CancelNotebook extends NotebookAction {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,

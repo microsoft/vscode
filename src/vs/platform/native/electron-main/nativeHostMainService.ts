@@ -311,7 +311,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			cli: this.environmentMainService.args,
 			urisToOpen: openable,
 			forceNewWindow: options.forceNewWindow,
-			remoteAuthority: undefined // always local
+			/* remoteAuthority will be determined based on openable */
 		});
 	}
 

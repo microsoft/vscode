@@ -5,6 +5,7 @@
 
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -303,8 +304,13 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		getEditors: () => CustomEditorInput[],
 		cancellation: CancellationToken,
 		_backupFileService: IBackupFileService,
-	) {
-		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, cancellation);
+	): Promise<MainThreadCustomEditorModel> {
+		const editors = getEditors();
+		let untitledDocumentData: VSBuffer | undefined;
+		if (editors.length !== 0) {
+			untitledDocumentData = editors[0].untitledDocumentData;
+		}
+		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
 		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, getEditors);
 	}
 
