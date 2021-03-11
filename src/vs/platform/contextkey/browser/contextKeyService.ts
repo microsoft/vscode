@@ -580,6 +580,17 @@ CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, function (accessor, con
 });
 
 CommandsRegistry.registerCommand({
+	id: 'getContext',
+	handler(accessor, contextKey: any) {
+		return accessor.get(IContextKeyService).getContextKeyValue(String(contextKey));
+	},
+	description: {
+		description: localize('getContext', "Returns the value of a context key"),
+		args: [{ name: 'key', description: "The context key to look up" }]
+	}
+});
+
+CommandsRegistry.registerCommand({
 	id: 'getContextKeyInfo',
 	handler() {
 		return [...RawContextKey.all()].sort((a, b) => a.key.localeCompare(b.key));
