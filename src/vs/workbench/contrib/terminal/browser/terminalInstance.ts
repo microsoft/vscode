@@ -859,8 +859,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
-		await this._processManager.ptyProcessReady;
-		this._processManager.write(text);
+		return this._processManager.write(text);
 	}
 
 	public setVisible(visible: boolean): void {
@@ -938,24 +937,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onPtyDisconnect(() => {
-			this._safeSetOption('disableStdin', true);
-			this._onTitleChanged.fire(this);
-		});
-		this._processManager.onPtyReconnect(() => {
-			this._safeSetOption('disableStdin', false);
-			this._onTitleChanged.fire(this);
-		});
-
+		this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		} else {
 			// Only listen for process title changes when a name is not provided
 			if (this._configHelper.config.experimentalUseTitleEvent) {
-				this._processManager.ptyProcessReady.then(() => {
-					this._terminalInstanceService.getDefaultShellAndArgs(false).then(e => {
-						this.setTitle(e.shell, TitleEventSource.Sequence);
-					});
+				// Set the title to the first event if the sequence hasn't set it yet
+				Event.once(this._processManager.onProcessTitle)(e => {
+					if (!this._title) {
+						this.setTitle(this._title, TitleEventSource.Sequence);
+					}
+				});
+				// Listen to xterm.js' sequence title change event, trigger this async to ensure
+				// xterm is constructed since this is called from TerminalInstance's ctor
+				setTimeout(() => {
 					this._xtermReadyPromise.then(xterm => {
 						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
 					});
@@ -965,8 +961,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', TitleEventSource.Process));
 			}
 		}
-		this._processManager.onProcessShellTypeChanged(type => {
-			this.setShellType(type);
+
+		this._processManager.onPtyDisconnect(() => {
+			this._safeSetOption('disableStdin', true);
+			this._onTitleChanged.fire(this);
+		});
+		this._processManager.onPtyReconnect(() => {
+			this._safeSetOption('disableStdin', false);
+			this._onTitleChanged.fire(this);
 		});
 	}
 
@@ -1166,20 +1168,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager.dispose();
-
-		// Launch the process unless this is only a renderer.
-		// In the renderer only cases, we still need to set the title correctly.
-		const oldTitle = this._title;
-		this._createProcessManager();
-
-		if (oldTitle !== this._title) {
-			this.setTitle(this._title, TitleEventSource.Process);
-		}
-
-		this._processManager.onProcessData(data => this._onProcessData(data));
-		this._createProcess();
+		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
 
 		this._xtermTypeAhead?.reset(this._processManager);
 	}
@@ -1456,10 +1445,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (immediate) {
 			// do not await, call setDimensions synchronously
-			this._processManager.setDimensions(cols, rows);
+			this._processManager.setDimensions(cols, rows, true);
 		} else {
-			await this._processManager.ptyProcessReady;
-			this._processManager.setDimensions(cols, rows);
+			await this._processManager.setDimensions(cols, rows);
 		}
 	}
 
