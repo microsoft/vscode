@@ -16,6 +16,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
@@ -86,6 +87,7 @@ interface IExtensionHostDebugEnvironment {
 	debugRenderer: boolean;
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 	extensionEnabledProposedApi?: string[];
 }
@@ -193,6 +195,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
 	}
 
+	get extensionDevelopmentLocationKind(): ExtensionKind[] | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionDevelopmentKind;
+	}
+
 	get extensionTestsLocationURI(): URI | undefined {
 		if (!this._extensionHostDebugEnvironment) {
 			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
@@ -272,7 +282,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			},
 			debugRenderer: false,
 			isExtensionDevelopment: false,
-			extensionDevelopmentLocationURI: undefined
+			extensionDevelopmentLocationURI: undefined,
+			extensionDevelopmentKind: undefined
 		};
 
 		// Fill in selected extra environmental properties
@@ -282,6 +293,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 					case 'extensionDevelopmentPath':
 						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
 						extensionHostDebugEnvironment.isExtensionDevelopment = true;
+						break;
+					case 'extensionDevelopmentKind':
+						extensionHostDebugEnvironment.extensionDevelopmentKind = [<ExtensionKind>value];
 						break;
 					case 'extensionTestsPath':
 						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
