@@ -514,8 +514,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getVisibleRangesPlusViewportAboveBelow() {
-		const top = this.getViewScrollTop() - this.renderHeight;
-		const bottom = this.getViewScrollBottom() + this.renderHeight;
+		if (this.view.length <= 0) {
+			return [];
+		}
+
+		const top = clamp(this.getViewScrollTop() - this.renderHeight, 0, this.scrollHeight);
+		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
 		const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
 		const topElement = this.view.element(topViewIndex);
 		const topModelIndex = this._viewModel!.getCellIndex(topElement);

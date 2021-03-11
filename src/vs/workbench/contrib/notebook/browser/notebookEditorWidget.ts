@@ -915,7 +915,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
 
 		if (useRenderer) {
-			this._warmupWithMarkdownRenderer(this.viewModel, viewState);
+			await this._warmupWithMarkdownRenderer(this.viewModel, viewState);
 		} else {
 			this._list.attachViewModel(this.viewModel);
 		}
