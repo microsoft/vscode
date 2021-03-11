@@ -403,7 +403,7 @@ export class Sash extends Disposable {
 			sash.hoverDelayer.cancel();
 			sash.el.classList.add('hover');
 		} else {
-			sash.hoverDelayer.trigger(() => sash.el.classList.add('hover'));
+			sash.hoverDelayer.trigger(() => sash.el.classList.add('hover')).then(undefined, () => { });
 		}
 
 		if (!fromLinkedSash && sash.linkedSash) {
