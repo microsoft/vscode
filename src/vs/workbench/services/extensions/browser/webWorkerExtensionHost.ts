@@ -21,7 +21,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { joinPath } from 'vs/base/common/resources';
+import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { localize } from 'vs/nls';
@@ -344,6 +344,14 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return Promise.resolve(false);
 	}
 
+	private getExtensionTestsLocationURI(initData: IWebWorkerExtensionHostInitData) {
+		const extensionTestsLocationURI = this._environmentService.extensionTestsLocationURI;
+		if (extensionTestsLocationURI && initData.extensions.some(e => isEqualOrParent(extensionTestsLocationURI, e.extensionLocation))) {
+			return extensionTestsLocationURI;
+		}
+		return undefined;
+	}
+
 	private async _createExtHostInitData(): Promise<IInitData> {
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
@@ -358,7 +366,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionDevelopmentKind: this._environmentService.extensionDevelopmentKind,
-				extensionTestsLocationURI: undefined, // never run extension tests in web worker extension host
+				extensionTestsLocationURI: this.getExtensionTestsLocationURI(initData),
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 				webviewResourceRoot: this._environmentService.webviewResourceRoot,

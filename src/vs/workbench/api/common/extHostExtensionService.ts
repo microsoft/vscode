@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
-import { originalFSPath, joinPath } from 'vs/base/common/resources';
+import { originalFSPath, joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -558,6 +558,24 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private async _doHandleExtensionTests(): Promise<void> {
 		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
 		if (!(extensionDevelopmentLocationURI && extensionTestsLocationURI && extensionTestsLocationURI.scheme === Schemas.file)) {
+			return Promise.resolve(undefined);
+		}
+
+		const runtime = () => {
+			return this.extensionRuntime === ExtensionRuntime.Webworker ? 'web' : 'node';
+		};
+
+		console.log(runtime() + ' test ' + extensionTestsLocationURI);
+		if (!this._registry.getAllExtensionDescriptions().some(desc => {
+			console.log(runtime() + ' ' + desc.extensionLocation.toString());
+			return isEqualOrParent(extensionTestsLocationURI, desc.extensionLocation);
+		})) {
+			console.log(runtime() + ' not found');
+			return Promise.resolve(undefined);
+		}
+		console.log(runtime() + ' found');
+
+		if (this.extensionRuntime === ExtensionRuntime.Webworker) {
 			return Promise.resolve(undefined);
 		}
 

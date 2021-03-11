@@ -40,7 +40,7 @@ import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHo
 import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { joinPath } from 'vs/base/common/resources';
+import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { isUUID } from 'vs/base/common/uuid';
@@ -455,6 +455,14 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		});
 	}
 
+	private getExtensionTestsLocationURI(initData: ILocalProcessExtensionHostInitData) {
+		const extensionTestsLocationURI = this._environmentService.extensionTestsLocationURI;
+		if (extensionTestsLocationURI && initData.extensions.some(e => isEqualOrParent(extensionTestsLocationURI, e.extensionLocation))) {
+			return extensionTestsLocationURI;
+		}
+		return undefined;
+	}
+
 	private async _createExtHostInitData(): Promise<IInitData> {
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
@@ -469,7 +477,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
+				extensionTestsLocationURI: this.getExtensionTestsLocationURI(initData),
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
 				webviewResourceRoot: this._environmentService.webviewResourceRoot,
