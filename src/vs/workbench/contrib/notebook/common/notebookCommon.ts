@@ -466,6 +466,7 @@ export namespace CellUri {
 type MimeTypeInfo = {
 	alwaysSecure?: boolean;
 	supportedByCore?: boolean;
+	mergeable?: boolean;
 };
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
@@ -479,6 +480,9 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/jpeg', { supportedByCore: true }],
 	['text/x-javascript', { supportedByCore: true }],
 	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -487,6 +491,10 @@ export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
 
 export function mimeTypeSupportedByCore(mimeType: string) {
 	return _mimeTypeInfo.get(mimeType)?.supportedByCore ?? false;
+}
+
+export function mimeTypeIsMergeable(mimeType: string): boolean {
+	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
 }
 
 // if (isWindows) {

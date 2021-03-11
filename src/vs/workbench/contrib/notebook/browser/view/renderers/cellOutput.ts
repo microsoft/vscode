@@ -12,7 +12,7 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { CodeCellRenderTemplate, ICellOutputViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellUri, NotebookCellOutputsSplice, IOrderedMimeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, NotebookCellOutputsSplice, IOrderedMimeType, mimeTypeIsAlwaysSecure } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
@@ -413,17 +413,7 @@ export class CellOutputContainer extends Disposable {
 			// not trusted
 			const secureOutput = outputs.filter(output => {
 				const mimeTypes = output.model.outputs.map(op => op.mime);
-
-				if (mimeTypes.indexOf('application/x.notebook.stream') >= 0
-					|| mimeTypes.indexOf('application/x.notebook.error-traceback') >= 0
-					|| mimeTypes.indexOf('text/plain') >= 0
-					|| mimeTypes.indexOf('text/markdown') >= 0
-					|| mimeTypes.indexOf('application/json') >= 0
-					|| mimeTypes.includes('image/png')) {
-					return true;
-				}
-
-				return false;
+				return mimeTypes.some(mimeTypeIsAlwaysSecure);
 			});
 
 			return secureOutput;
