@@ -33,7 +33,9 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
-const trustIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
+const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.workspaceUntrusted);
+const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceTrusted);
+const unknownIcon = registerCodicon('workspace-unknown-icon', Codicon.workspaceUnknown);
 
 export class WorkspaceTrustEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.workspaceTrust';
@@ -135,15 +137,25 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
+	private getHeaderTitleIconClassNames(trustState: WorkspaceTrustState): string[] {
+		switch (trustState) {
+			case WorkspaceTrustState.Trusted:
+				return trustedIcon.classNamesArray;
+			case WorkspaceTrustState.Untrusted:
+				return untrustedIcon.classNamesArray;
+			case WorkspaceTrustState.Unknown:
+				return unknownIcon.classNamesArray;
+		}
+	}
+
 	private rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	private render(model: WorkspaceTrustEditorModel): void {
 		this.rerenderDisposables.clear();
 
 		// Header Section
 		this.headerTitleText.innerText = this.getHeaderTitleText(model.currentWorkspaceTrustState);
-		this.headerTitleIcon.classList.add(...trustIcon.classNamesArray);
-		this.headerTitleIcon.classList.toggle('trusted', model.currentWorkspaceTrustState === WorkspaceTrustState.Trusted);
-		this.headerTitleIcon.classList.toggle('untrusted', model.currentWorkspaceTrustState === WorkspaceTrustState.Untrusted);
+		this.headerTitleIcon.className = 'workspace-trust-title-icon';
+		this.headerTitleIcon.classList.add(...this.getHeaderTitleIconClassNames(model.currentWorkspaceTrustState));
 		this.headerDescription.innerText = '';
 
 		const linkedText = parseLinkedText(this.getHeaderDescriptionText(model.currentWorkspaceTrustState));

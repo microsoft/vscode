@@ -36,11 +36,11 @@
 	margin-right: 8px;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.trusted {
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-trusted-icon {
 	color: var(--workspace-trust-state-trusted-color) !important;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.untrusted {
+.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-untrusted-icon {
 	color: var(--workspace-trust-state-untrusted-color) !important;
 }
 
