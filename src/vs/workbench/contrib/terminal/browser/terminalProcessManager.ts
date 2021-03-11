@@ -28,6 +28,8 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService } from 'vs/platform/terminal/common/terminal';
+import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
+import { timeout } from 'vs/base/common/async';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -72,6 +74,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _hasWrittenData: boolean = false;
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
+	private _relaunchRecorder: TerminalRecorder | undefined;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
@@ -132,6 +135,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 		this.getLatency();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
+		// TODO: Fix resize - we don't want to consider these events
+		this._relaunchRecorder = new TerminalRecorder(80, 30);
+		const relaunchDisposable = this.onProcessData(e => this._relaunchRecorder?.recordData('data' in e ? e.data : e));
+		// setTimeout(() => {
+		// 	const replay = this._relaunchRecorder?.generateReplayEvent();
+		// 	const dataEvents = replay?.events.filter(e => !!e.data);
+		// 	console.log('data events', dataEvents);
+		// relaunchDisposable.dispose();
+		// }, 5000);
 	}
 
 	public dispose(immediate: boolean = false): void {
@@ -248,6 +260,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		});
 
+		// TODO: Fix resize - we don't want to consider these events
+		this._relaunchRecorder = new TerminalRecorder(80, 30);
+		const relaunchDisposable = this.onProcessData(e => this._relaunchRecorder?.recordData('data' in e ? e.data : e));
+
 		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
 			this.shellProcessId = e.pid;
 			this._initialCwd = e.cwd;
@@ -292,7 +308,34 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				c(undefined);
 			});
 		});
-		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+		console.log('relaunch!');
+		const lastRecorder = this._relaunchRecorder;
+		const process = this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
+		if (!lastRecorder) {
+			return process;
+		}
+
+		await timeout(3000);
+
+		if (!this._relaunchRecorder) {
+			return process;
+		}
+		const firstReplay = lastRecorder.generateReplayEvent();
+		const firstData = firstReplay.events.filter(e => !!e.data).map(e => e.data).join('');
+		const secondReplay = this._relaunchRecorder.generateReplayEvent();
+		const secondData = secondReplay.events.filter(e => !!e.data).map(e => e.data).join('');
+
+		console.log('first data', firstData);
+		console.log('secondReplay events', secondReplay.events);
+		console.log('second data', secondData);
+		console.log('equal?', firstData === secondData);
+		if (firstData !== secondData) {
+			console.log('not equal, replaying instantly after 2 seconds');
+			await timeout(2000);
+			// Fire full reset (RIS) followed by the new data so the update happens in the same frame
+			this._onProcessData.fire({ data: `\x1bc${secondData}2`, sync: false });
+		}
+		return process;
 	}
 
 	// Fetch any extension environment additions and apply them
