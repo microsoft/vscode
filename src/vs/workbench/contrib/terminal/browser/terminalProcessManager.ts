@@ -253,7 +253,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
 			this.shellProcessId = e.pid;
 			this._initialCwd = e.cwd;
-			console.log('fire ready!');
 			this._onProcessReady.fire();
 
 			if (this._preLaunchInputQueue.length > 0 && this._process) {

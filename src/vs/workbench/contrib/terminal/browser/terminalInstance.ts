@@ -953,10 +953,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// xterm is constructed since this is called from TerminalInstance's ctor
 				setTimeout(() => {
 					this._xtermReadyPromise.then(xterm => {
-						this._messageTitleDisposable = xterm.onTitleChange(e => {
-							console.log('set from sequence');
-							this._onTitleChange(e);
-						});
+						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
 					});
 				});
 			} else {
