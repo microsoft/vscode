@@ -167,6 +167,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._renderedEditors.get(focused);
 	}
 
+	private readonly _onDidScroll = this._register(new Emitter<void>());
+	readonly onDidScroll: Event<void> = this._onDidScroll.event;
 	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
 	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
 	private _cursorNavigationMode: boolean = false;
@@ -506,6 +508,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._register(this._list.onDidChangeVisibleRanges(() => {
 			this._onDidChangeVisibleRanges.fire();
+		}));
+
+		this._register(this._list.onDidScroll(() => {
+			this._onDidScroll.fire();
 		}));
 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
@@ -932,6 +938,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			// and now setting scrollTop works
 			// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
 			this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
+			this._debug('finish initial viewport warmup and view state restore.');
 			this._webview!.element.style.visibility = 'visible';
 		}
 
@@ -977,7 +984,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 
 			await this._webview!.initializeMarkdown(requests
-				.map(request => ({ cellId: request[0].id, content: request[0].getText(), offset: request[1] })));
+				.map(request => ({ cellId: request[0].id, cellHandle: request[0].handle, content: request[0].getText(), offset: request[1] })));
 		} else {
 			let mdCnt = 0;
 			let requests: [ICellViewModel, number][] = [];
@@ -995,7 +1002,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 
 			await this._webview!.initializeMarkdown(requests
-				.map(request => ({ cellId: request[0].id, content: request[0].getText(), offset: request[1] })));
+				.map(request => ({ cellId: request[0].id, cellHandle: request[0].handle, content: request[0].getText(), offset: request[1] })));
 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
@@ -1297,6 +1304,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	setHiddenAreas(_ranges: ICellRange[]): boolean {
 		return this._list.setHiddenAreas(_ranges, true);
+	}
+
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[] {
+		return this._list?.getVisibleRangesPlusViewportAboveBelow() ?? [];
 	}
 
 	//#endregion
@@ -1782,9 +1793,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		if (this._webview.markdownPreviewMapping.has(cell.id)) {
-			await this._webview.showMarkdownPreview(cell.id, cell.getText(), cellTop);
+			await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop);
 		} else {
-			await this._webview.createMarkdownPreview(cell.id, cell.getText(), cellTop);
+			await this._webview.createMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop);
 		}
 	}
 

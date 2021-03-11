@@ -236,6 +236,7 @@ export interface ICustomRendererMessage extends BaseToWebviewMessage {
 export interface ICreateMarkdownMessage {
 	type: 'createMarkdownPreview',
 	id: string;
+	handle: number;
 	content: string;
 	top: number;
 }
@@ -257,6 +258,7 @@ export interface IUnhideMarkdownMessage {
 export interface IShowMarkdownMessage {
 	type: 'showMarkdownPreview',
 	id: string;
+	handle: number;
 	content: string;
 	top: number;
 }
@@ -269,7 +271,7 @@ export interface IUpdateMarkdownPreviewSelectionState {
 
 export interface IInitializeMarkdownMessage {
 	type: 'initializeMarkdownPreview';
-	cells: Array<{ cellId: string, content: string, offset: number }>;
+	cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>;
 }
 
 export type FromWebviewMessage =
@@ -1054,7 +1056,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async createMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1065,12 +1067,13 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
 			id: cellId,
+			handle: cellHandle,
 			content: content,
 			top: initialTop,
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1078,6 +1081,7 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'showMarkdownPreview',
 			id: cellId,
+			handle: cellHandle,
 			content: content,
 			top: cellTop
 		});
@@ -1142,7 +1146,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkdown(cells: Array<{ cellId: string, content: string, offset: number }>) {
+	async initializeMarkdown(cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>) {
 		await this._loaded;
 
 		// TODO: use proper handler
