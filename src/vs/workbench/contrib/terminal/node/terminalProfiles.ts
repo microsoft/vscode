@@ -57,9 +57,10 @@ async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promi
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key], statProvider)));
 	const shells = await Promise.all(promises);
+	//TODO@meganrogge fix this up
 	let cygwin = shells.find(shell => shell?.profileName === 'Cygwin');
 	let wsl = shells.find(shell => shell?.path.endsWith('wsl.exe'));
-	let bashZsh = shells.find(shell => shell?.path.endsWith('bash.exe') || shell?.path.endsWith('zsh.exe'));
+	let bashZsh = shells.find(shell => shell?.profileName === 'Git Bash' || shell?.path.endsWith('zsh.exe'));
 	if (cygwin) {
 		cygwin.args = ['-l'];
 	} else if (wsl) {
