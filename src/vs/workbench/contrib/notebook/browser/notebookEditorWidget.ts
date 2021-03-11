@@ -912,34 +912,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		// init rendering
-		{
-			const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
+		const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
 
-			if (useRenderer) {
-				await this._resolveWebview();
-
-				// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells
-				this._webview!.element.style.visibility = 'hidden';
-				// warm up can take around 200ms to load markdown libraries, etc.
-				await this._warmupViewport(this.viewModel, viewState);
-			}
-
-			// todo@rebornix @mjbvz, is this too complicated?
-
-			/* now the webview is ready, and requests to render markdown are fast enough
-			 * we can start rendering the list view
-			 * render
-			 *   - markdown cell -> request to webview to (10ms, basically just latency between UI and iframe)
-			 *   - code cell -> render in place (40ms)
-			 */
-			this._list.layout(0, 0);
+		if (useRenderer) {
+			this._warmupWithMarkdownRenderer(this.viewModel, viewState);
+		} else {
 			this._list.attachViewModel(this.viewModel);
-			// now I have a correct contentHeight/scrollHeight
-			// and now setting scrollTop works
-			// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
-			this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
-			this._debug('finish initial viewport warmup and view state restore.');
-			this._webview!.element.style.visibility = 'visible';
 		}
 
 		if (this._dimension) {
@@ -952,6 +930,34 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		// restore list state at last, it must be after list layout
 		this.restoreListViewState(viewState);
+	}
+
+	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
+
+		await this._resolveWebview();
+
+		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells
+		this._webview!.element.style.visibility = 'hidden';
+		// warm up can take around 200ms to load markdown libraries, etc.
+		await this._warmupViewport(viewModel, viewState);
+
+		// todo@rebornix @mjbvz, is this too complicated?
+
+		/* now the webview is ready, and requests to render markdown are fast enough
+		 * we can start rendering the list view
+		 * render
+		 *   - markdown cell -> request to webview to (10ms, basically just latency between UI and iframe)
+		 *   - code cell -> render in place (40ms)
+		 */
+		this._list.layout(0, 0);
+		this._list.attachViewModel(viewModel);
+		// now I have a correct contentHeight/scrollHeight
+		// and now setting scrollTop works
+		// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
+		this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
+		this._debug('finish initial viewport warmup and view state restore.');
+		this._webview!.element.style.visibility = 'visible';
+
 	}
 
 	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
