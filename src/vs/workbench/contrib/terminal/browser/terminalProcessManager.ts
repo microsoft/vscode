@@ -52,7 +52,6 @@ enum ProcessType {
  */
 export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
 	public processState: ProcessState = ProcessState.UNINITIALIZED;
-	// TODO: This will cause problems when the process manager is reused
 	public ptyProcessReady: Promise<void>;
 	public shellProcessId: number | undefined;
 	public remoteAuthority: string | undefined;
@@ -72,6 +71,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
 	private _ptyResponsiveListener: IDisposable | undefined;
+	private _ptyListenersAttached: boolean = false;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
@@ -206,7 +206,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
 				if (!this._isDisposed) {
-					// TODO: Prevent double attach
 					this._setupPtyHostListeners(this._remoteTerminalService);
 				}
 			} else {
@@ -226,7 +225,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
 				if (!this._isDisposed) {
-					// TODO: Prevent double attach
 					this._setupPtyHostListeners(this._localTerminalService);
 				}
 			}
@@ -373,6 +371,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private _setupPtyHostListeners(offProcessTerminalService: IOffProcessTerminalService) {
+		if (this._ptyListenersAttached) {
+			return;
+		}
+		this._ptyListenersAttached = true;
+
 		// Mark the process as disconnected is the pty host is unresponsive, the responsive event
 		// will fire only when the pty host was already unresponsive
 		this._register(offProcessTerminalService.onPtyHostUnresponsive(() => {
