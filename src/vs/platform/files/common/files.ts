@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import * as glob from 'vs/base/common/glob';
+import { IExpression } from 'vs/base/common/glob';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
@@ -933,7 +933,7 @@ export const FILES_EXCLUDE_CONFIG = 'files.exclude';
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
-		exclude: glob.IExpression;
+		exclude: IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
 		autoGuessEncoding: boolean;
@@ -1022,4 +1022,23 @@ export class ByteSize {
 
 		return localize('sizeTB', "{0}TB", (size / ByteSize.TB).toFixed(2));
 	}
+}
+
+// Native only: Arch limits
+
+export interface IArchLimits {
+	maxFileSize: number;
+	maxHeapSize: number;
+}
+
+export const enum Arch {
+	IA32,
+	OTHER
+}
+
+export function getPlatformLimits(arch: Arch): IArchLimits {
+	return {
+		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
+		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
+	};
 }

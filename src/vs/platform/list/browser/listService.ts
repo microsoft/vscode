@@ -109,6 +109,7 @@ export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListF
 export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
 export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
 export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
+export const WorkbenchListSelectionNavigation = new RawContextKey<boolean>('listSelectionNavigation', false);
 export const WorkbenchListSupportsKeyboardNavigation = new RawContextKey<boolean>('listSupportsKeyboardNavigation', true);
 export const WorkbenchListAutomaticKeyboardNavigationKey = 'listAutomaticKeyboardNavigation';
 export const WorkbenchListAutomaticKeyboardNavigation = new RawContextKey<boolean>(WorkbenchListAutomaticKeyboardNavigationKey, true);
@@ -191,7 +192,9 @@ export interface IWorkbenchListOptionsUpdate extends IListOptionsUpdate {
 	readonly overrideStyles?: IColorMapping;
 }
 
-export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IListOptions<T> { }
+export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IListOptions<T> {
+	readonly selectionNavigation?: boolean;
+}
 
 export class WorkbenchList<T> extends List<T> {
 
@@ -237,6 +240,9 @@ export class WorkbenchList<T> extends List<T> {
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
+		listSelectionNavigation.set(Boolean(options.selectionNavigation));
 
 		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
@@ -315,7 +321,9 @@ export class WorkbenchList<T> extends List<T> {
 	}
 }
 
-export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IPagedListOptions<T> { }
+export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IPagedListOptions<T> {
+	readonly selectionNavigation?: boolean;
+}
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
@@ -361,6 +369,9 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
+		listSelectionNavigation.set(Boolean(options.selectionNavigation));
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -427,7 +438,9 @@ export interface IWorkbenchTableOptionsUpdate extends ITableOptionsUpdate {
 	readonly overrideStyles?: IColorMapping;
 }
 
-export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate, IResourceNavigatorOptions, ITableOptions<T> { }
+export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate, IResourceNavigatorOptions, ITableOptions<T> {
+	readonly selectionNavigation?: boolean;
+}
 
 export class WorkbenchTable<TRow> extends Table<TRow> {
 
@@ -476,6 +489,9 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
+		listSelectionNavigation.set(Boolean(options.selectionNavigation));
 
 		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
@@ -770,6 +786,7 @@ function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingS
 export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IColorMapping;
+	readonly selectionNavigation?: boolean;
 }
 
 export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
@@ -806,6 +823,7 @@ export interface IWorkbenchCompressibleObjectTreeOptionsUpdate extends ICompress
 
 export interface IWorkbenchCompressibleObjectTreeOptions<T, TFilterData> extends IWorkbenchCompressibleObjectTreeOptionsUpdate, ICompressibleObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
+	readonly selectionNavigation?: boolean;
 }
 
 export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends CompressibleObjectTree<T, TFilterData> {
@@ -850,6 +868,7 @@ export interface IWorkbenchDataTreeOptionsUpdate extends IAbstractTreeOptionsUpd
 
 export interface IWorkbenchDataTreeOptions<T, TFilterData> extends IWorkbenchDataTreeOptionsUpdate, IDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
+	readonly selectionNavigation?: boolean;
 }
 
 export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<TInput, T, TFilterData> {
@@ -895,6 +914,7 @@ export interface IWorkbenchAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOpti
 
 export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IWorkbenchAsyncDataTreeOptionsUpdate, IAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
+	readonly selectionNavigation?: boolean;
 }
 
 export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends AsyncDataTree<TInput, T, TFilterData> {
@@ -937,6 +957,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 export interface IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData> extends ICompressibleAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly overrideStyles?: IColorMapping;
+	readonly selectionNavigation?: boolean;
 }
 
 export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> extends CompressibleAsyncDataTree<TInput, T, TFilterData> {
@@ -1051,6 +1072,9 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
 		const listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		listSupportsMultiSelect.set(!(options.multipleSelectionSupport === false));
+
+		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
+		listSelectionNavigation.set(Boolean(options.selectionNavigation));
 
 		this.hasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
 		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);

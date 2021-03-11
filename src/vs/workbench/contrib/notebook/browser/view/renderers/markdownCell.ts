@@ -75,7 +75,9 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 		} else {
 			this.localDisposables.clear();
 			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
-				this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
+				if (this.viewCell.editState === CellEditState.Preview) {
+					this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
+				}
 				this.relayoutCell();
 			}));
 
@@ -306,6 +308,11 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.show(this.editorPart);
 		DOM.hide(this.markdownContainer);
 		DOM.hide(this.templateData.collapsedPart);
+
+		if (this.useRenderer) {
+			this.notebookEditor.hideMarkdownPreview(this.viewCell);
+		}
+
 		this.templateData.container.classList.toggle('collapsed', false);
 
 		if (this.editor) {

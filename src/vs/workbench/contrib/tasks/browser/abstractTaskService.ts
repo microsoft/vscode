@@ -775,7 +775,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of folderToTasksMap.keys()) {
 			let custom: CustomTask[] = [];
 			let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
-			await this.computeTasksForSingleConfig(folderMap[key] ?? this.workspaceFolders[0], {
+			await this.computeTasksForSingleConfig(folderMap[key] ?? await this.getAFolder(), {
 				version: '2.0.0',
 				tasks: folderToTasksMap.get(key)
 			}, TaskRunSource.System, custom, customized, folderMap[key] ? TaskConfig.TaskConfigSource.TasksJson : TaskConfig.TaskConfigSource.User, true);
@@ -1870,6 +1870,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract updateWorkspaceTasks(runSource: TaskRunSource | void): void;
 
+	private async getAFolder(): Promise<IWorkspaceFolder> {
+		let folder = this.workspaceFolders.length > 0 ? this.workspaceFolders[0] : undefined;
+		if (!folder) {
+			const userhome = await this.pathService.userHome();
+			folder = new WorkspaceFolder({ uri: userhome, name: resources.basename(userhome), index: 0 });
+		}
+		return folder;
+	}
+
 	protected computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
 		let promises: Promise<WorkspaceFolderTaskResult | undefined>[] = [];
 		for (let folder of this.workspaceFolders) {
@@ -1882,11 +1891,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					result.set(value.workspaceFolder.uri.toString(), value);
 				}
 			}
-			let folder = this.workspaceFolders.length > 0 ? this.workspaceFolders[0] : undefined;
-			if (!folder) {
-				const userhome = await this.pathService.userHome();
-				folder = new WorkspaceFolder({ uri: userhome, name: resources.basename(userhome), index: 0 });
-			}
+			const folder = await this.getAFolder();
 			const userTasks = await this.computeUserTasks(folder, runSource).then((value) => value, () => undefined);
 			if (userTasks) {
 				result.set(USER_TASKS_GROUP_KEY, userTasks);

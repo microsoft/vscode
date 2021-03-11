@@ -81,7 +81,6 @@ suite('NotebookKernel', function () {
 					cellKind: CellKind.Code,
 					outputs: [],
 				}],
-				contentOptions: { transientOutputs: false, transientMetadata: {} },
 				versionId: 0
 			}],
 			addedEditors: [

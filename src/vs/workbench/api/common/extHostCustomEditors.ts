@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { hash } from 'vs/base/common/hash';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -208,7 +209,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			}));
 	}
 
-	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {
+	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, cancellation: CancellationToken) {
 		const entry = this._editorProviders.get(viewType);
 		if (!entry) {
 			throw new Error(`No provider found for '${viewType}'`);
@@ -219,7 +220,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		}
 
 		const revivedResource = URI.revive(resource);
-		const document = await entry.provider.openCustomDocument(revivedResource, { backupId }, cancellation);
+		const document = await entry.provider.openCustomDocument(revivedResource, { backupId, untitledDocumentData: untitledDocumentData?.buffer }, cancellation);
 
 		let storageRoot: URI | undefined;
 		if (this.supportEditing(entry.provider) && this._extensionStoragePaths) {

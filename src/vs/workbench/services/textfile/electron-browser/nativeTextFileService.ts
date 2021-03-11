@@ -5,13 +5,13 @@
 
 import { promises } from 'fs';
 import { localize } from 'vs/nls';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, IWriteTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileService, ByteSize } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, FileOperationError, FileOperationResult, IFileService, ByteSize, getPlatformLimits, Arch } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
-import { MAX_FILE_SIZE, MAX_HEAP_SIZE } from 'vs/base/node/pfs';
 import { join } from 'vs/base/common/path';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { UTF8, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
@@ -110,16 +110,12 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		if (typeof ensuredLimits.size !== 'number') {
-			ensuredLimits.size = MAX_FILE_SIZE;
+			ensuredLimits.size = getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxFileSize;
 		}
 
 		if (typeof ensuredLimits.memory !== 'number') {
 			const maxMemory = this.environmentService.args['max-memory'];
-			ensuredLimits.memory = Math.max(
-				typeof maxMemory === 'string'
-					? parseInt(maxMemory) * ByteSize.MB || 0
-					: 0, MAX_HEAP_SIZE
-			);
+			ensuredLimits.memory = Math.max(typeof maxMemory === 'string' ? parseInt(maxMemory) * ByteSize.MB || 0 : 0, getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxHeapSize);
 		}
 
 		return ensuredOptions;

@@ -146,7 +146,7 @@ export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; output: IOutputRequestDto; mimeType: string };
+	| { type: RenderOutputType.Extension; outputId: string; value: unknown; metadata: unknown; mimeType: string };
 	cellId: string;
 	outputId: string;
 	top: number;
@@ -1198,10 +1198,7 @@ var requirejs = (function() {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			renderer = content.renderer;
-			let data: { [key: string]: unknown } = {};
-			let metadata: { [key: string]: unknown } = {};
-			data[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.value || undefined;
-			metadata[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.metadata || undefined;
+			const outputDto = output.outputs.find(op => op.mime === content.mimeType);
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1209,12 +1206,10 @@ var requirejs = (function() {
 				requiredPreloads: await this.updateRendererPreloads([content.renderer]),
 				content: {
 					type: RenderOutputType.Extension,
+					outputId: output.outputId,
 					mimeType: content.mimeType,
-					output: {
-						metadata: metadata,
-						data: data,
-						outputId: output.outputId
-					},
+					value: outputDto?.value,
+					metadata: outputDto?.metadata,
 				},
 			};
 		} else {
