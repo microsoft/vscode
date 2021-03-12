@@ -238,7 +238,6 @@ export interface ICreateMarkdownMessage {
 	id: string;
 	handle: number;
 	content: string;
-	contentVersion: number;
 	top: number;
 }
 export interface IRemoveMarkdownMessage {
@@ -260,8 +259,7 @@ export interface IShowMarkdownMessage {
 	type: 'showMarkdownPreview',
 	id: string;
 	handle: number;
-	content: string;
-	contentVersion: number;
+	content: string | undefined;
 	top: number;
 }
 
@@ -1127,7 +1125,8 @@ var requirejs = (function() {
 
 		const entry = this.markdownPreviewMapping.get(cellId);
 		if (!entry) {
-			console.error('Try to hide a preview that does not exist');
+			// TODO: this currently seems expected on first load
+			// console.error(`Try to hide a preview that does not exist: ${cellId}`);
 			return;
 		}
 
@@ -1147,7 +1146,7 @@ var requirejs = (function() {
 
 		const entry = this.markdownPreviewMapping.get(cellId);
 		if (!entry) {
-			console.error('Try to unhide a preview that does not exist');
+			console.error(`Try to unhide a preview that does not exist: ${cellId}`);
 			return;
 		}
 
@@ -1166,7 +1165,7 @@ var requirejs = (function() {
 		}
 
 		if (!this.markdownPreviewMapping.has(cellId)) {
-			console.error('Try to delete a preview that does not exist');
+			console.error(`Try to delete a preview that does not exist: ${cellId}`);
 			return;
 		}
 
@@ -1184,7 +1183,8 @@ var requirejs = (function() {
 		}
 
 		if (!this.markdownPreviewMapping.has(cellId)) {
-			console.error('Try to update selection state for preview that does not exist');
+			// TODO: this currently seems expected on first load
+			// console.error(`Try to update selection state for preview that does not exist: ${cellId}`);
 			return;
 		}
 
