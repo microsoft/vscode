@@ -291,55 +291,17 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
-		console.log('time', performance.now());
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
 				c(undefined);
 			});
 		});
-		console.log('relaunch!');
+		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
 		// this._relaunchDisposable?.dispose();
 		// this._relaunchDisposable = undefined;
 		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
-
-		// if (!reset || !this._relaunchRecorder) {
-		// 	return process;
-		// }
-		// const initialData = this._getDataFromRecorder(this._relaunchRecorder);
-
-		// await timeout(3000);
-		// this._swapProcesses(initialData);
-		// return process;
 	}
-
-	// private _getDataFromRecorder(recorder: TerminalRecorder): string {
-	// 	return recorder.generateReplayEvent().events.filter(e => !!e.data).map(e => e.data).join('');
-	// }
-
-	// private _swapProcesses(initialData: string) {
-	// 	// TODO: Trigger immediately on input
-	// 	// TODO: Is this right? What can unset this?
-	// 	if (!this._relaunchRecorder) {
-	// 		return process;
-	// 	}
-	// 	const secondReplay = this._relaunchRecorder.generateReplayEvent();
-	// 	const secondData = secondReplay.events.filter(e => !!e.data).map(e => e.data).join('');
-
-	// 	console.log('first data', initialData);
-	// 	console.log('secondReplay events', secondReplay.events);
-	// 	console.log('second data', secondData);
-	// 	console.log('equal?', initialData === secondData);
-	// 	// Re-write the terminal if the data differs
-	// 	if (initialData === secondData) {
-	// 		this._logService.trace(`Relaunching terminal "${this._instanceId}" to update environment - identical content`);
-	// 	} else {
-	// 		this._logService.trace(`Relaunching terminal "${this._instanceId}" to update environment - resetting content`);
-	// 		// Fire full reset (RIS) followed by the new data so the update happens in the same frame
-	// 		this._onProcessData.fire({ data: `\x1bc${secondData}`, sync: false });
-	// 	}
-	// 	return process;
-	// }
 
 	// Fetch any extension environment additions and apply them
 	private async _setupEnvVariableInfo(activeWorkspaceRootUri: URI | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<platform.IProcessEnvironment> {
@@ -573,8 +535,6 @@ const enum SeamlessRelaunchConstants {
 	 * The maximum duration after a relaunch occurs to trigger a swap.
 	 */
 	SwapWaitMaximumDuration = 3000
-
-	// TODO: Need 2 times: How long to hold onto the first recorder for and how long to wait until diffing the 2 procs
 }
 
 /**
@@ -603,15 +563,12 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	}
 
 	newProcess(process: ITerminalChildProcess, reset: boolean) {
-		// TODO: Disable recorder for reconnected terminals
-		this._activeProcess = process;
-
 		// Stop listening to the old process
 		this._dataListener?.dispose();
+		this._activeProcess = process;
 
 		// If the process is new, relaunch has timed out or the terminal should not reset, start
 		// listening and firing data events immediately
-		console.log('relaunch newProcess', this._firstRecorder, reset);
 		if (!this._firstRecorder || !reset) {
 			this._firstDisposable?.dispose();
 			[this._firstRecorder, this._firstDisposable] = this._createRecorder(process);
@@ -642,7 +599,6 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	 * Trigger the swap of the processes if needed (eg. timeout, input)
 	 */
 	triggerSwap() {
-		console.trace('trigger swap');
 		// Clear the swap timeout if it exists
 		if (this._swapTimeout) {
 			window.clearTimeout(this._swapTimeout);
@@ -651,13 +607,11 @@ class SeamlessRelaunchDataFilter extends Disposable {
 
 		// Do nothing if there's nothing being recorder
 		if (!this._firstRecorder) {
-			console.log('no first');
 			return;
 		}
 
 		// Clear the first recorder if no second process was attached before the swap trigger
 		if (!this._secondRecorder) {
-			console.log('no second');
 			this._firstRecorder = undefined;
 			this._firstDisposable?.dispose();
 			return;
@@ -669,9 +623,9 @@ class SeamlessRelaunchDataFilter extends Disposable {
 
 		// Re-write the terminal if the data differs
 		if (firstData === secondData) {
-			this._logService.trace(`Relaunching terminal to update environment - identical content`);
+			this._logService.trace(`Seamless terminal relaunch - identical content`);
 		} else {
-			this._logService.trace(`Relaunching terminal to update environment - resetting content`);
+			this._logService.trace(`Seamless terminal relaunch - resetting content`);
 			// Fire full reset (RIS) followed by the new data so the update happens in the same frame
 			this._onProcessData.fire({ data: `\x1bc${secondData}`, sync: false });
 		}
