@@ -17,11 +17,11 @@ export interface IStatProvider {
 	lstat(path: string): boolean
 }
 
-export function detectAvailableShells(detectWslShells?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsShells(detectWslShells, statProvider) : detectAvailableUnixShells();
+export function detectAvailableProfiles(detectWslProfiles?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsProfiles(detectWslProfiles, statProvider) : detectAvailableUnixProfiles();
 }
 
-async function detectAvailableWindowsShells(detectWslShells?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -56,24 +56,24 @@ async function detectAvailableWindowsShells(detectWslShells?: boolean, statProvi
 		expectedLocations[pwshExe.displayName] = [pwshExe.exePath];
 	}
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
-	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key], statProvider)));
-	const shells = await Promise.all(promises);
+	Object.keys(expectedLocations).forEach(key => promises.push(validateProfilePaths(key, expectedLocations[key], statProvider)));
+	const profiles = await Promise.all(promises);
 	let output = '';
 	cp.exec('wsl.exe -l', (err, stdout) => {
 		output = stdout;
 	});
 
-	let wslShell = shells.find(shell => shell?.path.endsWith('wsl.exe'));
-	if (detectWslShells && wslShell && output && output.length > 0) {
+	let wslProfile = profiles.find(shell => shell?.path.endsWith('wsl.exe'));
+	if (detectWslProfiles && wslProfile && output && output.length > 0) {
 		output.split('\n').forEach(distro => {
-			wslShell!.profileName += ` ${distro}`;
-			wslShell!.args = `-d ${distro}`;
-			shells.push(wslShell);
+			wslProfile!.profileName += ` ${distro}`;
+			wslProfile!.args = `-d ${distro}`;
+			profiles.push(wslProfile);
 		});
 	}
 
-	let cygwin = shells.find(shell => shell?.profileName === 'Cygwin');
-	let bashZsh = shells.find(shell => shell?.profileName === 'Git Bash' || shell?.path.endsWith('zsh.exe'));
+	let cygwin = profiles.find(shell => shell?.profileName === 'Cygwin');
+	let bashZsh = profiles.find(shell => shell?.profileName === 'Git Bash' || shell?.path.endsWith('zsh.exe'));
 
 	if (cygwin) {
 		cygwin.args = ['-l'];
@@ -82,13 +82,13 @@ async function detectAvailableWindowsShells(detectWslShells?: boolean, statProvi
 	if (bashZsh) {
 		bashZsh.args = ['--login'];
 	}
-	return coalesce(shells);
+	return coalesce(profiles);
 }
 
-async function detectAvailableUnixShells(): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(): Promise<ITerminalProfile[]> {
 	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
-	const shells = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
-	return shells.map(e => {
+	const profiles = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+	return profiles.map(e => {
 		return {
 			profileName: basename(e),
 			path: e
@@ -96,13 +96,13 @@ async function detectAvailableUnixShells(): Promise<ITerminalProfile[]> {
 	});
 }
 
-async function validateShellPaths(label: string, potentialPaths: string[], statProvider?: IStatProvider): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
 	const current = potentialPaths.shift()!;
 	if (current! === '') {
-		return validateShellPaths(label, potentialPaths, statProvider);
+		return validateProfilePaths(label, potentialPaths, statProvider);
 	}
 	if (statProvider) {
 		if (statProvider.stat(current)) {
@@ -138,7 +138,7 @@ async function validateShellPaths(label: string, potentialPaths: string[], statP
 			}
 		}
 	}
-	return validateShellPaths(label, potentialPaths, statProvider);
+	return validateProfilePaths(label, potentialPaths, statProvider);
 }
 
 export function createStatProvider(expectedPaths: string[]): IStatProvider {

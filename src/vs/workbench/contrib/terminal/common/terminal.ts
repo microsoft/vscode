@@ -228,7 +228,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 }
 
-export interface IAvailableShellsRequest {
+export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;
 }
 export interface IDefaultShellAndArgsRequest {
@@ -323,7 +323,7 @@ export interface IStartExtensionTerminalRequest {
 	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
-export interface IAvailableShellsRequest {
+export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;
 }
 
@@ -378,7 +378,7 @@ export const enum TERMINAL_COMMAND_ID {
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
 	FOCUS_PREVIOUS = 'workbench.action.terminal.focusPrevious',
 	PASTE = 'workbench.action.terminal.paste',
-	SELECT_DEFAULT_SHELL = 'workbench.action.terminal.selectDefaultShell',
+	SELECT_DEFAULT_PROFILE = 'workbench.action.terminal.selectDefaultProfile',
 	RUN_SELECTED_TEXT = 'workbench.action.terminal.runSelectedText',
 	RUN_ACTIVE_FILE = 'workbench.action.terminal.runActiveFile',
 	SWITCH_TERMINAL = 'workbench.action.terminal.switchTerminal',

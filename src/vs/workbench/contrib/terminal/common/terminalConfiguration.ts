@@ -106,7 +106,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.detectWslProfiles': {
-			description: localize('terminal.integrated.detectWslProfiles', 'whether or not wsl distros are detected as default shells'),
+			description: localize('terminal.integrated.detectWslProfiles', 'whether or not wsl distros are detected as default profiles'),
 			type: 'boolean',
 			default: false
 		},

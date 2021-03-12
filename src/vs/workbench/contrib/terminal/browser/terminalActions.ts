@@ -38,7 +38,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const switchTerminalActionViewItemSeparator = '─────────';
-export const selectDefaultShellTitle = localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell");
+export const selectDefaultProfileTitle = localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile");
 export const configureTerminalSettingsTitle = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
 
 const enum ContextMenuGroup {
@@ -1334,15 +1334,15 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_SHELL,
-				title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell"), original: 'Select Default Shell' },
+				id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
+				title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).selectDefaultShell();
+			await accessor.get(ITerminalService).selectDefaultProfile();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1448,9 +1448,9 @@ export function registerTerminalActions() {
 				terminalService.refreshActiveTab();
 				return Promise.resolve(null);
 			}
-			if (item === selectDefaultShellTitle) {
+			if (item === selectDefaultProfileTitle) {
 				terminalService.refreshActiveTab();
-				return terminalService.selectDefaultShell();
+				return terminalService.selectDefaultProfile();
 			}
 			if (item === configureTerminalSettingsTitle) {
 				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
@@ -1461,21 +1461,21 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const detectedShells = await terminalService.getAvailableShells();
+			const detectedProfiles = await terminalService.getAvailableProfiles();
 			const userProfiles = terminalService.configHelper.config.profiles;
 			const customProfiles = isWindows ? userProfiles.windows : isIOS ? userProfiles.osx : userProfiles.linux;
 
-			// Remove 'New ' from the selected item to get the shell type
-			const shellSelection = item.substring(4);
+			// Remove 'New ' from the selected item to get the profile name
+			const profileSelection = item.substring(4);
 
 			if (customProfiles) {
-				let launchConfig = customProfiles.find(shell => shell.profileName === shellSelection);
+				let launchConfig = customProfiles.find(profile => profile.profileName === profileSelection);
 				if (launchConfig) {
 					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
 					terminalService.setActiveInstance(instance);
 				}
-			} else if (detectedShells) {
-				let launchConfig = detectedShells?.find((shell: { profileName: string; }) => shell.profileName === shellSelection);
+			} else if (detectedProfiles) {
+				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
 				if (launchConfig) {
 					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
 					terminalService.setActiveInstance(instance);

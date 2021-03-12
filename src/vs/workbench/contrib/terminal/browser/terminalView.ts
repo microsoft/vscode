@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { configureTerminalSettingsTitle, selectDefaultShellTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { configureTerminalSettingsTitle, selectDefaultProfileTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -373,7 +373,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onInstanceTitleChanged(async () => await this._updateItems(), this));
 		this._register(_terminalService.onTabDisposed(async () => await this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(async () => await this._updateItems(), this));
-		this._register(_terminalService.onProfilesConfigChanged(async () => await this._updateItems(), this));
+		this._register(_terminalService.onUpdateAvailableProfiles(async () => await this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -388,7 +388,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	private async _updateItems(): Promise<void> {
 		const options = await getTerminalSelectOpenItemsAsync(this._terminalService, this._contributions);
 		// only update options if they've changed
-		if (!lastOptions || !equals(Object.values(options), Object.values(lastOptions!)) || this._lastActiveTab !== this._terminalService.activeTabIndex) {
+		if (!lastOptions || !equals(Object.values(options), Object.values(lastOptions)) || this._lastActiveTab !== this._terminalService.activeTabIndex) {
 			this.setOptions(options, this._terminalService.activeTabIndex);
 			lastOptions = options;
 			this._lastActiveTab = this._terminalService.activeTabIndex;
@@ -416,7 +416,7 @@ async function getTerminalSelectOpenItemsAsync(terminalService: ITerminalService
 		items.push({ text: contributed.title });
 	}
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-	items.push({ text: selectDefaultShellTitle });
+	items.push({ text: selectDefaultProfileTitle });
 	items.push({ text: configureTerminalSettingsTitle });
 	return items;
 }
@@ -436,13 +436,13 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 		items.push({ text: contributed.title });
 	}
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-	items.push({ text: selectDefaultShellTitle });
+	items.push({ text: selectDefaultProfileTitle });
 	items.push({ text: configureTerminalSettingsTitle });
 	return items;
 }
 
 async function getProfileSelectOptionItems(terminalService: ITerminalService): Promise<ISelectOptionItem[]> {
-	const detectedProfiles = await terminalService.getAvailableShells();
+	const detectedProfiles = await terminalService.getAvailableProfiles();
 	const userProfiles = terminalService.configHelper.config.profiles;
 	const customProfiles = (platform.isWindows ? userProfiles.windows : platform.isIOS ? userProfiles.osx : userProfiles.linux);
 	let labels: ISelectOptionItem[] = [];
