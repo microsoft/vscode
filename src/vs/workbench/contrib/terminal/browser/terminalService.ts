@@ -286,7 +286,7 @@ export class TerminalService implements ITerminalService {
 		return this._availableShells?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile));
 	}
 
-	@throttle(2000)
+	@throttle(10000)
 	private async _updateAvailableShells(): Promise<void> {
 		this._availableShells = await this._detectShells();
 	}
