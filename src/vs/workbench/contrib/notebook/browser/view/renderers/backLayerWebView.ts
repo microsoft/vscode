@@ -1118,6 +1118,7 @@ var requirejs = (function() {
 			});
 		}
 
+		entry.version = contentVersion;
 		entry.visible = true;
 	}
 
