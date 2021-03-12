@@ -870,7 +870,8 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { border-color: ${border}; border: 1px solid; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { border: 1px solid ${border}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link { border: inherit; }`);
 	}
 	const activeBorder = theme.getColor(activeContrastBorder);
 	if (activeBorder) {
