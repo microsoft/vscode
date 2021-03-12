@@ -207,7 +207,7 @@ export class CLIServerBase {
 			const { command, args } = data;
 			const result = await this._commands.executeCommand(command, ...args);
 			res.writeHead(200);
-			res.write(JSON.stringify(result), err => {
+			res.write(JSON.stringify(result || ''), err => {
 				if (err) {
 					this.logService.error(err);
 				}
