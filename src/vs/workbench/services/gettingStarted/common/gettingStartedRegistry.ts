@@ -43,7 +43,7 @@ export interface IGettingStartedCategoryDescriptor {
 	when: ContextKeyExpression
 	content:
 	| { type: 'items' }
-	| { type: 'command', command: string }
+	| { type: 'startEntry', command: string }
 }
 
 export interface IGettingStartedCategory {
@@ -56,7 +56,7 @@ export interface IGettingStartedCategory {
 	when: ContextKeyExpression
 	content:
 	| { type: 'items', items: IGettingStartedTask[] }
-	| { type: 'command', command: string }
+	| { type: 'startEntry', command: string }
 }
 
 export interface IGettingStartedRegistry {

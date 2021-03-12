@@ -1074,6 +1074,20 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Provide a way for custom editors to process untitled files without relying on textDocument https://github.com/microsoft/vscode/issues/115631
+	/**
+	 * Additional information about the opening custom document.
+	 */
+	interface CustomDocumentOpenContext {
+		/**
+		 * If the URI is an untitled file, this will be populated with the byte data of that file
+		 *
+		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
+		 */
+		readonly untitledDocumentData?: Uint8Array;
+	}
+	//#endregion
+
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum NotebookCellKind {
@@ -1222,7 +1236,7 @@ declare module 'vscode' {
 		 */
 		readonly end: number;
 
-		isEmpty: boolean;
+		readonly isEmpty: boolean;
 
 		constructor(start: number, end: number);
 	}
@@ -1359,7 +1373,7 @@ declare module 'vscode' {
 
 	export class NotebookData {
 		cells: NotebookCellData[];
-		metadata?: NotebookDocumentMetadata;
+		metadata: NotebookDocumentMetadata;
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
@@ -1543,6 +1557,7 @@ declare module 'vscode' {
 
 	interface NotebookDocumentOpenContext {
 		readonly backupId?: string;
+		readonly untitledDocumentData?: Uint8Array;
 	}
 
 	// todo@API use openNotebookDOCUMENT to align with openCustomDocument etc?

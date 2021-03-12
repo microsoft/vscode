@@ -29,6 +29,7 @@ export class UntitledHintContribution implements IEditorContribution {
 	private toDispose: IDisposable[];
 	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
 	private button: FloatingClickWidget | undefined;
+	private experimentTreatment: 'text' | 'button' | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -46,15 +47,17 @@ export class UntitledHintContribution implements IEditorContribution {
 				this.update();
 			}
 		}));
-		this.update();
+		this.experimentService.getTreatment<'text' | 'button'>('untitledhint').then(treatment => {
+			this.experimentTreatment = treatment;
+			this.update();
+		});
 	}
 
-	private async update(): Promise<void> {
+	private update(): void {
 		this.untitledHintContentWidget?.dispose();
 		this.button?.dispose();
-		const experimentService = await this.experimentService.getTreatment<'text' | 'button'>('untitledhint');
 		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden'>(untitledHintSetting);
-		const untitledHintMode = configValue === 'hidden' ? configValue : (experimentService || configValue);
+		const untitledHintMode = configValue === 'hidden' ? configValue : (this.experimentTreatment || configValue);
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {
