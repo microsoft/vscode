@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { open, close, read, write, fdatasync, Stats, promises, constants } from 'fs';
+import { open, close, read, write, fdatasync, Stats, promises } from 'fs';
 import { promisify } from 'util';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, IFileSystemProviderWithFileFolderCopyCapability, isFileOpenForWriteOptions } from 'vs/platform/files/common/files';
@@ -215,8 +215,8 @@ export class DiskFileSystemProvider extends Disposable implements
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
 				try {
 					const { stat } = await SymlinkSupport.stat(this.toFilePath(resource));
-					if (!(stat.mode & constants.S_IWUSR /* File mode indicating writable by owner */)) {
-						await promises.chmod(resource.fsPath, stat.mode | constants.S_IWUSR);
+					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
+						await promises.chmod(resource.fsPath, stat.mode | 0o200);
 					}
 				} catch (error) {
 					this.logService.trace(error); // ignore any errors here and try to just write
@@ -717,7 +717,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		if (resource && fileSystemProviderWriteError.code === FileSystemProviderErrorCode.NoPermissions) {
 			try {
 				const { stat } = await SymlinkSupport.stat(this.toFilePath(resource));
-				if (!(stat.mode & constants.S_IWUSR /* File mode indicating writable by owner */)) {
+				if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
 					fileSystemProviderWriteError = createFileSystemProviderError(error, FileSystemProviderErrorCode.FileWriteLocked);
 				}
 			} catch (error) {
