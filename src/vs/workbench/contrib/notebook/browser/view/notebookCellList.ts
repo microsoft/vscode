@@ -682,7 +682,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const endElementHeight = this.view.elementHeight(endIndex);
 
 			if (endElementTop >= wrapperBottom) {
-				return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+				return this._revealInternal(endIndex, false, CellRevealPosition.Bottom);
 			}
 
 			if (endElementTop < wrapperBottom) {
