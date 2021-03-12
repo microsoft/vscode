@@ -180,9 +180,14 @@ class NotebookClipboardContribution extends Disposable {
 				}
 
 				clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
-				const selectionIndexes = selectedCells.map(cell => [cell, viewModel.getCellIndex(cell)] as [ICellViewModel, number]).sort((a, b) => b[1] - a[1]);
-				const edits: ICellEditOperation[] = selectionIndexes.map(value => ({ editType: CellEditType.Replace, index: value[1], count: 1, cells: [] }));
-				const firstSelectIndex = selectionIndexes.sort((a, b) => a[1] - b[1])[0][1];
+				const edits: ICellEditOperation[] = selectionRanges.map(range => ({ editType: CellEditType.Replace, index: range.start, count: range.end - range.start, cells: [] }));
+				const firstSelectIndex = selectionRanges[0].start;
+
+				/**
+				 * If we have cells, 0, 1, 2, 3, 4, 5, 6
+				 * and cells 1, 2 are selected, and then we delete cells 1 and 2
+				 * the new focused cell should still be at index 1
+				 */
 				const newFocusedCellIndex = firstSelectIndex < viewModel.notebookDocument.cells.length
 					? firstSelectIndex
 					: viewModel.notebookDocument.cells.length - 1;
