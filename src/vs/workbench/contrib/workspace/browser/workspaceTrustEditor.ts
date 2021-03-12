@@ -73,7 +73,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
-		this.rootElement = append(parent, $('.workspace-trust-editor.settings-editor', { tabindex: '-1' }));
+		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '-1' }));
 
 		this.createHeaderElement(this.rootElement);
 		this.createAffectedFeaturesElement(this.rootElement);
@@ -272,12 +272,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private createConfigurationElement(parent: HTMLElement): void {
-		this.configurationContainer = append(parent, $('.workspace-trust-settings.settings-body'));
+		this.configurationContainer = append(parent, $('.workspace-trust-settings.settings-editor'));
 
 		const titleContainer = append(this.configurationContainer, $('.workspace-trust-section-title'));
 		titleContainer.innerText = localize('configurationSectionTitle', "Configure All Workspaces");
 
-		const workspaceTrustTreeContainer = append(this.configurationContainer, $('.workspace-trust-settings-tree-container.settings-tree-container'));
+		const settingsBody = append(this.configurationContainer, $('.workspace-trust-settings-body.settings-body'));
+
+		const workspaceTrustTreeContainer = append(settingsBody, $('.workspace-trust-settings-tree-container.settings-tree-container'));
 		const renderer = this.instantiationService.createInstance(WorkspaceTrustSettingArrayRenderer,);
 
 		this.trustSettingsTree = this._register(this.instantiationService.createInstance(WorkspaceTrustTree,
