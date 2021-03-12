@@ -64,7 +64,8 @@ export class DiskFileSystemProvider extends Disposable implements
 				FileSystemProviderCapabilities.FileReadWrite |
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
 				FileSystemProviderCapabilities.FileReadStream |
-				FileSystemProviderCapabilities.FileFolderCopy;
+				FileSystemProviderCapabilities.FileFolderCopy |
+				FileSystemProviderCapabilities.FileWriteUnlock;
 
 			if (isLinux) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;

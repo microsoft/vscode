@@ -79,6 +79,7 @@ export class RemoteFileSystemProvider extends Disposable implements
 			| FileSystemProviderCapabilities.FileOpenReadWriteClose
 			| FileSystemProviderCapabilities.FileReadStream
 			| FileSystemProviderCapabilities.FileFolderCopy
+			| FileSystemProviderCapabilities.FileWriteUnlock
 		);
 
 		if (isCaseSensitive) {

@@ -377,6 +377,14 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async validateWriteFile(provider: IFileSystemProvider, resource: URI, options?: IWriteFileOptions): Promise<IStat | undefined> {
+
+		// Validate unlock support
+		const unlock = !!options?.unlock;
+		if (unlock && !(provider.capabilities & FileSystemProviderCapabilities.FileWriteUnlock)) {
+			throw new Error(localize('writeFailedUnlockUnsupported', "Unable to unlock file '{0}' because provider does not support it.", this.resourceForError(resource)));
+		}
+
+		// Validate via file stat meta data
 		let stat: IStat | undefined = undefined;
 		try {
 			stat = await provider.stat(resource);
@@ -384,7 +392,7 @@ export class FileService extends Disposable implements IFileService {
 			return undefined; // file might not exist
 		}
 
-		// file cannot be directory
+		// File cannot be directory
 		if ((stat.type & FileType.Directory) !== 0) {
 			throw new FileOperationError(localize('fileIsDirectoryWriteError', "Unable to write file '{0}' that is actually a directory", this.resourceForError(resource)), FileOperationResult.FILE_IS_DIRECTORY, options);
 		}

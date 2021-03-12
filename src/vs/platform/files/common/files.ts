@@ -382,7 +382,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider supports to delete via trash.
 	 */
-	Trash = 1 << 12
+	Trash = 1 << 12,
+
+	/**
+	 * Provider support to unlock files for writing.
+	 */
+	FileWriteUnlock = 1 << 13
 }
 
 export interface IFileSystemProvider {
