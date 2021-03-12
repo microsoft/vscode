@@ -218,7 +218,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						await promises.chmod(resource.fsPath, stat.mode | constants.S_IWUSR);
 					}
 				} catch (error) {
-					// ignore any errors here and try to just write
+					this.logService.trace(error); // ignore any errors here and try to just write
 				}
 			}
 
@@ -720,7 +720,7 @@ export class DiskFileSystemProvider extends Disposable implements
 					fileSystemProviderWriteError = createFileSystemProviderError(error, FileSystemProviderErrorCode.FileWriteLocked);
 				}
 			} catch (error) {
-				// ignore - return original error
+				this.logService.trace(error); // ignore - return original error
 			}
 		}
 

@@ -1902,13 +1902,13 @@ flakySuite('Disk File Service', function () {
 	test('writeFile - locked files and unlocking', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
-		testLockedFiles();
+		return testLockedFiles();
 	});
 
 	test('writeFile (stream) - locked files and unlocking', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
-		testLockedFiles();
+		return testLockedFiles();
 	});
 
 	async function testLockedFiles() {
