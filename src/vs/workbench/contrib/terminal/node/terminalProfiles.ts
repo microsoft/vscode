@@ -62,28 +62,25 @@ async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promi
 	cp.exec('wsl.exe -l', (err, stdout) => {
 		output = stdout;
 	});
-	let wslDistros: string[] = [];
-	if (output && output.length > 0) {
-		let wslArgs = ' -d ';
+
+	let wslShell = shells.find(shell => shell?.path.endsWith('wsl.exe'));
+	if (wslShell && output && output.length > 0) {
 		output.split('\n').forEach(distro => {
-			cp.exec(`wsl.exe -d ${distro}`, (err, stdout) => {
-				wslArgs += stdout;
-				wslDistros.push(wslArgs);
-			});
+			wslShell!.profileName += ` ${distro}`;
+			wslShell!.args = `-d ${distro}`;
+			shells.push(wslShell);
 		});
 	}
+
 	let cygwin = shells.find(shell => shell?.profileName === 'Cygwin');
-	let wslShells = shells.filter(shell => shell?.path.endsWith('wsl.exe'));
 	let bashZsh = shells.find(shell => shell?.profileName === 'Git Bash' || shell?.path.endsWith('zsh.exe'));
+
 	if (cygwin) {
 		cygwin.args = ['-l'];
-	} else if (bashZsh) {
+	}
+
+	if (bashZsh) {
 		bashZsh.args = ['--login'];
-	} else if (wslShells && useWSLexe && wslShells.length > 0 && wslDistros.length > 0) {
-		// to do check the order is correct
-		for (let i = 0; i < wslDistros.length; i++) {
-			wslShells[i]!.args = [wslDistros[i]];
-		}
 	}
 	return coalesce(shells);
 }
