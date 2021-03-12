@@ -13,6 +13,7 @@
 	"upgradeSubscription": "Gitpod: Upgrade Subscription",
 	"extendTimeout": "Gitpod: Extend Workspace Timeout",
 	"openBrowser": "Open Browser",
+	"openPreview": "Open Preview",
 	"makePrivate": "Make Private",
 	"makePublic": "Make Public",
 	"addToConfig": "Add to .gitpod.yml"

@@ -393,10 +393,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.ports.makePublic', (port: GitpodWorkspacePort) =>
 		port.setVisibility('public')
 	));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.ports.preview', (port: GitpodWorkspacePort) => {
+		if (isExposedServedGitpodWorkspacePort(port)) {
+			openPreview(port);
+		}
+	}));
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.ports.openBrowser', (port: GitpodWorkspacePort) => {
-		const publicUrl = port.status?.exposed?.url;
-		if (publicUrl) {
-			vscode.env.openExternal(vscode.Uri.parse(publicUrl));
+		if (isExposedServedGitpodWorkspacePort(port)) {
+			vscode.env.openExternal(vscode.Uri.parse(port.status.exposed.url));
 		}
 	}));
 
@@ -444,8 +448,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 
 		const makePublic = 'Make Public';
+		const openAction = 'Open Preview';
 		const openExternalAction = 'Open Browser';
-		const actions = offerMakePublic ? [makePublic, openExternalAction] : [openExternalAction];
+		const actions = offerMakePublic ? [makePublic, openAction, openExternalAction] : [openAction, openExternalAction];
 
 		currentNotifications.add(localPort);
 		const result = await vscode.window.showInformationMessage('A service is available on port ' + localPort, ...actions);
@@ -453,9 +458,17 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		if (result === makePublic) {
 			await port.setVisibility('public');
+		} else if (result === openAction) {
+			await openPreview(port);
 		} else if (result === openExternalAction) {
 			await vscode.env.openExternal(vscode.Uri.parse(port.status.exposed.url));
 		}
+	}
+	async function openPreview(port: ExposedServedGitpodWorkspacePort): Promise<void> {
+		await vscode.commands.executeCommand('simpleBrowser.api.open', port.status.exposed.url, {
+			viewColumn: vscode.ViewColumn.Beside,
+			preserveFocus: true
+		});
 	}
 	context.subscriptions.push(gitpodWorkspaceTreeDataProvider.onDidExposeServedPort(port => {
 		if (port.status.exposed.onExposed === OnPortExposedAction.IGNORE) {
@@ -467,8 +480,12 @@ export async function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 
-		if (port.status.exposed.onExposed === OnPortExposedAction.OPEN_PREVIEW ||
-			port.status.exposed.onExposed === OnPortExposedAction.NOTIFY) {
+		if (port.status.exposed.onExposed === OnPortExposedAction.OPEN_PREVIEW) {
+			openPreview(port);
+			return;
+		}
+
+		if (port.status.exposed.onExposed === OnPortExposedAction.NOTIFY) {
 			showOpenServiceNotification(port);
 			return;
 		}

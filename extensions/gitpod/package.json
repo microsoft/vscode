@@ -72,6 +72,11 @@
         "icon": "$(globe)"
       },
       {
+        "command": "gitpod.ports.preview",
+        "title": "%openPreview%",
+        "icon": "$(open-preview)"
+      },
+      {
         "command": "gitpod.ports.makePrivate",
         "title": "%makePrivate%",
         "icon": "$(lock)"
@@ -187,6 +192,11 @@
       ],
       "view/item/context": [
         {
+          "command": "gitpod.ports.preview",
+          "when": "view == gitpod.workspace && viewItem =~ /exposed-served-port$/",
+          "group": "inline"
+        },
+        {
           "command": "gitpod.ports.openBrowser",
           "when": "view == gitpod.workspace && viewItem =~ /exposed-served-port$/",
           "group": "inline"
@@ -203,6 +213,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gitpod.ports.preview",
+          "when": "false"
+        },
         {
           "command": "gitpod.ports.openBrowser",
           "when": "false"
