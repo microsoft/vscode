@@ -17,6 +17,12 @@ export interface IStatProvider {
 	lstat(path: string): boolean
 }
 
+interface IPotentialTerminalProfile {
+	profileName: string,
+	paths: string[],
+	args?: string[]
+}
+
 export function detectAvailableProfiles(detectWslProfiles?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	return platform.isWindows ? detectAvailableWindowsProfiles(detectWslProfiles, statProvider) : detectAvailableUnixProfiles();
 }
@@ -35,54 +41,72 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, statP
 		useWSLexe = true;
 	}
 
-	let expectedLocations: { [key: string]: string[] } = {
-		'Command Prompt': [`${system32Path}\\cmd.exe`],
-		'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
-		'Git Bash': [
-			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
-		],
-		'Cygwin': [
-			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-		]
-	};
+	let expectedProfiles: IPotentialTerminalProfile[] = [
+		{
+			profileName: 'Command Prompt',
+			paths: [`${system32Path}\\cmd.exe`]
+		},
+		{
+			profileName: 'Git Bash',
+			paths: [
+				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
+			],
+			args: ['--login']
+		},
+		{
+			profileName: 'Cygwin',
+			paths: [
+				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
+				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+			],
+			args: ['-l']
+		},
+		... await getWslProfiles(system32Path, useWSLexe, detectWslProfiles),
+		... await getPowershellProfiles()
+	];
 
-	// Add all of the different kinds of PowerShells
-	for await (const pwshExe of enumeratePowerShellInstallations()) {
-		expectedLocations[pwshExe.displayName] = [pwshExe.exePath];
-	}
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
-	Object.keys(expectedLocations).forEach(key => promises.push(validateProfilePaths(key, expectedLocations[key], statProvider)));
+	expectedProfiles.forEach(profile => promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider)));
 	const profiles = await Promise.all(promises);
-	let output = '';
-	cp.exec('wsl.exe -l', (err, stdout) => {
-		output = stdout;
-	});
 
-	let wslProfile = profiles.find(shell => shell?.path.endsWith('wsl.exe'));
-	if (detectWslProfiles && wslProfile && output && output.length > 0) {
-		output.split('\n').forEach(distro => {
-			wslProfile!.profileName += ` ${distro}`;
-			wslProfile!.args = `-d ${distro}`;
-			profiles.push(wslProfile);
-		});
-	}
-
-	let cygwin = profiles.find(shell => shell?.profileName === 'Cygwin');
-	let bashZsh = profiles.find(shell => shell?.profileName === 'Git Bash' || shell?.path.endsWith('zsh.exe'));
-
-	if (cygwin) {
-		cygwin.args = ['-l'];
-	}
-
-	if (bashZsh) {
-		bashZsh.args = ['--login'];
+	// todo what's the expected path of zsh? add to expected profiles
+	let zsh = profiles.find(shell => shell?.path.endsWith('zsh.exe'));
+	if (zsh) {
+		zsh.args = ['--login'];
 	}
 	return coalesce(profiles);
+}
+
+async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
+	let profiles: IPotentialTerminalProfile[] = [];
+	// Add all of the different kinds of PowerShells
+	for await (const pwshExe of enumeratePowerShellInstallations()) {
+		profiles.push({ profileName: pwshExe.displayName, paths: [pwshExe.exePath] });
+	}
+	return profiles;
+}
+
+async function getWslProfiles(path: string, useWSLexe: boolean, detectWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
+	if (detectWslProfiles) {
+		let profiles: IPotentialTerminalProfile[] = [];
+		profiles.push({ profileName: `WSL Bash`, paths: [`${path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`] });
+		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? console.trace('problem occurred when getting wsl distros', err) : r(stdout)));
+		if (distroOutput) {
+			let distroNames = distroOutput.split('\r').map(name => name.trim()).filter(item => item.trim().length > 0 && item !== '').map(item => item.substring(3)).filter(item => item.length > 1);
+			distroNames.shift();
+			distroNames.forEach(distro => {
+				let n = Buffer.from(distro).toString('utf8');
+				let profile = { profileName: `WSL Bash ${n}`, paths: [`${path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`], args: [` -d ${n}`] };
+				profiles.push(profile);
+			});
+			return profiles;
+		}
+	}
+	return [];
 }
 
 async function detectAvailableUnixProfiles(): Promise<ITerminalProfile[]> {

@@ -104,8 +104,8 @@ export class TerminalService implements ITerminalService {
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
-	private readonly _onUpdateAvailableProfiles = new Emitter<void>();
-	public get onUpdateAvailableProfiles(): Event<void> { return this._onUpdateAvailableProfiles.event; }
+	private readonly _onProfilesConfigChanged = new Emitter<void>();
+	public get onProfilesConfigChanged(): Event<void> { return this._onProfilesConfigChanged.event; }
 	private readonly _localTerminalService?: ILocalTerminalService;
 
 	constructor(
@@ -159,7 +159,7 @@ export class TerminalService implements ITerminalService {
 		}
 		this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('terminal.integrated.profiles') || e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
-				this._onUpdateAvailableProfiles.fire();
+				this._onProfilesConfigChanged.fire();
 			}
 		});
 	}
@@ -289,7 +289,6 @@ export class TerminalService implements ITerminalService {
 	@throttle(10000)
 	private async _updateAvailableProfiles(): Promise<void> {
 		this._availableProfiles = await this._detectProfiles();
-		this._onUpdateAvailableProfiles.fire();
 	}
 
 	private async _detectProfiles(): Promise<ITerminalProfile[]> {

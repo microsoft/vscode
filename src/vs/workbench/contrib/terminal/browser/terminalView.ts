@@ -373,7 +373,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onInstanceTitleChanged(async () => await this._updateItems(), this));
 		this._register(_terminalService.onTabDisposed(async () => await this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(async () => await this._updateItems(), this));
-		this._register(_terminalService.onUpdateAvailableProfiles(async () => await this._updateItems(), this));
+		this._register(_terminalService.onRequestAvailableProfiles(async () => await this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -449,13 +449,14 @@ async function getProfileSelectOptionItems(terminalService: ITerminalService): P
 	if (customProfiles && customProfiles.length > 0) {
 		labels = customProfiles.map(shell => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
 	} else if (detectedProfiles) {
-		const profilesToDisplay = platform.isWindows ? ['Git Bash', 'Command Prompt', 'WSL Bash', 'PowerShell'] : ['bash', 'zsh', 'fish', 'tmux'];
+		const profilesToDisplay = platform.isWindows ? ['Git Bash', 'Command Prompt', 'PowerShell', 'Cygwin', 'WSL Bash'] : ['bash', 'zsh', 'fish', 'tmux'];
 		const hasOnlyWindowsPowershell = detectedProfiles?.find(t => t.profileName === 'Windows PowerShell') && !detectedProfiles?.find(t => t.profileName.toLowerCase() === 'powershell');
 		if (hasOnlyWindowsPowershell) {
 			// fall back since this is the only powershell installed
 			profilesToDisplay.push('Windows PowerShell');
 		}
 		const filtered = detectedProfiles?.filter(term => profilesToDisplay.find(t => t === term.profileName));
+		filtered.push(...detectedProfiles.filter(profile => profile.profileName.startsWith('WSL')));
 		labels = filtered.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
 	}
 	return labels;

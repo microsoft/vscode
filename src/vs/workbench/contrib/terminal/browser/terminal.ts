@@ -99,7 +99,7 @@ export interface ITerminalService {
 	onRequestAvailableProfiles: Event<IAvailableProfilesRequest>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
-	onUpdateAvailableProfiles: Event<void>;
+	onProfilesConfigChanged: Event<void>;
 
 	/**
 	 * Creates a terminal.
