@@ -327,6 +327,7 @@ export class TunnelModel extends Disposable {
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	private configPortsAttributes: PortsAttributes;
+	private restoreListener: IDisposable | undefined;
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -429,17 +430,18 @@ export class TunnelModel extends Disposable {
 						await this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name, undefined, undefined, tunnel.privacy === TunnelPrivacy.Public);
 					}
 				}
-			} else {
-				// It's possible that at restore time the value hasn't synced.
-				const key = await this.getStorageKey();
-				const listener = this.storageService.onDidChangeValue(async (e) => {
-					if (e.key === key) {
-						listener.dispose();
-						this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
-						await this.restoreForwarded();
-					}
-				});
 			}
+		}
+
+		if (!this.restoreListener) {
+			// It's possible that at restore time the value hasn't synced.
+			const key = await this.getStorageKey();
+			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+				if (e.key === key) {
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
+					await this.restoreForwarded();
+				}
+			}));
 		}
 	}
 
