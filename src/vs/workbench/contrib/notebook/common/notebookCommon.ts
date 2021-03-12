@@ -818,6 +818,10 @@ export function cellRangesToIndexes(ranges: ICellRange[]) {
 	return indexes;
 }
 
+/**
+ * todo@rebornix notebookBrowser.reduceCellRanges
+ * @returns
+ */
 export function reduceRanges(ranges: ICellRange[]) {
 	const sorted = ranges.sort((a, b) => a.start - b.start);
 	const first = sorted[0];

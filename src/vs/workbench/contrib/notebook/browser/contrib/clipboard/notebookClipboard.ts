@@ -14,7 +14,7 @@ import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, cellRangesToIndexes, ICellEditOperation, ICellRange, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, cellRangesToIndexes, ICellEditOperation, ICellRange, reduceRanges, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 class NotebookClipboardContribution extends Disposable {
@@ -246,7 +246,7 @@ class NotebookClipboardContribution extends Disposable {
 			}
 		});
 
-		return modelRanges;
+		return reduceRanges(modelRanges);
 	}
 }
 
