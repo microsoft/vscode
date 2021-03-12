@@ -219,12 +219,24 @@ export interface FileReadStreamOptions {
 }
 
 export interface FileWriteOptions {
-	overwrite: boolean;
 	create: boolean;
+	overwrite: boolean;
+	unlock: boolean;
 }
 
-export interface FileOpenOptions {
-	create: boolean;
+export type FileOpenOptions = FileOpenForReadOptions | FileOpenForWriteOptions;
+
+export interface FileOpenForReadOptions {
+	create: false;
+}
+
+export function isFileOpenForWriteOptions(options: FileOpenOptions): options is FileOpenForWriteOptions {
+	return options.create === true;
+}
+
+export interface FileOpenForWriteOptions {
+	create: true;
+	unlock: boolean;
 }
 
 export interface FileDeleteOptions {
@@ -345,6 +357,7 @@ export enum FileSystemProviderErrorCode {
 	FileIsADirectory = 'EntryIsADirectory',
 	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
 	FileTooLarge = 'EntryTooLarge',
+	FileWriteLocked = 'EntryWriteLocked',
 	NoPermissions = 'NoPermissions',
 	Unavailable = 'Unavailable',
 	Unknown = 'Unknown'
@@ -404,6 +417,7 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
 		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
+		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
 		case FileSystemProviderErrorCode.Unavailable: return FileSystemProviderErrorCode.Unavailable;
 	}
@@ -426,6 +440,8 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_IS_DIRECTORY;
 		case FileSystemProviderErrorCode.FileNotADirectory:
 			return FileOperationResult.FILE_NOT_DIRECTORY;
+		case FileSystemProviderErrorCode.FileWriteLocked:
+			return FileOperationResult.FILE_WRITE_LOCKED;
 		case FileSystemProviderErrorCode.NoPermissions:
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
@@ -854,6 +870,11 @@ export interface IWriteFileOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	readonly etag?: string;
+
+	/**
+	 * Whether to attempt to unlock a file before writing.
+	 */
+	readonly unlock?: boolean;
 }
 
 export interface IResolveFileOptions {
@@ -905,7 +926,7 @@ export const enum FileOperationResult {
 	FILE_NOT_MODIFIED_SINCE,
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
-	FILE_READ_ONLY,
+	FILE_WRITE_LOCKED,
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,

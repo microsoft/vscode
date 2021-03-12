@@ -362,12 +362,12 @@ export class FileService extends Disposable implements IFileService {
 
 			// write file: unbuffered (only if data to write is a buffer, or the provider has no buffered write capability)
 			if (!hasOpenReadWriteCloseCapability(provider) || (hasReadWriteCapability(provider) && bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer)) {
-				await this.doWriteUnbuffered(provider, resource, bufferOrReadableOrStreamOrBufferedStream);
+				await this.doWriteUnbuffered(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream);
 			}
 
 			// write file: buffered
 			else {
-				await this.doWriteBuffered(provider, resource, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream);
+				await this.doWriteBuffered(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream);
 			}
 		} catch (error) {
 			throw new FileOperationError(localize('err.write', "Unable to write file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
@@ -1005,11 +1005,11 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly writeQueue = this._register(new ResourceQueue());
 
-	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
+	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
 		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
 
 			// open handle
-			const handle = await provider.open(resource, { create: true });
+			const handle = await provider.open(resource, { create: true, unlock: options?.unlock ?? false });
 
 			// write into handle until all bytes from buffer have been written
 			try {
@@ -1104,11 +1104,11 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(() => this.doWriteUnbufferedQueued(provider, resource, bufferOrReadableOrStreamOrBufferedStream));
+	private async doWriteUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options: IWriteFileOptions | undefined, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
+		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(() => this.doWriteUnbufferedQueued(provider, resource, options, bufferOrReadableOrStreamOrBufferedStream));
 	}
 
-	private async doWriteUnbufferedQueued(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
+	private async doWriteUnbufferedQueued(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options: IWriteFileOptions | undefined, bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
 		let buffer: VSBuffer;
 		if (bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer) {
 			buffer = bufferOrReadableOrStreamOrBufferedStream;
@@ -1121,7 +1121,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Write through the provider
-		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true });
+		await provider.writeFile(resource, buffer.buffer, { create: true, overwrite: true, unlock: options?.unlock ?? false });
 	}
 
 	private async doPipeBuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
@@ -1136,7 +1136,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Open handles
 			sourceHandle = await sourceProvider.open(source, { create: false });
-			targetHandle = await targetProvider.open(target, { create: true });
+			targetHandle = await targetProvider.open(target, { create: true, unlock: false });
 
 			const buffer = VSBuffer.alloc(this.BUFFER_SIZE);
 
@@ -1175,7 +1175,7 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async doPipeUnbufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI): Promise<void> {
-		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true });
+		return targetProvider.writeFile(target, await sourceProvider.readFile(source), { create: true, overwrite: true, unlock: false });
 	}
 
 	private async doPipeUnbufferedToBuffered(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
@@ -1185,7 +1185,7 @@ export class FileService extends Disposable implements IFileService {
 	private async doPipeUnbufferedToBufferedQueued(sourceProvider: IFileSystemProviderWithFileReadWriteCapability, source: URI, targetProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, target: URI): Promise<void> {
 
 		// Open handle
-		const targetHandle = await targetProvider.open(target, { create: true });
+		const targetHandle = await targetProvider.open(target, { create: true, unlock: false });
 
 		// Read entire buffer from source and write buffered
 		try {
@@ -1204,7 +1204,7 @@ export class FileService extends Disposable implements IFileService {
 		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, CancellationToken.None));
 
 		// Write buffer into target at once
-		await this.doWriteUnbuffered(targetProvider, target, buffer);
+		await this.doWriteUnbuffered(targetProvider, target, undefined, buffer);
 	}
 
 	protected throwIfFileSystemIsReadonly<T extends IFileSystemProvider>(provider: T, resource: URI): T {
