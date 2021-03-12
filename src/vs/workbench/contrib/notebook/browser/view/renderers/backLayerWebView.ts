@@ -1067,7 +1067,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
+	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1088,6 +1088,10 @@ var requirejs = (function() {
 	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
+		}
+
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentVersion);
 		}
 
 		const entry = this.markdownPreviewMapping.get(cellId);
