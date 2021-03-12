@@ -144,25 +144,34 @@ function webviewPreloads() {
 				}
 
 				if (entry.target.id === id && entry.contentRect) {
-					if (entry.contentRect.height !== 0) {
-						const padding = output ? __outputNodePadding__ : __previewNodePadding__;
-
-						entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-						postNotebookMessage<IDimensionMessage>('dimension', {
-							id: id,
-							data: {
-								height: entry.contentRect.height + padding * 2
-							},
-							isOutput: output
-						});
+					if (output) {
+						if (entry.contentRect.height !== 0) {
+							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+							postNotebookMessage<IDimensionMessage>('dimension', {
+								id: id,
+								data: {
+									height: entry.contentRect.height + __outputNodePadding__ * 2
+								},
+								isOutput: true
+							});
+						} else {
+							entry.target.style.padding = `0px`;
+							postNotebookMessage<IDimensionMessage>('dimension', {
+								id: id,
+								data: {
+									height: entry.contentRect.height
+								},
+								isOutput: true
+							});
+						}
 					} else {
-						entry.target.style.padding = `0px`;
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
-								height: entry.contentRect.height
+								// entry.contentRect does not include padding
+								height: entry.contentRect.height + __previewNodePadding__ * 2
 							},
-							isOutput: output
+							isOutput: false
 						});
 					}
 				}
@@ -403,12 +412,20 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
 				for (const cell of event.data.cells) {
-					createMarkdownPreview(cell.cellId, cell.content, -10000);
+					console.log('initializeMarkdownPreview', cell.cellHandle);
+
+					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+
+					const cellContainer = document.getElementById(cell.cellId);
+					if (cellContainer) {
+						cellContainer.style.visibility = 'hidden';
+					}
 				}
 
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
+				console.log('createMarkdown', event.data.handle);
 				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
 				break;
 			case 'showMarkdownPreview':
@@ -416,7 +433,7 @@ function webviewPreloads() {
 					const data = event.data;
 					let cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = 'block';
+						cellContainer.style.visibility = 'visible';
 					}
 					const previewNode = document.getElementById(`${data.id}_container`);
 					if (previewNode) {
@@ -430,7 +447,7 @@ function webviewPreloads() {
 					const data = event.data;
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = 'none';
+						cellContainer.style.visibility = 'hidden';
 					}
 				}
 				break;
@@ -439,7 +456,7 @@ function webviewPreloads() {
 					const data = event.data;
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = '';
+						cellContainer.style.visibility = 'visible';
 					}
 				}
 				break;
@@ -574,7 +591,7 @@ function webviewPreloads() {
 			case 'view-scroll-markdown':
 				{
 					// const date = new Date();
-					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: view-scroll-markdown', event.data.cells);
 					event.data.cells.map(cell => {
 						const widget = document.getElementById(`${cell.id}_preview`)!;
 
@@ -582,6 +599,11 @@ function webviewPreloads() {
 							widget.style.top = `${cell.top}px`;
 						}
 
+						const markdownPreview = document.getElementById(`${cell.id}`);
+
+						if (markdownPreview) {
+							markdownPreview.style.display = 'block';
+						}
 					});
 
 					break;

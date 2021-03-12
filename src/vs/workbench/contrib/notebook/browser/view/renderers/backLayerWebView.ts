@@ -236,6 +236,7 @@ export interface ICustomRendererMessage extends BaseToWebviewMessage {
 export interface ICreateMarkdownMessage {
 	type: 'createMarkdownPreview',
 	id: string;
+	handle: number;
 	content: string;
 	top: number;
 }
@@ -257,6 +258,7 @@ export interface IUnhideMarkdownMessage {
 export interface IShowMarkdownMessage {
 	type: 'showMarkdownPreview',
 	id: string;
+	handle: number;
 	content: string;
 	top: number;
 }
@@ -269,7 +271,7 @@ export interface IUpdateMarkdownPreviewSelectionState {
 
 export interface IInitializeMarkdownMessage {
 	type: 'initializeMarkdownPreview';
-	cells: Array<{ cellId: string, content: string }>;
+	cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>;
 }
 
 export type FromWebviewMessage =
@@ -363,6 +365,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public options: {
 			outputNodePadding: number,
 			outputNodeLeftPadding: number,
+			previewNodePadding: number,
 			leftMargin: number,
 			cellMargin: number,
 			runGutter: number,
@@ -415,6 +418,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						color: var(--vscode-foreground);
 						width: calc(100% - ${this.options.cellMargin}px);
 						padding-left: ${this.options.leftMargin}px;
+						padding-top: ${this.options.previewNodePadding}px;
+						padding-bottom: ${this.options.previewNodePadding}px;
 					}
 
 					#container > div > div.preview.selected {
@@ -449,11 +454,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div.preview h1 {
-						padding-bottom: 0.3em;
-						line-height: 1.2;
+						font-size: 26px;
+						padding-bottom: 8px;
+						line-height: 31px;
 						border-bottom-width: 1px;
 						border-bottom-style: solid;
 						border-color: var(--vscode-foreground);
+						margin: 0;
+						margin-bottom: 13px;
+					}
+
+					#container > div > div.preview h2 {
+						font-size: 19px;
+						margin: 0;
+						margin-bottom: 10px;
 					}
 
 					#container > div > div.preview h1,
@@ -485,7 +499,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					/* makes all markdown cells consistent */
 					#container > div > div.preview div {
-						min-height: 24px;
+						min-height: ${this.options.previewNodePadding * 2}px;
 					}
 
 					#container > div > div.preview table {
@@ -620,7 +634,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<script>${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
-			previewNodePadding: 8,
+			previewNodePadding: this.options.previewNodePadding,
 			leftMargin: this.options.leftMargin
 		})}</script>
 				${markdownRenderersSrc}
@@ -1051,7 +1065,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async createMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1062,12 +1076,13 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
 			id: cellId,
+			handle: cellHandle,
 			content: content,
 			top: initialTop,
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1075,6 +1090,7 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'showMarkdownPreview',
 			id: cellId,
+			handle: cellHandle,
 			content: content,
 			top: cellTop
 		});
@@ -1139,7 +1155,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkdown(cells: Array<{ cellId: string, content: string }>) {
+	async initializeMarkdown(cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>) {
 		await this._loaded;
 
 		// TODO: use proper handler

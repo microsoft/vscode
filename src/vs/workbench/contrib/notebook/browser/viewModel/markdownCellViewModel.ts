@@ -158,7 +158,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
-		if (totalHeight !== undefined) {
+		// we might already warmup the viewport so the cell has a total height computed
+		if (totalHeight !== undefined && this._layoutInfo.totalHeight === 0) {
 			this._layoutInfo = {
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
