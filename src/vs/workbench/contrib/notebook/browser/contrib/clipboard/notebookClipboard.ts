@@ -9,11 +9,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { expandCellRangesWithHiddenCells, getNotebookEditorFromEditorPane, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as UUID from 'vs/base/common/uuid';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, ICellEditOperation, ICellRange, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -96,35 +95,11 @@ class NotebookClipboardContribution extends Disposable {
 					return false;
 				}
 
-				const cloneMetadata = (cell: NotebookCellTextModel) => {
-					return {
-						editable: cell.metadata?.editable,
-						breakpointMargin: cell.metadata?.breakpointMargin,
-						hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-						inputCollapsed: cell.metadata?.inputCollapsed,
-						outputCollapsed: cell.metadata?.outputCollapsed,
-						custom: cell.metadata?.custom
-					};
-				};
-
-				const cloneCell = (cell: NotebookCellTextModel) => {
-					return {
-						source: cell.getValue(),
-						language: cell.language,
-						cellKind: cell.cellKind,
-						outputs: cell.outputs.map(output => ({
-							outputs: output.outputs,
-							/* paste should generate new outputId */ outputId: UUID.generateUuid()
-						})),
-						metadata: cloneMetadata(cell)
-					};
-				};
-
 				if (activeCell) {
 					const currCellIndex = viewModel.getCellIndex(activeCell);
 
 					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => cloneCell(cell)).forEach(pasteCell => {
+					pasteCells.items.reverse().map(cell => cloneNotebookCellTextModel(cell)).forEach(pasteCell => {
 						const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
 						topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
@@ -138,7 +113,7 @@ class NotebookClipboardContribution extends Disposable {
 					}
 
 					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => cloneCell(cell)).forEach(pasteCell => {
+					pasteCells.items.reverse().map(cell => cloneNotebookCellTextModel(cell)).forEach(pasteCell => {
 						topPastedCell = viewModel.createCell(0, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
