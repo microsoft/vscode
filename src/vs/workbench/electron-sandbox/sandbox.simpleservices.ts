@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
@@ -19,11 +18,11 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
 import { LinkedMap } from 'vs/base/common/map';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { joinPath } from 'vs/base/common/resources';
@@ -35,11 +34,11 @@ import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.a
 import { Schemas } from 'vs/base/common/network';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 
-
 //#region Environment
+
+const userDataDir = URI.file('/sandbox-user-data-dir');
 
 export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
 
@@ -49,7 +48,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 		readonly configuration: INativeWorkbenchConfiguration
 	) { }
 
-	get userRoamingDataHome(): URI { return URI.file('/sandbox-user-data-dir').with({ scheme: Schemas.userData }); }
+	get userRoamingDataHome(): URI { return userDataDir.with({ scheme: Schemas.userData }); }
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
@@ -61,6 +60,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
+	get userDataPath(): string { return userDataDir.fsPath; }
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
 
@@ -92,7 +92,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	appRoot: string = undefined!;
 	userHome: URI = undefined!;
 	appSettingsHome: URI = undefined!;
-	userDataPath: string = undefined!;
 	machineSettingsResource: URI = undefined!;
 
 	log?: string | undefined;
@@ -123,49 +122,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 
 //#region Workspace
 
-export const workspaceResource = URI.file(isWindows ? '\\simpleWorkspace' : '/simpleWorkspace');
-
-export class SimpleWorkspaceService implements IWorkspaceContextService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly onDidChangeWorkspaceName = Event.None;
-	readonly onDidChangeWorkspaceFolders = Event.None;
-	readonly onDidChangeWorkbenchState = Event.None;
-
-	private readonly workspace: IWorkspace;
-
-	constructor() {
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: workspaceResource, name: '', index: 0 })] };
-	}
-
-	async getCompleteWorkspace(): Promise<IWorkspace> { return this.getWorkspace(); }
-
-	getWorkspace(): IWorkspace { return this.workspace; }
-
-	getWorkbenchState(): WorkbenchState {
-		if (this.workspace) {
-			if (this.workspace.configuration) {
-				return WorkbenchState.WORKSPACE;
-			}
-			return WorkbenchState.FOLDER;
-		}
-		return WorkbenchState.EMPTY;
-	}
-
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null { return resource && resource.scheme === workspaceResource.scheme ? this.workspace.folders[0] : null; }
-	isInsideWorkspace(resource: URI): boolean { return resource && resource.scheme === workspaceResource.scheme; }
-	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean { return true; }
-}
-
-//#endregion
-
-
-//#region Configuration
-
-export class SimpleConfigurationService extends BaseSimpleConfigurationService implements IWorkbenchConfigurationService {
-	async whenRemoteConfigurationLoaded() { }
-}
+export const simpleWorkspace: ISingleFolderWorkspaceIdentifier = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: URI.file(isWindows ? '\\simpleWorkspace' : '/simpleWorkspace') };
 
 //#endregion
 
@@ -189,25 +146,27 @@ class SimpleFileSystemProvider extends InMemoryFileSystemProvider { }
 
 export const simpleFileSystemProvider = new SimpleFileSystemProvider();
 
-function createFile(parent: string, name: string, content: string = ''): void {
-	simpleFileSystemProvider.writeFile(joinPath(workspaceResource, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true });
+simpleFileSystemProvider.mkdir(userDataDir);
+
+function createWorkspaceFile(parent: string, name: string, content: string = ''): void {
+	simpleFileSystemProvider.writeFile(joinPath(simpleWorkspace.uri, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true });
 }
 
-function createFolder(name: string): void {
-	simpleFileSystemProvider.mkdir(joinPath(workspaceResource, name));
+function createWorkspaceFolder(name: string): void {
+	simpleFileSystemProvider.mkdir(joinPath(simpleWorkspace.uri, name));
 }
 
-createFolder('');
-createFolder('src');
-createFolder('test');
+createWorkspaceFolder('');
+createWorkspaceFolder('src');
+createWorkspaceFolder('test');
 
-createFile('', '.gitignore', `out
+createWorkspaceFile('', '.gitignore', `out
 node_modules
 .vscode-test/
 *.vsix
 `);
 
-createFile('', '.vscodeignore', `.vscode/**
+createWorkspaceFile('', '.vscodeignore', `.vscode/**
 .vscode-test/**
 out/test/**
 src/**
@@ -218,14 +177,14 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts`);
 
-createFile('', 'CHANGELOG.md', `# Change Log
+createWorkspaceFile('', 'CHANGELOG.md', `# Change Log
 All notable changes to the "test-ts" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [Unreleased]
 - Initial release`);
-createFile('', 'package.json', `{
+createWorkspaceFile('', 'package.json', `{
 	"name": "test-ts",
 	"displayName": "test-ts",
 	"description": "",
@@ -265,7 +224,7 @@ createFile('', 'package.json', `{
 }
 `);
 
-createFile('', 'tsconfig.json', `{
+createWorkspaceFile('', 'tsconfig.json', `{
 	"compilerOptions": {
 		"module": "commonjs",
 		"target": "es6",
@@ -288,7 +247,7 @@ createFile('', 'tsconfig.json', `{
 }
 `);
 
-createFile('', 'tslint.json', `{
+createWorkspaceFile('', 'tslint.json', `{
 	"rules": {
 		"no-string-throw": true,
 		"no-unused-expression": true,
@@ -305,7 +264,7 @@ createFile('', 'tslint.json', `{
 }
 `);
 
-createFile('src', 'extension.ts', `// The module 'vscode' contains the VS Code extensibility API
+createWorkspaceFile('src', 'extension.ts', `// The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
@@ -334,7 +293,7 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 `);
 
-createFile('test', 'extension.test.ts', `//
+createWorkspaceFile('test', 'extension.test.ts', `//
 // Note: This example test is leveraging the Mocha test framework.
 // Please refer to their documentation on https://mochajs.org/ for help.
 //
@@ -357,7 +316,7 @@ suite("Extension Tests", function () {
 	});
 });`);
 
-createFile('test', 'index.ts', `//
+createWorkspaceFile('test', 'index.ts', `//
 // PLEASE DO NOT MODIFY / DELETE UNLESS YOU KNOW WHAT YOU ARE DOING
 //
 // This file is providing the test runner to use when running extension tests.
@@ -496,3 +455,5 @@ registerSingleton(ITaskService, SimpleTaskService);
 class SimpleTerminalInstanceService extends TerminalInstanceService { }
 
 registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);
+
+//#endregion

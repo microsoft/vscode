@@ -11,6 +11,7 @@ import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/brow
 import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
+import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -29,6 +30,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/electron-sandbox/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { basename } from 'vs/base/common/path';
@@ -41,7 +43,7 @@ import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uri
 import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService, SimpleLogService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { simpleFileSystemProvider, SimpleNativeWorkbenchEnvironmentService, SimpleLogService, simpleWorkspace } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
@@ -52,6 +54,8 @@ class DesktopMain extends Disposable {
 
 	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
+
+		configuration.workspace = simpleWorkspace;
 
 		this.init();
 	}
@@ -224,13 +228,13 @@ class DesktopMain extends Disposable {
 		const payload = this.resolveWorkspaceInitializationPayload();
 
 		const services = await Promise.all([
-			this.createWorkspaceService().then(service => {
+			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
 
 				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, new SimpleConfigurationService());
+				serviceCollection.set(IWorkbenchConfigurationService, service);
 
 				return service;
 			}),
@@ -289,8 +293,18 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async createWorkspaceService(): Promise<IWorkspaceContextService> {
-		return new SimpleWorkspaceService();
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(this.environmentService.userDataPath), fileService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+
+		try {
+			await workspaceService.initialize(payload);
+
+			return workspaceService;
+		} catch (error) {
+			onUnexpectedError(error);
+
+			return workspaceService;
+		}
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
