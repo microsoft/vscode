@@ -90,7 +90,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
 					modal: this.requestModel.trustRequest.modal,
 					workspaceId: this.workspaceContextService.getWorkspace().id,
-					extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.requiresWorkspaceTrust).map(ext => ext.identifier.value)
+					extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
 				});
 
 				if (this.requestModel.trustRequest.modal) {
