@@ -40,10 +40,7 @@ async function updateFocus(widget: WorkbenchListWidget, updateFocusFn: (widget: 
 
 	const newFocus = widget.getFocus();
 
-	if (
-		(selection.length !== 1 || !equals(focus, selection) || equals(focus, newFocus))
-		&& !(focus.length === 0 && selection.length === 0)
-	) {
+	if (selection.length > 1 || !equals(focus, selection) || equals(focus, newFocus)) {
 		return;
 	}
 

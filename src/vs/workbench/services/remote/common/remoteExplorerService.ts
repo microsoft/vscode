@@ -154,10 +154,10 @@ interface PortAttributes extends Attributes {
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
+	private static DEFAULTS = 'remote.portsAttributes.defaults';
 	private static RANGE = /^(\d+)\-(\d+)$/;
-	private static OTHERS = 'others';
 	private portsAttributes: PortAttributes[] = [];
-	private otherPortAttributes: Attributes | undefined;
+	private defaultPortAttributes: Attributes | undefined;
 	private _onDidChangeAttributes = new Emitter<void>();
 	public readonly onDidChangeAttributes = this._onDidChangeAttributes.event;
 
@@ -241,12 +241,6 @@ export class PortsAttributes extends Disposable {
 			let key: number | { start: number, end: number } | RegExp | undefined = undefined;
 			if (Number(attributesKey)) {
 				key = Number(attributesKey);
-			} else if (attributesKey === PortsAttributes.OTHERS) {
-				this.otherPortAttributes = {
-					elevateIfNeeded: setting.elevateIfPrivileged,
-					onAutoForward: setting.onAutoForward,
-					label: setting.label
-				};
 			} else if (isString(attributesKey)) {
 				if (PortsAttributes.RANGE.test(attributesKey)) {
 					const match = (<string>attributesKey).match(PortsAttributes.RANGE);
@@ -269,6 +263,15 @@ export class PortsAttributes extends Disposable {
 			});
 		}
 
+		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
+		if (defaults) {
+			this.defaultPortAttributes = {
+				elevateIfNeeded: defaults.elevateIfNeeded,
+				label: defaults.label,
+				onAutoForward: defaults.onAutoForward
+			};
+		}
+
 		return this.sortAttributes(attributes);
 	}
 
@@ -289,7 +292,7 @@ export class PortsAttributes extends Disposable {
 	}
 
 	private getOtherAttributes() {
-		return this.otherPortAttributes;
+		return this.defaultPortAttributes;
 	}
 
 	static providedActionToAction(providedAction: ProvidedOnAutoForward | undefined) {
@@ -324,6 +327,7 @@ export class TunnelModel extends Disposable {
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	private configPortsAttributes: PortsAttributes;
+	private restoreListener: IDisposable | undefined;
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -426,17 +430,18 @@ export class TunnelModel extends Disposable {
 						await this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name, undefined, undefined, tunnel.privacy === TunnelPrivacy.Public);
 					}
 				}
-			} else {
-				// It's possible that at restore time the value hasn't synced.
-				const key = await this.getStorageKey();
-				const listener = this.storageService.onDidChangeValue(async (e) => {
-					if (e.key === key) {
-						listener.dispose();
-						this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
-						await this.restoreForwarded();
-					}
-				});
 			}
+		}
+
+		if (!this.restoreListener) {
+			// It's possible that at restore time the value hasn't synced.
+			const key = await this.getStorageKey();
+			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+				if (e.key === key) {
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
+					await this.restoreForwarded();
+				}
+			}));
 		}
 	}
 

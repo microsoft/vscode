@@ -66,6 +66,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.Trash |
+				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileFolderCopy;
 
 			if (isLinux) {
@@ -1899,6 +1900,63 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), content);
 	});
 
+	test('writeFile - locked files and unlocking', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileWriteUnlock);
+
+		return testLockedFiles(false);
+	});
+
+	test('writeFile (stream) - locked files and unlocking', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileWriteUnlock);
+
+		return testLockedFiles(false);
+	});
+
+	test('writeFile - locked files and unlocking throws error when missing capability', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testLockedFiles(true);
+	});
+
+	test('writeFile (stream) - locked files and unlocking throws error when missing capability', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testLockedFiles(true);
+	});
+
+	async function testLockedFiles(expectError: boolean) {
+		const lockedFile = URI.file(join(testDir, 'my-locked-file'));
+
+		await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
+
+		const stats = await promises.stat(lockedFile.fsPath);
+		await promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
+
+		let error;
+		const newContent = 'Updates to locked file';
+		try {
+			await service.writeFile(lockedFile, VSBuffer.fromString(newContent));
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		error = undefined;
+
+		if (expectError) {
+			try {
+				await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+		} else {
+			await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
+			assert.strictEqual(readFileSync(lockedFile.fsPath).toString(), newContent);
+		}
+	}
+
 	test('writeFile (error when folder is encountered)', async () => {
 		const resource = URI.file(testDir);
 
@@ -2296,7 +2354,7 @@ flakySuite('Disk File Service', function () {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
 		const buffer = VSBuffer.alloc(1024);
-		const fdWrite = await fileProvider.open(resource, { create: true });
+		const fdWrite = await fileProvider.open(resource, { create: true, unlock: false });
 		const fdRead = await fileProvider.open(resource, { create: false });
 
 		let posInFileWrite = 0;

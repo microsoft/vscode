@@ -14,6 +14,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { toLocalISOString } from 'vs/base/common/date';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 
 export class NativeEnvironmentService implements INativeEnvironmentService {
 
@@ -149,6 +150,11 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 			});
 		}
 		return undefined;
+	}
+
+	@memoize
+	get extensionDevelopmentKind(): ExtensionKind[] | undefined {
+		return this._args.extensionDevelopmentKind?.map(k => k === 'ui' || k === 'workspace' || k === 'web' ? k : 'workspace');
 	}
 
 	@memoize
