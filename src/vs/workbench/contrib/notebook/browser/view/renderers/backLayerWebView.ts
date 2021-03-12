@@ -1072,6 +1072,11 @@ var requirejs = (function() {
 			return;
 		}
 
+		if (this.markdownPreviewMapping.has(cellId)) {
+			console.error('Trying to create markdown preview that already exists');
+			return;
+		}
+
 		const initialTop = cellTop;
 		this.markdownPreviewMapping.set(cellId, { version: contentVersion, visible: true });
 
@@ -1096,7 +1101,7 @@ var requirejs = (function() {
 
 		const entry = this.markdownPreviewMapping.get(cellId);
 		if (!entry) {
-			console.log('Try to show a preview that does not exist');
+			console.error('Try to show a preview that does not exist');
 			return;
 		}
 
@@ -1123,7 +1128,7 @@ var requirejs = (function() {
 
 		const entry = this.markdownPreviewMapping.get(cellId);
 		if (!entry) {
-			console.log('Try to hide a preview that does not exist');
+			console.error('Try to hide a preview that does not exist');
 			return;
 		}
 
@@ -1143,7 +1148,7 @@ var requirejs = (function() {
 
 		const entry = this.markdownPreviewMapping.get(cellId);
 		if (!entry) {
-			console.log('Try to unhide a preview that does not exist');
+			console.error('Try to unhide a preview that does not exist');
 			return;
 		}
 
@@ -1161,9 +1166,8 @@ var requirejs = (function() {
 			return;
 		}
 
-		const entry = this.markdownPreviewMapping.get(cellId);
-		if (!entry) {
-			console.log('Try to delete a preview that does not exist');
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			console.error('Try to delete a preview that does not exist');
 			return;
 		}
 
@@ -1180,15 +1184,8 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'updateMarkdownPreviewSelectionState',
-			id: cellId,
-			isSelected
-		});
-	}
-
-	async updateMarkdownPreviewDecpratopms(cellId: any, isSelected: boolean) {
-		if (this._disposed) {
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			console.error('Try to update selection state for preview that does not exist');
 			return;
 		}
 
