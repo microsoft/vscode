@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyIconAware, parseLabelWithIcons, IParsedLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
+import { matchesFuzzyIconAware, parseLabelWithIcons, IParsedLabelWithIcons, stripIcons, escapeIcons, markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 
 export interface IIconFilter {
 	// Returns null if word doesn't match.
@@ -70,5 +70,19 @@ suite('Icon Labels', () => {
 		assert.strictEqual(stripIcons('$(Hello World'), '$(Hello World');
 		assert.strictEqual(stripIcons('$(Hello) World'), ' World');
 		assert.strictEqual(stripIcons('$(Hello) W$(oi)rld'), ' Wrld');
+	});
+
+
+	test('escapeIcons', () => {
+		assert.strictEqual(escapeIcons('Hello World'), 'Hello World');
+		assert.strictEqual(escapeIcons('$(Hello World'), '$(Hello World');
+		assert.strictEqual(escapeIcons('$(Hello) World'), '\\$(Hello) World');
+		assert.strictEqual(escapeIcons('\\$(Hello) W$(oi)rld'), '\\$(Hello) W\\$(oi)rld');
+	});
+
+	test('markdownEscapeEscapedIcons', () => {
+		assert.strictEqual(markdownEscapeEscapedIcons('Hello World'), 'Hello World');
+		assert.strictEqual(markdownEscapeEscapedIcons('$(Hello) World'), '$(Hello) World');
+		assert.strictEqual(markdownEscapeEscapedIcons('\\$(Hello) World'), '\\\\$(Hello) World');
 	});
 });

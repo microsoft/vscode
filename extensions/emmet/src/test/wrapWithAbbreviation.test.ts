@@ -7,7 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import { Selection, workspace, ConfigurationTarget } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
+import { wrapWithAbbreviation } from '../abbreviationActions';
 
 const htmlContentsForBlockWrapTests = `
 	<ul class="nav main">
@@ -167,7 +167,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 		</div>
 	</a>
 	`;
-		return testWrapWithAbbreviation([new Selection(1, 1, 1, 1)], 'a[href="https://example.com"]>div', expectedContents, contents);
+		return testWrapWithAbbreviation([new Selection(1, 2, 1, 2)], 'a[href="https://example.com"]>div', expectedContents, contents);
 	});
 
 	test('Wrap with abbreviation entire node when cursor is on opening tag', () => {
@@ -183,7 +183,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 		</div>
 	</div>
 	`;
-		return testWrapWithAbbreviation([new Selection(1, 1, 1, 1)], 'div', expectedContents, contents);
+		return testWrapWithAbbreviation([new Selection(1, 2, 1, 2)], 'div', expectedContents, contents);
 	});
 
 	test('Wrap with abbreviation entire node when cursor is on closing tag', () => {
@@ -199,7 +199,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 		</div>
 	</div>
 	`;
-		return testWrapWithAbbreviation([new Selection(3, 1, 3, 1)], 'div', expectedContents, contents);
+		return testWrapWithAbbreviation([new Selection(3, 2, 3, 2)], 'div', expectedContents, contents);
 	});
 
 	test('Wrap with multiline abbreviation doesnt add extra spaces', () => {
@@ -302,7 +302,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	});
 
 	test('Wrap with abbreviation and format set to false', () => {
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', { 'html' : { 'format': false } }, ConfigurationTarget.Global).then(() => {
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', { 'html': { 'format': false } }, ConfigurationTarget.Global).then(() => {
 			return testWrapWithAbbreviation(multiCursors, 'h1', wrapInlineElementExpectedFormatFalse, htmlContentsForBlockWrapTests).then(() => {
 				return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 			});
@@ -347,7 +347,7 @@ suite('Tests for Wrap with Abbreviations', () => {
 	</ul>
 `;
 
-		return testWrapWithAbbreviation([new Selection(2,2,3,33)], '.hello', wrapMultiLineJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
+		return testWrapWithAbbreviation([new Selection(2, 2, 3, 33)], '.hello', wrapMultiLineJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
 	});
 
 	test('Wrap individual line with abbreviation uses className for jsx files', () => {
@@ -362,8 +362,34 @@ suite('Tests for Wrap with Abbreviations', () => {
 	</ul>
 `;
 
-		return testWrapIndividualLinesWithAbbreviation([new Selection(2,2,3,33)], '.hello$*', wrapIndividualLinesJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
+		return testWrapIndividualLinesWithAbbreviation([new Selection(2, 2, 3, 33)], '.hello$*', wrapIndividualLinesJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
 	});
+
+	test('Wrap with abbreviation merge overlapping computed ranges', () => {
+		const contents = `
+	<div class="nav main">
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div>
+		<div class="nav main">
+			hello
+		</div>
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(1, 2, 1, 2), new Selection(1, 10, 1, 10)], 'div', expectedContents, contents);
+	});
+
+	test('Wrap with abbreviation ignore invalid abbreviation', () => {
+		const contents = `
+	<div class="nav main">
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(1, 2, 1, 2)], 'div]', contents, contents);
+	});
+
 });
 
 
@@ -386,7 +412,7 @@ function testWrapWithAbbreviation(selections: Selection[], abbreviation: string,
 function testWrapIndividualLinesWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string, input: string, fileExtension: string = 'html'): Thenable<any> {
 	return withRandomFileEditor(input, fileExtension, (editor, _) => {
 		editor.selections = selections;
-		const promise = wrapIndividualLinesWithAbbreviation({ abbreviation });
+		const promise = wrapWithAbbreviation({ abbreviation });
 		if (!promise) {
 			assert.equal(1, 2, 'Wrap individual lines with Abbreviation returned undefined.');
 			return Promise.resolve();

@@ -52,6 +52,7 @@ button {
 
 button:hover:not(:disabled) {
 	cursor: pointer;
+	color: var(--vscode-button-foreground);
 	background: var(--vscode-button-hoverBackground);
 }
 
@@ -93,6 +94,7 @@ iframe {
 	width: 100%;
 	height: 100%;
 	border: none;
+	background: white; /* Browsers default to a white background */
 }
 
 .iframe-focused-alert {

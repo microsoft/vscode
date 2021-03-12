@@ -162,7 +162,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				}
 			}));
 
-			const entries = Array.from(outline.config.quickPickDataSource.getQuickPickElements());
+			const entries = outline.config.quickPickDataSource.getQuickPickElements();
 
 			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
 				return {

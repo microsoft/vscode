@@ -9,13 +9,14 @@ import { bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import { listenStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { loadLocalResource, readFileStream, WebviewFileReadResponse, webviewPartitionId, WebviewResourceFileReader, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
-import { WebviewManagerDidLoadResourceResponse } from 'vs/platform/webview/common/webviewManagerService';
+import { WebviewManagerDidLoadResourceResponse, WebviewManagerDidLoadResourceResponseDetails } from 'vs/platform/webview/common/webviewManagerService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 interface WebviewMetadata {
@@ -23,6 +24,11 @@ interface WebviewMetadata {
 	readonly extensionLocation: URI | undefined;
 	readonly localResourceRoots: readonly URI[];
 	readonly remoteConnectionData: IRemoteConnectionData | null;
+}
+
+interface PendingResourceResult {
+	readonly response: WebviewManagerDidLoadResourceResponse;
+	readonly responseDetails?: WebviewManagerDidLoadResourceResponseDetails;
 }
 
 export class WebviewProtocolProvider extends Disposable {
@@ -37,7 +43,7 @@ export class WebviewProtocolProvider extends Disposable {
 	private readonly webviewMetadata = new Map<string, WebviewMetadata>();
 
 	private requestIdPool = 1;
-	private readonly pendingResourceReads = new Map<number, { resolve: (content: WebviewManagerDidLoadResourceResponse) => void }>();
+	private readonly pendingResourceReads = new Map<number, { resolve: (content: PendingResourceResult) => void }>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -75,28 +81,27 @@ export class WebviewProtocolProvider extends Disposable {
 				if (!this.listening) {
 					this.listening = true;
 
-					// Data
-					stream.on('data', data => {
-						try {
-							if (!this.push(data.buffer)) {
-								stream.pause(); // pause the stream if we should not push anymore
+					listenStream(stream, {
+						onData: data => {
+							try {
+								if (!this.push(data.buffer)) {
+									stream.pause(); // pause the stream if we should not push anymore
+								}
+							} catch (error) {
+								this.emit(error);
 							}
-						} catch (error) {
-							this.emit(error);
+						},
+						onError: error => {
+							this.emit('error', error);
+						},
+						onEnd: () => {
+							try {
+								this.push(null); // signal EOS
+							} catch (error) {
+								this.emit(error);
+							}
 						}
 					});
-
-					// End
-					stream.on('end', () => {
-						try {
-							this.push(null); // signal EOS
-						} catch (error) {
-							this.emit(error);
-						}
-					});
-
-					// Error
-					stream.on('error', error => this.emit('error', error));
 				}
 
 				// ensure the stream is flowing
@@ -168,7 +173,11 @@ export class WebviewProtocolProvider extends Disposable {
 					rewriteUri = (uri) => {
 						if (metadata.remoteConnectionData) {
 							if (uri.scheme === Schemas.vscodeRemote || (metadata.extensionLocation?.scheme === Schemas.vscodeRemote)) {
-								return URI.parse(`http://${metadata.remoteConnectionData.host}:${metadata.remoteConnectionData.port}`).with({
+								let host = metadata.remoteConnectionData.host;
+								if (host && host.indexOf(':') !== -1) { // IPv6 address
+									host = `[${host}]`;
+								}
+								return URI.parse(`http://${host}:${metadata.remoteConnectionData.port}`).with({
 									path: '/vscode-remote-resource',
 									query: `tkn=${metadata.remoteConnectionData.connectionToken}&path=${encodeURIComponent(uri.path)}`,
 								});
@@ -193,14 +202,14 @@ export class WebviewProtocolProvider extends Disposable {
 						}
 
 						const requestId = this.requestIdPool++;
-						const p = new Promise<WebviewManagerDidLoadResourceResponse>(resolve => {
+						const p = new Promise<PendingResourceResult>(resolve => {
 							this.pendingResourceReads.set(requestId, { resolve });
 						});
 
-						window.send(`vscode:loadWebviewResource-${id}`, requestId, uri);
+						window.send(`vscode:loadWebviewResource-${id}`, requestId, uri, etag);
 
 						const result = await p;
-						switch (result) {
+						switch (result.response) {
 							case 'access-denied':
 								throw new FileOperationError('Could not read file', FileOperationResult.FILE_PERMISSION_DENIED);
 
@@ -211,7 +220,7 @@ export class WebviewProtocolProvider extends Disposable {
 								return WebviewFileReadResponse.NotModified;
 
 							default:
-								return new WebviewFileReadResponse.StreamSuccess(bufferToStream(result.buffer), result.etag);
+								return new WebviewFileReadResponse.StreamSuccess(bufferToStream(result.response), result.responseDetails?.etag);
 						}
 					}
 				};
@@ -224,7 +233,7 @@ export class WebviewProtocolProvider extends Disposable {
 				}, fileReader, this.requestService, this.logService, CancellationToken.None);
 
 				switch (result.type) {
-					case WebviewFileReadResponse.Type.Success:
+					case WebviewResourceResponse.Type.Success:
 						{
 							const cacheHeaders: Record<string, string> = result.etag ? {
 								'ETag': result.etag,
@@ -293,12 +302,16 @@ export class WebviewProtocolProvider extends Disposable {
 		return callback({ data: undefined, statusCode: 404 });
 	}
 
-	public didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse) {
+	public didLoadResource(
+		requestId: number,
+		response: WebviewManagerDidLoadResourceResponse,
+		responseDetails?: WebviewManagerDidLoadResourceResponseDetails,
+	) {
 		const pendingRead = this.pendingResourceReads.get(requestId);
 		if (!pendingRead) {
 			throw new Error('Unknown request');
 		}
 		this.pendingResourceReads.delete(requestId);
-		pendingRead.resolve(response);
+		pendingRead.resolve({ response, responseDetails });
 	}
 }

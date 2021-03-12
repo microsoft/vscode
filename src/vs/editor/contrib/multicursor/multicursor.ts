@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -27,6 +28,13 @@ import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/com
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
+
+function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
+	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
+	const cursorPositions = cursorDiff.map(cs => `${cs.viewState.position.lineNumber}:${cs.viewState.position.column}`).join(', ');
+	status(nls.localize('cursorAdded', "Cursor added {0}", cursorPositions));
+}
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -67,12 +75,14 @@ export class InsertCursorAbove extends EditorAction {
 		}
 
 		viewModel.pushStackElement();
+		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorUp(viewModel, viewModel.getCursorStates(), useLogicalLine)
+			CursorMoveCommands.addCursorUp(viewModel, previousCursorState, useLogicalLine)
 		);
 		viewModel.revealTopMostCursor(args.source);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -115,12 +125,14 @@ export class InsertCursorBelow extends EditorAction {
 		}
 
 		viewModel.pushStackElement();
+		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorDown(viewModel, viewModel.getCursorStates(), useLogicalLine)
+			CursorMoveCommands.addCursorDown(viewModel, previousCursorState, useLogicalLine)
 		);
 		viewModel.revealBottomMostCursor(args.source);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -167,12 +179,15 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 
 		const model = editor.getModel();
 		const selections = editor.getSelections();
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		let newSelections: Selection[] = [];
 		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -649,7 +664,12 @@ export abstract class MultiCursorSelectionControllerAction extends EditorAction 
 		if (!findController) {
 			return;
 		}
-		this._run(multiCursorController, findController);
+		const viewModel = editor._getViewModel();
+		if (viewModel) {
+			const previousCursorState = viewModel.getCursorStates();
+			this._run(multiCursorController, findController);
+			announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		}
 	}
 
 	protected abstract _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void;

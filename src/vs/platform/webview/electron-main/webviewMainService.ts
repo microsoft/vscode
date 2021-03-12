@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
-import { IWebviewManagerService, RegisterWebviewMetadata, WebviewManagerDidLoadResourceResponse, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { IWebviewManagerService, RegisterWebviewMetadata, WebviewManagerDidLoadResourceResponse, WebviewManagerDidLoadResourceResponseDetails, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewPortMappingProvider } from 'vs/platform/webview/electron-main/webviewPortMappingProvider';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -35,12 +35,16 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
 
 		const sess = session.fromPartition(webviewPartitionId);
-		sess.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
+		sess.setPermissionRequestHandler((_webContents, permission, callback) => {
+			if (permission === 'clipboard-read') {
+				return callback(true);
+			}
+
 			return callback(false);
 		});
 
-		sess.setPermissionCheckHandler((webContents, permission /* 'media' */) => {
-			return false;
+		sess.setPermissionCheckHandler((_webContents, permission /* 'media' */) => {
+			return permission === 'clipboard-read';
 		});
 	}
 
@@ -87,7 +91,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		if (typeof (id as WebviewWindowId).windowId === 'number') {
 			const { windowId } = (id as WebviewWindowId);
 			const window = this.windowsMainService.getWindowById(windowId);
-			if (!window) {
+			if (!window?.win) {
 				throw new Error(`Invalid windowId: ${windowId}`);
 			}
 			contents = window.win.webContents;
@@ -104,7 +108,11 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
-	public async didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse): Promise<void> {
-		this.protocolProvider.didLoadResource(requestId, response);
+	public async didLoadResource(
+		requestId: number,
+		response: WebviewManagerDidLoadResourceResponse,
+		responseDetails?: WebviewManagerDidLoadResourceResponseDetails,
+	): Promise<void> {
+		this.protocolProvider.didLoadResource(requestId, response, responseDetails);
 	}
 }

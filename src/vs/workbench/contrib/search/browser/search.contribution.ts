@@ -17,14 +17,13 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import product from 'vs/platform/product/common/product';
 import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -637,8 +636,6 @@ const viewDescriptor: IViewDescriptor = {
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
-			// View: Show Search is used for the keybindings in the View menu and the sidebar #115556, but it should only be enabled when search.mode == view, or else it will steal priority over opening a search editor #115511
-			when: ContextKeyAndExpr.create([Constants.SearchViewVisibleKey.toNegated(), ContextKeyEqualsExpr.create(`config.${SEARCH_MODE_CONFIG}`, 'view')]),
 		},
 		order: 1
 	}
@@ -712,7 +709,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		]
 	},
 	id: Constants.FindInFilesActionId,
-	weight: KeybindingWeight.WorkbenchContrib,
+	// Give more weightage to this keybinding than of `View: Show Search` keybinding. See #116188, #115556, #115511
+	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 	handler: FindInFilesCommand
@@ -1015,11 +1013,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
-		},
-		'search.experimental.searchInOpenEditors': {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			markdownDescription: nls.localize('search.experimental.searchInOpenEditors', "Experimental. When enabled, an option is provided to make workspace search only search files that have been opened. **Requires restart to take effect.**")
 		}
 	}
 });

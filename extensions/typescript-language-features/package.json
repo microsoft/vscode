@@ -9,6 +9,7 @@
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
+  "requiresWorkspaceTrust": "onDemand",
   "engines": {
     "vscode": "^1.30.0"
   },
@@ -17,7 +18,6 @@
   ],
   "dependencies": {
     "jsonc-parser": "^2.2.1",
-    "rimraf": "^2.6.3",
     "semver": "5.5.1",
     "typescript-vscode-sh-plugin": "^0.6.14",
     "vscode-extension-telemetry": "0.1.1",
@@ -603,6 +603,18 @@
           "description": "%configuration.suggest.completeJSDocs%",
           "scope": "resource"
         },
+        "javascript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+          "scope": "resource"
+        },
+        "typescript.suggest.jsdoc.generateReturns": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+          "scope": "resource"
+        },
         "typescript.locale": {
           "type": [
             "string",
@@ -860,6 +872,7 @@
               "type": "string",
               "description": "%configuration.tsserver.watchOptions.watchFile%",
               "enum": [
+                "fixedChunkSizePolling",
                 "fixedPollingInterval",
                 "priorityPollingInterval",
                 "dynamicPriorityPolling",
@@ -867,6 +880,7 @@
                 "useFsEventsOnParentDirectory"
               ],
               "enumDescriptions": [
+                "%configuration.tsserver.watchOptions.watchFile.fixedChunkSizePolling%",
                 "%configuration.tsserver.watchOptions.watchFile.fixedPollingInterval%",
                 "%configuration.tsserver.watchOptions.watchFile.priorityPollingInterval%",
                 "%configuration.tsserver.watchOptions.watchFile.dynamicPriorityPolling%",
@@ -879,11 +893,13 @@
               "type": "string",
               "description": "%configuration.tsserver.watchOptions.watchDirectory%",
               "enum": [
+                "fixedChunkSizePolling",
                 "fixedPollingInterval",
                 "dynamicPriorityPolling",
                 "useFsEvents"
               ],
               "enumDescriptions": [
+                "%configuration.tsserver.watchOptions.watchDirectory.fixedChunkSizePolling%",
                 "%configuration.tsserver.watchOptions.watchDirectory.fixedPollingInterval%",
                 "%configuration.tsserver.watchOptions.watchDirectory.dynamicPriorityPolling%",
                 "%configuration.tsserver.watchOptions.watchDirectory.useFsEvents%"

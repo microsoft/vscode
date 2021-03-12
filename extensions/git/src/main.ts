@@ -73,12 +73,13 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
+	const cc = new CommandCenter(git, model, outputChannel, telemetryReporter);
 	disposables.push(
-		new CommandCenter(git, model, outputChannel, telemetryReporter),
+		cc,
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitProtocolHandler(),
-		new GitTimelineProvider(model)
+		new GitTimelineProvider(model, cc)
 	);
 
 	checkGitVersion(info);

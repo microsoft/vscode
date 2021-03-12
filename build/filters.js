@@ -53,6 +53,7 @@ module.exports.indentationFilter = [
 	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
+	'!extensions/vscode-custom-editor-tests/test-workspace/**',
 	'!build/monaco/**',
 	'!build/win32/**',
 
@@ -86,6 +87,8 @@ module.exports.indentationFilter = [
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
 	'!extensions/markdown-language-features/media/*.js',
+	'!extensions/markdown-language-features/notebook-out/*.js',
+	'!extensions/notebook-markdown-extensions/notebook-out/*.js',
 	'!extensions/simple-browser/media/*.js',
 ];
 

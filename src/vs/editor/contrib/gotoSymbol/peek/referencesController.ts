@@ -27,7 +27,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
+export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
 
 export abstract class ReferencesController implements IEditorContribution {
 
@@ -139,13 +139,11 @@ export abstract class ReferencesController implements IEditorContribution {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
+				model.dispose();
 				return undefined;
 			}
 
-			if (this._model) {
-				this._model.dispose();
-			}
-
+			this._model?.dispose();
 			this._model = model;
 
 			// show widget

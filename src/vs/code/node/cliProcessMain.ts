@@ -13,7 +13,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -30,9 +30,9 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { IStateService } from 'vs/platform/state/node/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { ILogService, getLogLevel, LogLevel, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ILogService, getLogLevel, LogLevel, ConsoleLogger, MultiplexLogService, ILogger } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -96,7 +96,6 @@ class CliMain extends Disposable {
 
 		// Environment
 		const environmentService = new NativeEnvironmentService(this.argv);
-		services.set(IEnvironmentService, environmentService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
@@ -104,10 +103,10 @@ class CliMain extends Disposable {
 
 		// Log
 		const logLevel = getLogLevel(environmentService);
-		const loggers: ILogService[] = [];
-		loggers.push(new SpdLogService('cli', environmentService.logsPath, logLevel));
+		const loggers: ILogger[] = [];
+		loggers.push(new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, logLevel));
 		if (logLevel === LogLevel.Trace) {
-			loggers.push(new ConsoleLogService(logLevel));
+			loggers.push(new ConsoleLogger(logLevel));
 		}
 
 		const logService = this._register(new MultiplexLogService(loggers));

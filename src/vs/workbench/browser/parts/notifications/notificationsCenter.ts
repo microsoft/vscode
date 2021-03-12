@@ -59,7 +59,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
-		this._register(this.layoutService.onLayout(dimension => this.layout(Dimension.lift(dimension))));
+		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
 	}
 
 	get isVisible(): boolean {

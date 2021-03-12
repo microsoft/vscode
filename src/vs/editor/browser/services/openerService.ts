@@ -105,7 +105,7 @@ export class OpenerService implements IOpenerService {
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
+		@ICommandService commandService: ICommandService
 	) {
 		// Default external opener is going through window.open()
 		this._defaultExternalOpener = {
@@ -188,7 +188,9 @@ export class OpenerService implements IOpenerService {
 		for (const resolver of this._resolvers) {
 			const result = await resolver.resolveExternalUri(resource, options);
 			if (result) {
-				this._resolvedUriTargets.set(result.resolved, resource);
+				if (!this._resolvedUriTargets.has(result.resolved)) {
+					this._resolvedUriTargets.set(result.resolved, resource);
+				}
 				return result;
 			}
 		}

@@ -64,6 +64,8 @@ export namespace Schemas {
 
 	export const vscodeSettings = 'vscode-settings';
 
+	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
+
 	export const webviewPanel = 'webview-panel';
 
 	/**

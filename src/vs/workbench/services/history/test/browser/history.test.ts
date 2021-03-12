@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -25,9 +25,7 @@ suite('HistoryService', function () {
 	async function createServices(): Promise<[EditorPart, HistoryService, EditorService]> {
 		const instantiationService = workbenchInstantiationService();
 
-		const part = disposables.add(instantiationService.createInstance(EditorPart));
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+		const part = createEditorPart(instantiationService, disposables);
 
 		await part.whenRestored;
 

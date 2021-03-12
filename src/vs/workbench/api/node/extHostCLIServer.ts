@@ -156,8 +156,10 @@ export class CLIServerBase {
 	}
 
 	private async openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
-		for (const uri of data.uris) {
-			await this._commands.executeCommand('_remoteCLI.openExternal', URI.parse(uri), { allowTunneling: true });
+		for (const uriString of data.uris) {
+			const uri = URI.parse(uriString);
+			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
+			await this._commands.executeCommand('_remoteCLI.openExternal', urioOpen);
 		}
 		res.writeHead(200);
 		res.end();

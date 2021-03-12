@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,14 +21,14 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
 
-const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, nls.localize('maximizeIcon', 'Icon to maximize a panel.'));
-const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, nls.localize('restoreIcon', 'Icon to restore a panel.'));
-const closeIcon = registerIcon('panel-close', Codicon.close, nls.localize('closeIcon', 'Icon to close a panel.'));
+const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
+const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
+const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
 
 export class TogglePanelAction extends Action {
 
 	static readonly ID = 'workbench.action.togglePanel';
-	static readonly LABEL = nls.localize('togglePanel', "Toggle Panel");
+	static readonly LABEL = localize('togglePanel', "Toggle Panel");
 
 	constructor(
 		id: string,
@@ -46,7 +46,7 @@ export class TogglePanelAction extends Action {
 class FocusPanelAction extends Action {
 
 	static readonly ID = 'workbench.action.focusPanel';
-	static readonly LABEL = nls.localize('focusPanel', "Focus into Panel");
+	static readonly LABEL = localize('focusPanel', "Focus into Panel");
 
 	constructor(
 		id: string,
@@ -97,9 +97,9 @@ function createPositionPanelActionConfig(id: string, alias: string, label: strin
 }
 
 export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
-	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', nls.localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
-	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', nls.localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
-	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', nls.localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', localize('positionPanelLeft', 'Move Panel Left'), Position.LEFT),
+	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', localize('positionPanelRight', 'Move Panel Right'), Position.RIGHT),
+	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', localize('positionPanelBottom', 'Move Panel To Bottom'), Position.BOTTOM),
 ];
 
 const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
@@ -191,7 +191,7 @@ export class SwitchPanelViewAction extends Action {
 export class PreviousPanelViewAction extends SwitchPanelViewAction {
 
 	static readonly ID = 'workbench.action.previousPanelView';
-	static readonly LABEL = nls.localize('previousPanelView', 'Previous Panel View');
+	static readonly LABEL = localize('previousPanelView', 'Previous Panel View');
 
 	constructor(
 		id: string,
@@ -209,7 +209,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 export class NextPanelViewAction extends SwitchPanelViewAction {
 
 	static readonly ID = 'workbench.action.nextPanelView';
-	static readonly LABEL = nls.localize('nextPanelView', 'Next Panel View');
+	static readonly LABEL = localize('nextPanelView', 'Next Panel View');
 
 	constructor(
 		id: string,
@@ -234,12 +234,12 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleMaximizedPanel',
-			title: { value: nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel"), original: 'Toggle Maximized Panel' },
-			tooltip: nls.localize('maximizePanel', "Maximize Panel Size"),
+			title: { value: localize('toggleMaximizedPanel', "Toggle Maximized Panel"), original: 'Toggle Maximized Panel' },
+			tooltip: localize('maximizePanel', "Maximize Panel Size"),
 			category: CATEGORIES.View,
 			f1: true,
 			icon: maximizeIcon,
-			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: nls.localize('minimizePanel', "Restore Panel Size") },
+			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',
@@ -266,7 +266,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closePanel',
-			title: { value: nls.localize('closePanel', "Close Panel"), original: 'Close Panel' },
+			title: { value: localize('closePanel', "Close Panel"), original: 'Close Panel' },
 			category: CATEGORIES.View,
 			icon: closeIcon,
 			menu: [{
@@ -291,7 +291,7 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: TogglePanelAction.ID,
-				title: nls.localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
 				toggled: ActivePanelContext
 			},
 			order: 5
@@ -302,7 +302,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: TogglePanelAction.ID,
-				title: { value: nls.localize('hidePanel', "Hide Panel"), original: 'Hide Panel' },
+				title: { value: localize('hidePanel', "Hide Panel"), original: 'Hide Panel' },
 			},
 			when: ContextKeyExpr.and(PanelVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
 			order: 2

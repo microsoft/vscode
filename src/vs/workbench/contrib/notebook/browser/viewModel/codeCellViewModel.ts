@@ -23,14 +23,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
-	private _selfSizeMonitoring: boolean = false;
-	set selfSizeMonitoring(newVal: boolean) {
-		this._selfSizeMonitoring = newVal;
-	}
-
-	get selfSizeMonitoring() {
-		return this._selfSizeMonitoring;
-	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
@@ -56,6 +48,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	public set outputIsHovered(v: boolean) {
 		this._hoveringOutput = v;
 		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
+	}
+
+	private _outputMinHeight: number = 0;
+
+	get outputMinHeight() {
+		return this._outputMinHeight;
+	}
+
+	set outputMinHeight(newMin: number) {
+		this._outputMinHeight = newMin;
 	}
 
 	private _layoutInfo: CodeCellLayoutInfo;
@@ -116,7 +118,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		// recompute
 		this._ensureOutputsTop();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = this.metadata?.outputCollapsed ? COLLAPSED_INDICATOR_HEIGHT : this._outputsTop!.getTotalValue();
+		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.outputCollapsed ? COLLAPSED_INDICATOR_HEIGHT : this._outputsTop!.getTotalValue());
 
 		if (!this.metadata?.inputCollapsed) {
 			let newState: CodeCellLayoutState;
@@ -159,7 +161,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				layoutState: newState
 			};
 		} else {
-			outputTotalHeight = this.metadata?.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight;
+			outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight);
 			const indicatorHeight = COLLAPSED_INDICATOR_HEIGHT + outputTotalHeight + outputShowMoreContainerHeight;
 			const outputContainerOffset = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT;
 			const totalHeight = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_GAP + outputTotalHeight + outputShowMoreContainerHeight;

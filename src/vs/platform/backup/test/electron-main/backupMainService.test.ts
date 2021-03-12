@@ -17,7 +17,7 @@ import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, ISerializedWorkspace } from 'vs/platform/backup/node/backup';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ConsoleLogMainService } from 'vs/platform/log/common/log';
+import { ConsoleMainLogger, LogService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -111,7 +111,7 @@ flakySuite('BackupMainService', () => {
 		configService = new TestConfigurationService();
 		service = new class TestBackupMainService extends BackupMainService {
 			constructor() {
-				super(environmentService, configService, new ConsoleLogMainService());
+				super(environmentService, configService, new LogService(new ConsoleMainLogger()));
 
 				this.backupHome = backupHome;
 				this.workspacesJsonPath = backupWorkspacesPath;

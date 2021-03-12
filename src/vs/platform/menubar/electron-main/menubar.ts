@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemRecentAction, IMenubarMenuRecentItemAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -67,7 +67,7 @@ export class Menubar {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
 		@IStateService private readonly stateService: IStateService,
@@ -168,9 +168,9 @@ export class Menubar {
 		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
 
 		// // Listen to some events from window service to update menu
-		this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
-		this.nativeHostMainService.onDidBlurWindow(() => this.onWindowFocusChange());
-		this.nativeHostMainService.onDidFocusWindow(() => this.onWindowFocusChange());
+		this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e));
+		this.nativeHostMainService.onDidBlurWindow(() => this.onDidChangeWindowFocus());
+		this.nativeHostMainService.onDidFocusWindow(() => this.onDidChangeWindowFocus());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -225,7 +225,7 @@ export class Menubar {
 		}
 	}
 
-	private onWindowsCountChanged(e: IWindowsCountChangedEvent): void {
+	private onDidChangeWindowsCount(e: IWindowsCountChangedEvent): void {
 		if (!isMacintosh) {
 			return;
 		}
@@ -237,7 +237,7 @@ export class Menubar {
 		}
 	}
 
-	private onWindowFocusChange(): void {
+	private onDidChangeWindowFocus(): void {
 		if (!isMacintosh) {
 			return;
 		}
@@ -447,8 +447,8 @@ export class Menubar {
 				const submenuItem = new MenuItem({ label: this.mnemonicLabel(item.label), submenu });
 				this.setMenu(submenu, item.submenu.items);
 				menu.append(submenuItem);
-			} else if (isMenubarMenuItemUriAction(item)) {
-				menu.append(this.createOpenRecentMenuItem(item.uri, item.label, item.id));
+			} else if (isMenubarMenuItemRecentAction(item)) {
+				menu.append(this.createOpenRecentMenuItem(item));
 			} else if (isMenubarMenuItemAction(item)) {
 				if (item.id === 'workbench.action.showAboutDialog') {
 					this.insertCheckForUpdatesItems(menu);
@@ -487,22 +487,24 @@ export class Menubar {
 		}
 	}
 
-	private createOpenRecentMenuItem(uri: URI, label: string, commandId: string): MenuItem {
-		const revivedUri = URI.revive(uri);
+	private createOpenRecentMenuItem(item: IMenubarMenuRecentItemAction): MenuItem {
+		const revivedUri = URI.revive(item.uri);
+		const commandId = item.id;
 		const openable: IWindowOpenable =
 			(commandId === 'openRecentFile') ? { fileUri: revivedUri } :
 				(commandId === 'openRecentWorkspace') ? { workspaceUri: revivedUri } : { folderUri: revivedUri };
 
 		return new MenuItem(this.likeAction(commandId, {
-			label,
+			label: item.label,
 			click: (menuItem, win, event) => {
 				const openInNewWindow = this.isOptionClick(event);
 				const success = this.windowsMainService.open({
 					context: OpenContext.MENU,
-					cli: this.environmentService.args,
+					cli: this.environmentMainService.args,
 					urisToOpen: [openable],
 					forceNewWindow: openInNewWindow,
-					gotoLineMode: false
+					gotoLineMode: false,
+					remoteAuthority: item.remoteAuthority
 				}).length > 0;
 
 				if (!success) {
@@ -716,7 +718,7 @@ export class Menubar {
 		if (activeWindow) {
 			this.logService.trace('menubar#runActionInRenderer', invocation);
 
-			if (isMacintosh && !this.environmentService.isBuilt && !activeWindow.isReady) {
+			if (isMacintosh && !this.environmentMainService.isBuilt && !activeWindow.isReady) {
 				if ((invocation.type === 'commandId' && invocation.commandId === 'workbench.action.toggleDevTools') || (invocation.type !== 'commandId' && invocation.userSettingsLabel === 'alt+cmd+i')) {
 					// prevent this action from running twice on macOS (https://github.com/microsoft/vscode/issues/62719)
 					// we already register a keybinding in bootstrap-window.js for opening developer tools in case something

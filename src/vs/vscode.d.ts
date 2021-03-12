@@ -2271,10 +2271,14 @@ declare module 'vscode' {
 		 * there is a currently active editor.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 *
+		 * @return An array of code actions, such as quick fixes or refactorings. The lack of a result can be signaled
+		 * by returning `undefined`, `null`, or an empty array.
+		 *
+		 * We also support returning `Command` for legacy reasons, however all new extensions should return
+		 * `CodeAction` object instead.
 		 */
-		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | T)[]>;
 
 		/**
 		 * Given a code action fill in its [`edit`](#CodeAction.edit)-property. Changes to
@@ -7903,6 +7907,24 @@ declare module 'vscode' {
 		export const sessionId: string;
 
 		/**
+		 * Indicates that this is a fresh install of the application.
+		 * `true` if within the first day of installation otherwise `false`.
+		 */
+		export const isNewAppInstall: boolean;
+
+		/**
+		 * Indicates whether the users has telemetry enabled.
+		 * Can be observed to determine if the extension should send telemetry.
+		 */
+		export const isTelemetryEnabled: boolean;
+
+		/**
+		 * An [event](#Event) which fires when the user enabled or disables telemetry.
+		 * `true` if the user has enabled telemetry or `false` if the user has disabled telemetry.
+		 */
+		export const onDidChangeTelemetryEnabled: Event<boolean>;
+
+		/**
 		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
 		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
 		 *
@@ -10050,9 +10072,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for dealing with the current workspace. A workspace is the representation
-	 * of the folder that has been opened. There is no workspace when just a file but not a
-	 * folder has been opened.
+	 * Namespace for dealing with the current workspace. A workspace is the collection of one
+	 * or more folders that are opened in a VS Code window (instance).
+	 *
+	 * It is also possible to open VS Code without a workspace. For example, when you open a
+	 * new VS Code window by selecting a file from your platform's File menu, you will not be
+	 * inside a workspace. In this mode, some of VS Code's capabilities are reduced but you can
+	 * still open text files and edit them.
+	 *
+	 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+	 * the concept of workspaces in VS Code.
 	 *
 	 * The workspace offers support for [listening](#workspace.createFileSystemWatcher) to fs
 	 * events and for [finding](#workspace.findFiles) files. Both perform well and run _outside_
@@ -10069,22 +10098,33 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * The folder that is open in the editor. `undefined` when no folder
+		 * The workspace folder that is open in VS Code. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
 		 */
 		export const rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders or `undefined` when no folder is open.
+		 * List of workspace folders that are open in VS Code. `undefined when no workspace
+		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
+		 *
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
 		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
 
 		/**
-		 * The name of the workspace. `undefined` when no folder
+		 * The name of the workspace. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 */
 		export const name: string | undefined;
 
@@ -10100,7 +10140,7 @@ declare module 'vscode' {
 		 * for a workspace that is untitled and not yet saved.
 		 *
 		 * Depending on the workspace that is opened, the value will be:
-		 *  * `undefined` when no workspace or  a single folder is opened
+		 *  * `undefined` when no workspace is opened
 		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
 		 * is untitled, the returned URI will use the `untitled:` scheme
 		 *
@@ -10111,6 +10151,9 @@ declare module 'vscode' {
 		 * ```typescript
 		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
 		 * ```
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 *
 		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
 		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
@@ -11488,7 +11531,7 @@ declare module 'vscode' {
 		readonly path: string;
 
 		/**
-		 * Create a description for a debug adapter running as a socket based server.
+		 * Create a description for a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
 		 */
 		constructor(path: string);
 	}
@@ -12332,6 +12375,84 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options for creating an [AuthenticationProvider](#AuthenticationProvider).
+	 */
+	export interface AuthenticationProviderOptions {
+		/**
+		 * Whether it is possible to be signed into multiple accounts at once with this provider.
+		 * If not specified, will default to false.
+		*/
+		readonly supportsMultipleAccounts?: boolean;
+	}
+
+	/**
+	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
+	*/
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
+		/**
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been added.
+		*/
+		readonly added?: ReadonlyArray<AuthenticationSession>;
+
+		/**
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been removed.
+		 */
+		readonly removed?: ReadonlyArray<AuthenticationSession>;
+
+		/**
+		 * The [AuthenticationSession](#AuthenticationSession)s of the [AuthenticationProvider](#AuthentiationProvider) that have been changed.
+		 * A session changes when its data excluding the id are updated. An example of this is a session refresh that results in a new
+		 * access token being set for the session.
+		 */
+		readonly changed?: ReadonlyArray<AuthenticationSession>;
+	}
+
+	/**
+	 * A provider for performing authentication to a service.
+	 */
+	export interface AuthenticationProvider {
+		/**
+		 * An [event](#Event) which fires when the array of sessions has changed, or data
+		 * within a session has changed.
+		 */
+		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
+
+		/**
+		 * Get a list of sessions.
+		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
+		 * these permissions, otherwise all sessions should be returned.
+		 * @returns A promise that resolves to an array of authentication sessions.
+		 */
+		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
+
+		/**
+		 * Prompts a user to login.
+		 *
+		 * If login is successful, the onDidChangeSessions event should be fired.
+		 *
+		 * If login fails, a rejected promise should be returned.
+		 *
+		 * If the provider has specified that it does not support multiple accounts,
+		 * then this should never be called if there is already an existing session matching these
+		 * scopes.
+		 * @param scopes A list of scopes, permissions, that the new session should be created with.
+		 * @returns A promise that resolves to an authentication session.
+		 */
+		createSession(scopes: string[]): Thenable<AuthenticationSession>;
+
+		/**
+		 * Removes the session corresponding to session id.
+		 *
+		 * If the removal is successful, the onDidChangeSessions event should be fired.
+		 *
+		 * If a session cannot be removed, the provider should reject with an error message.
+		 * @param sessionId The id of the session to remove.
+		 */
+		removeSession(sessionId: string): Thenable<void>;
+	}
+
+
+	/**
 	 * Namespace for authentication.
 	 */
 	export namespace authentication {
@@ -12370,6 +12491,20 @@ declare module 'vscode' {
 		 * been added, removed, or changed.
 		 */
 		export const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+
+		/**
+		 * Register an authentication provider.
+		 *
+		 * There can only be one provider per id and an error is being thrown when an id
+		 * has already been used by another provider. Ids are case-sensitive.
+		 *
+		 * @param id The unique identifier of the provider.
+		 * @param label The human-readable name of the provider.
+		 * @param provider The authentication provider provider.
+		 * @params options Additional options for the provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
 	}
 }
 

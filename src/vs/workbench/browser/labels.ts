@@ -22,6 +22,7 @@ import { getIconClasses, detectModeId } from 'vs/editor/common/services/getIconC
 import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI, secondary?: URI };
@@ -379,7 +380,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 
 			if (!name) {
-				name = basenameOrAuthority(resource);
+				name = normalizeDriveLetter(basenameOrAuthority(resource));
 			}
 		}
 

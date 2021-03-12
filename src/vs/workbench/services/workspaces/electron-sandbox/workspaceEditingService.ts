@@ -65,9 +65,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	private registerListeners(): void {
 		this.lifecycleService.onBeforeShutdown(e => {
 			const saveOperation = this.saveUntitledBeforeShutdown(e.reason);
-			if (saveOperation) {
-				e.veto(saveOperation, 'veto.untitledWorkspace');
-			}
+			e.veto(saveOperation, 'veto.untitledWorkspace');
 		});
 	}
 
@@ -126,7 +124,8 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
 					await this.workspacesService.addRecentlyOpened([{
 						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
-						workspace: newWorkspaceIdentifier
+						workspace: newWorkspaceIdentifier,
+						remoteAuthority: this.environmentService.remoteAuthority
 					}]);
 
 					// Delete the untitled one

@@ -10,11 +10,11 @@ import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mo
 // Expressions
 
 function assertWatchExpressions(watchExpressions: Expression[], expectedName: string) {
-	assert.equal(watchExpressions.length, 2);
+	assert.strictEqual(watchExpressions.length, 2);
 	watchExpressions.forEach(we => {
-		assert.equal(we.available, false);
-		assert.equal(we.reference, 0);
-		assert.equal(we.name, expectedName);
+		assert.strictEqual(we.available, false);
+		assert.strictEqual(we.reference, 0);
+		assert.strictEqual(we.name, expectedName);
 	});
 }
 
@@ -27,7 +27,7 @@ suite('Debug - Watch', () => {
 	});
 
 	test('watch expressions', () => {
-		assert.equal(model.getWatchExpressions().length, 0);
+		assert.strictEqual(model.getWatchExpressions().length, 0);
 		model.addWatchExpression('console');
 		model.addWatchExpression('console');
 		let watchExpressions = model.getWatchExpressions();
@@ -42,11 +42,11 @@ suite('Debug - Watch', () => {
 		model.addWatchExpression('mockExpression');
 		model.moveWatchExpression(model.getWatchExpressions()[2].getId(), 1);
 		watchExpressions = model.getWatchExpressions();
-		assert.equal(watchExpressions[0].name, 'new_name');
-		assert.equal(watchExpressions[1].name, 'mockExpression');
-		assert.equal(watchExpressions[2].name, 'new_name');
+		assert.strictEqual(watchExpressions[0].name, 'new_name');
+		assert.strictEqual(watchExpressions[1].name, 'mockExpression');
+		assert.strictEqual(watchExpressions[2].name, 'new_name');
 
 		model.removeWatchExpressions();
-		assert.equal(model.getWatchExpressions().length, 0);
+		assert.strictEqual(model.getWatchExpressions().length, 0);
 	});
 });

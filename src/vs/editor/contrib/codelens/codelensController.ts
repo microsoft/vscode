@@ -108,7 +108,7 @@ export class CodeLensContribution implements IEditorContribution {
 			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: var(${fontFamilyVar})}`;
 		}
 		this._styleElement.textContent = newStyle;
-		this._editor.getDomNode()?.style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
+		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
 
 		//
 		this._editor.changeViewZones(accessor => {

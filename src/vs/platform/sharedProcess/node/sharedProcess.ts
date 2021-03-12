@@ -23,8 +23,6 @@ export interface ISharedProcessConfiguration {
 
 	readonly userEnv: NodeJS.ProcessEnv;
 
-	readonly sharedIPCHandle: string;
-
 	readonly args: NativeParsedArgs;
 
 	readonly logLevel: LogLevel;

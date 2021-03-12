@@ -53,7 +53,12 @@ suite('ExtHostWebview', () => {
 
 		const serializerARegistration = extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerA);
 
-		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorGroupColumn, {});
+		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, {
+			title: 'title',
+			state: {},
+			panelOptions: {},
+			webviewOptions: {}
+		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
@@ -64,7 +69,12 @@ suite('ExtHostWebview', () => {
 
 		extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB);
 
-		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorGroupColumn, {});
+		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, {
+			title: 'title',
+			state: {},
+			panelOptions: {},
+			webviewOptions: {}
+		}, 0 as EditorGroupColumn);
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 

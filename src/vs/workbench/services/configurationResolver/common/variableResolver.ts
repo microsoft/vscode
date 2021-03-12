@@ -20,6 +20,7 @@ export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
 	getWorkspaceFolderCount(): number;
 	getConfigurationValue(folderUri: uri | undefined, section: string): string | undefined;
+	getAppRoot(): string | undefined;
 	getExecPath(): string | undefined;
 	getFilePath(): string | undefined;
 	getWorkspaceFolderPathForFile?(): string | undefined;
@@ -313,12 +314,20 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						}
 						return match;
 
+					case 'execInstallFolder':
+						const ar = this._context.getAppRoot();
+						if (ar) {
+							return ar;
+						}
+						return match;
+
 					case 'pathSeparator':
 						return paths.sep;
 
 					default:
 						try {
-							return this.resolveFromMap(match, variable, commandValueMapping, undefined);
+							const key = argument ? `${variable}:${argument}` : variable;
+							return this.resolveFromMap(match, key, commandValueMapping, undefined);
 						} catch (error) {
 							return match;
 						}

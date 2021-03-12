@@ -17,7 +17,7 @@ suite('vscode API - workspace events', () => {
 		disposables.length = 0;
 	});
 
-	test('onWillCreate/onDidCreate', async function () {
+	test('onWillCreate/onDidCreate', withLogDisabled(async function () {
 
 		const base = await createRandomFile();
 		const newUri = base.with({ path: base.path + '-foo' });
@@ -41,9 +41,9 @@ suite('vscode API - workspace events', () => {
 		assert.ok(onDidCreate);
 		assert.equal(onDidCreate?.files.length, 1);
 		assert.equal(onDidCreate?.files[0].toString(), newUri.toString());
-	});
+	}));
 
-	test('onWillCreate/onDidCreate, make changes, edit another file', async function () {
+	test('onWillCreate/onDidCreate, make changes, edit another file', withLogDisabled(async function () {
 
 		const base = await createRandomFile();
 		const baseDoc = await vscode.workspace.openTextDocument(base);
@@ -63,7 +63,7 @@ suite('vscode API - workspace events', () => {
 		assert.ok(success);
 
 		assert.equal(baseDoc.getText(), 'HALLO_NEW');
-	});
+	}));
 
 	test('onWillCreate/onDidCreate, make changes, edit new file fails', withLogDisabled(async function () {
 
@@ -87,7 +87,7 @@ suite('vscode API - workspace events', () => {
 		assert.equal((await vscode.workspace.openTextDocument(newUri)).getText(), '');
 	}));
 
-	test('onWillDelete/onDidDelete', async function () {
+	test('onWillDelete/onDidDelete', withLogDisabled(async function () {
 
 		const base = await createRandomFile();
 
@@ -110,9 +110,9 @@ suite('vscode API - workspace events', () => {
 		assert.ok(onDiddelete);
 		assert.equal(onDiddelete?.files.length, 1);
 		assert.equal(onDiddelete?.files[0].toString(), base.toString());
-	});
+	}));
 
-	test('onWillDelete/onDidDelete, make changes', async function () {
+	test('onWillDelete/onDidDelete, make changes', withLogDisabled(async function () {
 
 		const base = await createRandomFile();
 		const newUri = base.with({ path: base.path + '-NEW' });
@@ -130,9 +130,9 @@ suite('vscode API - workspace events', () => {
 
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.ok(success);
-	});
+	}));
 
-	test('onWillDelete/onDidDelete, make changes, del another file', async function () {
+	test('onWillDelete/onDidDelete, make changes, del another file', withLogDisabled(async function () {
 
 		const base = await createRandomFile();
 		const base2 = await createRandomFile();
@@ -151,9 +151,9 @@ suite('vscode API - workspace events', () => {
 		assert.ok(success);
 
 
-	});
+	}));
 
-	test('onWillDelete/onDidDelete, make changes, double delete', async function () {
+	test('onWillDelete/onDidDelete, make changes, double delete', withLogDisabled(async function () {
 
 		const base = await createRandomFile();
 		let cnt = 0;
@@ -170,9 +170,9 @@ suite('vscode API - workspace events', () => {
 
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.ok(success);
-	});
+	}));
 
-	test('onWillRename/onDidRename', async function () {
+	test('onWillRename/onDidRename', withLogDisabled(async function () {
 
 		const oldUri = await createRandomFile();
 		const newUri = oldUri.with({ path: oldUri.path + '-NEW' });
@@ -198,15 +198,15 @@ suite('vscode API - workspace events', () => {
 		assert.equal(onDidRename?.files.length, 1);
 		assert.equal(onDidRename?.files[0].oldUri.toString(), oldUri.toString());
 		assert.equal(onDidRename?.files[0].newUri.toString(), newUri.toString());
-	});
+	}));
 
-	test('onWillRename - make changes (saved file)', function () {
+	test('onWillRename - make changes (saved file)', withLogDisabled(function () {
 		return testOnWillRename(false);
-	});
+	}));
 
-	test('onWillRename - make changes (dirty file)', function () {
+	test('onWillRename - make changes (dirty file)', withLogDisabled(function () {
 		return testOnWillRename(true);
-	});
+	}));
 
 	async function testOnWillRename(withDirtyFile: boolean): Promise<void> {
 

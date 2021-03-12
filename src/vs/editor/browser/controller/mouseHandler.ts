@@ -42,6 +42,7 @@ export interface IPointerHandlerHelper {
 	linesContentDomNode: HTMLElement;
 
 	focusTextArea(): void;
+	dispatchTextAreaEvent(event: CustomEvent): void;
 
 	/**
 	 * Get the last rendered information for cursors & textarea.
@@ -70,6 +71,7 @@ export class MouseHandler extends ViewEventHandler {
 	protected mouseTargetFactory: MouseTargetFactory;
 	protected readonly _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
+	private _height: number;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
@@ -88,6 +90,7 @@ export class MouseHandler extends ViewEventHandler {
 		));
 
 		this.lastMouseLeaveTime = -1;
+		this._height = this._context.configuration.options.get(EditorOption.layoutInfo).height;
 
 		const mouseEvents = new EditorMouseEventFactory(this.viewHelper.viewDomNode);
 
@@ -112,7 +115,9 @@ export class MouseHandler extends ViewEventHandler {
 			const e = new StandardWheelEvent(browserEvent);
 			const doMouseWheelZoom = (
 				platform.isMacintosh
-					? (browserEvent.metaKey && !browserEvent.ctrlKey && !browserEvent.shiftKey && !browserEvent.altKey)
+					// on macOS we support cmd + two fingers scroll (`metaKey` set)
+					// and also the two fingers pinch gesture (`ctrKey` set)
+					? ((browserEvent.metaKey || browserEvent.ctrlKey) && !browserEvent.shiftKey && !browserEvent.altKey)
 					: (browserEvent.ctrlKey && !browserEvent.metaKey && !browserEvent.shiftKey && !browserEvent.altKey)
 			);
 			if (doMouseWheelZoom) {
@@ -134,6 +139,17 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	// --- begin event handlers
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.hasChanged(EditorOption.layoutInfo)) {
+			// layout change
+			const height = this._context.configuration.options.get(EditorOption.layoutInfo).height;
+			if (this._height !== height) {
+				this._height = height;
+				this._mouseDownOperation.onHeightChanged();
+			}
+		}
+		return false;
+	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._mouseDownOperation.onCursorStateChanged(e);
 		return false;
@@ -398,6 +414,10 @@ class MouseDownOperation extends Disposable {
 	private _stop(): void {
 		this._isActive = false;
 		this._onScrollTimeout.cancel();
+	}
+
+	public onHeightChanged(): void {
+		this._mouseMoveMonitor.stopMonitoring();
 	}
 
 	public onScrollChanged(): void {

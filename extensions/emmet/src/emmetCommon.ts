@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { DefaultCompletionItemProvider } from './defaultCompletionProvider';
-import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from './abbreviationActions';
+import { expandEmmetAbbreviation, wrapWithAbbreviation } from './abbreviationActions';
 import { removeTag } from './removeTag';
 import { updateTag } from './updateTag';
 import { matchTag } from './matchTag';
@@ -17,19 +17,17 @@ import { fetchEditPoint } from './editPoint';
 import { fetchSelectItem } from './selectItem';
 import { evaluateMathExpression } from './evaluateMathExpression';
 import { incrementDecrement } from './incrementDecrement';
-import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, getPathBaseName, getSyntaxes, getEmmetMode } from './util';
+import { LANGUAGE_MODES, getMappingForIncludedLanguages, updateEmmetExtensionsPath, migrateEmmetExtensionsPath, getPathBaseName, getSyntaxes, getEmmetMode } from './util';
 import { reflectCssValue } from './reflectCssValue';
 import { addFileToParseCache, removeFileFromParseCache } from './parseDocument';
 
 export function activateEmmetExtension(context: vscode.ExtensionContext) {
+	migrateEmmetExtensionsPath();
 	registerCompletionProviders(context);
+	updateEmmetExtensionsPath();
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapWithAbbreviation', (args) => {
 		wrapWithAbbreviation(args);
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.wrapIndividualLinesWithAbbreviation', (args) => {
-		wrapIndividualLinesWithAbbreviation(args);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('emmet.expandAbbreviation', (args) => {
@@ -128,8 +126,6 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('workbench.action.showEmmetCommands', () => {
 		vscode.commands.executeCommand('workbench.action.quickOpen', '>Emmet: ');
 	}));
-
-	updateEmmetExtensionsPath();
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => {
 		if (e.affectsConfiguration('emmet.includeLanguages')) {
