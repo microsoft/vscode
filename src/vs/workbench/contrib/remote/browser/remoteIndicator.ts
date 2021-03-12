@@ -24,6 +24,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -53,7 +54,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -200,10 +202,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
+			return;
 		}
 
 		// Remote Authority: show connection state
-		else if (this.remoteAuthority) {
+		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
@@ -218,18 +221,32 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				default:
 					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel));
 			}
+			return;
+		}
+		// workspace with label
+		const workspaceLabel = this.getWorkspaceLabel();
+		if (workspaceLabel) {
+			this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, nls.localize('workspace.tooltip', "Editing on {0}", workspaceLabel));
+			return;
 		}
 
-		// Remote Extensions Installed: offer the indicator to show actions
-		else if (this.remoteMenu.getActions().length > 0) {
+		if (this.remoteMenu.getActions().length > 0) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
 		}
-
 		// No Remote Extensions: hide status indicator
 		else {
 			dispose(this.remoteStatusEntry);
 			this.remoteStatusEntry = undefined;
 		}
+	}
+
+	private getWorkspaceLabel() {
+		const workspace = this.workspaceContextService.getWorkspace();
+		const loc = workspace.configuration || workspace.folders.length === 1 ? workspace.folders[0].uri : undefined;
+		if (loc) {
+			return this.labelService.getHostLabel(loc.scheme, loc.authority);
+		}
+		return undefined;
 	}
 
 	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string, showProgress?: boolean): void {
