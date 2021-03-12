@@ -170,6 +170,12 @@ export class ExplorerService implements IExplorerService {
 		return this.model.findClosest(resource);
 	}
 
+	findClosestRoot(resource: URI): ExplorerItem | null {
+		const parentRoots = this.model.roots.filter(r => this.uriIdentityService.extUri.isEqualOrParent(resource, r.resource))
+			.sort((first, second) => second.resource.path.length - first.resource.path.length);
+		return parentRoots.length ? parentRoots[0] : null;
+	}
+
 	async setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void> {
 		if (!this.view) {
 			return;
