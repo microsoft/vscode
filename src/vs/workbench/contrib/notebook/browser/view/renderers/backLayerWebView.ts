@@ -454,11 +454,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div.preview h1 {
-						padding-bottom: 0.3em;
-						line-height: 1.2;
+						font-size: 26px;
+						padding-bottom: 8px;
+						line-height: 31px;
 						border-bottom-width: 1px;
 						border-bottom-style: solid;
 						border-color: var(--vscode-foreground);
+						margin: 0;
+						margin-bottom: 13px;
+					}
+
+					#container > div > div.preview h2 {
+						font-size: 19px;
+						margin: 0;
+						margin-bottom: 10px;
 					}
 
 					#container > div > div.preview h1,
